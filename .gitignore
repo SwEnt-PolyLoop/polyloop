@@ -1,3 +1,12 @@
+/.idea/
+.DS_Store
+.gradle
+/local.properties
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
 # Gradle files
 .gradle/
 build/
@@ -28,7 +37,6 @@ render.experimental.xml
 *.keystore
 
 # Google Services (e.g. APIs or Firebase)
-google-services.json
 
 # Android Profiling
 *.hprof
