@@ -1,4 +1,4 @@
-package com.android.sample.ui.theme
+package com.swent.polyloop.ui.theme
 
 import android.app.Activity
 import android.os.Build
@@ -16,13 +16,13 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme =
-    darkColorScheme(primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80)
+    darkColorScheme(primary = _root_ide_package_.com.swent.polyloop.ui.theme.Purple80, secondary = _root_ide_package_.com.swent.polyloop.ui.theme.PurpleGrey80, tertiary = _root_ide_package_.com.swent.polyloop.ui.theme.Pink80)
 
 private val LightColorScheme =
     lightColorScheme(
-        primary = Purple40,
-        secondary = PurpleGrey40,
-        tertiary = Pink40,
+        primary = _root_ide_package_.com.swent.polyloop.ui.theme.Purple40,
+        secondary = _root_ide_package_.com.swent.polyloop.ui.theme.PurpleGrey40,
+        tertiary = _root_ide_package_.com.swent.polyloop.ui.theme.Pink40,
 
         /* Other default colors to override
         background = Color(0xFFFFFBFE),
@@ -48,8 +48,8 @@ fun SampleAppTheme(
           val context = LocalContext.current
           if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        darkTheme -> _root_ide_package_.com.swent.polyloop.ui.theme.DarkColorScheme
+        else -> _root_ide_package_.com.swent.polyloop.ui.theme.LightColorScheme
       }
   val view = LocalView.current
   if (!view.isInEditMode) {
