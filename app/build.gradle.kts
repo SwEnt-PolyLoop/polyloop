@@ -5,15 +5,16 @@ plugins {
   alias(libs.plugins.kotlinCompose)
   alias(libs.plugins.ktfmt)
   alias(libs.plugins.sonar)
+  alias(libs.plugins.googleServices)
   id("jacoco")
 }
 
 android {
-  namespace = "com.android.sample"
+  namespace = "com.swent.polyloop"
   compileSdk = 37
 
   defaultConfig {
-    applicationId = "com.android.sample"
+    applicationId = "com.swent.polyloop"
     minSdk = 28
     targetSdk = 34
     versionCode = 1
@@ -150,6 +151,11 @@ dependencies {
 
   // ----------       Robolectric     ------------
   testImplementation(libs.robolectric)
+
+  // ----------        FireBase       -------------
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.auth)
+  implementation(libs.firebase.firestore)
 }
 
 tasks.withType<Test> {
