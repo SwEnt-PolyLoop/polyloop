@@ -3,10 +3,10 @@ name: CI - Test Runner
 # Run the workflow when commits are pushed on main or when a PR is modified
 on:
   push:
-    branches:
-      - main
+    branches: [ main, master ]
 
   pull_request:
+    branches: [ main, master ]
     types:
       - opened
       - synchronize
