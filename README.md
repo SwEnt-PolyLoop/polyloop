@@ -13,3 +13,6 @@ We target budget-conscious university students:
 - Sofia, 18, a first-year who needs a graphing calculator for exams without blowing her budget
 
 PolyLoop turns every campus into a shared closet.
+
+## Designs 
+[Figma mockups](https://www.figma.com/design/zIY3U7Iz20RxrVlxwa0fzB/SwEnt-PolyLoop?node-id=0-1&t=kkSRvAukBZsD3PTr-1)
