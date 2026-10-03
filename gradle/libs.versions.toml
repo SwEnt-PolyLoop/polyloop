@@ -13,8 +13,7 @@ composeActivity = "1.13.0"
 composeViewModel = "2.11.0"
 lifecycleRuntimeKtx = "2.11.0"
 kaspresso = "1.6.1"
-robolectric = "4.16.1"
-sonar = "4.4.1.3373"
+sonar = "7.3.1.8318"
 googleServices = "4.5.0"
 firebaseBom = "34.19.0"
 
@@ -40,8 +39,6 @@ compose-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifes
 
 kaspresso = { group = "com.kaspersky.android-components", name = "kaspresso", version.ref = "kaspresso" }
 kaspresso-compose = { group = "com.kaspersky.android-components", name = "kaspresso-compose-support", version.ref = "kaspresso" }
-
-robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
