@@ -13,21 +13,19 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import com.swent.polyloop.resources.C
-import com.swent.polyloop.ui.theme.SampleAppTheme
+import com.swent.polyloop.ui.theme.PolyLoopTheme
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContent {
-      _root_ide_package_.com.swent.polyloop.ui.theme.SampleAppTheme {
+      PolyLoopTheme {
         // A surface container using the 'background' color from the theme
         Surface(
-          modifier = Modifier.fillMaxSize().semantics {
-            testTag = _root_ide_package_.com.swent.polyloop.resources.C.Tag.main_screen_container
-          },
-          color = MaterialTheme.colorScheme.background,
+            modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.main_screen_container },
+            color = MaterialTheme.colorScheme.background,
         ) {
-          _root_ide_package_.com.swent.polyloop.Greeting("Android")
+          Greeting("Android")
         }
       }
     }
@@ -36,15 +34,11 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
-  Text(text = "Hello $name!", modifier = modifier.semantics { testTag = _root_ide_package_.com.swent.polyloop.resources.C.Tag.greeting })
+  Text(text = "Hello $name!", modifier = modifier.semantics { testTag = C.Tag.greeting })
 }
 
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
-  _root_ide_package_.com.swent.polyloop.ui.theme.SampleAppTheme {
-    _root_ide_package_.com.swent.polyloop.Greeting(
-      "Android"
-    )
-  }
+  PolyLoopTheme { Greeting("Android") }
 }
