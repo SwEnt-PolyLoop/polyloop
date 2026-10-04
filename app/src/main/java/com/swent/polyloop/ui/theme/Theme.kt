@@ -23,6 +23,7 @@ private val LightColorScheme =
         primary = Purple40,
         secondary = PurpleGrey40,
         tertiary = Pink40,
+        // If these values ever change, modify the asserts in PolyLoopThemeTest
 
         /* Other default colors to override
         background = Color(0xFFFFFBFE),
