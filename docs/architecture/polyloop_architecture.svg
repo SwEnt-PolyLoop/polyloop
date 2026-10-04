@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="1128" viewBox="0 0 1560 1128">
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect width="1560" height="1128" fill="#FFFFFF"/>
+<text x="40" y="40" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="bold" fill="#2C2C2A">PolyLoop architecture</text>
+<rect x="40" y="64" width="1480" height="242" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
+<text x="60" y="86" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">UI layer: screens (Compose)</text>
+<rect x="60.0" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="144.8" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Sign-up / login</text>
+<rect x="241.5" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="326.2" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Profile &amp; reviews</text>
+<rect x="423.0" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="507.8" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Chat list</text>
+<rect x="423.0" y="168.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="507.8" y="195.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Chat</text>
+<rect x="604.5" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="689.2" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Browse</text>
+<text x="689.2" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">map + list</text>
+<rect x="604.5" y="168.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="689.2" y="195.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Listing detail</text>
+<rect x="604.5" y="232.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="689.2" y="251.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Create listing</text>
+<text x="689.2" y="270.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">+ edit</text>
+<rect x="786.0" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="870.8" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">My rentals</text>
+<rect x="786.0" y="168.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="870.8" y="195.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Rental detail</text>
+<rect x="967.5" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="1052.2" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Handover</text>
+<text x="1052.2" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">pickup + return</text>
+<rect x="1149.0" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="1233.8" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Dispute</text>
+<rect x="1149.0" y="168.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="1233.8" y="195.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Admin court ruling</text>
+<rect x="1330.5" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="1415.2" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Wallet</text>
+<text x="1415.2" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">balance, recharge</text>
+<line x1="144.8" y1="312" x2="144.8" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="326.2" y1="312" x2="326.2" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="507.8" y1="312" x2="507.8" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="689.2" y1="312" x2="689.2" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="870.8" y1="312" x2="870.8" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="1052.2" y1="312" x2="1052.2" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="1233.8" y1="312" x2="1233.8" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<line x1="1415.2" y1="312" x2="1415.2" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
+<rect x="40" y="352" width="1480" height="134" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
+<text x="60" y="374" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">ViewModel layer: one per feature (UI state + user actions)</text>
+<rect x="60.0" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+<text x="144.8" y="419.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">AuthViewModel</text>
+<rect x="241.5" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+<text x="326.2" y="419.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">ProfileViewModel</text>
+<rect x="423.0" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+<text x="507.8" y="419.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">ChatViewModel</text>
+<rect x="604.5" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+<text x="689.2" y="419.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">ListingViewModel</text>
+<rect x="786.0" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+<text x="870.8" y="419.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">RentalViewModel</text>
+<rect x="967.5" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+<text x="1052.2" y="419.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">HandoverViewModel</text>
+<rect x="1149.0" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+<text x="1233.8" y="419.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">DisputeViewModel</text>
+<rect x="1330.5" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+<text x="1415.2" y="419.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">WalletViewModel</text>
+<text x="689.2" y="462.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">+ RentalRepository (request)</text>
+<line x1="144.8" y1="492" x2="144.8" y2="526" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="326.2" y1="492" x2="326.2" y2="526" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="507.8" y1="492" x2="507.8" y2="526" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="689.2" y1="492" x2="689.2" y2="526" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="870.8" y1="492" x2="870.8" y2="526" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="1052.2" y1="492" x2="1052.2" y2="526" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="1233.8" y1="492" x2="1233.8" y2="526" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="1415.2" y1="492" x2="1415.2" y2="526" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="40" y="532" width="1480" height="224" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
+<text x="60" y="554" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">Data layer: feature repositories (on device)</text>
+<rect x="60.0" y="572.0" width="169.5" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+<text x="144.8" y="599.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">AuthRepository</text>
+<text x="144.8" y="642.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firebase Auth</text>
+<rect x="241.5" y="572.0" width="169.5" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+<text x="326.2" y="599.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">ProfileRepository</text>
+<text x="326.2" y="642.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firestore, Storage</text>
+<rect x="423.0" y="572.0" width="169.5" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+<text x="507.8" y="599.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">ChatRepository</text>
+<text x="507.8" y="642.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firestore</text>
+<rect x="604.5" y="572.0" width="169.5" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+<text x="689.2" y="599.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">ListingRepository</text>
+<text x="689.2" y="642.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firestore, Storage</text>
+<rect x="786.0" y="572.0" width="169.5" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+<text x="870.8" y="599.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">RentalRepository</text>
+<text x="870.8" y="642.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firestore, Storage, Functions</text>
+<path d="M870.8 652V689H963" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="967.5" y="572.0" width="169.5" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+<text x="1052.2" y="599.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">HandoverRepository</text>
+<rect x="1149.0" y="572.0" width="169.5" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+<text x="1233.8" y="599.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">DisputeRepository</text>
+<text x="1233.8" y="642.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firestore, Storage, Functions</text>
+<rect x="1330.5" y="572.0" width="169.5" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+<text x="1415.2" y="599.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">WalletRepository</text>
+<text x="1415.2" y="642.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firestore, Functions</text>
+<line x1="1052.2" y1="630" x2="1052.2" y2="658" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="967.5" y="662.0" width="169.5" height="54.0" rx="8" fill="#FFFFFF" stroke="#185FA5" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="1052.2" y="681.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">Local upload queue</text>
+<text x="1052.2" y="700.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#185FA5">WorkManager: photos + QR</text>
+<text x="1052.2" y="732.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Storage, Functions</text>
+<line x1="780.0" y1="762" x2="780.0" y2="796" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="40" y="802" width="1480" height="120" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
+<text x="60" y="824" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">Firebase backend</text>
+<rect x="60.0" y="842.0" width="278.4" height="60.0" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="199.2" y="864.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#2C2C2A">Firebase Auth</text>
+<text x="199.2" y="883.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">EPFL email, admin claim</text>
+<rect x="350.4" y="842.0" width="278.4" height="60.0" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="489.6" y="864.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#2C2C2A">Firestore</text>
+<text x="489.6" y="883.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">source of truth, security rules</text>
+<rect x="640.8" y="842.0" width="278.4" height="60.0" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="780.0" y="864.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#2C2C2A">Cloud Storage</text>
+<text x="780.0" y="883.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">photos + ruling PDFs</text>
+<rect x="931.2" y="842.0" width="278.4" height="60.0" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="1070.4" y="864.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#2C2C2A">Cloud Functions</text>
+<text x="1070.4" y="883.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">state, money, QR, LLM, geocoding, jobs</text>
+<rect x="1221.6" y="842.0" width="278.4" height="60.0" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="1360.8" y="864.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#2C2C2A">FCM</text>
+<text x="1360.8" y="883.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">push notifications to app</text>
+<line x1="1070.4" y1="906" x2="1070.4" y2="1004" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M960 906V945H600V1004" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="40" y="968" width="1480" height="120" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
+<text x="60" y="990" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">External services</text>
+<rect x="60.0" y="1008.0" width="714.0" height="60.0" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="1"/>
+<text x="417.0" y="1030.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#633806">Google Maps Platform</text>
+<text x="417.0" y="1049.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#854F0B">Maps SDK in the app; Geocoding API via Cloud Functions</text>
+<rect x="786.0" y="1008.0" width="714.0" height="60.0" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="1"/>
+<text x="1143.0" y="1030.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#633806">Gemini API</text>
+<text x="1143.0" y="1049.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#854F0B">LLM judge + ruling reading, called by Cloud Functions</text>
+</svg>
