@@ -85,15 +85,15 @@ kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
 sonar {
   properties {
-    property("sonar.projectKey", "gf_android-sample")
-    property("sonar.projectName", "Android-Sample")
-    property("sonar.organization", "gabrielfleischer")
+    property("sonar.projectKey", "SwEnt-PolyLoop_polyloop")
+    property("sonar.projectName", "polyloop")
+    property("sonar.organization", "swent-polyloop")
     property("sonar.host.url", "https://sonarcloud.io")
     // Comma-separated paths to the various directories containing the *.xml JUnit report files.
     // Each path may be absolute or relative to the project base directory.
     property(
         "sonar.junit.reportPaths",
-        "${project.layout.buildDirectory.get()}/test-results/testDebugunitTest/",
+        "${project.layout.buildDirectory.get()}/test-results/testDebugUnitTest/",
     )
     // Paths to xml files with Android Lint issues. If the main flavor is changed, this file will
     // have to be changed too.
