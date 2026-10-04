@@ -33,7 +33,8 @@ jobs:
           if [ -n "$GOOGLE_SERVICES" ]; then
             echo "$GOOGLE_SERVICES" | base64 --decode > ./app/google-services.json
           else
-            echo "::warning::GOOGLE_SERVICES secret is not set. google-services.json will not be created."
+            echo "::error::GOOGLE_SERVICES secret is not set. google-services.json will not be created."
+            exit 1
           fi
 
       # Kernel-based Virtual Machine (KVM) is an open source virtualization technology built into Linux. Enabling it allows the Android emulator to run faster.
