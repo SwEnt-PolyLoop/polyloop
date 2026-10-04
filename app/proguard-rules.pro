@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Firestore maps document fields to our model classes by name, using reflection,
+# so their names must survive minification.
+-keep class com.swent.polyloop.model.** { *; }
