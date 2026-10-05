@@ -1,3 +1,5 @@
+// Edited with Claude.
+
 package com.swent.polyloop
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -20,12 +22,12 @@ class MainActivityTest : TestCase() {
   @get:Rule val composeTestRule = createAndroidComposeRule<com.swent.polyloop.MainActivity>()
 
   @Test
-  fun test() = run {
+  fun appStartsOnSignIn() = run {
     step("Start Main Activity") {
       ComposeScreen.onComposeScreen<com.swent.polyloop.screen.MainScreen>(composeTestRule) {
-        simpleText {
+        continueButton {
           assertIsDisplayed()
-          assertTextEquals("Hello Android!")
+          assertTextEquals(composeTestRule.activity.getString(R.string.dummy_screen_continue))
         }
       }
     }

@@ -1,3 +1,5 @@
+// Edited with Claude.
+
 package com.swent.polyloop.screen
 
 import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
@@ -11,5 +13,5 @@ class MainScreen(semanticsProvider: SemanticsNodeInteractionsProvider) :
         viewBuilderAction = { hasTestTag(C.Tag.main_screen_container) },
     ) {
 
-  val simpleText: KNode = child { hasTestTag(C.Tag.greeting) }
+  val continueButton: KNode = child { hasTestTag(C.Tag.dummy_screen_continue_button) }
 }
