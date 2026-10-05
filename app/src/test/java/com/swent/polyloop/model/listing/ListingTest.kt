@@ -1,3 +1,5 @@
+// Made with Claude.
+
 package com.swent.polyloop.model.listing
 
 import java.time.LocalDate
