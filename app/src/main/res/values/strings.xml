@@ -12,4 +12,9 @@
     <string name="menu_wallet">Wallet</string>
     <string name="menu_profile">Profile</string>
     <string name="menu_admin_court_ruling">Admin court ruling</string>
+    <string name="top_bar_menu">Menu</string>
+    <string name="top_bar_profile">Profile</string>
+
+    <!-- Dummy screen -->
+    <string name="dummy_screen_continue">Continue</string>
 </resources>
