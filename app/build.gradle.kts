@@ -1,3 +1,5 @@
+// Edited with Claude.
+
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -122,6 +124,8 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(platform(libs.compose.bom))
   testImplementation(libs.junit)
+  testImplementation(libs.mockk)
+  testImplementation(libs.kotlinx.coroutines.test)
   globalTestImplementation(libs.androidx.junit)
   globalTestImplementation(libs.androidx.espresso.core)
 
@@ -156,6 +160,8 @@ dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.auth)
   implementation(libs.firebase.firestore)
+  // Lets us call .await() on Firebase Tasks inside coroutines
+  implementation(libs.kotlinx.coroutines.play.services)
 }
 
 tasks.withType<Test> {
