@@ -57,6 +57,7 @@ android {
     }
   }
 
+  // Robolectric needs to be run only in debug. But its tests are placed in the shared source set
   // (test)
   // The next lines transfers the src/test/* from shared to the testDebug one
   //
@@ -108,6 +109,7 @@ sonar {
   }
 }
 
+// When a library is used both by robolectric and connected tests, use this function
 fun DependencyHandlerScope.globalTestImplementation(dep: Any) {
   androidTestImplementation(dep)
   testImplementation(dep)
@@ -146,6 +148,9 @@ dependencies {
   // --------- Kaspresso test framework ----------
   globalTestImplementation(libs.kaspresso)
   globalTestImplementation(libs.kaspresso.compose)
+
+  // ----------       Robolectric     ------------
+  testImplementation(libs.robolectric)
 
   // ----------        FireBase       -------------
   implementation(platform(libs.firebase.bom))
