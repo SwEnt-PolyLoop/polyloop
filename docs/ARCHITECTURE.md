@@ -135,4 +135,3 @@ Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels)
 - Cloud Function names and signatures
 - Whether the auto-cancel waits until a set time on the pickup day (e.g. noon) so offline return scans can sync first
 - The exact list of push notifications
-- Navigation route names and their arguments
