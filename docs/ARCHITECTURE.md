@@ -115,7 +115,7 @@ Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels)
 | --- | --- |
 | Architecture | MVVM without a domain layer: 13 screen ViewModels, each calling the repositories it needs |
 | UI state | Each ViewModel exposes its screen state as a `StateFlow`, collected with `collectAsStateWithLifecycle()`; user actions are method calls (unidirectional data flow) |
-| Navigation | Single activity, Navigation 3 |
+| Navigation | Single activity, Navigation 2 (`navigation-compose`). Navigation 3 is Google's newer option, not adopted for now |
 | Dependency injection | Manual constructor injection: repositories and ViewModels receive their dependencies in the constructor (ViewModels through a `ViewModelProvider.Factory`), so tests can pass fakes |
 | Server logic | Cloud Functions are the only writers of rental status, deposits and balances |
 | Offline cache | Firestore's built-in offline persistence |
@@ -135,4 +135,4 @@ Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels)
 - Cloud Function names and signatures
 - Whether the auto-cancel waits until a set time on the pickup day (e.g. noon) so offline return scans can sync first
 - The exact list of push notifications
-- Navigation keys: screen names and their arguments
+- Navigation route names and their arguments
