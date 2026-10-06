@@ -1,3 +1,4 @@
+<!-- Edited with Claude. -->
 # AGENTS.md
 
 Durable rules for any AI agent (and human) working in this repository. Read this before acting.
@@ -17,8 +18,8 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 ## Rules for agents
 
 1. **Do not make design or technical decisions on your own.** If something you need is not in `docs/`, or the docs are ambiguous, stop and ask. The "Not decided yet" list in ARCHITECTURE.md names known gaps.
-2. **Respect the layers.** Screens (Compose) only talk to their feature ViewModel. ViewModels call repositories directly; there is no domain/use-case layer.
-3. **Stay inside the feature slice.** There are 8 features, each with one ViewModel and one repository (Auth, Profile, Listing, Rental, Chat, Handover, Dispute, Wallet). Do not create new ViewModels or repositories without asking.
+2. **Respect the layers.** Each screen (Compose) only talks to its own ViewModel. ViewModels call the repositories they need directly; they never call each other, and there is no domain/use-case layer.
+3. **One ViewModel per screen, one repository per feature.** There are 13 screens, each with its own ViewModel, and 8 repositories, one per type of data (Auth, Profile, Listing, Rental, Chat, Handover, Dispute, Wallet). `docs/ARCHITECTURE.md` lists the repositories each ViewModel uses; keep that list up to date. Do not create new ViewModels or repositories without asking.
 4. **If the architecture changes**, update `docs/ARCHITECTURE.md`, `docs/SCREENS.md`, the diagram and, if a rule changes, this file in the same pull request as the code.
 
 ## Rules that must never be broken

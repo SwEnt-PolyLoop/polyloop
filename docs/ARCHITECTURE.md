@@ -1,3 +1,4 @@
+<!-- Edited with Claude. -->
 # PolyLoop architecture
 
 ## Layers
@@ -5,26 +6,50 @@
 ```
 UI layer        Compose screens (13 screens, see SCREENS.md)
                   │  observe state / send user actions
-ViewModel layer 8 feature ViewModels (one per feature)
-                  │  call directly (no domain layer)
+ViewModel layer 13 screen ViewModels (one per screen)
+                  │  call the repositories they need (no domain layer)
 Data layer      8 feature repositories + local upload queue (WorkManager)
                   │
 Firebase        Auth · Firestore · Cloud Storage · Cloud Functions · FCM
 External        Google Maps Platform (Maps SDK in app, Geocoding API from Functions) · Gemini API (from Functions)
 ```
 
-## Feature slices
+## Repositories: one per feature
 
-| Feature | Screens | ViewModel | Repository talks to |
-| --- | --- | --- | --- |
-| Auth | Sign-up / login | AuthViewModel | Firebase Auth |
-| Profile | Profile & reviews | ProfileViewModel | Firestore, Cloud Storage |
-| Chat | Chat list, Chat | ChatViewModel | Firestore |
-| Listing | Browse, Listing detail, Create / edit listing | ListingViewModel (also calls RentalRepository to send a request) | Firestore, Cloud Storage |
-| Rental | My rentals, Rental detail | RentalViewModel | Firestore, Cloud Functions, Local upload queue → Cloud Storage (mid-rental photos) |
-| Handover | Handover (pickup + return) | HandoverViewModel | Local upload queue → Cloud Storage, Cloud Functions |
-| Dispute | Dispute, Admin court ruling | DisputeViewModel | Firestore, Cloud Storage, Cloud Functions |
-| Wallet | Wallet | WalletViewModel | Firestore, Cloud Functions |
+One repository per type of data, shared by every ViewModel that needs it.
+
+| Feature | Repository | Talks to |
+| --- | --- | --- |
+| Auth | AuthRepository | Firebase Auth |
+| Profile | ProfileRepository | Firestore, Cloud Storage |
+| Chat | ChatRepository | Firestore |
+| Listing | ListingRepository | Firestore, Cloud Storage |
+| Rental | RentalRepository | Firestore, Cloud Functions, Local upload queue → Cloud Storage (mid-rental photos) |
+| Handover | HandoverRepository | Local upload queue → Cloud Storage, Cloud Functions |
+| Dispute | DisputeRepository | Firestore, Cloud Storage, Cloud Functions |
+| Wallet | WalletRepository | Firestore, Cloud Functions |
+
+## ViewModels: one per screen
+
+Each screen has its own ViewModel, which holds that screen's state and calls the repositories it needs through their interfaces. ViewModels never call each other, and there is no use-case layer for now. Every ViewModel may read the signed-in user from AuthRepository; that is not repeated below.
+
+| Screen | ViewModel | Repositories it uses |
+| --- | --- | --- |
+| Sign-up / login | AuthViewModel | Auth; Profile (creates the profile on the first verified sign-in) |
+| Profile & reviews | ProfileViewModel | Profile; Listing ("My listings"); Auth ("Sign out") |
+| Wallet | WalletViewModel | Wallet |
+| Chat list | ChatListViewModel | Chat; Profile (the other person); Listing (the item) |
+| Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
+| Browse | BrowseViewModel | Listing |
+| Listing detail | ListingDetailViewModel | Listing; Rental (booked days, sending the request); Profile (the owner's name and rating) |
+| Create / edit listing | EditListingViewModel | Listing; Rental (editing locked while a rental is accepted or active) |
+| My rentals | MyRentalsViewModel | Rental; Listing (the item); Profile (the other person) |
+| Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
+| Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |
+| Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos); Rental (the deposit); Listing (the item) |
+| Admin court ruling | AdminCourtRulingViewModel | Dispute; Handover (the photos); Rental (the deposit); Listing (the item); Profile (both parties) |
+
+If a ViewModel needs a repository that is not listed here, add it to this table in the same pull request.
 
 ## Core rule: the app expresses intent, Cloud Functions decide
 
@@ -85,7 +110,7 @@ Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels)
 
 | Area | Choice |
 | --- | --- |
-| Architecture | MVVM without a domain layer: 8 feature ViewModels, each calling its own repository |
+| Architecture | MVVM without a domain layer: 13 screen ViewModels, each calling the feature repositories it needs |
 | Server logic | Cloud Functions are the only writers of rental status, deposits and balances |
 | Offline cache | Firestore's built-in offline persistence |
 | Upload queue | WorkManager, for offline photos and QR scans |

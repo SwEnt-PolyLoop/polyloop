@@ -1,10 +1,11 @@
+<!-- Edited with Claude. -->
 # PolyLoop screen specification
 
 One section per screen: what it shows and what it lets the user do. Mock-ups: https://claude.ai/artifact/FH2RZaMrYTGYU2fNz6UpZc
 
 ## Conventions
 
-PolyLoop has 13 screens, each backed by a feature ViewModel. Each section below lists what a screen shows and what it lets the user do.
+PolyLoop has 13 screens, each backed by its own ViewModel, which uses the repositories it needs (see the table in ARCHITECTURE.md). Each section below lists what a screen shows and what it lets the user do.
 
 Elements shared across screens:
 
@@ -17,7 +18,7 @@ Elements shared across screens:
 
 ## Sign-up / login
 
-Only users with a verified EPFL email get past this screen. ViewModel: AuthViewModel.
+Only users with a verified EPFL email get past this screen. ViewModel: AuthViewModel, using AuthRepository and ProfileRepository.
 
 - Email and password fields, with a switch between “Sign up” and “Log in”.
 - Only @epfl.ch addresses are accepted. A regex check shows an inline error as soon as the address doesn't match.
@@ -27,7 +28,7 @@ Only users with a verified EPFL email get past this screen. ViewModel: AuthViewM
 
 ## Profile & reviews
 
-The profile shows who someone is and how past rentals went. It opens from the profile button in the top bar or by tapping a person on Listing detail or Rental detail. ViewModel: ProfileViewModel.
+The profile shows who someone is and how past rentals went. It opens from the profile button in the top bar or by tapping a person on Listing detail or Rental detail. ViewModel: ProfileViewModel, using ProfileRepository, ListingRepository and AuthRepository.
 
 - Name, photo, and the average rating (1 to 5 stars) with the number of reviews.
 - The list of reviews, each with stars, author, date and the item rented.
@@ -37,7 +38,7 @@ The profile shows who someone is and how past rentals went. It opens from the pr
 
 ## Wallet
 
-The Wallet screen holds the user's in-app balance, which pays for rentals and deposits. ViewModel: WalletViewModel. The balance is only ever changed by Cloud Functions; the app sends a request and shows the result.
+The Wallet screen holds the user's in-app balance, which pays for rentals and deposits. ViewModel: WalletViewModel, using WalletRepository. The balance is only ever changed by Cloud Functions; the app sends a request and shows the result.
 
 - The available balance in PolyPoints, plus the amount currently held as deposits.
 - A “Recharge” button: the user enters any Swiss franc amount and receives the same number of PolyPoints. Recharging is simulated; no real payment is made.
@@ -47,7 +48,7 @@ The Wallet screen holds the user's in-app balance, which pays for rentals and de
 
 ## Chat list & chat
 
-Each rental has exactly one 1:1 conversation between its lender and borrower. ViewModel: ChatViewModel.
+Each rental has exactly one 1:1 conversation between its lender and borrower. ViewModels: ChatListViewModel, using ChatRepository, ProfileRepository and ListingRepository; ChatViewModel, using ChatRepository, RentalRepository, ProfileRepository and ListingRepository.
 
 - **Chat list.** A separate screen lists all the user's conversations, one per rental, with the other person, the item and the last message.
 - The chat opens as soon as a request is sent, so both sides can agree on details before acceptance, such as the meeting point and the deposit.
@@ -60,7 +61,7 @@ Each rental has exactly one 1:1 conversation between its lender and borrower. Vi
 
 ## Browse
 
-Browse shows available items near the user, as a map or a list. ViewModel: ListingViewModel.
+Browse shows available items near the user, as a map or a list. ViewModel: BrowseViewModel, using ListingRepository.
 
 - A toggle between map view (Google Maps SDK) and list view.
 - Map pins sit at each listing's pickup area, never the exact address.
@@ -73,7 +74,7 @@ Browse shows available items near the user, as a map or a list. ViewModel: Listi
 
 ## Listing detail
 
-Listing detail is where a borrower decides and sends a request. ViewModel: ListingViewModel, which also calls RentalRepository to create the request.
+Listing detail is where a borrower decides and sends a request. ViewModel: ListingDetailViewModel, using ListingRepository, RentalRepository (to send the request) and ProfileRepository.
 
 - Photo carousel, title, description, price per day, and the suggested deposit (the item's value), all in PolyPoints. The final deposit is negotiated in chat; the lender enters it when accepting.
 - The owner's name and rating, linking to their profile.
@@ -84,7 +85,7 @@ Listing detail is where a borrower decides and sends a request. ViewModel: Listi
 
 ## Create / edit listing
 
-This form puts an item up for rent, or changes an existing listing. ViewModel: ListingViewModel.
+This form puts an item up for rent, or changes an existing listing. ViewModel: EditListingViewModel, using ListingRepository and RentalRepository.
 
 - A photo row with an “Add photo” button that opens the in-app camera. Each listing needs 3 to 10 photos, which can be removed and reordered.
 - Fields: title, description, category, price per day, item value (the suggested deposit), the availability window (the dates the lender is willing to lend), and the pickup and drop-off addresses, typed as text.
@@ -94,7 +95,7 @@ This form puts an item up for rent, or changes an existing listing. ViewModel: L
 
 ## My rentals
 
-My rentals is the user's overview of everything they borrow and lend, and it works fully offline. ViewModel: RentalViewModel.
+My rentals is the user's overview of everything they borrow and lend, and it works fully offline. ViewModel: MyRentalsViewModel, using RentalRepository, ListingRepository and ProfileRepository.
 
 - Two tabs: “Borrowing” and “Lending”.
 - Each row shows the item, the other person, a status label, the return deadline, and the meeting point as text.
@@ -104,7 +105,7 @@ My rentals is the user's overview of everything they borrow and lend, and it wor
 
 ## Rental detail
 
-Rental detail is the hub for one rental: what it is, where it stands, and the next action. ViewModel: RentalViewModel.
+Rental detail is the hub for one rental: what it is, where it stands, and the next action. ViewModel: RentalDetailViewModel, using RentalRepository, ListingRepository and ProfileRepository.
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
 - The deposit, entered by the lender when accepting, and its state: held, released, or frozen.
@@ -122,7 +123,7 @@ Rental detail is the hub for one rental: what it is, where it stands, and the ne
 
 ## Handover
 
-One Handover screen covers both pickup and return, and adapts to the phase and to the user's role. ViewModel: HandoverViewModel. Mock-ups: [PolyLoop Handover screen](https://claude.ai/artifact/FH2RZaMrYTGYU2fNz6UpZc).
+One Handover screen covers both pickup and return, and adapts to the phase and to the user's role. ViewModel: HandoverViewModel, using HandoverRepository, RentalRepository and DisputeRepository. Mock-ups: [PolyLoop Handover screen](https://claude.ai/artifact/FH2RZaMrYTGYU2fNz6UpZc).
 
 - A progress strip: Pickup → In use → Return.
 - **Condition photos.** In-app camera, each photo labelled with its phase and time. Photos taken offline show a “Not synced” badge. Each handover needs at least 3 and at most 20 photos. Photos can also be taken mid-rental from Rental detail.
@@ -138,7 +139,7 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
 
 ## Dispute
 
-The Dispute screen walks both parties through the three settlement stages until the deposit is split. ViewModel: DisputeViewModel.
+The Dispute screen walks both parties through the three settlement stages until the deposit is split. ViewModel: DisputeViewModel, using DisputeRepository, HandoverRepository, RentalRepository and ListingRepository.
 
 - A header with the item, the deposit amount, and the current stage.
 - Pickup and return photos side by side, as evidence.
@@ -149,7 +150,7 @@ The Dispute screen walks both parties through the three settlement stages until 
 
 ## Admin court ruling
 
-This admin-only screen checks uploaded court rulings before they move any money. ViewModel: DisputeViewModel. Admins are identified by a custom claim on their Firebase account.
+This admin-only screen checks uploaded court rulings before they move any money. ViewModel: AdminCourtRulingViewModel, using DisputeRepository, HandoverRepository, RentalRepository, ListingRepository and ProfileRepository. Admins are identified by a custom claim on their Firebase account.
 
 - A queue of uploaded rulings waiting for review, each with the item, both parties, the deposit, and the upload date.
 - A detail view with the ruling PDF, the photos, the proposal history, and the LLM's earlier proposal.
