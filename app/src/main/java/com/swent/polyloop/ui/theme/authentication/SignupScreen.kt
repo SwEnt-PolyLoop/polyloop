@@ -150,6 +150,31 @@ fun SignInScreen(
 
     Spacer(Modifier.height(16.dp))
 
+    Text(
+        text = "Name",
+        color = Ink,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(bottom = 8.dp),
+    )
+    OutlinedTextField(
+        value = name,
+        onValueChange = { name = it },
+        singleLine = true,
+        shape = RoundedCornerShape(14.dp),
+        textStyle = TextStyle(fontSize = 18.sp, color = Ink),
+        placeholder = { Text("Enter your name", color = DisabledText, fontSize = 18.sp) },
+        colors =
+            OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                focusedBorderColor = Ink,
+                unfocusedBorderColor = FieldBorder,
+                cursorColor = Ink,
+            ),
+        modifier = Modifier.fillMaxWidth().height(62.dp),
+    )
+
 
     Spacer(Modifier.height(16.dp))
 
