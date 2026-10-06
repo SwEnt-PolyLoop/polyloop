@@ -61,7 +61,7 @@ Each rental has exactly one 1:1 conversation between its lender and borrower. Vi
 
 ## Browse
 
-Browse shows available items near the user, as a map or a list. ViewModel: BrowseViewModel, using ListingRepository.
+Browse shows available items near the user, as a map or a list. ViewModel: BrowseViewModel, using ListingRepository and LocationRepository.
 
 - A toggle between map view (Google Maps SDK) and list view.
 - Map pins sit at each listing's pickup area, never the exact address.

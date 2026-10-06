@@ -19,7 +19,7 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 
 1. **Do not make design or technical decisions on your own.** If something you need is not in `docs/`, or the docs are ambiguous, stop and ask. The "Not decided yet" list in ARCHITECTURE.md names known gaps.
 2. **Respect the layers.** Each screen (Compose) only talks to its own ViewModel. ViewModels call the repositories they need directly; they never call each other, and there is no domain/use-case layer.
-3. **One ViewModel per screen, one repository per feature.** There are 13 screens, each with its own ViewModel, and 8 repositories, one per type of data (Auth, Profile, Listing, Rental, Chat, Handover, Dispute, Wallet). `docs/ARCHITECTURE.md` lists the repositories each ViewModel uses; keep that list up to date. Do not create new ViewModels or repositories without asking.
+3. **One ViewModel per screen, one repository per feature.** There are 13 screens, each with its own ViewModel, and 10 repositories, one per type of data (Auth, Profile, Listing, Rental, Chat, Handover, Dispute, Wallet, Location, Connectivity). `docs/ARCHITECTURE.md` lists the repositories each ViewModel uses; keep that list up to date. Do not create new ViewModels or repositories without asking.
 4. **If the architecture changes**, update `docs/ARCHITECTURE.md`, `docs/SCREENS.md`, the diagram and, if a rule changes, this file in the same pull request as the code.
 
 ## Rules that must never be broken
@@ -33,7 +33,10 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 
 ## Architecture rules
 
-- Keep the **MVVM** separation. **ViewModels never import Firebase** or a repository implementation; they depend on repository interfaces. Firebase lives only in the `model/` repositories (and the local upload queue).
+- Keep the **MVVM** separation. **ViewModels never import Firebase** or a repository implementation; they depend on repository interfaces. Firebase lives only in the `model/` repositories (and the local upload queue). The same goes for every data source: GPS and network status are read only through LocationRepository and ConnectivityRepository.
+- **UI state.** Each ViewModel exposes its screen state through one `uiState: StateFlow<…UiState>` (several only for unrelated data). Screens collect it with `collectAsStateWithLifecycle()` and send user actions as method calls. Don't send one-off events from a ViewModel to the UI: handle them in the ViewModel and update the state.
+- **Coroutines and flows between layers.** Repositories expose `suspend` functions for one-shot calls and `Flow` for data that changes over time; ViewModels call them from `viewModelScope`.
+- **Dependency injection by constructor.** Repositories and ViewModels receive their dependencies as constructor parameters (with production defaults), ViewModels through a `ViewModelProvider.Factory`. No DI framework.
 - `model/` holds data and repositories, `ui/` holds screens and their ViewModels, `ui/theme/` holds the theme.
 - User-facing text goes in `strings.xml`, not hardcoded in composables.
 - Do not edit generated code.
@@ -51,6 +54,7 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 - Unit tests go in `app/src/test`, instrumented and Compose tests in `app/src/androidTest`. Mirror the source package and name the file `<Thing>Test.kt`.
 - Compose tests use `v2.createComposeRule()` with `@get:Rule val composeTestRule`, find nodes by test tag (constants in `resources/C.kt`, object `C.Tag`) and use descriptive camelCase names like `displayHasCorrectDefaultValue`.
 - Changes to Firestore or Storage Security Rules come with tests.
+- ViewModel tests use fake repositories (`Fake<Name>Repository`, implementing the repository interface), not mocks. Mocks are only for APIs we don't own, such as Firebase in repository tests.
 
 ## How to work
 

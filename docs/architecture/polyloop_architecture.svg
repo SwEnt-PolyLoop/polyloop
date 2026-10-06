@@ -117,6 +117,12 @@
 <text x="1052.2" y="789" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">Local upload queue</text>
 <text x="1052.2" y="808" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#185FA5">WorkManager: photos + QR</text>
 <text x="1052.2" y="840" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Storage, Functions</text>
+<rect x="60.0" y="770.0" width="351.0" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+<text x="235.5" y="789.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">LocationRepository</text>
+<text x="235.5" y="808.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#185FA5">the phone's GPS</text>
+<rect x="423.0" y="770.0" width="351.0" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+<text x="598.5" y="789.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">ConnectivityRepository</text>
+<text x="598.5" y="808.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#185FA5">the phone's network status</text>
 <line x1="780.0" y1="870" x2="780.0" y2="904" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
 <rect x="40" y="910" width="1480" height="120" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
 <text x="60" y="932" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">Firebase backend</text>

@@ -8,15 +8,16 @@ UI layer        Compose screens (13 screens, see SCREENS.md)
                   │  observe state / send user actions
 ViewModel layer 13 screen ViewModels (one per screen)
                   │  call the repositories they need (no domain layer)
-Data layer      8 feature repositories + local upload queue (WorkManager)
+Data layer      10 repositories + local upload queue (WorkManager)
                   │
+Device          GPS · network status
 Firebase        Auth · Firestore · Cloud Storage · Cloud Functions · FCM
 External        Google Maps Platform (Maps SDK in app, Geocoding API from Functions) · Gemini API (from Functions)
 ```
 
 ## Repositories: one per feature
 
-One repository per type of data, shared by every ViewModel that needs it.
+One repository per type of data, shared by every ViewModel that needs it. ViewModels and composables never read a data source (Firebase, GPS, network status) directly; they always go through a repository.
 
 | Feature | Repository | Talks to |
 | --- | --- | --- |
@@ -28,10 +29,12 @@ One repository per type of data, shared by every ViewModel that needs it.
 | Handover | HandoverRepository | Local upload queue → Cloud Storage, Cloud Functions |
 | Dispute | DisputeRepository | Firestore, Cloud Storage, Cloud Functions |
 | Wallet | WalletRepository | Firestore, Cloud Functions |
+| Location | LocationRepository | The phone's GPS |
+| Connectivity | ConnectivityRepository | The phone's network status |
 
 ## ViewModels: one per screen
 
-Each screen has its own ViewModel, which holds that screen's state and calls the repositories it needs through their interfaces. ViewModels never call each other, and there is no use-case layer for now. Every ViewModel may read the signed-in user from AuthRepository; that is not repeated below.
+Each screen has its own ViewModel, which holds that screen's state and calls the repositories it needs through their interfaces. ViewModels never call each other, and there is no use-case layer for now. Every ViewModel may read the signed-in user from AuthRepository and the online/offline status from ConnectivityRepository (for the offline banner and the actions disabled offline); that is not repeated below.
 
 | Screen | ViewModel | Repositories it uses |
 | --- | --- | --- |
@@ -40,7 +43,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Wallet | WalletViewModel | Wallet |
 | Chat list | ChatListViewModel | Chat; Profile (the other person); Listing (the item) |
 | Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
-| Browse | BrowseViewModel | Listing |
+| Browse | BrowseViewModel | Listing; Location (distance and map position) |
 | Listing detail | ListingDetailViewModel | Listing; Rental (booked days, sending the request); Profile (the owner's name and rating) |
 | Create / edit listing | EditListingViewModel | Listing; Rental (editing locked while a rental is accepted or active) |
 | My rentals | MyRentalsViewModel | Rental; Listing (the item); Profile (the other person) |
@@ -110,7 +113,10 @@ Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels)
 
 | Area | Choice |
 | --- | --- |
-| Architecture | MVVM without a domain layer: 13 screen ViewModels, each calling the feature repositories it needs |
+| Architecture | MVVM without a domain layer: 13 screen ViewModels, each calling the repositories it needs |
+| UI state | Each ViewModel exposes its screen state as a `StateFlow`, collected with `collectAsStateWithLifecycle()`; user actions are method calls (unidirectional data flow) |
+| Navigation | Single activity, Navigation 3 |
+| Dependency injection | Manual constructor injection: repositories and ViewModels receive their dependencies in the constructor (ViewModels through a `ViewModelProvider.Factory`), so tests can pass fakes |
 | Server logic | Cloud Functions are the only writers of rental status, deposits and balances |
 | Offline cache | Firestore's built-in offline persistence |
 | Upload queue | WorkManager, for offline photos and QR scans |
@@ -129,4 +135,4 @@ Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels)
 - Cloud Function names and signatures
 - Whether the auto-cancel waits until a set time on the pickup day (e.g. noon) so offline return scans can sync first
 - The exact list of push notifications
-- Navigation library and route names
+- Navigation keys: screen names and their arguments
