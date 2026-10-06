@@ -110,6 +110,27 @@ class AuthRepositoryFirebaseTest {
     assertEquals(AuthResult.Failure(AuthError.UNKNOWN), result)
   }
 
+  @Test
+  fun signUpWithBlankPasswordReturnsWeakPassword() = runTest {
+    val result = repository.signUp("john@epfl.ch", " ")
+
+    assertEquals(AuthResult.Failure(AuthError.WEAK_PASSWORD), result)
+    verify(exactly = 0) { auth.createUserWithEmailAndPassword(any(), any()) }
+  }
+
+  @Test
+  fun signUpWhenVerificationEmailFailsReturnsVerificationEmailNotSent() = runTest {
+    every { auth.createUserWithEmailAndPassword(any(), any()) } returns
+        Tasks.forResult(firebaseResultWith(user))
+    every { user.sendEmailVerification() } returns
+        Tasks.forException(FirebaseNetworkException("offline"))
+
+    val result = repository.signUp("john@epfl.ch", "password")
+
+    assertEquals(AuthResult.Failure(AuthError.VERIFICATION_EMAIL_NOT_SENT), result)
+    verify { auth.signOut() }
+  }
+
   // ---------- signIn ----------
 
   @Test
@@ -137,6 +158,25 @@ class AuthRepositoryFirebaseTest {
   }
 
   @Test
+  fun signInNormalizesTheEmail() = runTest {
+    every { user.isEmailVerified } returns true
+    every { auth.signInWithEmailAndPassword(any(), any()) } returns
+        Tasks.forResult(firebaseResultWith(user))
+
+    repository.signIn("  John@EPFL.ch ", "password")
+
+    verify { auth.signInWithEmailAndPassword("john@epfl.ch", "password") }
+  }
+
+  @Test
+  fun signInWithBlankPasswordReturnsWrongCredentials() = runTest {
+    val result = repository.signIn("john@epfl.ch", "")
+
+    assertEquals(AuthResult.Failure(AuthError.WRONG_CREDENTIALS), result)
+    verify(exactly = 0) { auth.signInWithEmailAndPassword(any(), any()) }
+  }
+
+  @Test
   fun signInWithWrongPasswordReturnsWrongCredentials() = runTest {
     every { auth.signInWithEmailAndPassword(any(), any()) } returns
         Tasks.forException(FirebaseAuthInvalidCredentialsException("code", "message"))
@@ -144,6 +184,7 @@ class AuthRepositoryFirebaseTest {
     val result = repository.signIn("john@epfl.ch", "wrong")
 
     assertEquals(AuthResult.Failure(AuthError.WRONG_CREDENTIALS), result)
+    verify { auth.signOut() }
   }
 
   @Test
@@ -235,6 +276,22 @@ class AuthRepositoryFirebaseTest {
 
     assertEquals(AuthResult.Failure(AuthError.UNKNOWN), result)
     verify { auth.signOut() }
+  }
+
+  @Test
+  fun resendWithNonEpflEmailReturnsInvalidDomain() = runTest {
+    val result = repository.resendVerificationEmail("john@gmail.com", "password")
+
+    assertEquals(AuthResult.Failure(AuthError.INVALID_DOMAIN), result)
+    verify(exactly = 0) { auth.signInWithEmailAndPassword(any(), any()) }
+  }
+
+  @Test
+  fun resendWithBlankPasswordReturnsWrongCredentials() = runTest {
+    val result = repository.resendVerificationEmail("john@epfl.ch", "")
+
+    assertEquals(AuthResult.Failure(AuthError.WRONG_CREDENTIALS), result)
+    verify(exactly = 0) { auth.signInWithEmailAndPassword(any(), any()) }
   }
 
   // ---------- getCurrentUser ----------

@@ -18,15 +18,25 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
 
   override suspend fun signUp(email: String, password: String): AuthResult<Unit> {
     if (!EpflEmail.isValid(email)) return AuthResult.Failure(AuthError.INVALID_DOMAIN)
+    // Firebase throws (and crashes the app) on an empty password instead of failing the task.
+    if (password.isBlank()) return AuthResult.Failure(AuthError.WEAK_PASSWORD)
 
     return try {
       // Firebase signs the new user in automatically; `finally` signs them out again.
       val user =
           auth.createUserWithEmailAndPassword(EpflEmail.normalize(email), password).await().user
               ?: return AuthResult.Failure(AuthError.UNKNOWN)
-      user.sendEmailVerification().await()
+      // The account exists now, so a failed email must not look like a failed sign-up.
+      val emailSent =
+          try {
+            user.sendEmailVerification().await()
+            true
+          } catch (e: FirebaseException) {
+            false
+          }
 
-      AuthResult.Success(Unit)
+      if (emailSent) AuthResult.Success(Unit)
+      else AuthResult.Failure(AuthError.VERIFICATION_EMAIL_NOT_SENT)
     } catch (e: FirebaseException) {
       AuthResult.Failure(toAuthError(e))
     } finally {
@@ -36,23 +46,31 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
 
   override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> {
     if (!EpflEmail.isValid(email)) return AuthResult.Failure(AuthError.INVALID_DOMAIN)
+    if (password.isBlank()) return AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
 
+    // Stays false on every other path (errors, unverified, cancelled), so `finally` signs out.
+    var signedIn = false
     return try {
       val user =
           auth.signInWithEmailAndPassword(EpflEmail.normalize(email), password).await().user
               ?: return AuthResult.Failure(AuthError.UNKNOWN)
       if (user.isEmailVerified) {
+        signedIn = true
         AuthResult.Success(user.toAuthUser())
       } else {
-        auth.signOut()
         AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
       }
     } catch (e: FirebaseException) {
       AuthResult.Failure(toAuthError(e))
+    } finally {
+      if (!signedIn) auth.signOut()
     }
   }
 
   override suspend fun resendVerificationEmail(email: String, password: String): AuthResult<Unit> {
+    if (!EpflEmail.isValid(email)) return AuthResult.Failure(AuthError.INVALID_DOMAIN)
+    if (password.isBlank()) return AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+
     return try {
       // Only a signed-in user can receive the email, so sign in briefly; `finally` signs out.
       val user =
@@ -70,7 +88,7 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
 
   override fun getCurrentUser(): AuthUser? {
     val user = auth.currentUser ?: return null
-    // An unverified user can only be left over if the app stopped in the middle of signUp.
+    // An unverified user is only left over if the app was killed in the middle of a sign-in step.
     return if (user.isEmailVerified) user.toAuthUser() else null
   }
 

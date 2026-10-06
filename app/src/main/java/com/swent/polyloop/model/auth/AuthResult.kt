@@ -14,6 +14,8 @@ enum class AuthError {
   EMAIL_ALREADY_IN_USE,
   WEAK_PASSWORD,
   EMAIL_NOT_VERIFIED,
+  /** The account was created, but the verification email could not be sent; offer "Resend". */
+  VERIFICATION_EMAIL_NOT_SENT,
   TOO_MANY_REQUESTS,
   NETWORK,
   UNKNOWN,
