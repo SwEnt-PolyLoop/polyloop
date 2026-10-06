@@ -11,8 +11,10 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.UserProfileChangeRequest
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -33,6 +35,8 @@ class AuthRepositoryFirebaseTest {
     user = mockk(relaxed = true)
     every { user.uid } returns "uid123"
     every { user.email } returns "john@epfl.ch"
+    every { user.displayName } returns "John Doe"
+    every { user.updateProfile(any()) } returns Tasks.forResult(null)
     every { user.sendEmailVerification() } returns Tasks.forResult(null)
 
     repository = AuthRepositoryFirebase(auth)
@@ -52,17 +56,42 @@ class AuthRepositoryFirebaseTest {
     every { auth.createUserWithEmailAndPassword(any(), any()) } returns
         Tasks.forResult(firebaseResultWith(user))
 
-    val result = repository.signUp("John@EPFL.ch", "password")
+    val result = repository.signUp(" John Doe ", "John@EPFL.ch", "password")
 
     assertEquals(AuthResult.Success(Unit), result)
     verify { auth.createUserWithEmailAndPassword("john@epfl.ch", "password") }
+    val savedProfile = slot<UserProfileChangeRequest>()
+    verify { user.updateProfile(capture(savedProfile)) }
+    assertEquals("John Doe", savedProfile.captured.displayName)
+    verify { user.sendEmailVerification() }
+    verify { auth.signOut() }
+  }
+
+  @Test
+  fun signUpWithBlankNameReturnsNameRequired() = runTest {
+    val result = repository.signUp(" ", "john@epfl.ch", "password")
+
+    assertEquals(AuthResult.Failure(AuthError.NAME_REQUIRED), result)
+    verify(exactly = 0) { auth.createUserWithEmailAndPassword(any(), any()) }
+  }
+
+  @Test
+  fun signUpWhenSavingNameFailsStillSendsEmailAndReturnsNameNotSaved() = runTest {
+    every { auth.createUserWithEmailAndPassword(any(), any()) } returns
+        Tasks.forResult(firebaseResultWith(user))
+    every { user.updateProfile(any()) } returns
+        Tasks.forException(FirebaseNetworkException("offline"))
+
+    val result = repository.signUp("John Doe", "john@epfl.ch", "password")
+
+    assertEquals(AuthResult.Failure(AuthError.NAME_NOT_SAVED), result)
     verify { user.sendEmailVerification() }
     verify { auth.signOut() }
   }
 
   @Test
   fun signUpWithNonEpflEmailReturnsInvalidDomain() = runTest {
-    val result = repository.signUp("john@gmail.com", "password")
+    val result = repository.signUp("John Doe", "john@gmail.com", "password")
 
     assertEquals(AuthResult.Failure(AuthError.INVALID_DOMAIN), result)
     verify(exactly = 0) { auth.createUserWithEmailAndPassword(any(), any()) }
@@ -73,7 +102,7 @@ class AuthRepositoryFirebaseTest {
     every { auth.createUserWithEmailAndPassword(any(), any()) } returns
         Tasks.forException(FirebaseAuthUserCollisionException("code", "message"))
 
-    val result = repository.signUp("john@epfl.ch", "password")
+    val result = repository.signUp("John Doe", "john@epfl.ch", "password")
 
     assertEquals(AuthResult.Failure(AuthError.EMAIL_ALREADY_IN_USE), result)
   }
@@ -83,7 +112,7 @@ class AuthRepositoryFirebaseTest {
     every { auth.createUserWithEmailAndPassword(any(), any()) } returns
         Tasks.forException(FirebaseAuthWeakPasswordException("code", "message", "reason"))
 
-    val result = repository.signUp("john@epfl.ch", "simple")
+    val result = repository.signUp("John Doe", "john@epfl.ch", "simple")
 
     assertEquals(AuthResult.Failure(AuthError.WEAK_PASSWORD), result)
     verify { auth.signOut() }
@@ -94,7 +123,7 @@ class AuthRepositoryFirebaseTest {
     every { auth.createUserWithEmailAndPassword(any(), any()) } returns
         Tasks.forException(FirebaseNetworkException("offline"))
 
-    val result = repository.signUp("john@epfl.ch", "simple")
+    val result = repository.signUp("John Doe", "john@epfl.ch", "simple")
 
     assertEquals(AuthResult.Failure(AuthError.NETWORK), result)
     verify { auth.signOut() }
@@ -105,14 +134,14 @@ class AuthRepositoryFirebaseTest {
     every { auth.createUserWithEmailAndPassword(any(), any()) } returns
         Tasks.forResult(firebaseResultWith(null))
 
-    val result = repository.signUp("john@epfl.ch", "pass")
+    val result = repository.signUp("John Doe", "john@epfl.ch", "pass")
 
     assertEquals(AuthResult.Failure(AuthError.UNKNOWN), result)
   }
 
   @Test
   fun signUpWithBlankPasswordReturnsWeakPassword() = runTest {
-    val result = repository.signUp("john@epfl.ch", " ")
+    val result = repository.signUp("John Doe", "john@epfl.ch", " ")
 
     assertEquals(AuthResult.Failure(AuthError.WEAK_PASSWORD), result)
     verify(exactly = 0) { auth.createUserWithEmailAndPassword(any(), any()) }
@@ -125,7 +154,7 @@ class AuthRepositoryFirebaseTest {
     every { user.sendEmailVerification() } returns
         Tasks.forException(FirebaseNetworkException("offline"))
 
-    val result = repository.signUp("john@epfl.ch", "password")
+    val result = repository.signUp("John Doe", "john@epfl.ch", "password")
 
     assertEquals(AuthResult.Failure(AuthError.VERIFICATION_EMAIL_NOT_SENT), result)
     verify { auth.signOut() }
@@ -141,7 +170,7 @@ class AuthRepositoryFirebaseTest {
 
     val result = repository.signIn("john@epfl.ch", "password")
 
-    assertEquals(AuthResult.Success(AuthUser("uid123", "john@epfl.ch")), result)
+    assertEquals(AuthResult.Success(AuthUser("uid123", "john@epfl.ch", "John Doe")), result)
     verify(exactly = 0) { auth.signOut() }
   }
 
@@ -308,7 +337,7 @@ class AuthRepositoryFirebaseTest {
     every { user.isEmailVerified } returns true
     every { auth.currentUser } returns user
 
-    assertEquals(AuthUser("uid123", "john@epfl.ch"), repository.getCurrentUser())
+    assertEquals(AuthUser("uid123", "john@epfl.ch", "John Doe"), repository.getCurrentUser())
   }
 
   @Test

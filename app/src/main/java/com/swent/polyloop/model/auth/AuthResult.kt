@@ -8,6 +8,7 @@ sealed class AuthResult<out T> {
 }
 
 enum class AuthError {
+  NAME_REQUIRED,
   INVALID_DOMAIN,
   /** Wrong email or password, or no such account. */
   WRONG_CREDENTIALS,
@@ -16,6 +17,8 @@ enum class AuthError {
   EMAIL_NOT_VERIFIED,
   /** The account was created, but the verification email could not be sent; offer "Resend". */
   VERIFICATION_EMAIL_NOT_SENT,
+  /** The account was created and the email sent, but the name could not be saved. */
+  NAME_NOT_SAVED,
   TOO_MANY_REQUESTS,
   NETWORK,
   UNKNOWN,

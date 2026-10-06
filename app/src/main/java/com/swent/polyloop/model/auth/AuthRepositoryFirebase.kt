@@ -10,13 +10,15 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.tasks.await
 
 /** [AuthRepository] backed by Firebase Auth. */
 class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : AuthRepository {
 
-  override suspend fun signUp(email: String, password: String): AuthResult<Unit> {
+  override suspend fun signUp(name: String, email: String, password: String): AuthResult<Unit> {
+    if (name.isBlank()) return AuthResult.Failure(AuthError.NAME_REQUIRED)
     if (!EpflEmail.isValid(email)) return AuthResult.Failure(AuthError.INVALID_DOMAIN)
     // Firebase throws (and crashes the app) on an empty password instead of failing the task.
     if (password.isBlank()) return AuthResult.Failure(AuthError.WEAK_PASSWORD)
@@ -26,7 +28,15 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
       val user =
           auth.createUserWithEmailAndPassword(EpflEmail.normalize(email), password).await().user
               ?: return AuthResult.Failure(AuthError.UNKNOWN)
-      // The account exists now, so a failed email must not look like a failed sign-up.
+      // The account exists now, so a failed step must not look like a failed sign-up.
+      val nameSaved =
+          try {
+            val profile = UserProfileChangeRequest.Builder().setDisplayName(name.trim()).build()
+            user.updateProfile(profile).await()
+            true
+          } catch (e: FirebaseException) {
+            false
+          }
       val emailSent =
           try {
             user.sendEmailVerification().await()
@@ -35,8 +45,12 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
             false
           }
 
-      if (emailSent) AuthResult.Success(Unit)
-      else AuthResult.Failure(AuthError.VERIFICATION_EMAIL_NOT_SENT)
+      // A missing email blocks the user more than a missing name, so it is reported first.
+      when {
+        !emailSent -> AuthResult.Failure(AuthError.VERIFICATION_EMAIL_NOT_SENT)
+        !nameSaved -> AuthResult.Failure(AuthError.NAME_NOT_SAVED)
+        else -> AuthResult.Success(Unit)
+      }
     } catch (e: FirebaseException) {
       AuthResult.Failure(toAuthError(e))
     } finally {
@@ -96,7 +110,8 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
     auth.signOut()
   }
 
-  private fun FirebaseUser.toAuthUser() = AuthUser(uid = uid, email = email.orEmpty())
+  private fun FirebaseUser.toAuthUser() =
+      AuthUser(uid = uid, email = email.orEmpty(), name = displayName.orEmpty())
 
   private fun toAuthError(e: FirebaseException): AuthError =
       when (e) {
