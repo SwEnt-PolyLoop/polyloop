@@ -1,5 +1,6 @@
 package com.swent.polyloop.ui.authentication
 
+import android.util.Patterns
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -59,7 +60,12 @@ fun SignInScreen(
   var isLoginSelected by remember { mutableStateOf(true) }
   var email by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
-  val canSubmit = email.isNotBlank() && password.isNotBlank()
+  val normalizedEmail = email.trim()
+  val isEpflEmail =
+      Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches() &&
+          normalizedEmail.endsWith("@epfl.ch", ignoreCase = true)
+  val showEmailError = normalizedEmail.isNotEmpty() && !isEpflEmail
+  val canSubmit = isEpflEmail && password.isNotBlank()
 
   Column(
       modifier =
@@ -150,24 +156,37 @@ fun SignInScreen(
         fontWeight = FontWeight.Medium,
         modifier = Modifier.padding(bottom = 8.dp),
     )
-    OutlinedTextField(
-        value = email,
-        onValueChange = { email = it },
-        placeholder = { Text("Enter your EPFL email", color = DisabledText, fontSize = 18.sp) },
-        singleLine = true,
-        shape = RoundedCornerShape(14.dp),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-        textStyle = TextStyle(fontSize = 18.sp, color = Ink),
-        colors =
-            OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                focusedBorderColor = Ink,
-                unfocusedBorderColor = FieldBorder,
-                cursorColor = Ink,
-            ),
-        modifier = Modifier.fillMaxWidth().height(62.dp),
-    )
+    Column {
+      OutlinedTextField(
+          value = email,
+          onValueChange = { email = it },
+          placeholder = { Text("Enter your EPFL email", color = DisabledText, fontSize = 18.sp) },
+          singleLine = true,
+          shape = RoundedCornerShape(14.dp),
+          isError = showEmailError,
+          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+          textStyle = TextStyle(fontSize = 18.sp, color = Ink),
+          colors =
+              OutlinedTextFieldDefaults.colors(
+                  focusedContainerColor = Color.White,
+                  unfocusedContainerColor = Color.White,
+                  focusedBorderColor = Ink,
+                  unfocusedBorderColor = FieldBorder,
+                  cursorColor = Ink,
+              ),
+          modifier = Modifier.fillMaxWidth().height(62.dp),
+      )
+      Box(modifier = Modifier.height(20.dp)) {
+        if (showEmailError) {
+          Text(
+              text = "Use your @epfl.ch address.",
+              color = ErrorColor,
+              fontSize = 13.sp,
+              modifier = Modifier.padding(top = 4.dp),
+          )
+        }
+      }
+    }
 
     Spacer(Modifier.height(16.dp))
 
@@ -201,15 +220,15 @@ fun SignInScreen(
     Spacer(Modifier.height(20.dp))
 
     Button(
-        onClick = { onLogin(email.trim(), password) },
+        onClick = { onLogin(normalizedEmail, password) },
         enabled = canSubmit,
         shape = RoundedCornerShape(14.dp),
         colors =
             ButtonDefaults.buttonColors(
                 containerColor = Brand,
                 contentColor = Color.White,
-                disabledContainerColor = Brand,
-                disabledContentColor = Color.White,
+                disabledContainerColor = FieldBorder,
+                disabledContentColor = Muted,
             ),
         elevation =
             ButtonDefaults.buttonElevation(
