@@ -100,7 +100,7 @@ fun SignUpScreen(
               Modifier.weight(1f)
                   .height(44.dp)
                   .background(colors.surface, RoundedCornerShape(12.dp))
-                  .clip(RoundedCornerShape(12.dp))
+                  .clip(RoundedCornerShape(12.dp)),
       ) {
         Text(
             text = "Sign up",
@@ -202,9 +202,9 @@ fun SignUpScreen(
                   cursorColor = colors.primary,
               ),
           modifier =
-              Modifier.fillMaxWidth()
-                  .height(62.dp)
-                  .onFocusChanged { isEmailFocused = it.isFocused },
+              Modifier.fillMaxWidth().height(62.dp).onFocusChanged {
+                isEmailFocused = it.isFocused
+              },
       )
       Box(modifier = Modifier.height(20.dp)) {
         if (showEmailError) {
@@ -283,7 +283,6 @@ fun SignUpScreen(
                 disabledContainerColor = if (canSubmit) colors.primary else colors.surfaceVariant,
                 disabledContentColor = if (canSubmit) colors.onPrimary else colors.onSurfaceVariant,
             ),
-
         modifier = Modifier.fillMaxWidth().height(52.dp),
     ) {
       Text("Sign up", fontSize = 17.sp, fontWeight = FontWeight.Medium)
