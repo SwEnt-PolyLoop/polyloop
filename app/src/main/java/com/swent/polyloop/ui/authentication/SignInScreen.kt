@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -29,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -45,15 +45,6 @@ import androidx.compose.ui.unit.sp
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
-private val BgColor = Color(0xFFF6F4F0)
-private val Ink = Color(0xFF1A1A1A)
-private val Brand = Color(0xFFC8301E)
-private val Muted = Color(0xFF6B6B66)
-private val TabTrack = Color(0xFFEAE8E3)
-private val FieldBorder = Color(0xFFE2E0DB)
-private val ErrorColor = Color(0xFFA3261A)
-private val DisabledText = Color(0xFF8C8A85)
-
 @Composable
 fun SignInScreen(
     onLogin: (email: String, password: String) -> Unit = { _, _ -> },
@@ -61,6 +52,7 @@ fun SignInScreen(
     onForgotPassword: () -> Unit = {},
     onNavSignup: () -> Unit = {},
 ) {
+  val colors = MaterialTheme.colorScheme
   var email by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
   var isEmailFocused by remember { mutableStateOf(false) }
@@ -76,15 +68,15 @@ fun SignInScreen(
   Column(
       modifier =
           Modifier.fillMaxSize()
-              .background(BgColor)
+              .background(colors.background)
               .padding(horizontal = 14.dp)
               .padding(top = 64.dp)
   ) {
     Text(
         text =
             buildAnnotatedString {
-              withStyle(SpanStyle(color = Ink)) { append("Poly") }
-              withStyle(SpanStyle(color = Brand)) { append("Loop") }
+              withStyle(SpanStyle(color = colors.onBackground)) { append("Poly") }
+              withStyle(SpanStyle(color = colors.primary)) { append("Loop") }
             },
         fontSize = 44.sp,
         fontWeight = FontWeight.ExtraBold,
@@ -92,7 +84,7 @@ fun SignInScreen(
     )
     Text(
         text = "Borrow and lend among EPFL students.",
-        color = Muted,
+        color = colors.onSurfaceVariant,
         fontSize = 16.sp,
         modifier = Modifier.padding(top = 8.dp),
     )
@@ -101,7 +93,9 @@ fun SignInScreen(
 
     Row(
         modifier =
-            Modifier.fillMaxWidth().background(TabTrack, RoundedCornerShape(16.dp)).padding(4.dp)
+            Modifier.fillMaxWidth()
+                .background(colors.surfaceVariant, RoundedCornerShape(16.dp))
+                .padding(4.dp)
     ) {
       Box(
           contentAlignment = Alignment.Center,
@@ -119,7 +113,7 @@ fun SignInScreen(
             text = "Sign up",
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Muted,
+            color = colors.onSurfaceVariant,
         )
       }
       Box(
@@ -127,14 +121,14 @@ fun SignInScreen(
           modifier =
               Modifier.weight(1f)
                   .height(44.dp)
-                  .background(Color.White, RoundedCornerShape(12.dp))
+                  .background(colors.surface, RoundedCornerShape(12.dp))
                   .clip(RoundedCornerShape(12.dp)),
       ) {
         Text(
             text = "Log in",
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Ink,
+            color = colors.onSurface,
         )
       }
     }
@@ -143,7 +137,7 @@ fun SignInScreen(
 
     Text(
         text = "EPFL email",
-        color = Ink,
+        color = colors.onSurface,
         fontSize = 15.sp,
         fontWeight = FontWeight.Medium,
         modifier = Modifier.padding(bottom = 8.dp),
@@ -152,19 +146,21 @@ fun SignInScreen(
       OutlinedTextField(
           value = email,
           onValueChange = { email = it },
-          placeholder = { Text("Enter your EPFL email", color = DisabledText, fontSize = 18.sp) },
+          placeholder = {
+            Text("Enter your EPFL email", color = colors.onSurfaceVariant, fontSize = 18.sp)
+          },
           singleLine = true,
           shape = RoundedCornerShape(14.dp),
           isError = showEmailError,
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-          textStyle = TextStyle(fontSize = 18.sp, color = Ink),
+          textStyle = TextStyle(fontSize = 18.sp, color = colors.onSurface),
           colors =
               OutlinedTextFieldDefaults.colors(
-                  focusedContainerColor = Color.White,
-                  unfocusedContainerColor = Color.White,
-                  focusedBorderColor = Ink,
-                  unfocusedBorderColor = FieldBorder,
-                  cursorColor = Ink,
+                  focusedContainerColor = colors.surface,
+                  unfocusedContainerColor = colors.surface,
+                  focusedBorderColor = colors.onSurface,
+                  unfocusedBorderColor = colors.outline,
+                  cursorColor = colors.primary,
               ),
           modifier =
               Modifier.fillMaxWidth()
@@ -178,7 +174,7 @@ fun SignInScreen(
                   if (hasAttemptedLogin && normalizedEmail.isBlank())
                       "Please enter your email address."
                   else "Use your @epfl.ch address.",
-              color = ErrorColor,
+              color = colors.error,
               fontSize = 13.sp,
           )
         }
@@ -189,7 +185,7 @@ fun SignInScreen(
 
     Text(
         text = "Password",
-        color = Ink,
+        color = colors.onSurface,
         fontSize = 15.sp,
         fontWeight = FontWeight.Medium,
         modifier = Modifier.padding(bottom = 8.dp),
@@ -200,19 +196,22 @@ fun SignInScreen(
           password = it
           if (it.isNotBlank()) showPasswordError = false
         },
-        placeholder = { Text("Enter your password", color = DisabledText, fontSize = 18.sp) },
+        placeholder = {
+          Text("Enter your password", color = colors.onSurfaceVariant, fontSize = 18.sp)
+        },
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
+        isError = showPasswordError,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        textStyle = TextStyle(fontSize = 18.sp, color = Ink),
+        textStyle = TextStyle(fontSize = 18.sp, color = colors.onSurface),
         colors =
             OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                focusedBorderColor = Ink,
-                unfocusedBorderColor = FieldBorder,
-                cursorColor = Ink,
+                focusedContainerColor = colors.surface,
+                unfocusedContainerColor = colors.surface,
+                focusedBorderColor = colors.onSurface,
+                unfocusedBorderColor = colors.outline,
+                cursorColor = colors.primary,
             ),
         modifier = Modifier.fillMaxWidth().height(62.dp),
     )
@@ -220,7 +219,7 @@ fun SignInScreen(
       if (showPasswordError) {
         Text(
             text = "Please enter your password.",
-            color = ErrorColor,
+            color = colors.error,
             fontSize = 13.sp,
         )
       }
@@ -237,10 +236,10 @@ fun SignInScreen(
         shape = RoundedCornerShape(14.dp),
         colors =
             ButtonDefaults.buttonColors(
-                containerColor = if (canSubmit) Brand else FieldBorder,
-                contentColor = if (canSubmit) Color.White else Muted,
-                disabledContainerColor = if (canSubmit) Brand else FieldBorder,
-                disabledContentColor = if (canSubmit) Color.White else Muted,
+                containerColor = if (canSubmit) colors.primary else colors.surfaceVariant,
+                contentColor = if (canSubmit) colors.onPrimary else colors.onSurfaceVariant,
+                disabledContainerColor = if (canSubmit) colors.primary else colors.surfaceVariant,
+                disabledContentColor = if (canSubmit) colors.onPrimary else colors.onSurfaceVariant,
             ),
         elevation =
             ButtonDefaults.buttonElevation(
@@ -258,7 +257,7 @@ fun SignInScreen(
       authError?.warningMessage()?.let { message ->
         Text(
             text = message,
-            color = ErrorColor,
+            color = colors.error,
             fontSize = 13.sp,
             modifier = Modifier.padding(top = 4.dp),
         )
@@ -268,7 +267,7 @@ fun SignInScreen(
     TextButton(
         onClick = onForgotPassword,
         modifier = Modifier.fillMaxWidth().padding(top = 28.dp),
-        colors = ButtonDefaults.textButtonColors(contentColor = ErrorColor),
+        colors = ButtonDefaults.textButtonColors(contentColor = colors.error),
     ) {
       Text(
           text = "Forgot password?",
