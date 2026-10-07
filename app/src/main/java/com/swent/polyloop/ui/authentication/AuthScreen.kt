@@ -1,4 +1,4 @@
-//Made with Claude and Copilot
+//Made with Copilot
 
 package com.swent.polyloop.ui.authentication
 
@@ -61,20 +61,29 @@ private const val LOGIN_BUTTON_TAG = "signInLoginButton"
 private const val SIGNUP_BUTTON_TAG = "signInSignupButton"
 private const val LOGIN_TAB_TAG = "signInLoginTab"
 private const val SIGNUP_TAB_TAG = "signInSignupTab"
-private const val CONFIRM_VERIFIED_TAG = "verifyConfirmButton"
-private const val RESEND_TAG = "verifyResendButton"
-private const val BACK_TAG = "verifyBackButton"
 
-/** Connected screen: plugs [AuthViewModel] into [AuthContent]. */
+/**
+ * Connected log-in / sign-up screen: plugs [AuthViewModel] into [AuthContent].
+ *
+ * The email verification step is a separate route: [onNavigateToVerification] is called when the
+ * ViewModel says the user must verify their email, and [onSignedIn] once a verified user is in.
+ *
+ * The default ViewModel is scoped to the nav back stack entry of this route. The verification
+ * screen must reuse that same instance (it needs the typed email and password).
+ */
 @Composable
 fun AuthScreen(
-    onSignedIn: () -> Unit,
+    onSignIn: () -> Unit,
+    onNavigateToVerification: () -> Unit,
     onForgotPassword: () -> Unit = {},
     viewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory()),
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(state.isSignedIn) { if (state.isSignedIn) onSignedIn() }
+    LaunchedEffect(state.isSignedIn) { if (state.isSignedIn) onSignIn() }
+    LaunchedEffect(state.isAwaitingVerification) {
+        if (state.isAwaitingVerification) onNavigateToVerification()
+    }
 
     AuthContent(
         state = state,
@@ -84,9 +93,6 @@ fun AuthScreen(
         onModeChange = viewModel::switchMode,
         onSubmit = viewModel::submit,
         onForgotPassword = onForgotPassword,
-        onResend = viewModel::resendVerificationEmail,
-        onConfirmVerified = viewModel::confirmVerified,
-        onBack = viewModel::backToForm,
     )
 }
 
@@ -100,11 +106,18 @@ private fun AuthContent(
     onModeChange: (AuthMode) -> Unit = {},
     onSubmit: () -> Unit = {},
     onForgotPassword: () -> Unit = {},
-    onResend: () -> Unit = {},
-    onConfirmVerified: () -> Unit = {},
-    onBack: () -> Unit = {},
 ) {
     val colors = MaterialTheme.colorScheme
+    val isSignUp = state.mode == AuthMode.SIGN_UP
+    var isEmailFocused by remember { mutableStateOf(false) }
+
+    val showEmailError = (isEmailFocused || state.hasAttemptedSubmit) && !state.isEmailValid
+    val emailError =
+        when {
+            !showEmailError -> null
+            state.hasAttemptedSubmit && state.email.isBlank() -> "Please enter your email address."
+            else -> "Use your @epfl.ch address."
+        }
 
     Column(
         modifier =
@@ -117,153 +130,73 @@ private fun AuthContent(
         Header()
         Spacer(Modifier.height(16.dp))
 
-        if (state.isAwaitingVerification) {
-            VerificationStep(state, onResend, onConfirmVerified, onBack)
-        } else {
-            AuthForm(
-                state,
-                onNameChange,
-                onEmailChange,
-                onPasswordChange,
-                onModeChange,
-                onSubmit,
-                onForgotPassword,
+        SegmentedTabs(state.mode, onModeChange)
+        Spacer(Modifier.height(16.dp))
+
+        // The only field that depends on the mode.
+        if (isSignUp) {
+            AuthTextField(
+                label = "Name",
+                value = state.name,
+                placeholder = "Enter your name",
+                onValueChange = onNameChange,
+                errorText =
+                    if (state.hasAttemptedSubmit && state.name.isBlank()) "Please enter your name."
+                    else null,
+                testTag = NAME_FIELD_TAG,
             )
+            Spacer(Modifier.height(16.dp))
         }
-    }
-}
 
-@Composable
-private fun AuthForm(
-    state: AuthUiState,
-    onNameChange: (String) -> Unit,
-    onEmailChange: (String) -> Unit,
-    onPasswordChange: (String) -> Unit,
-    onModeChange: (AuthMode) -> Unit,
-    onSubmit: () -> Unit,
-    onForgotPassword: () -> Unit,
-) {
-    val isSignUp = state.mode == AuthMode.SIGN_UP
-    var isEmailFocused by remember { mutableStateOf(false) }
-
-    val showEmailError = (isEmailFocused || state.hasAttemptedSubmit) && !state.isEmailValid
-    val emailError =
-        if (!showEmailError) null
-        else if (state.hasAttemptedSubmit && state.email.isBlank()) "Please enter your email address."
-        else "Use your @epfl.ch address."
-
-    SegmentedTabs(state.mode, onModeChange)
-    Spacer(Modifier.height(16.dp))
-
-    // The only field that depends on the mode.
-    if (isSignUp) {
         AuthTextField(
-            label = "Full name",
-            value = state.name,
-            placeholder = "Enter your name",
-            onValueChange = onNameChange,
-            errorText =
-                if (state.hasAttemptedSubmit && state.name.isBlank()) "Please enter your name."
-                else null,
-            testTag = NAME_FIELD_TAG,
+            label = "EPFL email",
+            value = state.email,
+            placeholder = "Enter your EPFL email",
+            onValueChange = onEmailChange,
+            errorText = emailError,
+            keyboardType = KeyboardType.Email,
+            onFocusChange = { isEmailFocused = it },
+            testTag = EMAIL_FIELD_TAG,
         )
         Spacer(Modifier.height(16.dp))
-    }
 
-    AuthTextField(
-        label = "EPFL email",
-        value = state.email,
-        placeholder = "Enter your EPFL email",
-        onValueChange = onEmailChange,
-        errorText = emailError,
-        keyboardType = KeyboardType.Email,
-        onFocusChange = { isEmailFocused = it },
-        testTag = EMAIL_FIELD_TAG,
-    )
-    Spacer(Modifier.height(16.dp))
+        AuthTextField(
+            label = "Password",
+            value = state.password,
+            placeholder = "Enter your password",
+            onValueChange = onPasswordChange,
+            errorText =
+                if (state.hasAttemptedSubmit && state.password.isBlank()) "Please enter your password."
+                else null,
+            keyboardType = KeyboardType.Password,
+            isPassword = true,
+            testTag = PASSWORD_FIELD_TAG,
+        )
+        Spacer(Modifier.height(20.dp))
 
-    AuthTextField(
-        label = "Password",
-        value = state.password,
-        placeholder = "Enter your password",
-        onValueChange = onPasswordChange,
-        errorText =
-            if (state.hasAttemptedSubmit && state.password.isBlank()) "Please enter your password."
-            else null,
-        keyboardType = KeyboardType.Password,
-        isPassword = true,
-        testTag = PASSWORD_FIELD_TAG,
-    )
-    Spacer(Modifier.height(20.dp))
+        AuthButton(
+            text = if (isSignUp) "Sign up" else "Log in",
+            onClick = onSubmit,
+            enabled = !state.isLoading,
+            testTag = if (isSignUp) SIGNUP_BUTTON_TAG else LOGIN_BUTTON_TAG,
+        )
+        ErrorMessage(state.error)
 
-    AuthButton(
-        text = if (isSignUp) "Create account" else "Log in",
-        onClick = onSubmit,
-        enabled = !state.isLoading,
-        testTag = if (isSignUp) SIGNUP_BUTTON_TAG else LOGIN_BUTTON_TAG,
-    )
-    ErrorMessage(state.error)
-
-    if (!isSignUp) {
-        TextButton(
-            onClick = onForgotPassword,
-            modifier = Modifier.fillMaxWidth().padding(top = 28.dp),
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-        ) {
-            Text(
-                text = "Forgot password?",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                textDecoration = TextDecoration.Underline,
-                textAlign = TextAlign.Center,
-            )
+        if (!isSignUp) {
+            TextButton(
+                onClick = onForgotPassword,
+                modifier = Modifier.fillMaxWidth().padding(top = 28.dp),
+                colors = ButtonDefaults.textButtonColors(contentColor = colors.error),
+            ) {
+                Text(
+                    text = "Forgot password?",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textDecoration = TextDecoration.Underline,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
-    }
-}
-
-@Composable
-private fun VerificationStep(
-    state: AuthUiState,
-    onResend: () -> Unit,
-    onConfirmVerified: () -> Unit,
-    onBack: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-
-    Text(
-        text = "Check your inbox",
-        color = colors.onBackground,
-        fontSize = 24.sp,
-        fontWeight = FontWeight.Bold,
-    )
-    Text(
-        text = "We sent a verification link to ${state.email}. Open it, then come back here.",
-        color = colors.onSurfaceVariant,
-        fontSize = 16.sp,
-        modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
-    )
-
-    AuthButton(
-        text = "I've verified",
-        onClick = onConfirmVerified,
-        enabled = !state.isLoading,
-        testTag = CONFIRM_VERIFIED_TAG,
-    )
-    ErrorMessage(state.error)
-
-    if (state.isVerificationEmailResent) {
-        Text(text = "Email sent again.", color = colors.primary, fontSize = 13.sp)
-    }
-
-    TextButton(
-        onClick = onResend,
-        enabled = !state.isLoading,
-        modifier = Modifier.fillMaxWidth().testTag(RESEND_TAG),
-    ) {
-        Text("Resend email", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-    }
-    TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth().testTag(BACK_TAG)) {
-        Text("Wrong address? Go back", fontSize = 16.sp, color = colors.onSurfaceVariant)
     }
 }
 
@@ -388,7 +321,10 @@ private fun AuthButton(text: String, onClick: () -> Unit, enabled: Boolean, test
         enabled = enabled,
         shape = RoundedCornerShape(14.dp),
         colors =
-            ButtonDefaults.buttonColors(containerColor = colors.primary, contentColor = colors.onPrimary),
+            ButtonDefaults.buttonColors(
+                containerColor = colors.primary,
+                contentColor = colors.onPrimary,
+            ),
         elevation =
             ButtonDefaults.buttonElevation(
                 defaultElevation = 0.dp,
@@ -429,7 +365,8 @@ private fun AuthError.message(): String =
         AuthError.NAME_REQUIRED -> "Please enter your name."
         AuthError.INVALID_DOMAIN -> "Use your @epfl.ch address."
         AuthError.EMAIL_ALREADY_IN_USE -> "This email already has an account. Try logging in."
-        AuthError.VERIFICATION_EMAIL_NOT_SENT -> "Account created, but the email could not be sent. Tap Resend email."
+        AuthError.VERIFICATION_EMAIL_NOT_SENT ->
+            "Account created, but the verification email could not be sent."
         AuthError.NAME_NOT_SAVED -> "Account created, but your name could not be saved."
     }
 
@@ -445,10 +382,18 @@ private fun AuthScreenSignUpPreview() {
     PolyLoopTheme { AuthContent(AuthUiState(mode = AuthMode.SIGN_UP)) }
 }
 
+
 @Preview(showBackground = true)
 @Composable
-private fun AuthScreenVerificationPreview() {
+private fun AuthScreenInteractivePreview() {
+    var state by remember { mutableStateOf(AuthUiState(mode = AuthMode.SIGN_UP)) }
     PolyLoopTheme {
-        AuthContent(AuthUiState(email = "jane.doe@epfl.ch", isAwaitingVerification = true))
+        AuthContent(
+            state = state,
+            onNameChange = { state = state.copy(name = it) },
+            onEmailChange = { state = state.copy(email = it) },
+            onPasswordChange = { state = state.copy(password = it) },
+            onModeChange = { state = state.copy(mode = it) },
+        )
     }
 }
