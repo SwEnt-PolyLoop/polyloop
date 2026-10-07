@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -60,12 +61,14 @@ fun SignInScreen(
   var email by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
   var showNameError by remember { mutableStateOf(false) }
-  var showEmailError by remember { mutableStateOf(false) }
+  var isEmailFocused by remember { mutableStateOf(false) }
+  var hasAttemptedSignUp by remember { mutableStateOf(false) }
   var showPasswordError by remember { mutableStateOf(false) }
   val normalizedEmail = email.trim()
   val isEpflEmail =
       Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches() &&
           normalizedEmail.endsWith("@epfl.ch")
+  val showEmailError = (isEmailFocused || hasAttemptedSignUp) && !isEpflEmail
   val canSubmit = name.isNotBlank() && isEpflEmail && password.isNotBlank()
   Column(
       modifier =
@@ -184,15 +187,7 @@ fun SignInScreen(
     Column {
       OutlinedTextField(
           value = email,
-          onValueChange = {
-            email = it
-            if (
-                Patterns.EMAIL_ADDRESS.matcher(it.trim()).matches() &&
-                    it.trim().endsWith("@epfl.ch")
-            ) {
-              showEmailError = false
-            }
-          },
+          onValueChange = { email = it },
           placeholder = { Text("Enter your EPFL email", color = DisabledText, fontSize = 18.sp) },
           singleLine = true,
           shape = RoundedCornerShape(14.dp),
@@ -207,13 +202,17 @@ fun SignInScreen(
                   unfocusedBorderColor = FieldBorder,
                   cursorColor = Ink,
               ),
-          modifier = Modifier.fillMaxWidth().height(62.dp),
+          modifier =
+              Modifier.fillMaxWidth()
+                  .height(62.dp)
+                  .onFocusChanged { isEmailFocused = it.isFocused },
       )
       Box(modifier = Modifier.height(20.dp)) {
         if (showEmailError) {
           Text(
               text =
-                  if (normalizedEmail.isBlank()) "Please enter your email address."
+                  if (hasAttemptedSignUp && normalizedEmail.isBlank())
+                      "Please enter your email address."
                   else "Use your @epfl.ch address.",
               color = ErrorColor,
               fontSize = 13.sp,
@@ -268,7 +267,7 @@ fun SignInScreen(
     Button(
         onClick = {
           showNameError = name.isBlank()
-          showEmailError = !isEpflEmail
+          hasAttemptedSignUp = true
           showPasswordError = password.isBlank()
           if (!showNameError && !showEmailError && !showPasswordError) {
             onSignUp(name, normalizedEmail, password)
