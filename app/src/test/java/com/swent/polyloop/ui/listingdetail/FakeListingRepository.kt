@@ -4,6 +4,7 @@ package com.swent.polyloop.ui.listingdetail
 
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingRepository
+import com.swent.polyloop.model.listing.ListingStatus
 import kotlinx.coroutines.CompletableDeferred
 
 /**
@@ -26,7 +27,8 @@ class FakeListingRepository(
 
   override suspend fun getAllListings(): Result<List<Listing>> {
     gate?.await()
-    return failure?.let { Result.failure(it) } ?: Result.success(listings)
+    return failure?.let { Result.failure(it) }
+        ?: Result.success(listings.filter { it.status == ListingStatus.PUBLISHED })
   }
 
   override suspend fun getListing(id: String): Result<Listing?> {
