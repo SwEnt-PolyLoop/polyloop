@@ -73,7 +73,12 @@ class ListingDetailScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_screen).assertIsDisplayed()
     assertSectionText(C.Tag.listing_detail_title, "Camping tent, 2 people")
-    assertSectionText(C.Tag.listing_detail_price, "15 PP / day")
+    assertSectionText(
+        C.Tag.listing_detail_price,
+        context.getString(R.string.listing_card_price, listing.pricePerDay) +
+            " " +
+            context.getString(R.string.listing_card_per_day),
+    )
     assertSectionText(C.Tag.listing_detail_description, "Light 2-person tent, used three times.")
   }
 
@@ -81,7 +86,10 @@ class ListingDetailScreenTest {
   fun badgeShowsFirstPhotoOfTotal() {
     setContent()
 
-    assertSectionText(C.Tag.listing_detail_photo_badge, "1 / 5")
+    assertSectionText(
+        C.Tag.listing_detail_photo_badge,
+        context.getString(R.string.listing_detail_photo_count, 1, listing.photoUrls.size),
+    )
   }
 
   @Test
@@ -90,7 +98,10 @@ class ListingDetailScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_photos).performTouchInput { swipeLeft() }
 
-    assertSectionText(C.Tag.listing_detail_photo_badge, "2 / 5")
+    assertSectionText(
+        C.Tag.listing_detail_photo_badge,
+        context.getString(R.string.listing_detail_photo_count, 2, listing.photoUrls.size),
+    )
   }
 
   @Test
@@ -130,14 +141,17 @@ class ListingDetailScreenTest {
             listing.availableTo,
             context.resources.configuration.locales[0],
         )
-    assertSectionText(C.Tag.listing_detail_deposit, "180 PP")
+    assertSectionText(
+        C.Tag.listing_detail_deposit,
+        context.getString(R.string.listing_card_price, listing.itemValue),
+    )
     assertSectionText(
         C.Tag.listing_detail_availability,
         context.getString(R.string.listing_detail_date_range, from, to),
     )
     assertSectionText(
         C.Tag.listing_detail_deposit_note,
-        "The final deposit is agreed in chat before acceptance.",
+        context.getString(R.string.listing_detail_deposit_note),
     )
   }
 
@@ -151,7 +165,7 @@ class ListingDetailScreenTest {
         .assertIsDisplayed()
     assertSectionText(
         C.Tag.listing_detail_pickup_caption,
-        "Pickup area · exact address after acceptance",
+        context.getString(R.string.listing_detail_pickup_caption),
     )
   }
 
@@ -162,7 +176,7 @@ class ListingDetailScreenTest {
     composeTestRule
         .onNodeWithTag(C.Tag.listing_detail_request_button)
         .assertIsDisplayed()
-        .assertTextEquals("Request dates")
+        .assertTextEquals(context.getString(R.string.listing_detail_request_dates))
         .performClick()
 
     assertEquals(1, requestClicks)

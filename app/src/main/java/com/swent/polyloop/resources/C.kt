@@ -23,7 +23,6 @@ object C {
     const val listing_card_location = "listing_card_location"
 
     const val listing_detail_screen = "listing_detail_screen"
-    const val listing_detail_content = "listing_detail_content"
     const val listing_detail_photos = "listing_detail_photos"
     const val listing_detail_photo_badge = "listing_detail_photo_badge"
     const val listing_detail_title = "listing_detail_title"

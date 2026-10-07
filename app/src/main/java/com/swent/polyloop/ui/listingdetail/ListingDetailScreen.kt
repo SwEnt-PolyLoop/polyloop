@@ -41,10 +41,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.swent.polyloop.R
@@ -52,6 +49,7 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.PriceText
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.ui.theme.PolyLoopTheme
@@ -83,11 +81,7 @@ fun ListingDetailScreen(
               .testTag(C.Tag.listing_detail_screen)
   ) {
     Column(
-        modifier =
-            Modifier.weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-                .testTag(C.Tag.listing_detail_content),
+        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
       PhotoPager(photoCount = listing.photoUrls.size)
@@ -98,7 +92,11 @@ fun ListingDetailScreen(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.testTag(C.Tag.listing_detail_title),
         )
-        PriceText(pricePerDay = listing.pricePerDay)
+        PriceText(
+            pricePerDay = listing.pricePerDay,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.testTag(C.Tag.listing_detail_price),
+        )
       }
       Text(
           text = listing.description,
@@ -147,25 +145,6 @@ private fun PhotoPager(photoCount: Int) {
       }
     }
   }
-}
-
-/** "15 PP" in bold followed by "/ day" in a lighter style. */
-@Composable
-private fun PriceText(pricePerDay: Int) {
-  val price = stringResource(R.string.listing_detail_points, pricePerDay)
-  val perDay = stringResource(R.string.listing_detail_per_day)
-  val priceColor = MaterialTheme.colorScheme.primary
-  val perDayColor = MaterialTheme.colorScheme.onSurfaceVariant
-  Text(
-      text =
-          buildAnnotatedString {
-            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = priceColor)) { append(price) }
-            append(" ")
-            withStyle(SpanStyle(color = perDayColor)) { append(perDay) }
-          },
-      style = MaterialTheme.typography.titleMedium,
-      modifier = Modifier.testTag(C.Tag.listing_detail_price),
-  )
 }
 
 /** The lender with a placeholder name and rating; the whole card opens their profile. */
@@ -242,7 +221,7 @@ private fun InfoCard(listing: Listing) {
     ) {
       InfoRow(
           label = stringResource(R.string.listing_detail_suggested_deposit),
-          value = stringResource(R.string.listing_detail_points, listing.itemValue),
+          value = stringResource(R.string.listing_card_price, listing.itemValue),
           valueTag = C.Tag.listing_detail_deposit,
       )
       InfoRow(
