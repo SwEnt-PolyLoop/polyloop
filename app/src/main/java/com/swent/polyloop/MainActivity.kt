@@ -1,5 +1,3 @@
-// Edited with Claude.
-
 package com.swent.polyloop
 
 import android.os.Bundle
