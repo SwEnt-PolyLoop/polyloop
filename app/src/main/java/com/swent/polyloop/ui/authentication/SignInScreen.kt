@@ -56,10 +56,10 @@ private val DisabledText = Color(0xFF8C8A85)
 @Composable
 fun SignInScreen(
     onLogin: (email: String, password: String) -> Unit = { _, _ -> },
-    authError: AuthError? = null,
     onForgotPassword: () -> Unit = {},
+    onNavSignup: () -> Unit = {},
+    authError: AuthError? = null,
 ) {
-  var isLoginSelected by remember { mutableStateOf(true) }
   var email by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
   var showEmailError by remember { mutableStateOf(false) }
@@ -67,7 +67,7 @@ fun SignInScreen(
   val normalizedEmail = email.trim()
   val isEpflEmail =
       Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches() &&
-          normalizedEmail.endsWith("@epfl.ch", ignoreCase = true)
+          normalizedEmail.endsWith("@epfl.ch")
   val canSubmit = isEpflEmail && password.isNotBlank()
 
   Column(
@@ -105,23 +105,18 @@ fun SignInScreen(
           modifier =
               Modifier.weight(1f)
                   .height(44.dp)
-                  .then(
-                      if (!isLoginSelected)
-                          Modifier.background(Color.White, RoundedCornerShape(12.dp))
-                      else Modifier
-                  )
                   .clip(RoundedCornerShape(12.dp))
                   .clickable(
                       interactionSource = remember { MutableInteractionSource() },
                       indication = null,
-                      onClick = { isLoginSelected = false },
+                      onClick = onNavSignup,
                   ),
       ) {
         Text(
             text = "Sign up",
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (!isLoginSelected) Ink else Muted,
+            color = Muted,
         )
       }
       Box(
@@ -129,23 +124,14 @@ fun SignInScreen(
           modifier =
               Modifier.weight(1f)
                   .height(44.dp)
-                  .then(
-                      if (isLoginSelected)
-                          Modifier.background(Color.White, RoundedCornerShape(12.dp))
-                      else Modifier
-                  )
-                  .clip(RoundedCornerShape(12.dp))
-                  .clickable(
-                      interactionSource = remember { MutableInteractionSource() },
-                      indication = null,
-                      onClick = { isLoginSelected = true },
-                  ),
+                  .background(Color.White, RoundedCornerShape(12.dp))
+                  .clip(RoundedCornerShape(12.dp)),
       ) {
         Text(
             text = "Log in",
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (isLoginSelected) Ink else Muted,
+            color = Ink,
         )
       }
     }
