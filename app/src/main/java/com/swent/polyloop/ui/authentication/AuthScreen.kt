@@ -52,6 +52,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.polyloop.model.auth.AuthError
+import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.auth.AuthResult
+import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
 private const val NAME_FIELD_TAG = "signInName"
@@ -63,10 +66,10 @@ private const val LOGIN_TAB_TAG = "signInLoginTab"
 private const val SIGNUP_TAB_TAG = "signInSignupTab"
 
 /**
- * Connected log-in / sign-up screen: plugs [AuthViewModel] into [AuthContent].
+ * Log-in / sign-up screen backed by [AuthViewModel].
  *
  * The email verification step is a separate route: [onNavigateToVerification] is called when the
- * ViewModel says the user must verify their email, and [onSignedIn] once a verified user is in.
+ * ViewModel says the user must verify their email, and [onSignIn] once a verified user is in.
  *
  * The default ViewModel is scoped to the nav back stack entry of this route. The verification
  * screen must reuse that same instance (it needs the typed email and password).
@@ -85,28 +88,6 @@ fun AuthScreen(
         if (state.isAwaitingVerification) onNavigateToVerification()
     }
 
-    AuthContent(
-        state = state,
-        onNameChange = viewModel::onNameChange,
-        onEmailChange = viewModel::onEmailChange,
-        onPasswordChange = viewModel::onPasswordChange,
-        onModeChange = viewModel::switchMode,
-        onSubmit = viewModel::submit,
-        onForgotPassword = onForgotPassword,
-    )
-}
-
-/** Stateless content: previewable and testable without a ViewModel. */
-@Composable
-private fun AuthContent(
-    state: AuthUiState,
-    onNameChange: (String) -> Unit = {},
-    onEmailChange: (String) -> Unit = {},
-    onPasswordChange: (String) -> Unit = {},
-    onModeChange: (AuthMode) -> Unit = {},
-    onSubmit: () -> Unit = {},
-    onForgotPassword: () -> Unit = {},
-) {
     val colors = MaterialTheme.colorScheme
     val isSignUp = state.mode == AuthMode.SIGN_UP
     var isEmailFocused by remember { mutableStateOf(false) }
@@ -130,7 +111,7 @@ private fun AuthContent(
         Header()
         Spacer(Modifier.height(16.dp))
 
-        SegmentedTabs(state.mode, onModeChange)
+        SegmentedTabs(state.mode, viewModel::switchMode)
         Spacer(Modifier.height(16.dp))
 
         // The only field that depends on the mode.
@@ -139,7 +120,7 @@ private fun AuthContent(
                 label = "Name",
                 value = state.name,
                 placeholder = "Enter your name",
-                onValueChange = onNameChange,
+                onValueChange = viewModel::onNameChange,
                 errorText =
                     if (state.hasAttemptedSubmit && state.name.isBlank()) "Please enter your name."
                     else null,
@@ -152,7 +133,7 @@ private fun AuthContent(
             label = "EPFL email",
             value = state.email,
             placeholder = "Enter your EPFL email",
-            onValueChange = onEmailChange,
+            onValueChange = viewModel::onEmailChange,
             errorText = emailError,
             keyboardType = KeyboardType.Email,
             onFocusChange = { isEmailFocused = it },
@@ -164,7 +145,7 @@ private fun AuthContent(
             label = "Password",
             value = state.password,
             placeholder = "Enter your password",
-            onValueChange = onPasswordChange,
+            onValueChange = viewModel::onPasswordChange,
             errorText =
                 if (state.hasAttemptedSubmit && state.password.isBlank()) "Please enter your password."
                 else null,
@@ -176,7 +157,7 @@ private fun AuthContent(
 
         AuthButton(
             text = if (isSignUp) "Sign up" else "Log in",
-            onClick = onSubmit,
+            onClick = viewModel::submit,
             enabled = !state.isLoading,
             testTag = if (isSignUp) SIGNUP_BUTTON_TAG else LOGIN_BUTTON_TAG,
         )
@@ -373,27 +354,56 @@ private fun AuthError.message(): String =
 @Preview(showBackground = true)
 @Composable
 private fun AuthScreenLogInPreview() {
-    PolyLoopTheme { AuthContent(AuthUiState(mode = AuthMode.LOG_IN)) }
+    val viewModel =
+        remember { AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.LOG_IN) } }
+    PolyLoopTheme {
+        AuthScreen(
+            onSignIn = {},
+            onNavigateToVerification = {},
+            viewModel = viewModel,
+        )
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun AuthScreenSignUpPreview() {
-    PolyLoopTheme { AuthContent(AuthUiState(mode = AuthMode.SIGN_UP)) }
+    val viewModel =
+        remember { AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) } }
+    PolyLoopTheme {
+        AuthScreen(
+            onSignIn = {},
+            onNavigateToVerification = {},
+            viewModel = viewModel,
+        )
+    }
 }
-
 
 @Preview(showBackground = true)
 @Composable
 private fun AuthScreenInteractivePreview() {
-    var state by remember { mutableStateOf(AuthUiState(mode = AuthMode.SIGN_UP)) }
+    val viewModel =
+        remember { AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) } }
     PolyLoopTheme {
-        AuthContent(
-            state = state,
-            onNameChange = { state = state.copy(name = it) },
-            onEmailChange = { state = state.copy(email = it) },
-            onPasswordChange = { state = state.copy(password = it) },
-            onModeChange = { state = state.copy(mode = it) },
+        AuthScreen(
+            onSignIn = {},
+            onNavigateToVerification = {},
+            viewModel = viewModel,
         )
     }
+}
+
+private class PreviewAuthRepository : AuthRepository {
+    override suspend fun signUp(name: String, email: String, password: String): AuthResult<Unit> =
+        AuthResult.Success(Unit)
+
+    override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> =
+        AuthResult.Success(AuthUser(uid = "preview", email = email, name = "Preview"))
+
+    override suspend fun resendVerificationEmail(email: String, password: String): AuthResult<Unit> =
+        AuthResult.Success(Unit)
+
+    override fun getCurrentUser(): AuthUser? = null
+
+    override fun signOut() = Unit
 }
