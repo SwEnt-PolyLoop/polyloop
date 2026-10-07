@@ -30,7 +30,7 @@ class AuthScreenTests {
   @Test
   fun modesSwitchAndShowModeSpecificFields() {
     show(AuthMode.LOG_IN)
-    composeTestRule.onAllNodesWithText("Forgot password?").assertCountEquals(0)
+    composeTestRule.onNodeWithText("Forgot password?").assertIsDisplayed()
     composeTestRule.onNodeWithTag("signInSignupTab").performClick()
     composeTestRule.onNodeWithText("Name").assertIsDisplayed()
     composeTestRule.onAllNodesWithText("Forgot password?").assertCountEquals(0)

@@ -79,110 +79,110 @@ fun AuthScreen(
     onNavigateToVerification: () -> Unit,
     viewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory()),
 ) {
-    val state by viewModel.uiState.collectAsState()
+  val state by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(state.isSignedIn) { if (state.isSignedIn) onSignIn() }
-    LaunchedEffect(state.isAwaitingVerification) {
-        if (state.isAwaitingVerification) onNavigateToVerification()
+  LaunchedEffect(state.isSignedIn) { if (state.isSignedIn) onSignIn() }
+  LaunchedEffect(state.isAwaitingVerification) {
+    if (state.isAwaitingVerification) onNavigateToVerification()
+  }
+
+  val colors = MaterialTheme.colorScheme
+  val isSignUp = state.mode == AuthMode.SIGN_UP
+  var isEmailFocused by remember { mutableStateOf(false) }
+
+  val showEmailError = (isEmailFocused || state.hasAttemptedSubmit) && !state.isEmailValid
+  val emailError =
+      when {
+        !showEmailError -> null
+        state.hasAttemptedSubmit && state.email.isBlank() -> "Please enter your email address."
+        else -> "Use your @epfl.ch address."
+      }
+
+  Column(
+      modifier =
+          Modifier.fillMaxSize()
+              .background(colors.background)
+              .verticalScroll(rememberScrollState())
+              .padding(horizontal = 14.dp)
+              .padding(top = 64.dp)
+  ) {
+    Header()
+    Spacer(Modifier.height(16.dp))
+
+    SegmentedTabs(state.mode, viewModel::switchMode)
+    Spacer(Modifier.height(16.dp))
+
+    // The only field that depends on the mode.
+    if (isSignUp) {
+      AuthTextField(
+          label = "Name",
+          value = state.name,
+          placeholder = "Enter your name",
+          onValueChange = viewModel::onNameChange,
+          errorText =
+              if (state.hasAttemptedSubmit && state.name.isBlank()) "Please enter your name."
+              else null,
+          testTag = NAME_FIELD_TAG,
+      )
+      Spacer(Modifier.height(16.dp))
     }
 
-    val colors = MaterialTheme.colorScheme
-    val isSignUp = state.mode == AuthMode.SIGN_UP
-    var isEmailFocused by remember { mutableStateOf(false) }
+    AuthTextField(
+        label = "EPFL email",
+        value = state.email,
+        placeholder = "Enter your EPFL email",
+        onValueChange = viewModel::onEmailChange,
+        errorText = emailError,
+        keyboardType = KeyboardType.Email,
+        onFocusChange = { isEmailFocused = it },
+        testTag = EMAIL_FIELD_TAG,
+    )
+    Spacer(Modifier.height(16.dp))
 
-    val showEmailError = (isEmailFocused || state.hasAttemptedSubmit) && !state.isEmailValid
-    val emailError =
-        when {
-            !showEmailError -> null
-            state.hasAttemptedSubmit && state.email.isBlank() -> "Please enter your email address."
-            else -> "Use your @epfl.ch address."
-        }
+    AuthTextField(
+        label = "Password",
+        value = state.password,
+        placeholder = "Enter your password",
+        onValueChange = viewModel::onPasswordChange,
+        errorText =
+            if (state.hasAttemptedSubmit && state.password.isBlank()) "Please enter your password."
+            else null,
+        keyboardType = KeyboardType.Password,
+        isPassword = true,
+        testTag = PASSWORD_FIELD_TAG,
+    )
+    Spacer(Modifier.height(20.dp))
 
-    Column(
-        modifier =
-            Modifier.fillMaxSize()
-                .background(colors.background)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp)
-                .padding(top = 64.dp)
-    ) {
-        Header()
-        Spacer(Modifier.height(16.dp))
-
-        SegmentedTabs(state.mode, viewModel::switchMode)
-        Spacer(Modifier.height(16.dp))
-
-        // The only field that depends on the mode.
-        if (isSignUp) {
-            AuthTextField(
-                label = "Name",
-                value = state.name,
-                placeholder = "Enter your name",
-                onValueChange = viewModel::onNameChange,
-                errorText =
-                    if (state.hasAttemptedSubmit && state.name.isBlank()) "Please enter your name."
-                    else null,
-                testTag = NAME_FIELD_TAG,
-            )
-            Spacer(Modifier.height(16.dp))
-        }
-
-        AuthTextField(
-            label = "EPFL email",
-            value = state.email,
-            placeholder = "Enter your EPFL email",
-            onValueChange = viewModel::onEmailChange,
-            errorText = emailError,
-            keyboardType = KeyboardType.Email,
-            onFocusChange = { isEmailFocused = it },
-            testTag = EMAIL_FIELD_TAG,
-        )
-        Spacer(Modifier.height(16.dp))
-
-        AuthTextField(
-            label = "Password",
-            value = state.password,
-            placeholder = "Enter your password",
-            onValueChange = viewModel::onPasswordChange,
-            errorText =
-                if (state.hasAttemptedSubmit && state.password.isBlank()) "Please enter your password."
-                else null,
-            keyboardType = KeyboardType.Password,
-            isPassword = true,
-            testTag = PASSWORD_FIELD_TAG,
-        )
-        Spacer(Modifier.height(20.dp))
-
-        AuthButton(
-            text = if (isSignUp) "Sign up" else "Log in",
-            onClick = viewModel::submit,
-            enabled = !state.isLoading,
-            testTag = if (isSignUp) SIGNUP_BUTTON_TAG else LOGIN_BUTTON_TAG,
-        )
-        ErrorMessage(state.error)
-    }
+    AuthButton(
+        text = if (isSignUp) "Sign up" else "Log in",
+        onClick = viewModel::submit,
+        enabled = !state.isLoading,
+        testTag = if (isSignUp) SIGNUP_BUTTON_TAG else LOGIN_BUTTON_TAG,
+    )
+    ErrorMessage(state.error)
+  }
 }
 
 /** Renders the PolyLoop wordmark and the short description shown above the authentication form. */
 @Composable
 private fun Header() {
-    val colors = MaterialTheme.colorScheme
-    Text(
-        text =
-            buildAnnotatedString {
-                withStyle(SpanStyle(color = colors.onBackground)) { append("Poly") }
-                withStyle(SpanStyle(color = colors.primary)) { append("Loop") }
-            },
-        fontSize = 44.sp,
-        fontWeight = FontWeight.ExtraBold,
-        letterSpacing = (-1.5).sp,
-    )
-    Text(
-        text = "Borrow and lend among EPFL students.",
-        color = colors.onSurfaceVariant,
-        fontSize = 16.sp,
-        modifier = Modifier.padding(top = 8.dp),
-    )
+  val colors = MaterialTheme.colorScheme
+  Text(
+      text =
+          buildAnnotatedString {
+            withStyle(SpanStyle(color = colors.onBackground)) { append("Poly") }
+            withStyle(SpanStyle(color = colors.primary)) { append("Loop") }
+          },
+      fontSize = 44.sp,
+      fontWeight = FontWeight.ExtraBold,
+      letterSpacing = (-1.5).sp,
+  )
+  Text(
+      text = "Borrow and lend among EPFL students.",
+      color = colors.onSurfaceVariant,
+      fontSize = 16.sp,
+      modifier = Modifier.padding(top = 8.dp),
+  )
 }
 
 /**
@@ -193,15 +193,15 @@ private fun Header() {
  */
 @Composable
 private fun SegmentedTabs(mode: AuthMode, onModeChange: (AuthMode) -> Unit) {
-    Row(
-        modifier =
-            Modifier.fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
-                .padding(4.dp)
-    ) {
-        Tab("Sign up", mode == AuthMode.SIGN_UP, SIGNUP_TAB_TAG) { onModeChange(AuthMode.SIGN_UP) }
-        Tab("Log in", mode == AuthMode.LOG_IN, LOGIN_TAB_TAG) { onModeChange(AuthMode.LOG_IN) }
-    }
+  Row(
+      modifier =
+          Modifier.fillMaxWidth()
+              .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
+              .padding(4.dp)
+  ) {
+    Tab("Sign up", mode == AuthMode.SIGN_UP, SIGNUP_TAB_TAG) { onModeChange(AuthMode.SIGN_UP) }
+    Tab("Log in", mode == AuthMode.LOG_IN, LOGIN_TAB_TAG) { onModeChange(AuthMode.LOG_IN) }
+  }
 }
 
 /**
@@ -214,28 +214,28 @@ private fun SegmentedTabs(mode: AuthMode, onModeChange: (AuthMode) -> Unit) {
  */
 @Composable
 private fun RowScope.Tab(text: String, selected: Boolean, testTag: String, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier =
-            Modifier.weight(1f)
-                .height(44.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (selected) colors.surface else colors.surfaceVariant)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClick,
-                )
-                .testTag(testTag),
-    ) {
-        Text(
-            text = text,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) colors.onSurface else colors.onSurfaceVariant,
-        )
-    }
+  val colors = MaterialTheme.colorScheme
+  Box(
+      contentAlignment = Alignment.Center,
+      modifier =
+          Modifier.weight(1f)
+              .height(44.dp)
+              .clip(RoundedCornerShape(12.dp))
+              .background(if (selected) colors.surface else colors.surfaceVariant)
+              .clickable(
+                  interactionSource = remember { MutableInteractionSource() },
+                  indication = null,
+                  onClick = onClick,
+              )
+              .testTag(testTag),
+  ) {
+    Text(
+        text = text,
+        fontSize = 17.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = if (selected) colors.onSurface else colors.onSurfaceVariant,
+    )
+  }
 }
 
 /**
@@ -266,44 +266,44 @@ private fun AuthTextField(
     isPassword: Boolean = false,
     onFocusChange: (Boolean) -> Unit = {},
 ) {
-    val colors = MaterialTheme.colorScheme
+  val colors = MaterialTheme.colorScheme
 
-    Text(
-        text = label,
-        color = colors.onSurface,
-        fontSize = 15.sp,
-        fontWeight = FontWeight.Medium,
-        modifier = Modifier.padding(bottom = 8.dp),
-    )
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = { Text(placeholder, color = colors.onSurfaceVariant, fontSize = 18.sp) },
-        singleLine = true,
-        shape = RoundedCornerShape(14.dp),
-        isError = errorText != null,
-        visualTransformation =
-            if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        textStyle = TextStyle(fontSize = 18.sp, color = colors.onSurface),
-        colors =
-            OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = colors.surface,
-                unfocusedContainerColor = colors.surface,
-                focusedBorderColor = colors.onSurface,
-                unfocusedBorderColor = colors.outline,
-                cursorColor = colors.primary,
-            ),
-        modifier =
-            Modifier.fillMaxWidth().height(62.dp).testTag(testTag).onFocusChanged {
-                onFocusChange(it.isFocused)
-            },
-    )
-    Column(modifier = Modifier.height(20.dp)) {
-        if (errorText != null) {
-            Text(text = errorText, color = colors.error, fontSize = 13.sp)
-        }
+  Text(
+      text = label,
+      color = colors.onSurface,
+      fontSize = 15.sp,
+      fontWeight = FontWeight.Medium,
+      modifier = Modifier.padding(bottom = 8.dp),
+  )
+  OutlinedTextField(
+      value = value,
+      onValueChange = onValueChange,
+      placeholder = { Text(placeholder, color = colors.onSurfaceVariant, fontSize = 18.sp) },
+      singleLine = true,
+      shape = RoundedCornerShape(14.dp),
+      isError = errorText != null,
+      visualTransformation =
+          if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+      keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+      textStyle = TextStyle(fontSize = 18.sp, color = colors.onSurface),
+      colors =
+          OutlinedTextFieldDefaults.colors(
+              focusedContainerColor = colors.surface,
+              unfocusedContainerColor = colors.surface,
+              focusedBorderColor = colors.onSurface,
+              unfocusedBorderColor = colors.outline,
+              cursorColor = colors.primary,
+          ),
+      modifier =
+          Modifier.fillMaxWidth().height(62.dp).testTag(testTag).onFocusChanged {
+            onFocusChange(it.isFocused)
+          },
+  )
+  Column(modifier = Modifier.height(20.dp)) {
+    if (errorText != null) {
+      Text(text = errorText, color = colors.error, fontSize = 13.sp)
     }
+  }
 }
 
 /**
@@ -316,119 +316,122 @@ private fun AuthTextField(
  */
 @Composable
 private fun AuthButton(text: String, onClick: () -> Unit, enabled: Boolean, testTag: String) {
-    val colors = MaterialTheme.colorScheme
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(14.dp),
-        colors =
-            ButtonDefaults.buttonColors(
-                containerColor = colors.primary,
-                contentColor = colors.onPrimary,
-            ),
-        elevation =
-            ButtonDefaults.buttonElevation(
-                defaultElevation = 0.dp,
-                pressedElevation = 0.dp,
-                focusedElevation = 0.dp,
-                hoveredElevation = 0.dp,
-                disabledElevation = 0.dp,
-            ),
-        modifier = Modifier.fillMaxWidth().height(52.dp).testTag(testTag),
-    ) {
-        Text(text, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-    }
+  val colors = MaterialTheme.colorScheme
+  Button(
+      onClick = onClick,
+      enabled = enabled,
+      shape = RoundedCornerShape(14.dp),
+      colors =
+          ButtonDefaults.buttonColors(
+              containerColor = colors.primary,
+              contentColor = colors.onPrimary,
+          ),
+      elevation =
+          ButtonDefaults.buttonElevation(
+              defaultElevation = 0.dp,
+              pressedElevation = 0.dp,
+              focusedElevation = 0.dp,
+              hoveredElevation = 0.dp,
+              disabledElevation = 0.dp,
+          ),
+      modifier = Modifier.fillMaxWidth().height(52.dp).testTag(testTag),
+  ) {
+    Text(text, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+  }
 }
 
 /** Shows the latest authentication error in a fixed-height area below the primary action. */
 @Composable
 private fun ErrorMessage(error: AuthError?) {
-    Column(modifier = Modifier.height(36.dp).fillMaxWidth()) {
-        if (error != null) {
-            Text(
-                text = error.message(),
-                color = MaterialTheme.colorScheme.error,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
+  Column(modifier = Modifier.height(36.dp).fillMaxWidth()) {
+    if (error != null) {
+      Text(
+          text = error.message(),
+          color = MaterialTheme.colorScheme.error,
+          fontSize = 13.sp,
+          modifier = Modifier.padding(top = 4.dp),
+      )
     }
+  }
 }
 
 /** Converts an authentication failure into the message displayed to the user. */
 private fun AuthError.message(): String =
     when (this) {
-        AuthError.WRONG_CREDENTIALS -> "The email or password is incorrect."
-        AuthError.WEAK_PASSWORD -> "Your password is too weak."
-        AuthError.EMAIL_NOT_VERIFIED -> "Please verify your email address."
-        AuthError.TOO_MANY_REQUESTS -> "Too many attempts. Please try again later."
-        AuthError.NETWORK -> "A network error occurred. Please try again."
-        AuthError.UNKNOWN -> "An unexpected error occurred. Please try again."
-        AuthError.NAME_REQUIRED -> "Please enter your name."
-        AuthError.INVALID_DOMAIN -> "Use your @epfl.ch address."
-        AuthError.EMAIL_ALREADY_IN_USE -> "This email already has an account. Try logging in."
-        AuthError.VERIFICATION_EMAIL_NOT_SENT ->
-            "Account created, but the verification email could not be sent."
-        AuthError.NAME_NOT_SAVED -> "Account created, but your name could not be saved."
+      AuthError.WRONG_CREDENTIALS -> "The email or password is incorrect."
+      AuthError.WEAK_PASSWORD -> "Your password is too weak."
+      AuthError.EMAIL_NOT_VERIFIED -> "Please verify your email address."
+      AuthError.TOO_MANY_REQUESTS -> "Too many attempts. Please try again later."
+      AuthError.NETWORK -> "A network error occurred. Please try again."
+      AuthError.UNKNOWN -> "An unexpected error occurred. Please try again."
+      AuthError.NAME_REQUIRED -> "Please enter your name."
+      AuthError.INVALID_DOMAIN -> "Use your @epfl.ch address."
+      AuthError.EMAIL_ALREADY_IN_USE -> "This email already has an account. Try logging in."
+      AuthError.VERIFICATION_EMAIL_NOT_SENT ->
+          "Account created, but the verification email could not be sent."
+      AuthError.NAME_NOT_SAVED -> "Account created, but your name could not be saved."
     }
 
 /** Preview of the login form backed by an in-memory authentication repository. */
 @Preview(showBackground = true)
 @Composable
 private fun AuthScreenLogInPreview() {
-    val viewModel =
-        remember { AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.LOG_IN) } }
-    PolyLoopTheme {
-        AuthScreen(
-            onSignIn = {},
-            onNavigateToVerification = {},
-            viewModel = viewModel,
-        )
-    }
+  val viewModel = remember {
+    AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.LOG_IN) }
+  }
+  PolyLoopTheme {
+    AuthScreen(
+        onSignIn = {},
+        onNavigateToVerification = {},
+        viewModel = viewModel,
+    )
+  }
 }
 
 /** Preview of the sign-up form backed by an in-memory authentication repository. */
 @Preview(showBackground = true)
 @Composable
 private fun AuthScreenSignUpPreview() {
-    val viewModel =
-        remember { AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) } }
-    PolyLoopTheme {
-        AuthScreen(
-            onSignIn = {},
-            onNavigateToVerification = {},
-            viewModel = viewModel,
-        )
-    }
+  val viewModel = remember {
+    AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) }
+  }
+  PolyLoopTheme {
+    AuthScreen(
+        onSignIn = {},
+        onNavigateToVerification = {},
+        viewModel = viewModel,
+    )
+  }
 }
 
 /** Interactive preview of the sign-up form using successful in-memory authentication responses. */
 @Preview(showBackground = true)
 @Composable
 private fun AuthScreenInteractivePreview() {
-    val viewModel =
-        remember { AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) } }
-    PolyLoopTheme {
-        AuthScreen(
-            onSignIn = {},
-            onNavigateToVerification = {},
-            viewModel = viewModel,
-        )
-    }
+  val viewModel = remember {
+    AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) }
+  }
+  PolyLoopTheme {
+    AuthScreen(
+        onSignIn = {},
+        onNavigateToVerification = {},
+        viewModel = viewModel,
+    )
+  }
 }
 
 /** In-memory repository used by previews to avoid Firebase dependencies. */
 private class PreviewAuthRepository : AuthRepository {
-    override suspend fun signUp(name: String, email: String, password: String): AuthResult<Unit> =
-        AuthResult.Success(Unit)
+  override suspend fun signUp(name: String, email: String, password: String): AuthResult<Unit> =
+      AuthResult.Success(Unit)
 
-    override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> =
-        AuthResult.Success(AuthUser(uid = "preview", email = email, name = "Preview"))
+  override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> =
+      AuthResult.Success(AuthUser(uid = "preview", email = email, name = "Preview"))
 
-    override suspend fun resendVerificationEmail(email: String, password: String): AuthResult<Unit> =
-        AuthResult.Success(Unit)
+  override suspend fun resendVerificationEmail(email: String, password: String): AuthResult<Unit> =
+      AuthResult.Success(Unit)
 
-    override fun getCurrentUser(): AuthUser? = null
+  override fun getCurrentUser(): AuthUser? = null
 
-    override fun signOut() = Unit
+  override fun signOut() = Unit
 }
