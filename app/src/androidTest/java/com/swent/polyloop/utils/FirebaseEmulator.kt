@@ -1,11 +1,14 @@
 package com.swent.polyloop.utils
 
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.coroutines.tasks.await
+import org.json.JSONObject
 import org.junit.Assert.fail
 
 /**
@@ -30,6 +33,24 @@ object FirebaseEmulator {
     Firebase.auth.useEmulator(HOST, AUTH_PORT)
     Firebase.firestore.useEmulator(HOST, FIRESTORE_PORT)
     connected = true
+  }
+
+  /**
+   * Marks [email] as verified, like clicking the link in the verification email. The Auth emulator
+   * sends no real emails; it lists the codes of the links it would have sent.
+   */
+  suspend fun verifyEmail(email: String) {
+    val projectId = FirebaseApp.getInstance().options.projectId
+    val json = URL("http://$HOST:$AUTH_PORT/emulator/v1/projects/$projectId/oobCodes").readText()
+    val codes = JSONObject(json).getJSONArray("oobCodes")
+    val code =
+        (0 until codes.length())
+            .map { codes.getJSONObject(it) }
+            .last {
+              it.getString("email") == email && it.getString("requestType") == "VERIFY_EMAIL"
+            }
+            .getString("oobCode")
+    Firebase.auth.applyActionCode(code).await()
   }
 
   private fun isRunning(): Boolean =
