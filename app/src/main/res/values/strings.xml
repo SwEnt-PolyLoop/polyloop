@@ -11,6 +11,9 @@
     <string name="browse_category_all">All</string>
     <string name="browse_map">Map</string>
     <string name="browse_list">List</string>
+    <string name="browse_error_fallback">Could not load the listings</string>
+    <string name="browse_retry">Retry</string>
+    <string name="browse_empty">No listings available yet</string>
 
     <!-- Listing card -->
     <string name="listing_card_price">%1$d PP</string>

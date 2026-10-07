@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.browse
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.SegmentedButton
@@ -24,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -32,87 +36,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
-import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
-import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
-import java.time.LocalDate
 
 // TODO: temporary until LocationRepository exists; every card shows the same distance.
 private const val FAKE_DISTANCE_TEXT = "0.6 km"
 
-// TODO: replaced by real data from ListingRepository in #37.
-private val sampleListings =
-    listOf(
-        sampleListing(
-            "sample-tent",
-            "Camping tent, 2 people",
-            ListingCategory.SPORTS_OUTDOOR,
-            15,
-            200,
-            "Ecublens",
-        ),
-        sampleListing(
-            "sample-projector",
-            "Projector",
-            ListingCategory.ELECTRONICS,
-            12,
-            300,
-            "Renens",
-        ),
-        sampleListing(
-            "sample-drill",
-            "Electric drill",
-            ListingCategory.TOOLS_DIY,
-            8,
-            120,
-            "Ecublens",
-        ),
-        sampleListing(
-            "sample-helmet",
-            "Ski helmet, size M",
-            ListingCategory.SPORTS_OUTDOOR,
-            5,
-            80,
-            "Lausanne",
-        ),
-    )
-
-private fun sampleListing(
-    id: String,
-    title: String,
-    category: ListingCategory,
-    pricePerDay: Int,
-    itemValue: Int,
-    pickupArea: String,
-) =
-    Listing(
-        id = id,
-        ownerId = "sample-owner",
-        title = title,
-        description = "$title in good condition.",
-        category = category,
-        photoUrls = emptyList(),
-        pricePerDay = pricePerDay,
-        itemValue = itemValue,
-        availableFrom = LocalDate.of(2026, 10, 1),
-        availableTo = LocalDate.of(2026, 12, 31),
-        status = ListingStatus.PUBLISHED,
-        pickupArea = pickupArea,
-        dropOffArea = pickupArea,
-    )
-
-/** The Browse screen, showing hardcoded sample listings for now. */
+/** The Browse screen, showing the published listings loaded by [viewModel]. */
 @Composable
-fun BrowseScreen(onListingClick: (String) -> Unit = {}) {
-  BrowseContent(listings = sampleListings, onListingClick = onListingClick)
+fun BrowseScreen(viewModel: BrowseViewModel, onListingClick: (String) -> Unit = {}) {
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  BrowseContent(uiState = uiState, onListingClick = onListingClick, onRetry = viewModel::refresh)
 }
 
-/** Stateless Browse content: the header and the list of [listings]. */
+/**
+ * Stateless Browse content: the header, then a loading indicator, an error with a Retry button, an
+ * empty state or the list of listings, depending on [uiState].
+ */
 @Composable
-fun BrowseContent(listings: List<Listing>, onListingClick: (String) -> Unit) {
+fun BrowseContent(
+    uiState: BrowseUiState,
+    onListingClick: (String) -> Unit,
+    onRetry: () -> Unit,
+) {
   Column(
       modifier =
           Modifier.fillMaxSize()
@@ -128,23 +77,64 @@ fun BrowseContent(listings: List<Listing>, onListingClick: (String) -> Unit) {
           text = stringResource(R.string.browse_title),
           style = MaterialTheme.typography.headlineMedium,
           fontWeight = FontWeight.Bold,
+          modifier = Modifier.testTag(C.Tag.browse_title),
       )
       BrowseSearchBar()
       BrowseCategoryChips()
       BrowseViewToggle()
     }
-    LazyColumn(
-        modifier = Modifier.fillMaxWidth().testTag(C.Tag.browse_list),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-      items(listings, key = { it.id }) { listing ->
-        ListingCard(
-            listing = listing,
-            distanceText = FAKE_DISTANCE_TEXT,
-            onClick = { onListingClick(listing.id) },
-        )
-      }
+    when {
+      uiState.isLoading ->
+          Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(modifier = Modifier.testTag(C.Tag.browse_loading))
+          }
+      uiState.errorMsg != null -> BrowseError(errorMsg = uiState.errorMsg, onRetry = onRetry)
+      uiState.listings.isEmpty() ->
+          Box(
+              modifier = Modifier.fillMaxSize().padding(16.dp),
+              contentAlignment = Alignment.Center,
+          ) {
+            Text(
+                text = stringResource(R.string.browse_empty),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.testTag(C.Tag.browse_empty),
+            )
+          }
+      else ->
+          LazyColumn(
+              modifier = Modifier.fillMaxWidth().testTag(C.Tag.browse_list),
+              contentPadding = PaddingValues(16.dp),
+              verticalArrangement = Arrangement.spacedBy(12.dp),
+          ) {
+            items(uiState.listings, key = { it.id }) { listing ->
+              ListingCard(
+                  listing = listing,
+                  distanceText = FAKE_DISTANCE_TEXT,
+                  onClick = { onListingClick(listing.id) },
+              )
+            }
+          }
+    }
+  }
+}
+
+/** The load error ([errorMsg], or a generic text if it is blank) and a Retry button. */
+@Composable
+private fun BrowseError(errorMsg: String, onRetry: () -> Unit) {
+  Column(
+      modifier = Modifier.fillMaxSize().padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+      horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    Text(
+        text = errorMsg.ifBlank { stringResource(R.string.browse_error_fallback) },
+        style = MaterialTheme.typography.bodyLarge,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.testTag(C.Tag.browse_error),
+    )
+    Button(onClick = onRetry, modifier = Modifier.testTag(C.Tag.browse_retry_button)) {
+      Text(stringResource(R.string.browse_retry))
     }
   }
 }
@@ -204,14 +194,19 @@ private fun BrowseCategoryChips() {
               .testTag(C.Tag.browse_category_chips),
       horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    CategoryChip(label = stringResource(R.string.browse_category_all), selected = true)
+    CategoryChip(
+        label = stringResource(R.string.browse_category_all),
+        selected = true,
+        modifier = Modifier.testTag(C.Tag.browse_category_all),
+    )
     ListingCategory.entries.forEach { CategoryChip(label = it.label, selected = false) }
   }
 }
 
 @Composable
-private fun CategoryChip(label: String, selected: Boolean) {
+private fun CategoryChip(label: String, selected: Boolean, modifier: Modifier = Modifier) {
   Surface(
+      modifier = modifier,
       shape = CircleShape,
       color =
           if (selected) MaterialTheme.colorScheme.primaryContainer
@@ -256,5 +251,5 @@ private fun BrowseViewToggle() {
 @Preview(showBackground = true)
 @Composable
 private fun BrowseContentPreview() {
-  PolyLoopTheme { BrowseContent(listings = sampleListings, onListingClick = {}) }
+  PolyLoopTheme { BrowseContent(uiState = BrowseUiState(), onListingClick = {}, onRetry = {}) }
 }
