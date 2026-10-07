@@ -1,4 +1,4 @@
-package com.swent.polyloop.ui.theme.authentication
+package com.swent.polyloop.ui.authentication
 
 import android.util.Patterns
 import androidx.compose.foundation.background
