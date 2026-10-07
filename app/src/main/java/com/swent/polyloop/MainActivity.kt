@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.authentication.SignInScreen
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
 class MainActivity : ComponentActivity() {
@@ -20,13 +21,7 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     setContent {
       PolyLoopTheme {
-        // A surface container using the 'background' color from the theme
-        Surface(
-            modifier = Modifier.fillMaxSize().semantics { testTag = C.Tag.main_screen_container },
-            color = MaterialTheme.colorScheme.background,
-        ) {
-          Greeting("Android")
-        }
+        SignInScreen()
       }
     }
   }
