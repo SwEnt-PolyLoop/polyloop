@@ -8,8 +8,6 @@ object C {
     const val main_screen_container = "main_screen_container"
 
     const val browse_screen = "browse_screen"
-    const val browse_menu_button = "browse_menu_button"
-    const val browse_profile_button = "browse_profile_button"
     const val browse_search_bar = "browse_search_bar"
     const val browse_category_chips = "browse_category_chips"
     const val browse_map_toggle = "browse_map_toggle"
