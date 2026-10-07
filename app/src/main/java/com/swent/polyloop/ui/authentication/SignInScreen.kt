@@ -1,6 +1,7 @@
+//Made with Copilot
+
 package com.swent.polyloop.ui.authentication
 
-import android.util.Patterns
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -43,7 +45,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.swent.polyloop.model.auth.AuthError
+import com.swent.polyloop.model.auth.EpflEmail
 import com.swent.polyloop.ui.theme.PolyLoopTheme
+
+private const val EMAIL_FIELD_TAG = "signInEmail"
+private const val PASSWORD_FIELD_TAG = "signInPassword"
+private const val LOGIN_BUTTON_TAG = "signInLoginButton"
 
 @Composable
 fun SignInScreen(
@@ -58,10 +65,8 @@ fun SignInScreen(
   var isEmailFocused by remember { mutableStateOf(false) }
   var hasAttemptedLogin by remember { mutableStateOf(false) }
   var showPasswordError by remember { mutableStateOf(false) }
-  val normalizedEmail = email.trim()
-  val isEpflEmail =
-      Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches() &&
-          normalizedEmail.endsWith("@epfl.ch")
+  val normalizedEmail = EpflEmail.normalize(email)
+  val isEpflEmail = EpflEmail.isValid(normalizedEmail)
   val showEmailError = (isEmailFocused || hasAttemptedLogin) && !isEpflEmail
   val canSubmit = isEpflEmail && password.isNotBlank()
 
@@ -163,11 +168,11 @@ fun SignInScreen(
                   cursorColor = colors.primary,
               ),
           modifier =
-              Modifier.fillMaxWidth().height(62.dp).onFocusChanged {
+              Modifier.fillMaxWidth().height(62.dp).testTag(EMAIL_FIELD_TAG).onFocusChanged {
                 isEmailFocused = it.isFocused
               },
       )
-      Box(modifier = Modifier.height(20.dp)) {
+      Column(modifier = Modifier.height(20.dp)) {
         if (showEmailError) {
           Text(
               text =
@@ -213,9 +218,9 @@ fun SignInScreen(
                 unfocusedBorderColor = colors.outline,
                 cursorColor = colors.primary,
             ),
-        modifier = Modifier.fillMaxWidth().height(62.dp),
+        modifier = Modifier.fillMaxWidth().height(62.dp).testTag(PASSWORD_FIELD_TAG),
     )
-    Box(modifier = Modifier.height(20.dp)) {
+    Column(modifier = Modifier.height(20.dp)) {
       if (showPasswordError) {
         Text(
             text = "Please enter your password.",
@@ -236,10 +241,8 @@ fun SignInScreen(
         shape = RoundedCornerShape(14.dp),
         colors =
             ButtonDefaults.buttonColors(
-                containerColor = if (canSubmit) colors.primary else colors.surfaceVariant,
-                contentColor = if (canSubmit) colors.onPrimary else colors.onSurfaceVariant,
-                disabledContainerColor = if (canSubmit) colors.primary else colors.surfaceVariant,
-                disabledContentColor = if (canSubmit) colors.onPrimary else colors.onSurfaceVariant,
+                containerColor = colors.primary,
+                contentColor = colors.onPrimary,
             ),
         elevation =
             ButtonDefaults.buttonElevation(
@@ -249,11 +252,11 @@ fun SignInScreen(
                 hoveredElevation = 0.dp,
                 disabledElevation = 0.dp,
             ),
-        modifier = Modifier.fillMaxWidth().height(52.dp),
+        modifier = Modifier.fillMaxWidth().height(52.dp).testTag(LOGIN_BUTTON_TAG),
     ) {
       Text("Log in", fontSize = 17.sp, fontWeight = FontWeight.Medium)
     }
-    Box(modifier = Modifier.height(36.dp).fillMaxWidth()) {
+    Column(modifier = Modifier.height(36.dp).fillMaxWidth()) {
       authError?.warningMessage()?.let { message ->
         Text(
             text = message,
