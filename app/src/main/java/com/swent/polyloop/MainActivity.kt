@@ -120,4 +120,5 @@ fun PolyLoopApp(
 private fun stringArgument(name: String): List<NamedNavArgument> =
     listOf(navArgument(name) { type = NavType.StringType })
 
-private fun NavBackStackEntry.stringArg(name: String): String = arguments?.getString(name).orEmpty()
+private fun NavBackStackEntry.stringArg(name: String): String =
+    requireNotNull(arguments?.getString(name)) { "Missing navigation argument $name" }

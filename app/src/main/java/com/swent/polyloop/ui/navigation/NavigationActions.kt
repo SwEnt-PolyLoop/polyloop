@@ -8,24 +8,17 @@ import androidx.navigation.NavHostController
 class NavigationActions(private val navController: NavHostController) {
 
   /**
-   * Opens a destination that takes no argument.
+   * Opens a top-level destination (a menu entry).
    *
    * Top-level destinations share one back stack rooted at Browse, so Back from any of them returns
    * to Browse, and selecting the current one again does nothing.
    */
-  fun navigateTo(screen: Screen) {
-    require('{' !in screen.route) {
-      "${screen.route} takes an argument: use navigateTo(route) with its createRoute(...)"
-    }
-    if (screen is Screen.TopLevel && navController.currentDestination?.route == screen.route) {
-      return
-    }
+  fun navigateTo(screen: Screen.TopLevel) {
+    if (navController.currentDestination?.route == screen.route) return
     navController.navigate(screen.route) {
-      if (screen is Screen.TopLevel) {
-        popUpTo(Screen.Browse.route) { saveState = true }
-        launchSingleTop = true
-        restoreState = true
-      }
+      popUpTo(Screen.Browse.route) { saveState = true }
+      launchSingleTop = true
+      restoreState = true
     }
   }
 
