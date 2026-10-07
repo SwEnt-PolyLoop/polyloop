@@ -20,6 +20,20 @@
     <string name="listing_card_per_day">/ day</string>
     <string name="listing_card_location">%1$s · %2$s</string>
 
+    <!-- Listing detail -->
+    <string name="listing_detail_photo_count">%1$d / %2$d</string>
+    <string name="listing_detail_lender_placeholder">Lender name</string>
+    <plurals name="listing_detail_rating">
+        <item quantity="one">%1$.1f · %2$d review</item>
+        <item quantity="other">%1$.1f · %2$d reviews</item>
+    </plurals>
+    <string name="listing_detail_suggested_deposit">Suggested deposit</string>
+    <string name="listing_detail_available">Available</string>
+    <string name="listing_detail_date_range">%1$s – %2$s</string>
+    <string name="listing_detail_deposit_note">The final deposit is agreed in chat before acceptance.</string>
+    <string name="listing_detail_pickup_caption">Pickup area · exact address after acceptance</string>
+    <string name="listing_detail_request_dates">Request dates</string>
+
     <!-- Top-bar menu -->
     <string name="menu_browse">Browse</string>
     <string name="menu_create_listing">Create listing</string>

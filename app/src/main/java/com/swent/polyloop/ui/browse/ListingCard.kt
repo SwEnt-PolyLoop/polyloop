@@ -17,14 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.PriceText
 
 /**
  * One listing in the Browse list: a photo placeholder, the title, the price per day and the
@@ -60,7 +57,11 @@ fun ListingCard(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.testTag(C.Tag.listing_card_title),
         )
-        PriceText(pricePerDay = listing.pricePerDay)
+        PriceText(
+            pricePerDay = listing.pricePerDay,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.testTag(C.Tag.listing_card_price),
+        )
         Text(
             text =
                 if (listing.pickupArea.isBlank()) distanceText
@@ -77,23 +78,4 @@ fun ListingCard(
       }
     }
   }
-}
-
-/** "15 PP" in bold followed by "/ day" in a lighter style. */
-@Composable
-private fun PriceText(pricePerDay: Int) {
-  val price = stringResource(R.string.listing_card_price, pricePerDay)
-  val perDay = stringResource(R.string.listing_card_per_day)
-  val priceColor = MaterialTheme.colorScheme.primary
-  val perDayColor = MaterialTheme.colorScheme.onSurfaceVariant
-  Text(
-      text =
-          buildAnnotatedString {
-            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = priceColor)) { append(price) }
-            append(" ")
-            withStyle(SpanStyle(color = perDayColor)) { append(perDay) }
-          },
-      style = MaterialTheme.typography.bodyLarge,
-      modifier = Modifier.testTag(C.Tag.listing_card_price),
-  )
 }
