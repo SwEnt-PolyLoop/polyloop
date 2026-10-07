@@ -68,6 +68,7 @@ Browse shows available items near the user, as a map or a list. ViewModel: Brows
 - List sorted by distance, using the phone's GPS.
 - Listing cards with the first photo, title, price per day in PolyPoints, distance and pickup area. Tapping a card opens Listing detail.
 - A search bar and filters, such as category and price.
+- Search: every word typed must appear in the title or the description, ignoring case, accents, hyphens and punctuation. Matches in the title rank first; otherwise the distance order is kept. Several categories can be selected at once, and the price range bounds are inclusive.
 - The user's own listings never appear here.
 - Offline: browsing new listings needs a connection, so the screen shows the offline banner and an empty state.
 - Categories are a fixed list: Electronics, Sports & outdoor, Books & course material, Tools & DIY, Kitchen & home, Music, Other.
