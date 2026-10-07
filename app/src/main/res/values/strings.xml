@@ -1,5 +1,7 @@
+<!-- Edited with Claude. -->
 <resources>
     <string name="app_name">PolyLoop</string>
+
 
     <!-- Browse -->
     <string name="browse_title">Browse</string>
@@ -14,4 +16,19 @@
     <string name="listing_card_price">%1$d PP</string>
     <string name="listing_card_per_day">/ day</string>
     <string name="listing_card_location">%1$s · %2$s</string>
+
+    <!-- Top-bar menu -->
+    <string name="menu_browse">Browse</string>
+    <string name="menu_create_listing">Create listing</string>
+    <string name="menu_my_rentals">My rentals</string>
+    <string name="menu_chat_list">Chat list</string>
+    <string name="menu_wallet">Wallet</string>
+    <string name="menu_profile">Profile</string>
+    <string name="menu_admin_court_ruling">Admin court ruling</string>
+    <string name="top_bar_menu">Menu</string>
+    <string name="top_bar_profile">Profile</string>
+
+    <!-- Dummy screen -->
+    <string name="dummy_screen_continue">Continue</string>
+
 </resources>
