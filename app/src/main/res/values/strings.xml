@@ -1,8 +1,6 @@
 <!-- Edited with Claude. -->
 <resources>
-    <string name="app_name">SampleApp</string>
-    <string name="title_activity_main">MainActivity</string>
-    <string name="title_activity_second">SecondActivity</string>
+    <string name="app_name">PolyLoop</string>
 
     <!-- Top-bar menu -->
     <string name="menu_browse">Browse</string>
