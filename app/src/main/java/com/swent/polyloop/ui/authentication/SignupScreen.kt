@@ -153,6 +153,7 @@ fun SignUpScreen(
         },
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
+        isError = showNameError,
         textStyle = TextStyle(fontSize = 18.sp, color = Ink),
         placeholder = { Text("Enter your name", color = DisabledText, fontSize = 18.sp) },
         colors =
@@ -239,6 +240,7 @@ fun SignUpScreen(
         placeholder = { Text("Enter your password", color = DisabledText, fontSize = 18.sp) },
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
+        isError = showPasswordError,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         textStyle = TextStyle(fontSize = 18.sp, color = Ink),
