@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.browse
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.LocalDate
@@ -66,9 +67,17 @@ class BrowseViewModelTest {
 
   @Test
   fun draftListingIsHidden() {
-    repository.listings = listings + listing("draft", ListingStatus.DRAFT)
+    val published = listing("tent")
+    // Returns the DRAFT unfiltered, unlike FakeListingRepository, so the ViewModel must hide it.
+    val unfiltered =
+        object : ListingRepository {
+          override suspend fun getAllListings(): Result<List<Listing>> =
+              Result.success(listOf(published, listing("draft", ListingStatus.DRAFT)))
 
-    assertEquals(listings, BrowseViewModel(repository).uiState.value.listings)
+          override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+        }
+
+    assertEquals(listOf(published), BrowseViewModel(unfiltered).uiState.value.listings)
   }
 
   @Test

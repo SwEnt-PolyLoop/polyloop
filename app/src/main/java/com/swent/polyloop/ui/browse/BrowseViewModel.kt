@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingRepository
+import com.swent.polyloop.model.listing.ListingStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,7 +43,8 @@ class BrowseViewModel(private val listingRepository: ListingRepository) : ViewMo
       listingRepository
           .getAllListings()
           .onSuccess { listings ->
-            _uiState.update { it.copy(isLoading = false, listings = listings) }
+            val published = listings.filter { it.status == ListingStatus.PUBLISHED }
+            _uiState.update { it.copy(isLoading = false, listings = published) }
           }
           .onFailure { e ->
             _uiState.update { it.copy(isLoading = false, errorMsg = e.message ?: "") }
