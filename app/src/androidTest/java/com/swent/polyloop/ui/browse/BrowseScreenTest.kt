@@ -2,25 +2,24 @@
 
 package com.swent.polyloop.ui.browse
 
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.resources.C
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -53,20 +52,27 @@ class BrowseScreenTest {
       listOf(
           C.Tag.browse_menu_button,
           C.Tag.browse_profile_button,
+          C.Tag.browse_title,
           C.Tag.browse_search_bar,
           C.Tag.browse_category_chips,
+          C.Tag.browse_category_all,
           C.Tag.browse_map_toggle,
           C.Tag.browse_list_toggle,
       )
 
-  /** Matches any listing card, whatever its listing id. */
-  private val isListingCard =
-      SemanticsMatcher("is a listing card") { node ->
-        node.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(C.Tag.listing_card_) == true
-      }
+  private fun setContent(
+      uiState: BrowseUiState = BrowseUiState(listings = listings),
+      onListingClick: (String) -> Unit = {},
+  ) {
+    composeTestRule.setContent {
+      BrowseContent(uiState = uiState, onListingClick = onListingClick, onRetry = {})
+    }
+  }
 
-  private fun setContent(onListingClick: (String) -> Unit = {}) {
-    composeTestRule.setContent { BrowseContent(listings = listings, onListingClick) }
+  private fun waitForTag(tag: String) {
+    composeTestRule.waitUntil {
+      composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+    }
   }
 
   @Test
@@ -75,8 +81,31 @@ class BrowseScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.browse_screen).assertIsDisplayed()
     headerTags.forEach { composeTestRule.onNodeWithTag(it).assertIsDisplayed() }
-    composeTestRule.onNodeWithText("Browse").assertIsDisplayed()
-    composeTestRule.onNodeWithText("All").assertIsDisplayed()
+  }
+
+  @Test
+  fun loadingStateShowsProgressIndicator() {
+    setContent(uiState = BrowseUiState(isLoading = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_loading).assertIsDisplayed()
+  }
+
+  @Test
+  fun blankErrorShowsGenericMessage() {
+    setContent(uiState = BrowseUiState(errorMsg = ""))
+
+    val fallback =
+        InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(R.string.browse_error_fallback)
+    composeTestRule.onNodeWithTag(C.Tag.browse_error).assertTextEquals(fallback)
+  }
+
+  @Test
+  fun emptyListShowsEmptyState() {
+    setContent(uiState = BrowseUiState(listings = emptyList()))
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_empty).assertIsDisplayed()
   }
 
   @Test
@@ -93,12 +122,13 @@ class BrowseScreenTest {
   @Test
   fun pressingHeaderControlsDoesNothing() {
     var clickedId: String? = null
-    setContent { clickedId = it }
+    setContent(onListingClick = { clickedId = it })
 
     listOf(
             C.Tag.browse_menu_button,
             C.Tag.browse_profile_button,
             C.Tag.browse_map_toggle,
+            C.Tag.browse_list_toggle,
             C.Tag.browse_search_bar,
         )
         .forEach { composeTestRule.onNodeWithTag(it).performClick() }
@@ -109,7 +139,7 @@ class BrowseScreenTest {
   @Test
   fun tappingCardCallsOnListingClickWithItsId() {
     var clickedId: String? = null
-    setContent { clickedId = it }
+    setContent(onListingClick = { clickedId = it })
 
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "projector").performClick()
 
@@ -117,12 +147,29 @@ class BrowseScreenTest {
   }
 
   @Test
-  fun browseScreenPassesCardClicksToOnListingClick() {
+  fun browseScreenShowsErrorThenListingsAfterRetry() {
+    // Fails the first load, then returns the listings, so Retry must reach the ViewModel.
+    var calls = 0
+    val repository =
+        object : ListingRepository {
+          override suspend fun getAllListings(): Result<List<Listing>> =
+              if (calls++ == 0) Result.failure(IllegalStateException("Network down"))
+              else Result.success(listings)
+
+          override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+        }
+    val viewModel = BrowseViewModel(repository)
     var clickedId: String? = null
-    composeTestRule.setContent { BrowseScreen(onListingClick = { clickedId = it }) }
+    composeTestRule.setContent {
+      BrowseScreen(viewModel = viewModel, onListingClick = { clickedId = it })
+    }
 
-    composeTestRule.onAllNodes(isListingCard).onFirst().performClick()
+    waitForTag(C.Tag.browse_error)
+    composeTestRule.onNodeWithTag(C.Tag.browse_error).assertTextEquals("Network down")
+    composeTestRule.onNodeWithTag(C.Tag.browse_retry_button).performClick()
 
-    assertNotNull(clickedId)
+    waitForTag(C.Tag.browse_list)
+    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").performClick()
+    assertEquals("tent", clickedId)
   }
 }
