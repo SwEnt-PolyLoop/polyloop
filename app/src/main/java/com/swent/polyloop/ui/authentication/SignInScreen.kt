@@ -163,9 +163,9 @@ fun SignInScreen(
                   cursorColor = colors.primary,
               ),
           modifier =
-              Modifier.fillMaxWidth()
-                  .height(62.dp)
-                  .onFocusChanged { isEmailFocused = it.isFocused },
+              Modifier.fillMaxWidth().height(62.dp).onFocusChanged {
+                isEmailFocused = it.isFocused
+              },
       )
       Box(modifier = Modifier.height(20.dp)) {
         if (showEmailError) {
