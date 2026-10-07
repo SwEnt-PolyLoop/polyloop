@@ -41,6 +41,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
 private val BgColor = Color(0xFFF6F4F0)
@@ -55,16 +56,18 @@ private val DisabledText = Color(0xFF8C8A85)
 @Composable
 fun SignInScreen(
     onLogin: (email: String, password: String) -> Unit = { _, _ -> },
+    authError: AuthError? = null,
     onForgotPassword: () -> Unit = {},
 ) {
   var isLoginSelected by remember { mutableStateOf(true) }
   var email by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
+  var showEmailError by remember { mutableStateOf(false) }
+  var showPasswordError by remember { mutableStateOf(false) }
   val normalizedEmail = email.trim()
   val isEpflEmail =
       Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches() &&
           normalizedEmail.endsWith("@epfl.ch", ignoreCase = true)
-  val showEmailError = normalizedEmail.isNotEmpty() && !isEpflEmail
   val canSubmit = isEpflEmail && password.isNotBlank()
 
   Column(
@@ -159,7 +162,15 @@ fun SignInScreen(
     Column {
       OutlinedTextField(
           value = email,
-          onValueChange = { email = it },
+          onValueChange = {
+            email = it
+            if (
+                Patterns.EMAIL_ADDRESS.matcher(it.trim()).matches() &&
+                    it.trim().endsWith("@epfl.ch", ignoreCase = true)
+            ) {
+              showEmailError = false
+            }
+          },
           placeholder = { Text("Enter your EPFL email", color = DisabledText, fontSize = 18.sp) },
           singleLine = true,
           shape = RoundedCornerShape(14.dp),
@@ -179,10 +190,11 @@ fun SignInScreen(
       Box(modifier = Modifier.height(20.dp)) {
         if (showEmailError) {
           Text(
-              text = "Use your @epfl.ch address.",
+              text =
+                  if (normalizedEmail.isBlank()) "Please enter your email address."
+                  else "Use your @epfl.ch address.",
               color = ErrorColor,
               fontSize = 13.sp,
-              modifier = Modifier.padding(top = 4.dp),
           )
         }
       }
@@ -199,7 +211,10 @@ fun SignInScreen(
     )
     OutlinedTextField(
         value = password,
-        onValueChange = { password = it },
+        onValueChange = {
+          password = it
+          if (it.isNotBlank()) showPasswordError = false
+        },
         placeholder = { Text("Enter your password", color = DisabledText, fontSize = 18.sp) },
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
@@ -216,19 +231,31 @@ fun SignInScreen(
             ),
         modifier = Modifier.fillMaxWidth().height(62.dp),
     )
+    Box(modifier = Modifier.height(20.dp)) {
+      if (showPasswordError) {
+        Text(
+            text = "Please enter your password.",
+            color = ErrorColor,
+            fontSize = 13.sp,
+        )
+      }
+    }
 
     Spacer(Modifier.height(20.dp))
 
     Button(
-        onClick = { onLogin(normalizedEmail, password) },
-        enabled = canSubmit,
+        onClick = {
+          showEmailError = !isEpflEmail
+          showPasswordError = password.isBlank()
+          if (canSubmit) onLogin(normalizedEmail, password)
+        },
         shape = RoundedCornerShape(14.dp),
         colors =
             ButtonDefaults.buttonColors(
-                containerColor = Brand,
-                contentColor = Color.White,
-                disabledContainerColor = FieldBorder,
-                disabledContentColor = Muted,
+                containerColor = if (canSubmit) Brand else FieldBorder,
+                contentColor = if (canSubmit) Color.White else Muted,
+                disabledContainerColor = if (canSubmit) Brand else FieldBorder,
+                disabledContentColor = if (canSubmit) Color.White else Muted,
             ),
         elevation =
             ButtonDefaults.buttonElevation(
@@ -241,6 +268,16 @@ fun SignInScreen(
         modifier = Modifier.fillMaxWidth().height(52.dp),
     ) {
       Text("Log in", fontSize = 17.sp, fontWeight = FontWeight.Medium)
+    }
+    Box(modifier = Modifier.height(36.dp).fillMaxWidth()) {
+      authError?.warningMessage()?.let { message ->
+        Text(
+            text = message,
+            color = ErrorColor,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+      }
     }
 
     TextButton(
@@ -258,6 +295,21 @@ fun SignInScreen(
     }
   }
 }
+
+private fun AuthError.warningMessage(): String? =
+    when (this) {
+      AuthError.WRONG_CREDENTIALS -> "The email or password is incorrect."
+      AuthError.WEAK_PASSWORD -> "Your password is too weak."
+      AuthError.EMAIL_NOT_VERIFIED -> "Please verify your email address."
+      AuthError.TOO_MANY_REQUESTS -> "Too many attempts. Please try again later."
+      AuthError.NETWORK -> "A network error occurred. Please try again."
+      AuthError.UNKNOWN -> "An unexpected error occurred. Please try again."
+      AuthError.NAME_REQUIRED,
+      AuthError.INVALID_DOMAIN,
+      AuthError.EMAIL_ALREADY_IN_USE,
+      AuthError.VERIFICATION_EMAIL_NOT_SENT,
+      AuthError.NAME_NOT_SAVED -> null
+    }
 
 @Preview
 @Composable
