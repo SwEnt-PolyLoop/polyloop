@@ -1,4 +1,5 @@
 //Made with Copilot
+//Made with Copilot
 
 package com.swent.polyloop.ui.authentication
 
@@ -378,6 +379,7 @@ private fun AuthScreenSignUpPreview() {
         )
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable
