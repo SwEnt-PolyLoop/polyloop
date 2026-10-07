@@ -1,6 +1,3 @@
-//Made with Copilot
-//Made with Copilot
-
 package com.swent.polyloop.ui.authentication
 
 import androidx.compose.foundation.background
@@ -25,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,8 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -67,19 +61,22 @@ private const val LOGIN_TAB_TAG = "signInLoginTab"
 private const val SIGNUP_TAB_TAG = "signInSignupTab"
 
 /**
- * Log-in / sign-up screen backed by [AuthViewModel].
+ * Displays the login and sign-up forms and forwards user actions to [AuthViewModel].
  *
- * The email verification step is a separate route: [onNavigateToVerification] is called when the
- * ViewModel says the user must verify their email, and [onSignIn] once a verified user is in.
+ * Successful authentication invokes [onSignIn]. When the account needs email verification,
+ * [onNavigateToVerification] is invoked so the host can open the verification step. That step
+ * should share this ViewModel instance to retain the credentials needed for verification.
  *
- * The default ViewModel is scoped to the nav back stack entry of this route. The verification
- * screen must reuse that same instance (it needs the typed email and password).
+ * @param onSignIn called after the ViewModel reports a verified signed-in user.
+ * @param onNavigateToVerification called when the ViewModel reports that email verification is
+ *   required.
+ * @param viewModel screen state holder. By default, it is obtained from the current
+ *   [androidx.lifecycle.ViewModelStoreOwner].
  */
 @Composable
 fun AuthScreen(
     onSignIn: () -> Unit,
     onNavigateToVerification: () -> Unit,
-    onForgotPassword: () -> Unit = {},
     viewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory()),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -163,25 +160,10 @@ fun AuthScreen(
             testTag = if (isSignUp) SIGNUP_BUTTON_TAG else LOGIN_BUTTON_TAG,
         )
         ErrorMessage(state.error)
-
-        if (!isSignUp) {
-            TextButton(
-                onClick = onForgotPassword,
-                modifier = Modifier.fillMaxWidth().padding(top = 28.dp),
-                colors = ButtonDefaults.textButtonColors(contentColor = colors.error),
-            ) {
-                Text(
-                    text = "Forgot password?",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    textDecoration = TextDecoration.Underline,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
     }
 }
 
+/** Renders the PolyLoop wordmark and the short description shown above the authentication form. */
 @Composable
 private fun Header() {
     val colors = MaterialTheme.colorScheme
@@ -203,6 +185,12 @@ private fun Header() {
     )
 }
 
+/**
+ * Shows the login and sign-up choices as mutually exclusive tabs.
+ *
+ * @param mode currently selected authentication mode.
+ * @param onModeChange called with the mode selected by the user.
+ */
 @Composable
 private fun SegmentedTabs(mode: AuthMode, onModeChange: (AuthMode) -> Unit) {
     Row(
@@ -216,6 +204,14 @@ private fun SegmentedTabs(mode: AuthMode, onModeChange: (AuthMode) -> Unit) {
     }
 }
 
+/**
+ * Renders one selectable tab within [SegmentedTabs].
+ *
+ * @param text visible tab label.
+ * @param selected whether this tab represents the current mode.
+ * @param testTag semantic test tag for UI tests.
+ * @param onClick called when the tab is selected.
+ */
 @Composable
 private fun RowScope.Tab(text: String, selected: Boolean, testTag: String, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -242,7 +238,22 @@ private fun RowScope.Tab(text: String, selected: Boolean, testTag: String, onCli
     }
 }
 
-/** Label + outlined field + a fixed-height slot for the error, so the layout does not jump. */
+/**
+ * Renders a labeled text field, its optional validation message, and a stable error-message slot.
+ *
+ * Password values are obscured when [isPassword] is true. Focus changes are reported through
+ * [onFocusChange], allowing the caller to control when validation feedback appears.
+ *
+ * @param label visible field label.
+ * @param value current field value.
+ * @param placeholder hint shown while the field is empty.
+ * @param onValueChange called when the user edits the value.
+ * @param errorText validation message, or null when the field has no visible error.
+ * @param testTag semantic test tag for UI tests.
+ * @param keyboardType keyboard layout requested for the field.
+ * @param isPassword whether to obscure the entered value.
+ * @param onFocusChange called when the field gains or loses focus.
+ */
 @Composable
 private fun AuthTextField(
     label: String,
@@ -295,6 +306,14 @@ private fun AuthTextField(
     }
 }
 
+/**
+ * Displays the primary form action.
+ *
+ * @param text button label.
+ * @param onClick action invoked when enabled and pressed.
+ * @param enabled whether the user can invoke the action.
+ * @param testTag semantic test tag for UI tests.
+ */
 @Composable
 private fun AuthButton(text: String, onClick: () -> Unit, enabled: Boolean, testTag: String) {
     val colors = MaterialTheme.colorScheme
@@ -321,7 +340,7 @@ private fun AuthButton(text: String, onClick: () -> Unit, enabled: Boolean, test
     }
 }
 
-/** Fixed-height slot under the main button for the last action's error. */
+/** Shows the latest authentication error in a fixed-height area below the primary action. */
 @Composable
 private fun ErrorMessage(error: AuthError?) {
     Column(modifier = Modifier.height(36.dp).fillMaxWidth()) {
@@ -336,6 +355,7 @@ private fun ErrorMessage(error: AuthError?) {
     }
 }
 
+/** Converts an authentication failure into the message displayed to the user. */
 private fun AuthError.message(): String =
     when (this) {
         AuthError.WRONG_CREDENTIALS -> "The email or password is incorrect."
@@ -352,6 +372,7 @@ private fun AuthError.message(): String =
         AuthError.NAME_NOT_SAVED -> "Account created, but your name could not be saved."
     }
 
+/** Preview of the login form backed by an in-memory authentication repository. */
 @Preview(showBackground = true)
 @Composable
 private fun AuthScreenLogInPreview() {
@@ -366,6 +387,7 @@ private fun AuthScreenLogInPreview() {
     }
 }
 
+/** Preview of the sign-up form backed by an in-memory authentication repository. */
 @Preview(showBackground = true)
 @Composable
 private fun AuthScreenSignUpPreview() {
@@ -380,7 +402,7 @@ private fun AuthScreenSignUpPreview() {
     }
 }
 
-
+/** Interactive preview of the sign-up form using successful in-memory authentication responses. */
 @Preview(showBackground = true)
 @Composable
 private fun AuthScreenInteractivePreview() {
@@ -395,6 +417,7 @@ private fun AuthScreenInteractivePreview() {
     }
 }
 
+/** In-memory repository used by previews to avoid Firebase dependencies. */
 private class PreviewAuthRepository : AuthRepository {
     override suspend fun signUp(name: String, email: String, password: String): AuthResult<Unit> =
         AuthResult.Success(Unit)
