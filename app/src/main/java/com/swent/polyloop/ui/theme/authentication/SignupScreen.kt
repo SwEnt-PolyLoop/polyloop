@@ -19,7 +19,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,8 +34,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -54,17 +51,16 @@ private val DisabledText = Color(0xFF8C8A85)
 
 @Composable
 fun SignInScreen(
-    onLogin: (email: String, password: String) -> Unit = { _, _ -> },
-    onForgotPassword: () -> Unit = {},
+    onSignUp: (name: String, email: String, password: String) -> Unit = { _, _, _ -> },
+    onLoginClick: () -> Unit = {},
 ) {
-  var isLoginSelected by remember { mutableStateOf(false) }
   var name by remember { mutableStateOf("") }
   var email by remember { mutableStateOf("") }
   var password by remember { mutableStateOf("") }
   val normalizedEmail = email.trim()
   val isEpflEmail =
       Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches() &&
-          normalizedEmail.endsWith("@epfl.ch", ignoreCase = true)
+          normalizedEmail.endsWith("@epfl.ch")
   val showEmailError = normalizedEmail.isNotEmpty() && !isEpflEmail
   val canSubmit = isEpflEmail && password.isNotBlank()
 
@@ -103,23 +99,14 @@ fun SignInScreen(
           modifier =
               Modifier.weight(1f)
                   .height(44.dp)
-                  .then(
-                      if (!isLoginSelected)
-                          Modifier.background(Color.White, RoundedCornerShape(12.dp))
-                      else Modifier
-                  )
+                  .background(Color.White, RoundedCornerShape(12.dp))
                   .clip(RoundedCornerShape(12.dp))
-                  .clickable(
-                      interactionSource = remember { MutableInteractionSource() },
-                      indication = null,
-                      onClick = { isLoginSelected = false },
-                  ),
       ) {
         Text(
             text = "Sign up",
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (!isLoginSelected) Ink else Muted,
+            color = Ink,
         )
       }
       Box(
@@ -127,23 +114,18 @@ fun SignInScreen(
           modifier =
               Modifier.weight(1f)
                   .height(44.dp)
-                  .then(
-                      if (isLoginSelected)
-                          Modifier.background(Color.White, RoundedCornerShape(12.dp))
-                      else Modifier
-                  )
                   .clip(RoundedCornerShape(12.dp))
                   .clickable(
                       interactionSource = remember { MutableInteractionSource() },
                       indication = null,
-                      onClick = { isLoginSelected = true },
+                      onClick = onLoginClick,
                   ),
       ) {
         Text(
             text = "Log in",
             fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (isLoginSelected) Ink else Muted,
+            color = Muted,
         )
       }
     }
@@ -174,7 +156,6 @@ fun SignInScreen(
             ),
         modifier = Modifier.fillMaxWidth().height(62.dp),
     )
-
 
     Spacer(Modifier.height(16.dp))
 
@@ -249,7 +230,7 @@ fun SignInScreen(
     Spacer(Modifier.height(20.dp))
 
     Button(
-        onClick = { onLogin(normalizedEmail, password) },
+        onClick = { onSignUp(name, normalizedEmail, password) },
         enabled = canSubmit,
         shape = RoundedCornerShape(14.dp),
         colors =
@@ -259,31 +240,10 @@ fun SignInScreen(
                 disabledContainerColor = FieldBorder,
                 disabledContentColor = Muted,
             ),
-        elevation =
-            ButtonDefaults.buttonElevation(
-                defaultElevation = 0.dp,
-                pressedElevation = 0.dp,
-                focusedElevation = 0.dp,
-                hoveredElevation = 0.dp,
-                disabledElevation = 0.dp,
-            ),
+
         modifier = Modifier.fillMaxWidth().height(52.dp),
     ) {
-      Text("Log in", fontSize = 17.sp, fontWeight = FontWeight.Medium)
-    }
-
-    TextButton(
-        onClick = onForgotPassword,
-        modifier = Modifier.fillMaxWidth().padding(top = 28.dp),
-        colors = ButtonDefaults.textButtonColors(contentColor = ErrorColor),
-    ) {
-      Text(
-          text = "Forgot password?",
-          fontSize = 16.sp,
-          fontWeight = FontWeight.SemiBold,
-          textDecoration = TextDecoration.Underline,
-          textAlign = TextAlign.Center,
-      )
+      Text("Sign up", fontSize = 17.sp, fontWeight = FontWeight.Medium)
     }
   }
 }
