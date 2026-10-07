@@ -42,3 +42,6 @@ base64_google_services.txt
 
 # Android Profiling
 *.hprof
+
+# Firebase CLI cache (emulator logs are covered by *.log)
+.firebase/
