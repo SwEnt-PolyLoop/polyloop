@@ -143,6 +143,8 @@ dependencies {
   implementation(libs.compose.activity)
   // Integration with ViewModels
   implementation(libs.compose.viewmodel)
+  // Navigation between screens
+  implementation(libs.compose.navigation)
   // Android Studio Preview support
   implementation(libs.compose.preview)
   debugImplementation(libs.compose.tooling)
