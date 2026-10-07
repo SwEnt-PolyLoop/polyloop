@@ -1,3 +1,5 @@
+# Edited with Claude.
+
 [versions]
 agp = "9.3.0"
 kotlin = "2.3.0"
@@ -29,6 +31,7 @@ androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecyc
 
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+compose-material-icons = { group = "androidx.compose.material", name = "material-icons-core" }
 compose-ui = { group = "androidx.compose.ui", name = "ui" }
 compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 compose-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
