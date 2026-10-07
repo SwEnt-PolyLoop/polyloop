@@ -13,7 +13,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import com.swent.polyloop.resources.C
-import com.swent.polyloop.ui.authentication.SignInScreen
+import com.swent.polyloop.ui.authentication.SignUpScreen
+import com.swent.polyloop.ui.authentication.SignUpScreen
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
 class MainActivity : ComponentActivity() {
@@ -21,7 +22,7 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     setContent {
       PolyLoopTheme {
-        SignInScreen()
+        SignUpScreen()
       }
     }
   }

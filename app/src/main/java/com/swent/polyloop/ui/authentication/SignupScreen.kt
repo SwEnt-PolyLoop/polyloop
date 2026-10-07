@@ -52,7 +52,7 @@ private val ErrorColor = Color(0xFFA3261A)
 private val DisabledText = Color(0xFF8C8A85)
 
 @Composable
-fun SignInScreen(
+fun SignUpScreen(
     onSignUp: (name: String, email: String, password: String) -> Unit = { _, _, _ -> },
     onLoginClick: () -> Unit = {},
     authError: AuthError? = null,
@@ -315,5 +315,5 @@ private fun AuthError.warningMessage(): String? =
 @Preview
 @Composable
 private fun SignInScreenPreview() {
-  PolyLoopTheme { SignInScreen() }
+  PolyLoopTheme { SignUpScreen() }
 }
