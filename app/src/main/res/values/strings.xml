@@ -2,6 +2,21 @@
 <resources>
     <string name="app_name">PolyLoop</string>
 
+
+    <!-- Browse -->
+    <string name="browse_title">Browse</string>
+    <string name="browse_menu">Menu</string>
+    <string name="browse_profile">Profile</string>
+    <string name="browse_search_hint">Search items</string>
+    <string name="browse_category_all">All</string>
+    <string name="browse_map">Map</string>
+    <string name="browse_list">List</string>
+
+    <!-- Listing card -->
+    <string name="listing_card_price">%1$d PP</string>
+    <string name="listing_card_per_day">/ day</string>
+    <string name="listing_card_location">%1$s · %2$s</string>
+
     <!-- Top-bar menu -->
     <string name="menu_browse">Browse</string>
     <string name="menu_create_listing">Create listing</string>
@@ -15,4 +30,5 @@
 
     <!-- Dummy screen -->
     <string name="dummy_screen_continue">Continue</string>
+
 </resources>
