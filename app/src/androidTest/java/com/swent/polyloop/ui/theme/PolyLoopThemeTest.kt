@@ -57,6 +57,9 @@ class PolyLoopThemeTest {
     assertEquals(BlushRed, colorScheme.primaryContainer)
     assertEquals(DeepRed, colorScheme.onPrimaryContainer)
     assertEquals(DeepRed, colorScheme.secondary)
+    assertEquals(Sand, colorScheme.secondaryContainer)
+    assertEquals(Ink, colorScheme.onSecondaryContainer)
+    assertEquals(DeepRed, colorScheme.tertiary)
     assertEquals(OfflineOrange, colorScheme.tertiaryContainer)
     assertEquals(OfflineBrown, colorScheme.onTertiaryContainer)
     assertEquals(ErrorRed, colorScheme.error)
@@ -66,7 +69,9 @@ class PolyLoopThemeTest {
     assertEquals(Ink, colorScheme.onSurface)
     assertEquals(Sand, colorScheme.surfaceVariant)
     assertEquals(Stone, colorScheme.onSurfaceVariant)
+    assertEquals(Color.White, colorScheme.surfaceContainer)
     assertEquals(Border, colorScheme.outline)
+    assertEquals(Border, colorScheme.outlineVariant)
   }
 
   @Test

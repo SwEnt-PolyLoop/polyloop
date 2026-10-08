@@ -6,7 +6,6 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -20,6 +19,9 @@ private val LightColorScheme =
         onPrimaryContainer = DeepRed,
         secondary = DeepRed,
         onSecondary = Color.White,
+        secondaryContainer = Sand,
+        onSecondaryContainer = Ink,
+        tertiary = DeepRed,
         tertiaryContainer = OfflineOrange,
         onTertiaryContainer = OfflineBrown,
         error = ErrorRed,
@@ -30,7 +32,9 @@ private val LightColorScheme =
         onSurface = Ink,
         surfaceVariant = Sand,
         onSurfaceVariant = Stone,
+        surfaceContainer = Color.White,
         outline = Border,
+        outlineVariant = Border,
     )
 
 @Composable
@@ -40,7 +44,6 @@ fun PolyLoopTheme(content: @Composable () -> Unit) {
   if (!view.isInEditMode) {
     SideEffect {
       val window = (view.context as Activity).window
-      window.statusBarColor = colorScheme.background.toArgb()
       WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
     }
   }
