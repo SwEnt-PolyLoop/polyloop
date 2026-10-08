@@ -23,7 +23,7 @@ Only users with a verified EPFL email get past this screen. ViewModel: AuthViewM
 - Email and password fields, with a switch between “Sign up” and “Log in”.
 - Only @epfl.ch addresses are accepted. A regex check shows an inline error as soon as the address doesn't match.
 - A name field when signing up. The photo is added later in Profile.
-- After sign-up, a “Check your inbox” state with a “Resend email” button and an “I've verified” button that refreshes the account.
+- After sign-up, or when logging in with an EPFL email that isn't verified yet, a “Check your inbox” state with a “Resend email” button, an “I've verified” button that refreshes the account, and a way back to the form to fix a mistyped email. A non-EPFL email gets an error on the form and never reaches this state.
 - A “Forgot password” link.
 
 ## Profile & reviews
