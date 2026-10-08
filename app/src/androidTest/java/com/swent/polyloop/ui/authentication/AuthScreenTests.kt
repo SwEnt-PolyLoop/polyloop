@@ -1,10 +1,9 @@
 package com.swent.polyloop.ui.authentication
 
+import AuthScreen
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -30,10 +29,12 @@ class AuthScreenTests {
   @Test
   fun modesSwitchAndShowModeSpecificFields() {
     show(AuthMode.LOG_IN)
-    composeTestRule.onNodeWithText("Forgot password?").assertIsDisplayed()
+    composeTestRule.onNodeWithText("EPFL email").assertIsDisplayed()
     composeTestRule.onNodeWithTag("signInSignupTab").performClick()
     composeTestRule.onNodeWithText("Name").assertIsDisplayed()
-    composeTestRule.onAllNodesWithText("Forgot password?").assertCountEquals(0)
+    composeTestRule.onNodeWithTag("signInName").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("signInLoginTab").performClick()
+    composeTestRule.onNodeWithTag("signInLoginButton").assertIsDisplayed()
   }
 
   @Test
