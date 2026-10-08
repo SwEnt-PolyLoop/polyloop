@@ -2,9 +2,7 @@
 
 package com.swent.polyloop.ui.browse
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,20 +13,19 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.ListingPhoto
+import com.swent.polyloop.ui.components.PriceText
 
 /**
- * One listing in the Browse list: a photo placeholder, the title, the price per day and the
- * distance with the pickup area.
+ * One listing in the Browse list: its first photo, the title, the price per day and the distance
+ * with the pickup area.
  */
 @Composable
 fun ListingCard(
@@ -45,14 +42,14 @@ fun ListingCard(
         modifier = Modifier.padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      // Placeholder until listing photos can be loaded
-      Box(
+      // No description: the title next to it already says what the item is.
+      ListingPhoto(
+          url = listing.photoUrls.firstOrNull(),
+          contentDescription = null,
           modifier =
               Modifier.size(80.dp)
-                  .background(
-                      color = MaterialTheme.colorScheme.surfaceVariant,
-                      shape = MaterialTheme.shapes.medium,
-                  )
+                  .clip(MaterialTheme.shapes.medium)
+                  .testTag(C.Tag.listing_card_photo),
       )
       Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
@@ -60,7 +57,11 @@ fun ListingCard(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.testTag(C.Tag.listing_card_title),
         )
-        PriceText(pricePerDay = listing.pricePerDay)
+        PriceText(
+            pricePerDay = listing.pricePerDay,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.testTag(C.Tag.listing_card_price),
+        )
         Text(
             text =
                 if (listing.pickupArea.isBlank()) distanceText
@@ -77,23 +78,4 @@ fun ListingCard(
       }
     }
   }
-}
-
-/** "15 PP" in bold followed by "/ day" in a lighter style. */
-@Composable
-private fun PriceText(pricePerDay: Int) {
-  val price = stringResource(R.string.listing_card_price, pricePerDay)
-  val perDay = stringResource(R.string.listing_card_per_day)
-  val priceColor = MaterialTheme.colorScheme.primary
-  val perDayColor = MaterialTheme.colorScheme.onSurfaceVariant
-  Text(
-      text =
-          buildAnnotatedString {
-            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = priceColor)) { append(price) }
-            append(" ")
-            withStyle(SpanStyle(color = perDayColor)) { append(perDay) }
-          },
-      style = MaterialTheme.typography.bodyLarge,
-      modifier = Modifier.testTag(C.Tag.listing_card_price),
-  )
 }

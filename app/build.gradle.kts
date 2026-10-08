@@ -145,6 +145,9 @@ dependencies {
   implementation(libs.compose.viewmodel)
   // Navigation between screens
   implementation(libs.compose.navigation)
+  // Loading images from a URL (listing photos), with the https loader
+  implementation(libs.coil.compose)
+  implementation(libs.coil.network.okhttp)
   // Android Studio Preview support
   implementation(libs.compose.preview)
   debugImplementation(libs.compose.tooling)
