@@ -29,6 +29,8 @@ object C {
 
     const val listing_detail_screen = "listing_detail_screen"
     const val listing_detail_photos = "listing_detail_photos"
+    // Prefix: each pager page is tagged listing_detail_photo_ + its index
+    const val listing_detail_photo_ = "listing_detail_photo_"
     const val listing_detail_photo_badge = "listing_detail_photo_badge"
     const val listing_detail_title = "listing_detail_title"
     const val listing_detail_price = "listing_detail_price"

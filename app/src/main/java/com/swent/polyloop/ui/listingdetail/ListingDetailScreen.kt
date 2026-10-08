@@ -49,6 +49,7 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.ListingPhoto
 import com.swent.polyloop.ui.components.PriceText
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
@@ -84,7 +85,7 @@ fun ListingDetailScreen(
         modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-      PhotoPager(photoCount = listing.photoUrls.size)
+      PhotoPager(photoUrls = listing.photoUrls)
       Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = listing.title,
@@ -111,20 +112,30 @@ fun ListingDetailScreen(
   }
 }
 
-/** Swipeable grey photo placeholders with a "current / total" badge. */
+/** Swipeable listing photos with a "current / total" badge. */
 @Composable
-private fun PhotoPager(photoCount: Int) {
+private fun PhotoPager(photoUrls: List<String>) {
   // One grey page even without photos, so the area keeps its size.
-  val pagerState = rememberPagerState { maxOf(photoCount, 1) }
+  val pagerState = rememberPagerState { maxOf(photoUrls.size, 1) }
   Box(modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(MaterialTheme.shapes.large)) {
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize().testTag(C.Tag.listing_detail_photos),
-    ) {
-      // Placeholder until listing photos can be loaded
-      Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
+    ) { page ->
+      ListingPhoto(
+          url = photoUrls.getOrNull(page),
+          contentDescription =
+              if (photoUrls.isEmpty()) null
+              else
+                  stringResource(
+                      R.string.listing_detail_photo_description,
+                      page + 1,
+                      photoUrls.size,
+                  ),
+          modifier = Modifier.fillMaxSize().testTag(C.Tag.listing_detail_photo_ + page),
+      )
     }
-    if (photoCount > 0) {
+    if (photoUrls.isNotEmpty()) {
       Surface(
           shape = CircleShape,
           color = MaterialTheme.colorScheme.surface,
@@ -135,7 +146,7 @@ private fun PhotoPager(photoCount: Int) {
                 stringResource(
                     R.string.listing_detail_photo_count,
                     pagerState.currentPage + 1,
-                    photoCount,
+                    photoUrls.size,
                 ),
             style = MaterialTheme.typography.labelMedium,
             modifier =

@@ -20,6 +20,7 @@
 
     <!-- Listing detail -->
     <string name="listing_detail_photo_count">%1$d / %2$d</string>
+    <string name="listing_detail_photo_description">Photo %1$d of %2$d</string>
     <string name="listing_detail_lender_placeholder">Lender name</string>
     <plurals name="listing_detail_rating">
         <item quantity="one">%1$.1f · %2$d review</item>
