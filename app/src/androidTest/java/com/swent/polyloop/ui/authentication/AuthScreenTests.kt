@@ -49,9 +49,7 @@ class AuthScreenTests {
     composeTestRule.onNodeWithTag("signInPassword").performTextInput("pass123")
     composeTestRule.onNodeWithTag("signInLoginButton").performClick()
     composeTestRule.waitUntil(5_000) { signedIn.value == 1 }
-    composeTestRule.runOnIdle {
-      assertEquals("prenom.nom@epfl.ch" to "pass123", repository.signIn)
-    }
+    composeTestRule.runOnIdle { assertEquals("prenom.nom@epfl.ch" to "pass123", repository.signIn) }
   }
 
   @Test
