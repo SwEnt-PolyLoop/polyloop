@@ -41,15 +41,17 @@ class AuthScreenTests {
   fun loginValidatesFieldsThenCallsRepositoryAndCallback() {
     show(AuthMode.LOG_IN)
     composeTestRule.onNodeWithTag("signInLoginButton").performClick()
-    composeTestRule.onNodeWithText("Please enter your email address.").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Please enter your password.").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("signInEmailError").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("signInPasswordError").assertIsDisplayed()
     assertEquals(null, repository.signIn)
 
     composeTestRule.onNodeWithTag("signInEmail").performTextInput("prenom.nom@epfl.ch")
     composeTestRule.onNodeWithTag("signInPassword").performTextInput("pass123")
     composeTestRule.onNodeWithTag("signInLoginButton").performClick()
     composeTestRule.waitUntil(5_000) { signedIn.value == 1 }
-    composeTestRule.runOnIdle { assertEquals("prenom.nom@epfl.ch" to "pass123", repository.signIn) }
+    composeTestRule.runOnIdle {
+      assertEquals("prenom.nom@epfl.ch" to "pass123", repository.signIn)
+    }
   }
 
   @Test
@@ -58,7 +60,7 @@ class AuthScreenTests {
     composeTestRule.onNodeWithTag("signInEmail").performTextInput("prenom.nom@epfl.ch")
     composeTestRule.onNodeWithTag("signInPassword").performTextInput("pass123")
     composeTestRule.onNodeWithTag("signInSignupButton").performClick()
-    composeTestRule.onNodeWithText("Please enter your name.").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("signInNameError").assertIsDisplayed()
 
     composeTestRule.onNodeWithTag("signInName").performTextInput("First Last")
     composeTestRule.onNodeWithTag("signInSignupButton").performClick()
