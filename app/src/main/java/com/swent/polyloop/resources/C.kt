@@ -22,12 +22,15 @@ object C {
 
     // Prefix: each card is tagged listing_card_ + listing.id
     const val listing_card_ = "listing_card_"
+    const val listing_card_photo = "listing_card_photo"
     const val listing_card_title = "listing_card_title"
     const val listing_card_price = "listing_card_price"
     const val listing_card_location = "listing_card_location"
 
     const val listing_detail_screen = "listing_detail_screen"
     const val listing_detail_photos = "listing_detail_photos"
+    // Prefix: each pager page is tagged listing_detail_photo_ + its index
+    const val listing_detail_photo_ = "listing_detail_photo_"
     const val listing_detail_photo_badge = "listing_detail_photo_badge"
     const val listing_detail_title = "listing_detail_title"
     const val listing_detail_price = "listing_detail_price"
