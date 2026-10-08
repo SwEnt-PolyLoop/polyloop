@@ -6,7 +6,9 @@ package com.swent.polyloop.model.listing
  * What the borrower searches for on Browse. Each empty field keeps every listing.
  *
  * Every word of [query] must appear in the title or the description; accents, case, hyphens and
- * punctuation are ignored (see [normalizeForSearch]). Words found in the title rank higher than
+ * punctuation are ignored (see [normalizeForSearch]). A word also matches the start of a word, or
+ * several words written without their spaces ("mountainbike" for "mountain bike"). One-letter words
+ * and common words such as "for" or "avec" are ignored. Words found in the title rank higher than
  * words found in the description.
  *
  * @property categories the categories to keep; empty keeps all of them.
