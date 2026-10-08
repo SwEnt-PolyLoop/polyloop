@@ -10,6 +10,7 @@ import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.EpflEmail
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,16 +46,20 @@ data class AuthUiState(
     val isVerificationEmailResent: Boolean = false,
     val isSignedIn: Boolean = false,
 ) {
+  /** Only checked when signing up, where the name is required. */
+  val isNameBlank: Boolean
+    get() = name.isBlank()
+
   val isEmailValid: Boolean
     get() = EpflEmail.isValid(email)
+
+  val isPasswordBlank: Boolean
+    get() = password.isBlank()
 
   /** True when the main button can be pressed: valid fields and nothing already running. */
   val canSubmit: Boolean
     get() =
-        !isLoading &&
-            isEmailValid &&
-            password.isNotBlank() &&
-            (mode == AuthMode.LOG_IN || name.isNotBlank())
+        !isLoading && isEmailValid && !isPasswordBlank && (mode == AuthMode.LOG_IN || !isNameBlank)
 }
 
 /** Logs in and signs up EPFL users, including the email verification step. */
@@ -123,7 +128,8 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     val state = _uiState.value
     launchAction {
       when (val result = authRepository.signIn(state.email, state.password)) {
-        is AuthResult.Success -> _uiState.update { it.copy(isSignedIn = true) }
+        is AuthResult.Success ->
+            _uiState.update { it.copy(isSignedIn = true, isAwaitingVerification = false) }
         is AuthResult.Failure ->
             _uiState.update {
               it.copy(
@@ -155,7 +161,11 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     }
   }
 
-  /** Runs [block] with the loading flag set, after clearing the previous error. */
+  /**
+   * Runs [block] with the loading flag set, after clearing the previous error. The repository
+   * reports failures as [AuthResult.Failure], but an exception it lets through is shown as
+   * [AuthError.UNKNOWN] instead of crashing the app.
+   */
   private fun launchAction(
       onStart: (AuthUiState) -> AuthUiState = { it },
       block: suspend () -> Unit,
@@ -164,6 +174,11 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     viewModelScope.launch {
       try {
         block()
+      } catch (e: CancellationException) {
+        // Cancellation is not a failure: the screen is gone and nobody is waiting.
+        throw e
+      } catch (e: Exception) {
+        _uiState.update { it.copy(error = AuthError.UNKNOWN) }
       } finally {
         _uiState.update { it.copy(isLoading = false) }
       }

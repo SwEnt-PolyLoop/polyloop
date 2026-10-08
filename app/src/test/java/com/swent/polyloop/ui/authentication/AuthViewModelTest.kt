@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.authentication
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -73,6 +74,22 @@ class AuthViewModelTest {
 
     viewModel.onPasswordChange(" ")
     assertFalse(state.canSubmit)
+  }
+
+  @Test
+  fun exposesBlankNameAndPassword() {
+    assertTrue(state.isNameBlank)
+    assertTrue(state.isPasswordBlank)
+
+    viewModel.onNameChange("  ")
+    viewModel.onPasswordChange("  ")
+    assertTrue(state.isNameBlank)
+    assertTrue(state.isPasswordBlank)
+
+    viewModel.onNameChange("John")
+    viewModel.onPasswordChange("secret")
+    assertFalse(state.isNameBlank)
+    assertFalse(state.isPasswordBlank)
   }
 
   @Test
@@ -327,6 +344,7 @@ class AuthViewModelTest {
 
     assertEquals("signIn(john@epfl.ch, secret)", repository.calls.last())
     assertTrue(state.isSignedIn)
+    assertFalse(state.isAwaitingVerification)
   }
 
   @Test
@@ -383,6 +401,31 @@ class AuthViewModelTest {
     assertFalse(state.hasAttemptedSubmit)
     assertEquals("John", state.name)
     assertEquals("john@epfl.ch", state.email)
+  }
+
+  // ---------- unexpected failures ----------
+
+  @Test
+  fun unexpectedExceptionShowsUnknownErrorInsteadOfCrashing() {
+    repository.exception = IllegalStateException("not an AuthResult")
+    fillLogIn()
+
+    viewModel.submit()
+
+    assertEquals(AuthError.UNKNOWN, state.error)
+    assertFalse(state.isLoading)
+    assertFalse(state.isSignedIn)
+  }
+
+  @Test
+  fun cancellationIsNotShownAsAnError() {
+    repository.exception = CancellationException("screen closed")
+    fillLogIn()
+
+    viewModel.submit()
+
+    assertNull(state.error)
+    assertFalse(state.isLoading)
   }
 
   // ---------- factory ----------
