@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.polyloop.model.auth.AuthRepository
@@ -62,11 +63,12 @@ class AuthScreenTests {
     composeTestRule.onNodeWithTag("signInName").assertIsDisplayed()
     composeTestRule.onNodeWithTag("signInEmail").assertIsDisplayed()
     composeTestRule.onNodeWithTag("signInPassword").assertIsDisplayed()
-    composeTestRule.onNodeWithTag("signInSignupButton").assertIsDisplayed()
 
     composeTestRule.onNodeWithTag("signInName").performTextInput("First Last")
     composeTestRule.onNodeWithTag("signInEmail").performTextInput("prenom.nom@epfl.ch")
     composeTestRule.onNodeWithTag("signInPassword").performTextInput("pass123")
+
+    composeTestRule.onNodeWithTag("signInSignupButton").performScrollTo().assertIsDisplayed()
   }
 
   private fun show(mode: AuthMode) {
