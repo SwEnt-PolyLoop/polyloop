@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NamedNavArgument
 import androidx.navigation.NavBackStackEntry
@@ -22,6 +23,8 @@ import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.ui.browse.BrowseScreen
 import com.swent.polyloop.ui.browse.BrowseViewModel
 import com.swent.polyloop.ui.dummy.DummyScreen
+import com.swent.polyloop.ui.listingdetail.ListingDetailScreen
+import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
@@ -84,7 +87,25 @@ fun PolyLoopApp(
       composable(Screen.AdminCourtRuling.route) { DummyScreen(Screen.AdminCourtRuling.route) }
 
       composable(Screen.ListingDetail.route, stringArgument(Screen.ARG_LISTING_ID)) { entry ->
-        DummyScreen(Screen.ListingDetail.createRoute(entry.stringArg(Screen.ARG_LISTING_ID)))
+        val listingDetailViewModel: ListingDetailViewModel =
+            viewModel(
+                factory =
+                    ListingDetailViewModel.Factory(
+                        listingId = entry.stringArg(Screen.ARG_LISTING_ID),
+                        listingRepository = RepositoryProvider.listingRepository,
+                    )
+            )
+        val uiState by listingDetailViewModel.uiState.collectAsStateWithLifecycle()
+        // Loading, error and not-found states have no UI yet: the screen shows once loaded.
+        uiState.listing?.let { listing ->
+          ListingDetailScreen(
+              listing = listing,
+              onRequestDates = listingDetailViewModel::openDatePicker,
+              onLenderClick = {
+                navController.navigate(Screen.UserProfile.createRoute(listing.ownerId))
+              },
+          )
+        }
       }
       composable(Screen.EditListing.route, stringArgument(Screen.ARG_LISTING_ID)) { entry ->
         DummyScreen(Screen.EditListing.createRoute(entry.stringArg(Screen.ARG_LISTING_ID)))
