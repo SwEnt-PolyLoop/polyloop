@@ -22,6 +22,7 @@ object C {
 
     // Prefix: each card is tagged listing_card_ + listing.id
     const val listing_card_ = "listing_card_"
+    const val listing_card_photo = "listing_card_photo"
     const val listing_card_title = "listing_card_title"
     const val listing_card_price = "listing_card_price"
     const val listing_card_location = "listing_card_location"
