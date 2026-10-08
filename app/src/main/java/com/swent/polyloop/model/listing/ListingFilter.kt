@@ -74,13 +74,20 @@ private class SearchableText(text: String) {
       }
 }
 
+/** Common English and French words that say nothing about the item, already normalized. */
+private val STOP_WORDS: Set<String> =
+    ("the an and or of for with to in on at by" +
+            " le la les un une des du de pour avec et ou en au aux sur dans")
+        .split(' ')
+        .toSet()
+
 /**
- * The distinct normalized words of [query]. One-letter words are dropped, since they match almost
- * everything, unless the query has nothing else.
+ * The distinct normalized words of [query]. One-letter words and [STOP_WORDS] are dropped, since
+ * they match almost everything or say nothing about the item, unless the query has nothing else.
  */
 private fun searchTerms(query: String): List<String> {
   val words = normalizeForSearch(query).split(' ').filter { it.isNotEmpty() }.distinct()
-  return words.filter { it.length > 1 }.ifEmpty { words }
+  return words.filter { it.length > 1 && it !in STOP_WORDS }.ifEmpty { words }
 }
 
 /** The best score of [term] in the listing's [title] or [description], or null if absent. */

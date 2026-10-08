@@ -172,6 +172,25 @@ class ListingFilterTest {
       assertEquals(TITLE_WORD, ListingFilter(query = "a camping").score(tent))
 
   @Test
+  fun englishStopWordsAreIgnored() =
+      assertEquals(
+          TITLE_WORD + DESCRIPTION_WORD,
+          ListingFilter(query = "tent with the people").score(tent),
+      )
+
+  @Test
+  fun frenchStopWordsAreIgnored() =
+      assertEquals(
+          TITLE_WORD + DESCRIPTION_WORD,
+          ListingFilter(query = "perceuse pour la mallette")
+              .score(listing(title = "Perceuse", description = "Livrée en mallette")),
+      )
+
+  @Test
+  fun queryOfOnlyStopWordsIsSearched() =
+      assertEquals(DESCRIPTION_WORD, ListingFilter(query = "for").score(tent))
+
+  @Test
   fun queryOfOnlyOneLetterTermsIsSearched() =
       assertEquals(TITLE_WORD_START, ListingFilter(query = "c").score(tent))
 
