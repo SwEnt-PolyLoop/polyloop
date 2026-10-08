@@ -206,6 +206,30 @@ class PolyLoopAppTest {
   }
 
   @Test
+  fun menuBrowseFromListingDetailReturnsToBrowse() {
+    setAppSignedIn()
+    openListingDetail()
+
+    openFromMenu(Screen.Browse)
+
+    assertCurrentScreen(Screen.Browse)
+    assertNull(navController.previousBackStackEntry)
+  }
+
+  @Test
+  fun returningToBrowseAfterListingDetailDoesNotRestoreIt() {
+    setAppSignedIn()
+    openListingDetail()
+
+    openFromMenu(Screen.Wallet)
+    assertEquals(Screen.Browse.route, navController.previousBackStackEntry?.destination?.route)
+    openFromMenu(Screen.Browse)
+
+    assertCurrentScreen(Screen.Browse)
+    assertNull(navController.previousBackStackEntry)
+  }
+
+  @Test
   fun profileButtonOpensOwnProfile() {
     setAppSignedIn()
 
