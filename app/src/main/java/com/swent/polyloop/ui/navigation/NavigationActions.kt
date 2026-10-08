@@ -11,14 +11,15 @@ class NavigationActions(private val navController: NavHostController) {
    * Opens a top-level destination (a menu entry).
    *
    * Top-level destinations share one back stack rooted at Browse, so Back from any of them returns
-   * to Browse, and selecting the current one again does nothing.
+   * to Browse, and selecting the current one again does nothing. Screens opened on top (e.g. a
+   * listing detail) are dropped, not saved, so selecting Browse always shows Browse itself.
    */
   fun navigateTo(screen: Screen.TopLevel) {
     if (navController.currentDestination?.route == screen.route) return
     navController.navigate(screen.route) {
-      popUpTo(Screen.Browse.route) { saveState = true }
+      // Browse itself stays (not inclusive), so its ViewModel survives and is reused.
+      popUpTo(Screen.Browse.route)
       launchSingleTop = true
-      restoreState = true
     }
   }
 
