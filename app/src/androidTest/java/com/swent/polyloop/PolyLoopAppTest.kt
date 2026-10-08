@@ -117,7 +117,7 @@ class PolyLoopAppTest {
   }
 
   private fun waitForTag(tag: String) {
-    composeTestRule.waitUntil {
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
       composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
     }
   }
