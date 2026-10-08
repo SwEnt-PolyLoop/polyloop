@@ -1,3 +1,5 @@
+// Made with Copilot
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -48,6 +50,8 @@ import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.ui.authentication.AuthMode
+import com.swent.polyloop.ui.authentication.AuthViewModel
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
 private const val NAME_FIELD_TAG = "signInName"
@@ -102,8 +106,7 @@ fun AuthScreen(
    * Name and password errors are shown after the user attempts to submit.
    * Email errors are shown when the field is focused or after submission.
    */
-  val showEmailError =
-      (isEmailFocused || state.hasAttemptedSubmit) && !state.isEmailValid
+  val showEmailError = (isEmailFocused || state.hasAttemptedSubmit) && !state.isEmailValid
 
   val emailError =
       when {
@@ -204,12 +207,8 @@ private fun Header() {
   Text(
       text =
           buildAnnotatedString {
-            withStyle(SpanStyle(color = colors.onBackground)) {
-              append("Poly")
-            }
-            withStyle(SpanStyle(color = colors.primary)) {
-              append("Loop")
-            }
+            withStyle(SpanStyle(color = colors.onBackground)) { append("Poly") }
+            withStyle(SpanStyle(color = colors.primary)) { append("Loop") }
           },
       fontSize = 44.sp,
       fontWeight = FontWeight.ExtraBold,
@@ -371,10 +370,11 @@ private fun AuthTextField(
             VisualTransformation.None
           },
       keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-      textStyle = TextStyle(
-          fontSize = 18.sp,
-          color = colors.onSurface,
-      ),
+      textStyle =
+          TextStyle(
+              fontSize = 18.sp,
+              color = colors.onSurface,
+          ),
       colors =
           OutlinedTextFieldDefaults.colors(
               focusedContainerColor = colors.surface,
@@ -384,12 +384,9 @@ private fun AuthTextField(
               cursorColor = colors.primary,
           ),
       modifier =
-          Modifier.fillMaxWidth()
-              .height(62.dp)
-              .testTag(testTag)
-              .onFocusChanged {
-                onFocusChange(it.isFocused)
-              },
+          Modifier.fillMaxWidth().height(62.dp).testTag(testTag).onFocusChanged {
+            onFocusChange(it.isFocused)
+          },
   )
 
   // Keep a stable height so the form does not jump when an error appears.
@@ -440,10 +437,7 @@ private fun AuthButton(
               hoveredElevation = 0.dp,
               disabledElevation = 0.dp,
           ),
-      modifier =
-          Modifier.fillMaxWidth()
-              .height(52.dp)
-              .testTag(testTag),
+      modifier = Modifier.fillMaxWidth().height(52.dp).testTag(testTag),
   ) {
     Text(
         text = text,
@@ -456,11 +450,7 @@ private fun AuthButton(
 /** Shows the latest authentication error in a fixed-height area below the primary action. */
 @Composable
 private fun ErrorMessage(error: AuthError?) {
-  Column(
-      modifier = Modifier
-          .height(36.dp)
-          .fillMaxWidth()
-  ) {
+  Column(modifier = Modifier.height(36.dp).fillMaxWidth()) {
     if (error != null) {
       Text(
           text = error.message(),
@@ -475,38 +465,28 @@ private fun ErrorMessage(error: AuthError?) {
 /** Converts an authentication failure into the message displayed to the user. */
 private fun AuthError.message(): String =
     when (this) {
-      AuthError.WRONG_CREDENTIALS ->
-          "The email or password is incorrect."
+      AuthError.WRONG_CREDENTIALS -> "The email or password is incorrect."
 
-      AuthError.WEAK_PASSWORD ->
-          "Your password is too weak."
+      AuthError.WEAK_PASSWORD -> "Your password is too weak."
 
-      AuthError.EMAIL_NOT_VERIFIED ->
-          "Please verify your email address."
+      AuthError.EMAIL_NOT_VERIFIED -> "Please verify your email address."
 
-      AuthError.TOO_MANY_REQUESTS ->
-          "Too many attempts. Please try again later."
+      AuthError.TOO_MANY_REQUESTS -> "Too many attempts. Please try again later."
 
-      AuthError.NETWORK ->
-          "A network error occurred. Please try again."
+      AuthError.NETWORK -> "A network error occurred. Please try again."
 
-      AuthError.UNKNOWN ->
-          "An unexpected error occurred. Please try again."
+      AuthError.UNKNOWN -> "An unexpected error occurred. Please try again."
 
-      AuthError.NAME_REQUIRED ->
-          "Please enter your name."
+      AuthError.NAME_REQUIRED -> "Please enter your name."
 
-      AuthError.INVALID_DOMAIN ->
-          "Use your @epfl.ch address."
+      AuthError.INVALID_DOMAIN -> "Use your @epfl.ch address."
 
-      AuthError.EMAIL_ALREADY_IN_USE ->
-          "This email already has an account. Try logging in."
+      AuthError.EMAIL_ALREADY_IN_USE -> "This email already has an account. Try logging in."
 
       AuthError.VERIFICATION_EMAIL_NOT_SENT ->
           "Account created, but the verification email could not be sent."
 
-      AuthError.NAME_NOT_SAVED ->
-          "Account created, but your name could not be saved."
+      AuthError.NAME_NOT_SAVED -> "Account created, but your name could not be saved."
     }
 
 /** Preview of the login form backed by an in-memory authentication repository. */
@@ -514,9 +494,7 @@ private fun AuthError.message(): String =
 @Composable
 private fun AuthScreenLogInPreview() {
   val viewModel = remember {
-    AuthViewModel(PreviewAuthRepository()).also {
-      it.switchMode(AuthMode.LOG_IN)
-    }
+    AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.LOG_IN) }
   }
 
   PolyLoopTheme {
@@ -533,9 +511,7 @@ private fun AuthScreenLogInPreview() {
 @Composable
 private fun AuthScreenSignUpPreview() {
   val viewModel = remember {
-    AuthViewModel(PreviewAuthRepository()).also {
-      it.switchMode(AuthMode.SIGN_UP)
-    }
+    AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) }
   }
 
   PolyLoopTheme {
@@ -552,9 +528,7 @@ private fun AuthScreenSignUpPreview() {
 @Composable
 private fun AuthScreenInteractivePreview() {
   val viewModel = remember {
-    AuthViewModel(PreviewAuthRepository()).also {
-      it.switchMode(AuthMode.SIGN_UP)
-    }
+    AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) }
   }
 
   PolyLoopTheme {
@@ -573,8 +547,7 @@ private class PreviewAuthRepository : AuthRepository {
       name: String,
       email: String,
       password: String,
-  ): AuthResult<Unit> =
-      AuthResult.Success(Unit)
+  ): AuthResult<Unit> = AuthResult.Success(Unit)
 
   override suspend fun signIn(
       email: String,
@@ -591,8 +564,7 @@ private class PreviewAuthRepository : AuthRepository {
   override suspend fun resendVerificationEmail(
       email: String,
       password: String,
-  ): AuthResult<Unit> =
-      AuthResult.Success(Unit)
+  ): AuthResult<Unit> = AuthResult.Success(Unit)
 
   override fun getCurrentUser(): AuthUser? = null
 
