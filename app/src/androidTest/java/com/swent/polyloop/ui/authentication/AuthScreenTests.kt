@@ -1,4 +1,4 @@
-//Made with ChatGPT
+// Made with ChatGPT
 
 package com.swent.polyloop.ui.authentication
 
@@ -52,9 +52,7 @@ class AuthScreenTests {
     composeTestRule.onNodeWithTag("signInLoginButton").performClick()
 
     composeTestRule.waitUntil(5_000) { signedIn.value == 1 }
-    composeTestRule.runOnIdle {
-      assertEquals("prenom.nom@epfl.ch" to "pass123", repository.signIn)
-    }
+    composeTestRule.runOnIdle { assertEquals("prenom.nom@epfl.ch" to "pass123", repository.signIn) }
   }
 
   @Test
@@ -76,9 +74,9 @@ class AuthScreenTests {
     composeTestRule.setContent {
       PolyLoopTheme {
         AuthScreen(
-          onSignIn = { signedIn.value++ },
-          onNavigateToVerification = { verificationRequested.value++ },
-          viewModel = viewModel,
+            onSignIn = { signedIn.value++ },
+            onNavigateToVerification = { verificationRequested.value++ },
+            viewModel = viewModel,
         )
       }
     }
@@ -89,21 +87,16 @@ class AuthScreenTests {
     var signUp: Triple<String, String, String>? = null
 
     override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> =
-      AuthResult.Success(AuthUser("u1", email, "First Last")).also {
-        signIn = email to password
-      }
+        AuthResult.Success(AuthUser("u1", email, "First Last")).also { signIn = email to password }
 
     override suspend fun signUp(
-      name: String,
-      email: String,
-      password: String,
-    ): AuthResult<Unit> =
-      AuthResult.Success(Unit).also {
-        signUp = Triple(name, email, password)
-      }
+        name: String,
+        email: String,
+        password: String,
+    ): AuthResult<Unit> = AuthResult.Success(Unit).also { signUp = Triple(name, email, password) }
 
     override suspend fun resendVerificationEmail(email: String, password: String) =
-      AuthResult.Success(Unit)
+        AuthResult.Success(Unit)
 
     override fun getCurrentUser(): AuthUser? = null
 
