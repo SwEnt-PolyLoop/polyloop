@@ -5,8 +5,6 @@
 
     <!-- Browse -->
     <string name="browse_title">Browse</string>
-    <string name="browse_menu">Menu</string>
-    <string name="browse_profile">Profile</string>
     <string name="browse_search_hint">Search items</string>
     <string name="browse_category_all">All</string>
     <string name="browse_map">Map</string>

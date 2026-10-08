@@ -25,7 +25,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -68,7 +67,6 @@ fun BrowseContent(
               .background(MaterialTheme.colorScheme.background)
               .testTag(C.Tag.browse_screen)
   ) {
-    BrowseTopBar()
     Column(
         modifier = Modifier.padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -135,35 +133,6 @@ private fun BrowseError(errorMsg: String, onRetry: () -> Unit) {
     )
     Button(onClick = onRetry, modifier = Modifier.testTag(C.Tag.browse_retry_button)) {
       Text(stringResource(R.string.browse_retry))
-    }
-  }
-}
-
-/** Placeholder top bar: menu, wordmark and profile. The buttons do nothing yet. */
-@Composable
-private fun BrowseTopBar() {
-  Row(
-      modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-      verticalAlignment = Alignment.CenterVertically,
-  ) {
-    TextButton(
-        onClick = {},
-        modifier = Modifier.testTag(C.Tag.browse_menu_button),
-    ) {
-      Text(stringResource(R.string.browse_menu))
-    }
-    Text(
-        text = stringResource(R.string.app_name),
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.weight(1f),
-        textAlign = TextAlign.Center,
-    )
-    TextButton(
-        onClick = {},
-        modifier = Modifier.testTag(C.Tag.browse_profile_button),
-    ) {
-      Text(stringResource(R.string.browse_profile))
     }
   }
 }

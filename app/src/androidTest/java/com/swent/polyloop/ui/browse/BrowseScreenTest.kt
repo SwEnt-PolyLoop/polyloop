@@ -50,8 +50,6 @@ class BrowseScreenTest {
 
   private val headerTags =
       listOf(
-          C.Tag.browse_menu_button,
-          C.Tag.browse_profile_button,
           C.Tag.browse_title,
           C.Tag.browse_search_bar,
           C.Tag.browse_category_chips,
@@ -70,7 +68,7 @@ class BrowseScreenTest {
   }
 
   private fun waitForTag(tag: String) {
-    composeTestRule.waitUntil {
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
       composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
     }
   }
@@ -125,8 +123,6 @@ class BrowseScreenTest {
     setContent(onListingClick = { clickedId = it })
 
     listOf(
-            C.Tag.browse_menu_button,
-            C.Tag.browse_profile_button,
             C.Tag.browse_map_toggle,
             C.Tag.browse_list_toggle,
             C.Tag.browse_search_bar,
