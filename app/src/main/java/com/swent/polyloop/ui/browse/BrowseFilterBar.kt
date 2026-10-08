@@ -1,4 +1,4 @@
-//Made with claude
+// Made with claude
 
 package com.swent.polyloop.ui.browse
 
@@ -42,8 +42,8 @@ const val BROWSE_CHIP_ALL_TAG = "browseChipAll"
 fun browseChipTag(category: ListingCategory) = "browseChip_${category.name}"
 
 /**
- * The search bar and the category chips of the Browse screen. Stateless: it only draws [filter]
- * and reports the user's actions, the ViewModel decides what they do.
+ * The search bar and the category chips of the Browse screen. Stateless: it only draws [filter] and
+ * reports the user's actions, the ViewModel decides what they do.
  *
  * "All" is selected when no category is selected, matching [ListingFilter.categories] being empty.
  *
@@ -60,85 +60,85 @@ fun BrowseFilters(
     categories: List<ListingCategory> = ListingCategory.entries,
     categoryLabel: (ListingCategory) -> String = { it.defaultLabel() },
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SearchField(filter.query, onQueryChange)
+  Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    SearchField(filter.query, onQueryChange)
 
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item {
-                FilterBubble(
-                    label = "All",
-                    selected = filter.categories.isEmpty(),
-                    onClick = onAllClick,
-                    testTag = BROWSE_CHIP_ALL_TAG,
-                )
-            }
-            items(categories) { category ->
-                FilterBubble(
-                    label = categoryLabel(category),
-                    selected = category in filter.categories,
-                    onClick = { onCategoryClick(category) },
-                    testTag = browseChipTag(category),
-                )
-            }
-        }
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      item {
+        FilterBubble(
+            label = "All",
+            selected = filter.categories.isEmpty(),
+            onClick = onAllClick,
+            testTag = BROWSE_CHIP_ALL_TAG,
+        )
+      }
+      items(categories) { category ->
+        FilterBubble(
+            label = categoryLabel(category),
+            selected = category in filter.categories,
+            onClick = { onCategoryClick(category) },
+            testTag = browseChipTag(category),
+        )
+      }
     }
+  }
 }
 
 @Composable
 private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        placeholder = { Text("Search items", color = colors.onSurfaceVariant, fontSize = 17.sp) },
-        leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = null, tint = colors.onSurfaceVariant)
-        },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(
-                    onClick = { onQueryChange("") },
-                    modifier = Modifier.testTag(BROWSE_CLEAR_SEARCH_TAG),
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear search")
-                }
-            }
-        },
-        singleLine = true,
-        shape = RoundedCornerShape(16.dp),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        textStyle = TextStyle(fontSize = 17.sp, color = colors.onSurface),
-        colors =
-            OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = colors.surface,
-                unfocusedContainerColor = colors.surface,
-                focusedBorderColor = colors.onSurface,
-                unfocusedBorderColor = colors.outlineVariant,
-                cursorColor = colors.primary,
-            ),
-        modifier = Modifier.fillMaxWidth().testTag(BROWSE_SEARCH_FIELD_TAG),
-    )
+  val colors = MaterialTheme.colorScheme
+  OutlinedTextField(
+      value = query,
+      onValueChange = onQueryChange,
+      placeholder = { Text("Search items", color = colors.onSurfaceVariant, fontSize = 17.sp) },
+      leadingIcon = {
+        Icon(Icons.Default.Search, contentDescription = null, tint = colors.onSurfaceVariant)
+      },
+      trailingIcon = {
+        if (query.isNotEmpty()) {
+          IconButton(
+              onClick = { onQueryChange("") },
+              modifier = Modifier.testTag(BROWSE_CLEAR_SEARCH_TAG),
+          ) {
+            Icon(Icons.Default.Close, contentDescription = "Clear search")
+          }
+        }
+      },
+      singleLine = true,
+      shape = RoundedCornerShape(16.dp),
+      keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+      textStyle = TextStyle(fontSize = 17.sp, color = colors.onSurface),
+      colors =
+          OutlinedTextFieldDefaults.colors(
+              focusedContainerColor = colors.surface,
+              unfocusedContainerColor = colors.surface,
+              focusedBorderColor = colors.onSurface,
+              unfocusedBorderColor = colors.outlineVariant,
+              cursorColor = colors.primary,
+          ),
+      modifier = Modifier.fillMaxWidth().testTag(BROWSE_SEARCH_FIELD_TAG),
+  )
 }
 
 /** One rounded chip: tinted with the primary color when selected, grey otherwise. */
 @Composable
 private fun FilterBubble(label: String, selected: Boolean, onClick: () -> Unit, testTag: String) {
-    val colors = MaterialTheme.colorScheme
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
-        shape = CircleShape,
-        border = null,
-        colors =
-            FilterChipDefaults.filterChipColors(
-                containerColor = colors.surfaceVariant,
-                labelColor = colors.onSurface,
-                selectedContainerColor = colors.primary.copy(alpha = 0.12f),
-                selectedLabelColor = colors.primary,
-            ),
-        modifier = Modifier.testTag(testTag),
-    )
+  val colors = MaterialTheme.colorScheme
+  FilterChip(
+      selected = selected,
+      onClick = onClick,
+      label = { Text(label, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+      shape = CircleShape,
+      border = null,
+      colors =
+          FilterChipDefaults.filterChipColors(
+              containerColor = colors.surfaceVariant,
+              labelColor = colors.onSurface,
+              selectedContainerColor = colors.primary.copy(alpha = 0.12f),
+              selectedLabelColor = colors.primary,
+          ),
+      modifier = Modifier.testTag(testTag),
+  )
 }
 
 /** Placeholder label ("SPORTS_OUTDOOR" -> "Sports outdoor"); real labels belong in strings.xml. */
@@ -148,24 +148,29 @@ private fun ListingCategory.defaultLabel(): String =
 @Preview(showBackground = true)
 @Composable
 private fun BrowseFiltersPreview() {
-    PolyLoopTheme {
-        BrowseFilters(filter = ListingFilter(), onQueryChange = {}, onCategoryClick = {}, onAllClick = {})
-    }
+  PolyLoopTheme {
+    BrowseFilters(
+        filter = ListingFilter(),
+        onQueryChange = {},
+        onCategoryClick = {},
+        onAllClick = {},
+    )
+  }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun BrowseFiltersSelectedPreview() {
-    PolyLoopTheme {
-        BrowseFilters(
-            filter =
-                ListingFilter(
-                    query = "tent",
-                    categories = setOfNotNull(ListingCategory.entries.getOrNull(1)),
-                ),
-            onQueryChange = {},
-            onCategoryClick = {},
-            onAllClick = {},
-        )
-    }
+  PolyLoopTheme {
+    BrowseFilters(
+        filter =
+            ListingFilter(
+                query = "tent",
+                categories = setOfNotNull(ListingCategory.entries.getOrNull(1)),
+            ),
+        onQueryChange = {},
+        onCategoryClick = {},
+        onAllClick = {},
+    )
+  }
 }
