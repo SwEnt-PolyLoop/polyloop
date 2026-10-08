@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
@@ -51,9 +52,9 @@ class BrowseScreenTest {
   private val headerTags =
       listOf(
           C.Tag.browse_title,
-          C.Tag.browse_search_bar,
+          BROWSE_SEARCH_FIELD_TAG,
           C.Tag.browse_category_chips,
-          C.Tag.browse_category_all,
+          BROWSE_CHIP_ALL_TAG,
           C.Tag.browse_map_toggle,
           C.Tag.browse_list_toggle,
       )
@@ -64,6 +65,22 @@ class BrowseScreenTest {
   ) {
     composeTestRule.setContent {
       BrowseContent(uiState = uiState, onListingClick = onListingClick, onRetry = {})
+    }
+  }
+
+  private fun setContentWithViewModel(
+      listings: List<Listing>,
+      onListingClick: (String) -> Unit = {},
+  ) {
+    val repository =
+        object : ListingRepository {
+          override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
+
+          override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+        }
+    val viewModel = BrowseViewModel(repository)
+    composeTestRule.setContent {
+      BrowseScreen(viewModel = viewModel, onListingClick = onListingClick)
     }
   }
 
@@ -122,12 +139,9 @@ class BrowseScreenTest {
     var clickedId: String? = null
     setContent(onListingClick = { clickedId = it })
 
-    listOf(
-            C.Tag.browse_map_toggle,
-            C.Tag.browse_list_toggle,
-            C.Tag.browse_search_bar,
-        )
-        .forEach { composeTestRule.onNodeWithTag(it).performClick() }
+    listOf(C.Tag.browse_map_toggle, C.Tag.browse_list_toggle).forEach {
+      composeTestRule.onNodeWithTag(it).performClick()
+    }
 
     assertNull(clickedId)
   }
@@ -167,5 +181,46 @@ class BrowseScreenTest {
     waitForTag(C.Tag.browse_list)
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").performClick()
     assertEquals("tent", clickedId)
+  }
+
+  @Test
+  fun searchFiltersListings() {
+    setContentWithViewModel(listings)
+
+    composeTestRule.onNodeWithTag(BROWSE_SEARCH_FIELD_TAG).performTextInput("drill")
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "drill").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").assertDoesNotExist()
+  }
+
+  @Test
+  fun selectingCategoryFiltersListingsAndAllRestoresThem() {
+    val tent =
+        listings
+            .first { it.id == "tent" }
+            .copy(
+                title = "Camping tent, 2 people",
+                category = ListingCategory.SPORTS_OUTDOOR,
+            )
+    val projector =
+        listings
+            .first { it.id == "projector" }
+            .copy(
+                title = "Projector",
+                category = ListingCategory.ELECTRONICS,
+            )
+    setContentWithViewModel(
+        listings.map { if (it.id == "tent") tent else if (it.id == "projector") projector else it }
+    )
+    waitForTag(C.Tag.browse_list)
+
+    composeTestRule.onNodeWithTag(browseChipTag(ListingCategory.ELECTRONICS)).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "projector").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").assertDoesNotExist()
+
+    composeTestRule.onNodeWithTag(BROWSE_CHIP_ALL_TAG).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").assertIsDisplayed()
   }
 }
