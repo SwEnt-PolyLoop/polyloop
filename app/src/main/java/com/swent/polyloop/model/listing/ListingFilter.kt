@@ -44,8 +44,8 @@ data class ListingFilter(
     internal const val JOINED_TEXT = 1
 
     /**
-     * Shorter terms are not searched in the text with its spaces removed: a short term would match
-     * across word boundaries by chance.
+     * Shorter terms are not searched across several words: a short term would span word boundaries
+     * by chance.
      */
     internal const val MIN_JOINED_TERM_LENGTH = 4
   }
@@ -60,10 +60,18 @@ fun List<Listing>.search(filter: ListingFilter): List<Listing> {
   return scored.sortedByDescending { (_, score) -> score }.map { (listing, _) -> listing }
 }
 
-/** A text as search reads it: its normalized words, and those words joined without spaces. */
+/** A text as search reads it: its normalized words. */
 private class SearchableText(text: String) {
   val words: List<String> = normalizeForSearch(text).split(' ').filter { it.isNotEmpty() }
-  val joined: String = words.joinToString("")
+
+  /**
+   * Whether [term] starts at the start of a word and runs on into the next words once their spaces
+   * are removed, so "mountainbike" matches "mountain bike" but "ring" does not match "spring".
+   */
+  fun spansWords(term: String): Boolean =
+      words.indices.any { i ->
+        term.length > words[i].length && words.drop(i).joinToString("").startsWith(term)
+      }
 }
 
 /**
@@ -83,6 +91,6 @@ private fun termScore(term: String, title: SearchableText, description: Searchab
       term in description.words -> ListingFilter.DESCRIPTION_WORD
       description.words.any { it.startsWith(term) } -> ListingFilter.DESCRIPTION_WORD_START
       term.length >= ListingFilter.MIN_JOINED_TERM_LENGTH &&
-          (term in title.joined || term in description.joined) -> ListingFilter.JOINED_TEXT
+          (title.spansWords(term) || description.spansWords(term)) -> ListingFilter.JOINED_TEXT
       else -> null
     }

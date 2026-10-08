@@ -112,15 +112,34 @@ class ListingFilterTest {
       )
 
   @Test
-  fun termInsideWordScoresJoinedText() =
+  fun partlyTypedTermAcrossWordsScoresJoinedText() =
       assertEquals(
           JOINED_TEXT,
-          ListingFilter(query = "shirt").score(listing(title = "Tshirt", description = "Blue")),
+          ListingFilter(query = "mountainbi")
+              .score(listing(title = "Mountain bike", description = "Blue")),
       )
 
   @Test
-  fun shortTermIsNotSearchedInJoinedText() =
-      assertNull(ListingFilter(query = "ent").score(listing(title = "Tente", description = "")))
+  fun termAcrossWordsOfDescriptionScoresJoinedText() =
+      assertEquals(
+          JOINED_TEXT,
+          ListingFilter(query = "tshirt").score(listing(title = "Top", description = "A T-shirt")),
+      )
+
+  @Test
+  fun termInsideWordIsNotMatched() =
+      assertNull(ListingFilter(query = "ring").score(listing(title = "Spring", description = "")))
+
+  @Test
+  fun termStartingInsideWordIsNotMatched() =
+      assertNull(
+          ListingFilter(query = "tainbike")
+              .score(listing(title = "Mountain bike", description = ""))
+      )
+
+  @Test
+  fun shortTermIsNotSearchedAcrossWords() =
+      assertNull(ListingFilter(query = "tes").score(listing(title = "T est", description = "")))
 
   @Test fun missingTermExcludesListing() = assertNull(ListingFilter(query = "guitar").score(tent))
 
