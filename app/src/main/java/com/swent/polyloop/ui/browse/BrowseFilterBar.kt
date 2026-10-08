@@ -1,5 +1,4 @@
 // Made with claude
-
 package com.swent.polyloop.ui.browse
 
 import androidx.compose.foundation.layout.Arrangement
