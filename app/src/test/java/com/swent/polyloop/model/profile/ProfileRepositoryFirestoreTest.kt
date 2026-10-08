@@ -2,18 +2,24 @@
 
 package com.swent.polyloop.model.profile
 
+import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.SetOptions
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.util.concurrent.TimeoutException
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -32,7 +38,7 @@ class ProfileRepositoryFirestoreTest {
     val users = mockk<CollectionReference>()
     every { db.collection("users") } returns users
     every { users.document("uid123") } returns document
-    every { document.set(any()) } returns Tasks.forResult(null)
+    every { document.set(any(), any()) } returns Tasks.forResult(null)
 
     repository = ProfileRepositoryFirestore(db)
   }
@@ -53,7 +59,13 @@ class ProfileRepositoryFirestoreTest {
     val result = repository.createProfileIfMissing("uid123", "john@epfl.ch", "John")
 
     assertEquals(Result.success(Unit), result)
-    verify { document.set(mapOf("name" to "John", "email" to "john@epfl.ch", "photoUrl" to "")) }
+    // Merged, so the fields Cloud Functions write (e.g. the rating) are kept.
+    verify {
+      document.set(
+          mapOf("name" to "John", "email" to "john@epfl.ch", "photoUrl" to ""),
+          SetOptions.merge(),
+      )
+    }
   }
 
   @Test
@@ -63,7 +75,7 @@ class ProfileRepositoryFirestoreTest {
     val result = repository.createProfileIfMissing("uid123", "john@epfl.ch", "John")
 
     assertEquals(Result.success(Unit), result)
-    verify(exactly = 0) { document.set(any()) }
+    verify(exactly = 0) { document.set(any(), any()) }
   }
 
   @Test
@@ -78,7 +90,7 @@ class ProfileRepositoryFirestoreTest {
   @Test
   fun failsWithCauseWhenProfileCannotBeWritten() = runTest {
     profileExists(false)
-    every { document.set(any()) } returns Tasks.forException(unavailable)
+    every { document.set(any(), any()) } returns Tasks.forException(unavailable)
 
     val result = repository.createProfileIfMissing("uid123", "john@epfl.ch", "John")
 
@@ -86,15 +98,52 @@ class ProfileRepositoryFirestoreTest {
   }
 
   @Test
-  fun rethrowsCancellationInsteadOfReportingAFailure() = runTest {
+  fun failsWithTimeoutWhenTheWriteIsNeverConfirmed() = runTest {
+    profileExists(false)
+    // Like a write saved on the phone whose confirmation never comes (connection dropped).
+    every { document.set(any(), any()) } returns TaskCompletionSource<Void>().task
+
+    val result = repository.createProfileIfMissing("uid123", "john@epfl.ch", "John")
+
+    assertTrue(result.exceptionOrNull() is TimeoutException)
+  }
+
+  @Test
+  fun taskCancelledByFirebaseIsReportedAsFailure() = runTest {
     every { document.get() } returns Tasks.forCanceled()
 
-    // A failure Result would be caught here as a success; only a thrown exception is an error.
+    val result = repository.createProfileIfMissing("uid123", "john@epfl.ch", "John")
+
+    assertTrue(result.exceptionOrNull() is CancellationException)
+  }
+
+  @Test
+  fun callerCancellationIsRethrownInsteadOfReportedAsFailure() = runTest {
+    // A read that never answers, so the call is still waiting when the caller is cancelled.
+    every { document.get() } returns TaskCompletionSource<DocumentSnapshot>().task
+    var result: Result<Unit>? = null
+
+    val caller =
+        launch(start = CoroutineStart.UNDISPATCHED) {
+          result = repository.createProfileIfMissing("uid123", "john@epfl.ch", "John")
+        }
+    caller.cancel()
+    caller.join()
+
+    assertTrue(caller.isCancelled)
+    assertNull(result)
+  }
+
+  @Test
+  fun errorsOtherThanFirebaseAreNotHidden() = runTest {
+    val bug = IllegalArgumentException("Invalid document reference")
+    every { document.get() } throws bug
+
     val thrown = runCatching {
       repository.createProfileIfMissing("uid123", "john@epfl.ch", "John")
     }
         .exceptionOrNull()
 
-    assertTrue(thrown is CancellationException)
+    assertSame(bug, thrown)
   }
 }
