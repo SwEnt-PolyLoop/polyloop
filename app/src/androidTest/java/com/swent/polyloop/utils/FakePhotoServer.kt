@@ -6,7 +6,6 @@ import android.graphics.Bitmap
 import android.graphics.Color.BLUE
 import android.graphics.Color.RED
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.captureToImage
@@ -21,6 +20,7 @@ import coil3.intercept.Interceptor
 import coil3.request.ErrorResult
 import coil3.request.ImageResult
 import coil3.request.SuccessResult
+import kotlin.math.abs
 import kotlinx.coroutines.awaitCancellation
 import org.junit.rules.ExternalResource
 
@@ -82,13 +82,24 @@ private class FakePhotoServer : Interceptor {
 }
 
 /** The colour drawn at ([x], [y]) in this node, in pixels from its top-left corner. */
-fun SemanticsNodeInteraction.colorAt(x: Int, y: Int): Int =
-    captureToImage().toPixelMap()[x, y].toArgb()
+fun SemanticsNodeInteraction.colorAt(x: Int, y: Int): Color = captureToImage().toPixelMap()[x, y]
 
 /** The colour drawn in the middle of this node. */
-fun SemanticsNodeInteraction.centerColor(): Int =
-    captureToImage().let { it.toPixelMap()[it.width / 2, it.height / 2].toArgb() }
+fun SemanticsNodeInteraction.centerColor(): Color =
+    captureToImage().let { it.toPixelMap()[it.width / 2, it.height / 2] }
+
+/**
+ * True if this colour is [other], give or take 8 out of 255 in each of red, green and blue.
+ * Emulators that draw without a graphics card, like the one in CI, round edge pixels slightly
+ * differently (e.g. red 255, green 1, blue 1), so exact equality would fail there.
+ */
+fun Color.isCloseTo(other: Color): Boolean =
+    abs(red - other.red) <= TOLERANCE &&
+        abs(green - other.green) <= TOLERANCE &&
+        abs(blue - other.blue) <= TOLERANCE
+
+private const val TOLERANCE = 8 / 255f
 
 /** Waits (photos load in the background) until the middle of [node] shows [color]. */
 fun ComposeTestRule.waitUntilCenterIs(color: Color, node: () -> SemanticsNodeInteraction) =
-    waitUntil(timeoutMillis = 5_000) { node().centerColor() == color.toArgb() }
+    waitUntil(timeoutMillis = 5_000) { node().centerColor().isCloseTo(color) }

@@ -4,7 +4,6 @@ package com.swent.polyloop.ui.browse
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -26,10 +25,11 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
 import com.swent.polyloop.utils.FakePhotoServerRule
 import com.swent.polyloop.utils.FakePhotos
 import com.swent.polyloop.utils.colorAt
+import com.swent.polyloop.utils.isCloseTo
 import com.swent.polyloop.utils.waitUntilCenterIs
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -152,7 +152,7 @@ class ListingCardTest {
     composeTestRule.waitUntilCenterIs(Color.Red, ::photo)
 
     // The very corner is cut off by the rounding, so the card shows through there.
-    assertNotEquals(Color.Red.toArgb(), photo().colorAt(0, 0))
+    assertFalse(photo().colorAt(0, 0).isCloseTo(Color.Red))
   }
 
   @Test

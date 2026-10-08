@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -23,8 +22,9 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
 import com.swent.polyloop.utils.FakePhotoServerRule
 import com.swent.polyloop.utils.FakePhotos
 import com.swent.polyloop.utils.colorAt
+import com.swent.polyloop.utils.isCloseTo
 import com.swent.polyloop.utils.waitUntilCenterIs
-import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -102,7 +102,8 @@ class ListingPhotoTest {
     val right = image.width - 1
     val bottom = image.height - 1
     for ((x, y) in listOf(0 to 0, right to 0, 0 to bottom, right to bottom)) {
-      assertEquals("pixel ($x, $y)", Color.Red.toArgb(), photo().colorAt(x, y))
+      val color = photo().colorAt(x, y)
+      assertTrue("pixel ($x, $y) is $color, not red", color.isCloseTo(Color.Red))
     }
   }
 
