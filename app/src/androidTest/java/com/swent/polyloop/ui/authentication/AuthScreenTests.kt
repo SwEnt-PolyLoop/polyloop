@@ -102,16 +102,14 @@ class AuthScreenTests {
   fun emailErrorInitiallyHiddenAndShownOnFocus() {
     composeTestRule.onNodeWithTag(EMAIL_ERROR).assertDoesNotExist()
     tap(EMAIL)
-    composeTestRule.onNodeWithTag(EMAIL_ERROR)
-        .assertTextEquals("Please enter your email address.")
+    composeTestRule.onNodeWithTag(EMAIL_ERROR).assertTextEquals("Please enter your email address.")
   }
 
   @Test
   fun invalidEmailShowsDomainMessageAndCorrectionRemovesIt() {
     tap(EMAIL)
     type(EMAIL, "test@gmail.com")
-    composeTestRule.onNodeWithTag(EMAIL_ERROR)
-        .assertTextEquals("Use your @epfl.ch address.")
+    composeTestRule.onNodeWithTag(EMAIL_ERROR).assertTextEquals("Use your @epfl.ch address.")
     clear(EMAIL)
     type(EMAIL, VALID_EMAIL)
     composeTestRule.onNodeWithTag(EMAIL_ERROR).assertDoesNotExist()
@@ -120,10 +118,8 @@ class AuthScreenTests {
   @Test
   fun emptyLoginShowsOnlyEmailAndPasswordValidation() {
     tap(LOGIN_BUTTON)
-    composeTestRule.onNodeWithTag(EMAIL_ERROR)
-        .assertTextEquals("Please enter your email address.")
-    composeTestRule.onNodeWithTag(PASSWORD_ERROR)
-        .assertTextEquals("Please enter your password.")
+    composeTestRule.onNodeWithTag(EMAIL_ERROR).assertTextEquals("Please enter your email address.")
+    composeTestRule.onNodeWithTag(PASSWORD_ERROR).assertTextEquals("Please enter your password.")
     composeTestRule.onNodeWithTag(NAME_ERROR).assertDoesNotExist()
     composeTestRule.runOnIdle { assertEquals(0, repository.loginCalls) }
   }
@@ -133,8 +129,7 @@ class AuthScreenTests {
     type(EMAIL, "test@gmail.com")
     type(PASSWORD, VALID_PASSWORD)
     tap(LOGIN_BUTTON)
-    composeTestRule.onNodeWithTag(EMAIL_ERROR)
-        .assertTextEquals("Use your @epfl.ch address.")
+    composeTestRule.onNodeWithTag(EMAIL_ERROR).assertTextEquals("Use your @epfl.ch address.")
     composeTestRule.runOnIdle { assertEquals(0, repository.loginCalls) }
   }
 
@@ -152,12 +147,9 @@ class AuthScreenTests {
   fun emptySignUpShowsThreeValidationMessagesWithoutCallingRepository() {
     tap(SIGNUP_TAB)
     tap(SIGNUP_BUTTON)
-    composeTestRule.onNodeWithTag(NAME_ERROR)
-        .assertTextEquals("Please enter your name.")
-    composeTestRule.onNodeWithTag(EMAIL_ERROR)
-        .assertTextEquals("Please enter your email address.")
-    composeTestRule.onNodeWithTag(PASSWORD_ERROR)
-        .assertTextEquals("Please enter your password.")
+    composeTestRule.onNodeWithTag(NAME_ERROR).assertTextEquals("Please enter your name.")
+    composeTestRule.onNodeWithTag(EMAIL_ERROR).assertTextEquals("Please enter your email address.")
+    composeTestRule.onNodeWithTag(PASSWORD_ERROR).assertTextEquals("Please enter your password.")
     composeTestRule.runOnIdle { assertEquals(0, repository.signUpCalls) }
   }
 
@@ -207,7 +199,8 @@ class AuthScreenTests {
     repository.loginResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
     fillLogin()
     tap(LOGIN_BUTTON)
-    composeTestRule.onNodeWithTag(AUTH_ERROR)
+    composeTestRule
+        .onNodeWithTag(AUTH_ERROR)
         .assertTextEquals("The email or password is incorrect.")
     composeTestRule.runOnIdle {
       assertEquals(0, signedInNavigations)
@@ -228,21 +221,20 @@ class AuthScreenTests {
   @Test
   fun everyNonNavigationAuthErrorHasItsOwnMessage() {
     fillLogin()
-    val cases = listOf(
-        AuthError.WRONG_CREDENTIALS to "The email or password is incorrect.",
-        AuthError.WEAK_PASSWORD to "Your password is too weak.",
-        AuthError.TOO_MANY_REQUESTS to "Too many attempts. Please try again later.",
-        AuthError.NETWORK to "A network error occurred. Please try again.",
-        AuthError.UNKNOWN to "An unexpected error occurred. Please try again.",
-        AuthError.NAME_REQUIRED to "Please enter your name.",
-        AuthError.INVALID_DOMAIN to "Use your @epfl.ch address.",
-        AuthError.EMAIL_ALREADY_IN_USE to
-            "This email already has an account. Try logging in.",
-        AuthError.VERIFICATION_EMAIL_NOT_SENT to
-            "Account created, but the verification email could not be sent.",
-        AuthError.NAME_NOT_SAVED to
-            "Account created, but your name could not be saved.",
-    )
+    val cases =
+        listOf(
+            AuthError.WRONG_CREDENTIALS to "The email or password is incorrect.",
+            AuthError.WEAK_PASSWORD to "Your password is too weak.",
+            AuthError.TOO_MANY_REQUESTS to "Too many attempts. Please try again later.",
+            AuthError.NETWORK to "A network error occurred. Please try again.",
+            AuthError.UNKNOWN to "An unexpected error occurred. Please try again.",
+            AuthError.NAME_REQUIRED to "Please enter your name.",
+            AuthError.INVALID_DOMAIN to "Use your @epfl.ch address.",
+            AuthError.EMAIL_ALREADY_IN_USE to "This email already has an account. Try logging in.",
+            AuthError.VERIFICATION_EMAIL_NOT_SENT to
+                "Account created, but the verification email could not be sent.",
+            AuthError.NAME_NOT_SAVED to "Account created, but your name could not be saved.",
+        )
     for ((error, message) in cases) {
       repository.loginResult = AuthResult.Failure(error)
       tap(LOGIN_BUTTON)
@@ -260,8 +252,7 @@ class AuthScreenTests {
     repository.loginResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
     fillLogin()
     tap(LOGIN_BUTTON)
-    composeTestRule.onNodeWithTag(AUTH_ERROR)
-        .assertTextEquals("Please verify your email address.")
+    composeTestRule.onNodeWithTag(AUTH_ERROR).assertTextEquals("Please verify your email address.")
     composeTestRule.runOnIdle {
       assertEquals(0, signedInNavigations)
       assertEquals(1, verificationNavigations)
@@ -273,7 +264,8 @@ class AuthScreenTests {
     repository.signUpResult = AuthResult.Failure(AuthError.EMAIL_ALREADY_IN_USE)
     fillSignUp()
     tap(SIGNUP_BUTTON)
-    composeTestRule.onNodeWithTag(AUTH_ERROR)
+    composeTestRule
+        .onNodeWithTag(AUTH_ERROR)
         .assertTextEquals("This email already has an account. Try logging in.")
     composeTestRule.runOnIdle { assertEquals(0, verificationNavigations) }
   }
@@ -283,7 +275,8 @@ class AuthScreenTests {
     repository.signUpResult = AuthResult.Failure(AuthError.VERIFICATION_EMAIL_NOT_SENT)
     fillSignUp()
     tap(SIGNUP_BUTTON)
-    composeTestRule.onNodeWithTag(AUTH_ERROR)
+    composeTestRule
+        .onNodeWithTag(AUTH_ERROR)
         .assertTextEquals("Account created, but the verification email could not be sent.")
     composeTestRule.runOnIdle { assertEquals(1, verificationNavigations) }
   }
@@ -293,7 +286,8 @@ class AuthScreenTests {
     repository.signUpResult = AuthResult.Failure(AuthError.NAME_NOT_SAVED)
     fillSignUp()
     tap(SIGNUP_BUTTON)
-    composeTestRule.onNodeWithTag(AUTH_ERROR)
+    composeTestRule
+        .onNodeWithTag(AUTH_ERROR)
         .assertTextEquals("Account created, but your name could not be saved.")
     composeTestRule.runOnIdle { assertEquals(1, verificationNavigations) }
   }
@@ -342,7 +336,8 @@ class AuthScreenTests {
     repository.exception = IllegalStateException("Simulated failure")
     fillLogin()
     tap(LOGIN_BUTTON)
-    composeTestRule.onNodeWithTag(AUTH_ERROR)
+    composeTestRule
+        .onNodeWithTag(AUTH_ERROR)
         .assertTextEquals("An unexpected error occurred. Please try again.")
     composeTestRule.runOnIdle {
       assertEquals(0, signedInNavigations)
@@ -405,16 +400,22 @@ private class FakeAuthRepository : AuthRepository {
 
   var loginCalls = 0
     private set
+
   var signUpCalls = 0
     private set
+
   var loginEmail: String? = null
     private set
+
   var loginPassword: String? = null
     private set
+
   var signUpName: String? = null
     private set
+
   var signUpEmail: String? = null
     private set
+
   var signUpPassword: String? = null
     private set
 
@@ -443,5 +444,6 @@ private class FakeAuthRepository : AuthRepository {
   ): AuthResult<Unit> = AuthResult.Success(Unit)
 
   override fun getCurrentUser(): AuthUser? = null
+
   override fun signOut() = Unit
 }
