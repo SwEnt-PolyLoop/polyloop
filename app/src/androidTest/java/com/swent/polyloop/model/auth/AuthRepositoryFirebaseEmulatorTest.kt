@@ -1,3 +1,5 @@
+//Made with ChatGPT
+
 package com.swent.polyloop.model.auth
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
