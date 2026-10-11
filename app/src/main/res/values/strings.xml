@@ -44,6 +44,9 @@
     <string name="top_bar_profile">Profile</string>
 
     <!-- Authentication -->
+    <!-- The wordmark is split so each half can have its own color. -->
+    <string name="auth_wordmark_start" translatable="false">Poly</string>
+    <string name="auth_wordmark_end" translatable="false">Loop</string>
     <string name="auth_tagline">Borrow and lend among EPFL students.</string>
     <string name="auth_signup">Sign up</string>
     <string name="auth_login">Log in</string>

@@ -202,12 +202,14 @@ fun AuthScreen(
 @Composable
 private fun Header() {
   val colors = MaterialTheme.colorScheme
+  val wordmarkStart = stringResource(R.string.auth_wordmark_start)
+  val wordmarkEnd = stringResource(R.string.auth_wordmark_end)
 
   Text(
       text =
           buildAnnotatedString {
-            withStyle(SpanStyle(color = colors.onBackground)) { append("Poly") }
-            withStyle(SpanStyle(color = colors.primary)) { append("Loop") }
+            withStyle(SpanStyle(color = colors.onBackground)) { append(wordmarkStart) }
+            withStyle(SpanStyle(color = colors.primary)) { append(wordmarkEnd) }
           },
       fontSize = 44.sp,
       fontWeight = FontWeight.ExtraBold,
