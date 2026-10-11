@@ -111,8 +111,8 @@ sonar {
   }
 }
 
-// Kaspresso pulls in protobuf-lite 3.0.1 (through espresso-contrib's accessibility framework), which
-// clashes with Firestore's protobuf-javalite and crashes Firestore in instrumented tests.
+// Kaspresso pulls in protobuf-lite 3.0.1 (through espresso-contrib's accessibility framework),
+// which clashes with Firestore's protobuf-javalite and crashes Firestore in instrumented tests.
 configurations
     .matching { it.name.contains("AndroidTest") }
     .configureEach { exclude(group = "com.google.protobuf", module = "protobuf-lite") }
