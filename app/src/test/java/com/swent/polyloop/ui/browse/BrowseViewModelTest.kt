@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.browse
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
@@ -124,6 +125,74 @@ class BrowseViewModelTest {
 
     assertFalse(vm.uiState.value.isLoading)
     assertEquals(listings, vm.uiState.value.listings)
+  }
+
+  // --- Filter ---
+
+  private val tent = listing("tent").copy(category = ListingCategory.SPORTS_OUTDOOR)
+  private val projector = listing("projector").copy(category = ListingCategory.ELECTRONICS)
+  private val drill = listing("drill").copy(category = ListingCategory.TOOLS_DIY)
+
+  private fun filterViewModel(): BrowseViewModel {
+    repository.listings = listOf(tent, projector, drill)
+    return BrowseViewModel(repository)
+  }
+
+  @Test
+  fun allListingsAreVisibleWithoutFilter() {
+    assertEquals(listOf(tent, projector, drill), filterViewModel().uiState.value.visibleListings)
+  }
+
+  @Test
+  fun setQueryShowsOnlyMatchingListings() {
+    val vm = filterViewModel()
+
+    vm.setQuery("drill")
+
+    assertEquals("drill", vm.uiState.value.filter.query)
+    assertEquals(listOf(drill), vm.uiState.value.visibleListings)
+  }
+
+  @Test
+  fun toggleCategorySelectsThenDeselectsIt() {
+    val vm = filterViewModel()
+
+    vm.toggleCategory(ListingCategory.ELECTRONICS)
+    vm.toggleCategory(ListingCategory.SPORTS_OUTDOOR)
+    assertEquals(
+        setOf(ListingCategory.ELECTRONICS, ListingCategory.SPORTS_OUTDOOR),
+        vm.uiState.value.filter.categories,
+    )
+    assertEquals(listOf(tent, projector), vm.uiState.value.visibleListings)
+
+    vm.toggleCategory(ListingCategory.ELECTRONICS)
+    assertEquals(setOf(ListingCategory.SPORTS_OUTDOOR), vm.uiState.value.filter.categories)
+    assertEquals(listOf(tent), vm.uiState.value.visibleListings)
+  }
+
+  @Test
+  fun clearCategoriesKeepsTheQuery() {
+    val vm = filterViewModel()
+    vm.setQuery("item")
+    vm.toggleCategory(ListingCategory.ELECTRONICS)
+
+    vm.clearCategories()
+
+    assertEquals(ListingFilter(query = "item"), vm.uiState.value.filter)
+    assertEquals(listOf(tent, projector, drill), vm.uiState.value.visibleListings)
+  }
+
+  @Test
+  fun refreshKeepsTheFilterAndAppliesItToTheNewListings() {
+    val vm = filterViewModel()
+    vm.toggleCategory(ListingCategory.ELECTRONICS)
+    val speaker = listing("speaker").copy(category = ListingCategory.ELECTRONICS)
+    repository.listings = listOf(tent, projector, drill, speaker)
+
+    vm.refresh()
+
+    assertEquals(setOf(ListingCategory.ELECTRONICS), vm.uiState.value.filter.categories)
+    assertEquals(listOf(projector, speaker), vm.uiState.value.visibleListings)
   }
 
   @Test
