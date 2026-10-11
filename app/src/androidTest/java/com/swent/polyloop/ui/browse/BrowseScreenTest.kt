@@ -183,46 +183,58 @@ class BrowseScreenTest {
     assertEquals("tent", clickedId)
   }
 
-  @Test
-  fun searchFiltersListings() {
-    setContentWithViewModel(listings)
-
-    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput("drill")
-
-    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "drill").assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").assertDoesNotExist()
+  /**
+   * Checks that the list shows exactly the listings [ids]: each can be reached by scrolling, and
+   * every other listing has no card.
+   */
+  private fun assertShownListings(vararg ids: String) {
+    listings.forEach { listing ->
+      val cardTag = C.Tag.listing_card_ + listing.id
+      if (listing.id in ids) {
+        composeTestRule.onNodeWithTag(C.Tag.browse_list).performScrollToNode(hasTestTag(cardTag))
+        composeTestRule.onNodeWithTag(cardTag).assertIsDisplayed()
+      } else {
+        composeTestRule.onNodeWithTag(cardTag).assertDoesNotExist()
+      }
+    }
   }
 
   @Test
-  fun selectingCategoryFiltersListingsAndAllRestoresThem() {
-    val tent =
-        listings
-            .first { it.id == "tent" }
-            .copy(
-                title = "Camping tent, 2 people",
-                category = ListingCategory.SPORTS_OUTDOOR,
-            )
-    val projector =
-        listings
-            .first { it.id == "projector" }
-            .copy(
-                title = "Projector",
-                category = ListingCategory.ELECTRONICS,
-            )
-    setContentWithViewModel(
-        listings.map { if (it.id == "tent") tent else if (it.id == "projector") projector else it }
-    )
+  fun searchFiltersListingsAndClearingRestoresThem() {
+    setContentWithViewModel(listings)
     waitForTag(C.Tag.browse_list)
 
-    composeTestRule
-        .onNodeWithTag(C.Tag.browseCategoryChip(ListingCategory.ELECTRONICS))
-        .performClick()
+    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput("drill")
+    assertShownListings("drill")
 
-    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "projector").assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).performClick()
+    assertShownListings(*listings.map { it.id }.toTypedArray())
+  }
 
+  @Test
+  fun categoryChipsToggleTheirCategoryAndAllClearsThem() {
+    val categories =
+        mapOf("tent" to ListingCategory.SPORTS_OUTDOOR, "projector" to ListingCategory.ELECTRONICS)
+    setContentWithViewModel(
+        listings.map { it.copy(category = categories[it.id] ?: ListingCategory.OTHER) }
+    )
+    waitForTag(C.Tag.browse_list)
+    val electronicsChip =
+        composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(ListingCategory.ELECTRONICS))
+    val sportsChip =
+        composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(ListingCategory.SPORTS_OUTDOOR))
+
+    electronicsChip.performClick()
+    assertShownListings("projector")
+
+    sportsChip.performClick()
+    assertShownListings("projector", "tent")
+
+    electronicsChip.performClick()
+    assertShownListings("tent")
+
+    electronicsChip.performClick()
     composeTestRule.onNodeWithTag(C.Tag.browse_category_all).performClick()
-
-    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").assertIsDisplayed()
+    assertShownListings(*listings.map { it.id }.toTypedArray())
   }
 }

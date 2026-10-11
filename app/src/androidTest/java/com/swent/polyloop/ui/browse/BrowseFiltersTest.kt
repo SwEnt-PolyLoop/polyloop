@@ -1,10 +1,8 @@
 // Made with Claude
 package com.swent.polyloop.ui.browse
 
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
@@ -27,11 +25,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * UI tests of [BrowseFilters].
+ * UI tests of [BrowseFilters]: what it shows for a given filter and which callback each action
+ * calls. What the actions do to the filter is tested on the Browse screen.
  *
- * Nodes are found by test tag, never by text, so the tests do not depend on the device language.
- * The chip row is lazy, so the tests use the first two categories, which are composed on any screen
- * size.
+ * Nodes are found by test tag, so the tests do not depend on the device language. The chip row is
+ * lazy, so the tests use the first two categories, which are composed on any screen size.
  */
 @RunWith(AndroidJUnit4::class)
 class BrowseFiltersTest {
@@ -41,244 +39,128 @@ class BrowseFiltersTest {
   private val electronics = ListingCategory.ELECTRONICS
   private val sports = ListingCategory.SPORTS_OUTDOOR
 
-  private fun setFilters(
-      filter: ListingFilter = ListingFilter(),
-      onQueryChange: (String) -> Unit = {},
-      onCategoryClick: (ListingCategory) -> Unit = {},
-      onAllClick: () -> Unit = {},
-  ) {
+  /** The filter drawn by [BrowseFilters]; tests change it to check that the screen follows. */
+  private var filter by mutableStateOf(ListingFilter())
+  private val queries = mutableListOf<String>()
+  private val clickedCategories = mutableListOf<ListingCategory>()
+  private var allClicks = 0
+
+  private fun setFilters(initial: ListingFilter = ListingFilter()) {
+    filter = initial
     composeTestRule.setContent {
       PolyLoopTheme {
         BrowseFilters(
             filter = filter,
-            onQueryChange = onQueryChange,
-            onCategoryClick = onCategoryClick,
-            onAllClick = onAllClick,
+            onQueryChange = { queries.add(it) },
+            onCategoryClick = { clickedCategories.add(it) },
+            onAllClick = { allClicks++ },
         )
       }
     }
   }
 
-  /** Keeps the filter in a state, the way the Browse screen does. */
-  @Composable
-  private fun StatefulFilters() {
-    var filter by remember { mutableStateOf(ListingFilter()) }
-    PolyLoopTheme {
-      BrowseFilters(
-          filter = filter,
-          onQueryChange = { filter = filter.copy(query = it) },
-          onCategoryClick = { category ->
-            val categories =
-                if (category in filter.categories) filter.categories - category
-                else filter.categories + category
-            filter = filter.copy(categories = categories)
-          },
-          onAllClick = { filter = filter.copy(categories = emptySet()) },
-      )
-    }
-  }
-
-  // --- What is displayed ---
-
-  @Test
-  fun searchFieldAndAllChipAreDisplayed() {
-    setFilters()
-    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsDisplayed()
-  }
-
-  @Test
-  fun oneChipExistsForEachCategory() {
-    setFilters()
-    ListingCategory.entries.forEach {
-      composeTestRule
-          .onNodeWithTag(C.Tag.browse_category_chips)
-          .performScrollToNode(hasTestTag(C.Tag.browseCategoryChip(it)))
-      composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(it)).assertIsDisplayed()
-    }
-  }
-
-  @Test
-  fun chipShowsTheCategoryLabel() {
-    setFilters()
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).assertTextEquals(sports.label)
-  }
-
-  // --- Selection ---
-
-  @Test
-  fun allChipIsSelectedWhenNoCategoryIsSelected() {
-    setFilters(filter = ListingFilter(categories = emptySet()))
-    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsSelected()
-    listOf(electronics, sports).forEach {
-      composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(it)).assertIsNotSelected()
-    }
-  }
-
-  @Test
-  fun allChipIsNotSelectedWhenACategoryIsSelected() {
-    setFilters(filter = ListingFilter(categories = setOf(sports)))
-    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsNotSelected()
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).assertIsSelected()
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(electronics)).assertIsNotSelected()
-  }
-
-  @Test
-  fun everySelectedCategoryChipIsSelected() {
-    setFilters(filter = ListingFilter(categories = setOf(electronics, sports)))
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(electronics)).assertIsSelected()
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).assertIsSelected()
-  }
-
-  // --- Callbacks ---
-
-  @Test
-  fun clickingAllChipCallsOnAllClick() {
-    var allClicks = 0
-    setFilters(onAllClick = { allClicks++ })
-    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).performClick()
-    assertEquals(1, allClicks)
-  }
-
-  @Test
-  fun clickingCategoryChipReportsThatCategory() {
-    val clicked = mutableListOf<ListingCategory>()
-    setFilters(onCategoryClick = { clicked.add(it) })
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).performClick()
-    assertEquals(listOf(sports), clicked)
-  }
-
-  @Test
-  fun clickingSeveralCategoryChipsReportsEachOneInOrder() {
-    val clicked = mutableListOf<ListingCategory>()
-    setFilters(onCategoryClick = { clicked.add(it) })
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(electronics)).performClick()
-    assertEquals(listOf(sports, electronics), clicked)
-  }
-
-  @Test
-  fun clickingAnAlreadySelectedChipStillReportsIt() {
-    val clicked = mutableListOf<ListingCategory>()
-    setFilters(
-        filter = ListingFilter(categories = setOf(sports)),
-        onCategoryClick = { clicked.add(it) },
-    )
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).performClick()
-    assertEquals(listOf(sports), clicked)
-  }
-
-  @Test
-  fun clickingACategoryChipDoesNotCallOnAllClick() {
-    var allClicks = 0
-    setFilters(onAllClick = { allClicks++ })
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).performClick()
-    assertEquals(0, allClicks)
-  }
+  private fun chip(category: ListingCategory) =
+      composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(category))
 
   // --- Search field ---
 
   @Test
-  fun typingInTheSearchFieldReportsTheQuery() {
-    var query = ""
-    setFilters(onQueryChange = { query = it })
-    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput("tent")
-    assertEquals("tent", query)
-  }
-
-  @Test
   fun searchFieldShowsTheQuery() {
-    setFilters(filter = ListingFilter(query = "tent"))
+    setFilters(ListingFilter(query = "tent"))
+
     composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).assertTextEquals("tent")
   }
 
   @Test
-  fun clearButtonIsHiddenWhenTheQueryIsEmpty() {
-    setFilters(filter = ListingFilter(query = ""))
-    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).assertDoesNotExist()
+  fun typingInTheSearchFieldReportsTheQuery() {
+    setFilters()
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput("tent")
+
+    assertEquals(listOf("tent"), queries)
   }
 
   @Test
-  fun clearButtonIsDisplayedWhenTheQueryIsNotEmpty() {
-    setFilters(filter = ListingFilter(query = "tent"))
+  fun clearButtonIsShownOnlyWhileTheQueryIsNotEmpty() {
+    setFilters()
+    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).assertDoesNotExist()
+
+    filter = ListingFilter(query = "tent")
     composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).assertIsDisplayed()
+
+    filter = ListingFilter(query = "")
+    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).assertDoesNotExist()
   }
 
   @Test
   fun clearButtonReportsAnEmptyQuery() {
-    val queries = mutableListOf<String>()
-    setFilters(filter = ListingFilter(query = "tent"), onQueryChange = { queries.add(it) })
+    setFilters(ListingFilter(query = "tent"))
+
     composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).performClick()
+
     assertEquals(listOf(""), queries)
   }
 
-  // --- With a state, like on the Browse screen ---
+  // --- Chips ---
 
   @Test
-  fun typedTextStaysInTheSearchFieldAndShowsTheClearButton() {
-    composeTestRule.setContent { StatefulFilters() }
-    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).assertDoesNotExist()
+  fun everyCategoryHasAChipShowingItsLabel() {
+    setFilters()
 
-    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput("tent")
-
-    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).assertTextEquals("tent")
-    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).assertIsDisplayed()
+    ListingCategory.entries.forEach {
+      composeTestRule
+          .onNodeWithTag(C.Tag.browse_category_chips)
+          .performScrollToNode(hasTestTag(C.Tag.browseCategoryChip(it)))
+      chip(it).assertTextEquals(it.label)
+    }
   }
 
   @Test
-  fun clearButtonEmptiesTheSearchFieldAndDisappears() {
-    composeTestRule.setContent { StatefulFilters() }
-    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput("tent")
-
-    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).performClick()
-
-    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).assertDoesNotExist()
-  }
-
-  @Test
-  fun clickingAChipSelectsItAndDeselectsAll() {
-    composeTestRule.setContent { StatefulFilters() }
+  fun allChipIsSelectedOnlyWhenNoCategoryIsSelected() {
+    setFilters()
     composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsSelected()
 
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).performClick()
-
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).assertIsSelected()
+    filter = ListingFilter(categories = setOf(sports))
     composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsNotSelected()
-  }
 
-  @Test
-  fun severalChipsCanBeSelectedAtTheSameTime() {
-    composeTestRule.setContent { StatefulFilters() }
-
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(electronics)).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).performClick()
-
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(electronics)).assertIsSelected()
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).assertIsSelected()
-  }
-
-  @Test
-  fun clickingASelectedChipDeselectsItAndSelectsAllAgainWhenNoneIsLeft() {
-    composeTestRule.setContent { StatefulFilters() }
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).performClick()
-
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).performClick()
-
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).assertIsNotSelected()
+    filter = ListingFilter()
     composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsSelected()
   }
 
   @Test
-  fun allChipClearsEverySelectedChip() {
-    composeTestRule.setContent { StatefulFilters() }
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(electronics)).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(sports)).performClick()
+  fun exactlyTheChipsOfTheSelectedCategoriesAreSelected() {
+    setFilters()
+    chip(electronics).assertIsNotSelected()
+    chip(sports).assertIsNotSelected()
+
+    filter = ListingFilter(categories = setOf(sports))
+    chip(electronics).assertIsNotSelected()
+    chip(sports).assertIsSelected()
+
+    filter = ListingFilter(categories = setOf(electronics, sports))
+    chip(electronics).assertIsSelected()
+    chip(sports).assertIsSelected()
+  }
+
+  @Test
+  fun clickingCategoryChipsReportsEachCategoryInOrder() {
+    // Sports is already selected: clicking it is still reported, the caller deselects it.
+    setFilters(ListingFilter(categories = setOf(sports)))
+
+    chip(sports).performClick()
+    chip(electronics).performClick()
+
+    assertEquals(listOf(sports, electronics), clickedCategories)
+    assertEquals(0, allClicks)
+  }
+
+  @Test
+  fun clickingAllChipCallsOnlyOnAllClick() {
+    setFilters(ListingFilter(categories = setOf(sports)))
 
     composeTestRule.onNodeWithTag(C.Tag.browse_category_all).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsSelected()
-    listOf(electronics, sports).forEach {
-      composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(it)).assertIsNotSelected()
-    }
+    assertEquals(1, allClicks)
+    assertEquals(emptyList<ListingCategory>(), clickedCategories)
   }
 }
