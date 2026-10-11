@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -22,6 +23,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -80,6 +82,7 @@ fun BrowseFilters(
 @Composable
 private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
   val colors = MaterialTheme.colorScheme
+  val focusManager = LocalFocusManager.current
   OutlinedTextField(
       value = query,
       onValueChange = onQueryChange,
@@ -109,6 +112,8 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
       singleLine = true,
       shape = RoundedCornerShape(16.dp),
       keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+      // The filter already applies while typing, so the Search key only closes the keyboard.
+      keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
       textStyle = TextStyle(fontSize = 17.sp, color = colors.onSurface),
       colors =
           OutlinedTextFieldDefaults.colors(

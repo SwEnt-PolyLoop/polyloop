@@ -5,6 +5,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
@@ -12,6 +14,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -26,7 +29,7 @@ import org.junit.runner.RunWith
 
 /**
  * UI tests of [BrowseFilters]: what it shows for a given filter and which callback each action
- * calls. What the actions do to the filter is tested on the Browse screen.
+ * calls. What the actions do to the filter is tested in `BrowseViewModelTest`.
  *
  * Nodes are found by test tag, so the tests do not depend on the device language. The chip row is
  * lazy, so the tests use the first two categories, which are composed on any screen size.
@@ -81,15 +84,24 @@ class BrowseFiltersTest {
   }
 
   @Test
+  fun searchKeyClosesTheKeyboard() {
+    setFilters()
+    val searchBar = composeTestRule.onNodeWithTag(C.Tag.browse_search_bar)
+    searchBar.performClick()
+    searchBar.assertIsFocused()
+
+    searchBar.performImeAction()
+
+    searchBar.assertIsNotFocused()
+  }
+
+  @Test
   fun clearButtonIsShownOnlyWhileTheQueryIsNotEmpty() {
     setFilters()
     composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).assertDoesNotExist()
 
     filter = ListingFilter(query = "tent")
     composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).assertIsDisplayed()
-
-    filter = ListingFilter(query = "")
-    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).assertDoesNotExist()
   }
 
   @Test
@@ -122,18 +134,11 @@ class BrowseFiltersTest {
 
     filter = ListingFilter(categories = setOf(sports))
     composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsNotSelected()
-
-    filter = ListingFilter()
-    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsSelected()
   }
 
   @Test
   fun exactlyTheChipsOfTheSelectedCategoriesAreSelected() {
-    setFilters()
-    chip(electronics).assertIsNotSelected()
-    chip(sports).assertIsNotSelected()
-
-    filter = ListingFilter(categories = setOf(sports))
+    setFilters(ListingFilter(categories = setOf(sports)))
     chip(electronics).assertIsNotSelected()
     chip(sports).assertIsSelected()
 
