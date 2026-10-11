@@ -1,5 +1,8 @@
 // Made with Copilot
 
+package com.swent.polyloop.ui.authentication
+
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -34,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -46,21 +50,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
-import com.swent.polyloop.ui.authentication.AuthMode
-import com.swent.polyloop.ui.authentication.AuthViewModel
+import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
-
-private const val NAME_FIELD_TAG = "signInName"
-private const val EMAIL_FIELD_TAG = "signInEmail"
-private const val PASSWORD_FIELD_TAG = "signInPassword"
-private const val LOGIN_BUTTON_TAG = "signInLoginButton"
-private const val SIGNUP_BUTTON_TAG = "signInSignupButton"
-private const val LOGIN_TAB_TAG = "signInLoginTab"
-private const val SIGNUP_TAB_TAG = "signInSignupTab"
 
 /**
  * Displays the login and sign-up forms and forwards user actions to [AuthViewModel].
@@ -111,20 +107,20 @@ fun AuthScreen(
   val emailError =
       when {
         !showEmailError -> null
-        state.email.isBlank() -> "Please enter your email address."
-        else -> "Use your @epfl.ch address."
+        state.email.isBlank() -> R.string.auth_email_required
+        else -> R.string.auth_email_invalid_domain
       }
 
   val nameError =
       if (isSignUp && state.hasAttemptedSubmit && state.isNameBlank) {
-        "Please enter your name."
+        R.string.auth_name_required
       } else {
         null
       }
 
   val passwordError =
       if (state.hasAttemptedSubmit && state.isPasswordBlank) {
-        "Please enter your password."
+        R.string.auth_password_required
       } else {
         null
       }
@@ -151,48 +147,51 @@ fun AuthScreen(
     // The name field is only displayed in sign-up mode.
     if (isSignUp) {
       AuthTextField(
-          label = "Name",
+          label = stringResource(R.string.auth_name_label),
           value = state.name,
-          placeholder = "Enter your name",
+          placeholder = stringResource(R.string.auth_name_placeholder),
           onValueChange = viewModel::onNameChange,
-          errorText = nameError,
-          testTag = NAME_FIELD_TAG,
+          errorText = nameError?.let { stringResource(it) },
+          testTag = C.Tag.auth_name_field,
+          errorTestTag = C.Tag.auth_name_error,
       )
 
       Spacer(Modifier.height(16.dp))
     }
 
     AuthTextField(
-        label = "EPFL email",
+        label = stringResource(R.string.auth_email_label),
         value = state.email,
-        placeholder = "Enter your EPFL email",
+        placeholder = stringResource(R.string.auth_email_placeholder),
         onValueChange = viewModel::onEmailChange,
-        errorText = emailError,
+        errorText = emailError?.let { stringResource(it) },
         keyboardType = KeyboardType.Email,
         onFocusChange = { isEmailFocused = it },
-        testTag = EMAIL_FIELD_TAG,
+        testTag = C.Tag.auth_email_field,
+        errorTestTag = C.Tag.auth_email_error,
     )
 
     Spacer(Modifier.height(16.dp))
 
     AuthTextField(
-        label = "Password",
+        label = stringResource(R.string.auth_password_label),
         value = state.password,
-        placeholder = "Enter your password",
+        placeholder = stringResource(R.string.auth_password_placeholder),
         onValueChange = viewModel::onPasswordChange,
-        errorText = passwordError,
+        errorText = passwordError?.let { stringResource(it) },
         keyboardType = KeyboardType.Password,
         isPassword = true,
-        testTag = PASSWORD_FIELD_TAG,
+        testTag = C.Tag.auth_password_field,
+        errorTestTag = C.Tag.auth_password_error,
     )
 
     Spacer(Modifier.height(20.dp))
 
     AuthButton(
-        text = if (isSignUp) "Sign up" else "Log in",
+        text = stringResource(if (isSignUp) R.string.auth_signup else R.string.auth_login),
         onClick = viewModel::submit,
         enabled = !state.isLoading,
-        testTag = if (isSignUp) SIGNUP_BUTTON_TAG else LOGIN_BUTTON_TAG,
+        testTag = if (isSignUp) C.Tag.auth_signup_button else C.Tag.auth_login_button,
     )
 
     ErrorMessage(state.error)
@@ -216,7 +215,7 @@ private fun Header() {
   )
 
   Text(
-      text = "Borrow and lend among EPFL students.",
+      text = stringResource(R.string.auth_tagline),
       color = colors.onSurfaceVariant,
       fontSize = 16.sp,
       modifier = Modifier.padding(top = 8.dp),
@@ -244,17 +243,17 @@ private fun SegmentedTabs(
               .padding(4.dp)
   ) {
     Tab(
-        text = "Sign up",
+        text = stringResource(R.string.auth_signup),
         selected = mode == AuthMode.SIGN_UP,
-        testTag = SIGNUP_TAB_TAG,
+        testTag = C.Tag.auth_signup_tab,
     ) {
       onModeChange(AuthMode.SIGN_UP)
     }
 
     Tab(
-        text = "Log in",
+        text = stringResource(R.string.auth_login),
         selected = mode == AuthMode.LOG_IN,
-        testTag = LOGIN_TAB_TAG,
+        testTag = C.Tag.auth_login_tab,
     ) {
       onModeChange(AuthMode.LOG_IN)
     }
@@ -324,6 +323,7 @@ private fun RowScope.Tab(
  * @param onValueChange called when the user edits the value.
  * @param errorText validation message, or null when the field has no visible error.
  * @param testTag semantic test tag for UI tests.
+ * @param errorTestTag semantic test tag of the validation message for UI tests.
  * @param keyboardType keyboard layout requested for the field.
  * @param isPassword whether to obscure the entered value.
  * @param onFocusChange called when the field gains or loses focus.
@@ -336,6 +336,7 @@ private fun AuthTextField(
     onValueChange: (String) -> Unit,
     errorText: String?,
     testTag: String,
+    errorTestTag: String,
     keyboardType: KeyboardType = KeyboardType.Text,
     isPassword: Boolean = false,
     onFocusChange: (Boolean) -> Unit = {},
@@ -398,7 +399,7 @@ private fun AuthTextField(
           text = errorText,
           color = colors.error,
           fontSize = 13.sp,
-          modifier = Modifier.testTag("${testTag}Error"),
+          modifier = Modifier.testTag(errorTestTag),
       )
     }
   }
@@ -454,40 +455,30 @@ private fun ErrorMessage(error: AuthError?) {
   Column(modifier = Modifier.height(36.dp).fillMaxWidth()) {
     if (error != null) {
       Text(
-          text = error.message(),
+          text = stringResource(error.messageRes()),
           color = MaterialTheme.colorScheme.error,
           fontSize = 13.sp,
-          modifier = Modifier.padding(top = 4.dp).testTag("signInAuthError"),
+          modifier = Modifier.padding(top = 4.dp).testTag(C.Tag.auth_error),
       )
     }
   }
 }
 
-/** Converts an authentication failure into the message displayed to the user. */
-private fun AuthError.message(): String =
+/** Converts an authentication failure into the string resource of the message shown to the user. */
+@StringRes
+internal fun AuthError.messageRes(): Int =
     when (this) {
-      AuthError.WRONG_CREDENTIALS -> "The email or password is incorrect."
-
-      AuthError.WEAK_PASSWORD -> "Your password is too weak."
-
-      AuthError.EMAIL_NOT_VERIFIED -> "Please verify your email address."
-
-      AuthError.TOO_MANY_REQUESTS -> "Too many attempts. Please try again later."
-
-      AuthError.NETWORK -> "A network error occurred. Please try again."
-
-      AuthError.UNKNOWN -> "An unexpected error occurred. Please try again."
-
-      AuthError.NAME_REQUIRED -> "Please enter your name."
-
-      AuthError.INVALID_DOMAIN -> "Use your @epfl.ch address."
-
-      AuthError.EMAIL_ALREADY_IN_USE -> "This email already has an account. Try logging in."
-
-      AuthError.VERIFICATION_EMAIL_NOT_SENT ->
-          "Account created, but the verification email could not be sent."
-
-      AuthError.NAME_NOT_SAVED -> "Account created, but your name could not be saved."
+      AuthError.WRONG_CREDENTIALS -> R.string.auth_error_wrong_credentials
+      AuthError.WEAK_PASSWORD -> R.string.auth_error_weak_password
+      AuthError.EMAIL_NOT_VERIFIED -> R.string.auth_error_email_not_verified
+      AuthError.TOO_MANY_REQUESTS -> R.string.auth_error_too_many_requests
+      AuthError.NETWORK -> R.string.auth_error_network
+      AuthError.UNKNOWN -> R.string.auth_error_unknown
+      AuthError.NAME_REQUIRED -> R.string.auth_name_required
+      AuthError.INVALID_DOMAIN -> R.string.auth_email_invalid_domain
+      AuthError.EMAIL_ALREADY_IN_USE -> R.string.auth_error_email_already_in_use
+      AuthError.VERIFICATION_EMAIL_NOT_SENT -> R.string.auth_error_verification_email_not_sent
+      AuthError.NAME_NOT_SAVED -> R.string.auth_error_name_not_saved
     }
 
 /** Preview of the login form backed by an in-memory authentication repository. */
@@ -511,23 +502,6 @@ private fun AuthScreenLogInPreview() {
 @Preview(showBackground = true)
 @Composable
 private fun AuthScreenSignUpPreview() {
-  val viewModel = remember {
-    AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) }
-  }
-
-  PolyLoopTheme {
-    AuthScreen(
-        onSignIn = {},
-        onNavigateToVerification = {},
-        viewModel = viewModel,
-    )
-  }
-}
-
-/** Interactive preview of the sign-up form using successful in-memory authentication responses. */
-@Preview(showBackground = true)
-@Composable
-private fun AuthScreenInteractivePreview() {
   val viewModel = remember {
     AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) }
   }
