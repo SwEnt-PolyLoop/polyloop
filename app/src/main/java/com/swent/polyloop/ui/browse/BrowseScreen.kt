@@ -100,8 +100,6 @@ fun BrowseContent(
           onQueryChange = onQueryChange,
           onCategoryClick = onCategoryClick,
           onAllClick = onAllClick,
-          modifier = Modifier.testTag(C.Tag.browse_category_chips),
-          categoryLabel = { it.label },
       )
       BrowseViewToggle()
     }

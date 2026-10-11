@@ -23,31 +23,24 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
+import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
-
-const val BROWSE_SEARCH_FIELD_TAG = "browseSearchField"
-const val BROWSE_CLEAR_SEARCH_TAG = "browseClearSearch"
-const val BROWSE_CHIP_ALL_TAG = "browseChipAll"
-
-/** Test tag of the chip of [category]. */
-fun browseChipTag(category: ListingCategory) = "browseChip_${category.name}"
 
 /**
  * The search bar and the category chips of the Browse screen. Stateless: it only draws [filter] and
  * reports the user's actions, the ViewModel decides what they do.
  *
  * "All" is selected when no category is selected, matching [ListingFilter.categories] being empty.
- *
- * @param categories the chips to show after "All", in order.
- * @param categoryLabel the text of a chip; replace the default with the string resources.
  */
 @Composable
 fun BrowseFilters(
@@ -56,27 +49,28 @@ fun BrowseFilters(
     onCategoryClick: (ListingCategory) -> Unit,
     onAllClick: () -> Unit,
     modifier: Modifier = Modifier,
-    categories: List<ListingCategory> = ListingCategory.entries,
-    categoryLabel: (ListingCategory) -> String = { it.defaultLabel() },
 ) {
   Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
     SearchField(filter.query, onQueryChange)
 
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.testTag(C.Tag.browse_category_chips),
+    ) {
       item {
         FilterBubble(
-            label = "All",
+            label = stringResource(R.string.browse_category_all),
             selected = filter.categories.isEmpty(),
             onClick = onAllClick,
-            testTag = BROWSE_CHIP_ALL_TAG,
+            testTag = C.Tag.browse_category_all,
         )
       }
-      items(categories) { category ->
+      items(ListingCategory.entries) { category ->
         FilterBubble(
-            label = categoryLabel(category),
+            label = category.label,
             selected = category in filter.categories,
             onClick = { onCategoryClick(category) },
-            testTag = browseChipTag(category),
+            testTag = C.Tag.browseCategoryChip(category),
         )
       }
     }
@@ -89,7 +83,13 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
   OutlinedTextField(
       value = query,
       onValueChange = onQueryChange,
-      placeholder = { Text("Search items", color = colors.onSurfaceVariant, fontSize = 17.sp) },
+      placeholder = {
+        Text(
+            stringResource(R.string.browse_search_hint),
+            color = colors.onSurfaceVariant,
+            fontSize = 17.sp,
+        )
+      },
       leadingIcon = {
         Icon(Icons.Default.Search, contentDescription = null, tint = colors.onSurfaceVariant)
       },
@@ -97,9 +97,12 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
         if (query.isNotEmpty()) {
           IconButton(
               onClick = { onQueryChange("") },
-              modifier = Modifier.testTag(BROWSE_CLEAR_SEARCH_TAG),
+              modifier = Modifier.testTag(C.Tag.browse_clear_search),
           ) {
-            Icon(Icons.Default.Close, contentDescription = "Clear search")
+            Icon(
+                Icons.Default.Close,
+                contentDescription = stringResource(R.string.browse_clear_search),
+            )
           }
         }
       },
@@ -115,7 +118,7 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit) {
               unfocusedBorderColor = colors.outlineVariant,
               cursorColor = colors.primary,
           ),
-      modifier = Modifier.fillMaxWidth().testTag(BROWSE_SEARCH_FIELD_TAG),
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.browse_search_bar),
   )
 }
 
@@ -139,10 +142,6 @@ private fun FilterBubble(label: String, selected: Boolean, onClick: () -> Unit, 
       modifier = Modifier.testTag(testTag),
   )
 }
-
-/** Placeholder label ("SPORTS_OUTDOOR" -> "Sports outdoor"); real labels belong in strings.xml. */
-private fun ListingCategory.defaultLabel(): String =
-    name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
 
 @Preview(showBackground = true)
 @Composable

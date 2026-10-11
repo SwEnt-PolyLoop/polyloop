@@ -52,9 +52,9 @@ class BrowseScreenTest {
   private val headerTags =
       listOf(
           C.Tag.browse_title,
-          BROWSE_SEARCH_FIELD_TAG,
+          C.Tag.browse_search_bar,
           C.Tag.browse_category_chips,
-          BROWSE_CHIP_ALL_TAG,
+          C.Tag.browse_category_all,
           C.Tag.browse_map_toggle,
           C.Tag.browse_list_toggle,
       )
@@ -187,7 +187,7 @@ class BrowseScreenTest {
   fun searchFiltersListings() {
     setContentWithViewModel(listings)
 
-    composeTestRule.onNodeWithTag(BROWSE_SEARCH_FIELD_TAG).performTextInput("drill")
+    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput("drill")
 
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "drill").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").assertDoesNotExist()
@@ -214,12 +214,14 @@ class BrowseScreenTest {
     )
     waitForTag(C.Tag.browse_list)
 
-    composeTestRule.onNodeWithTag(browseChipTag(ListingCategory.ELECTRONICS)).performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.browseCategoryChip(ListingCategory.ELECTRONICS))
+        .performClick()
 
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "projector").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").assertDoesNotExist()
 
-    composeTestRule.onNodeWithTag(BROWSE_CHIP_ALL_TAG).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).performClick()
 
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").assertIsDisplayed()
   }
