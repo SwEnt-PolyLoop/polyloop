@@ -45,6 +45,10 @@ object C {
     const val listing_detail_pickup_area = "listing_detail_pickup_area"
     const val listing_detail_pickup_caption = "listing_detail_pickup_caption"
     const val listing_detail_request_button = "listing_detail_request_button"
+    const val listing_detail_loading = "listing_detail_loading"
+    const val listing_detail_error = "listing_detail_error"
+    const val listing_detail_retry_button = "listing_detail_retry_button"
+    const val listing_detail_not_found = "listing_detail_not_found"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
