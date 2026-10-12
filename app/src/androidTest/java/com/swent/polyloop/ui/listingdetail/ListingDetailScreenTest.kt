@@ -3,6 +3,9 @@
 package com.swent.polyloop.ui.listingdetail
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -11,6 +14,7 @@ import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -21,6 +25,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.utils.FakePhotoServerRule
@@ -67,11 +72,29 @@ class ListingDetailScreenTest {
   private fun setContent(listing: Listing = this.listing) {
     composeTestRule.setContent {
       grey = MaterialTheme.colorScheme.surfaceVariant
-      ListingDetailScreen(
-          listing = listing,
+      ListingDetailContent(
+          uiState = ListingDetailUiState(listing = listing),
           onRequestDates = { requestClicks++ },
           onLenderClick = { lenderClicks++ },
+          onRetry = {},
       )
+    }
+  }
+
+  private fun setContent(uiState: ListingDetailUiState) {
+    composeTestRule.setContent {
+      ListingDetailContent(
+          uiState = uiState,
+          onRequestDates = {},
+          onLenderClick = {},
+          onRetry = {},
+      )
+    }
+  }
+
+  private fun waitForTag(tag: String) {
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
     }
   }
 
@@ -301,5 +324,107 @@ class ListingDetailScreenTest {
     composeTestRule.waitUntilCenterIs(grey) { photoPage(0) }
     photoPage(0).assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ContentDescription))
     photoPage(1).assertDoesNotExist()
+  }
+
+  @Test
+  fun loadingStateShowsProgressIndicator() {
+    setContent(uiState = ListingDetailUiState(isLoading = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_loading).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_title).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun errorStateShowsMessageAndRetry() {
+    setContent(uiState = ListingDetailUiState(errorMsg = "Network down"))
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_error).assertTextEquals("Network down")
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_detail_retry_button)
+        .assertIsDisplayed()
+        .assertTextEquals(context.getString(R.string.listing_detail_retry))
+  }
+
+  @Test
+  fun blankErrorShowsGenericMessage() {
+    setContent(uiState = ListingDetailUiState(errorMsg = ""))
+
+    val fallback =
+        InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(R.string.listing_detail_error_fallback)
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_error).assertTextEquals(fallback)
+  }
+
+  @Test
+  fun notFoundStateShowsMessage() {
+    setContent(uiState = ListingDetailUiState(listingNotFound = true))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_detail_not_found)
+        .assertIsDisplayed()
+        .assertTextEquals(context.getString(R.string.listing_detail_not_found))
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun loadingTakesPriorityOverError() {
+    setContent(uiState = ListingDetailUiState(isLoading = true, errorMsg = "x"))
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_loading).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_retry_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun screenTagIsPresentInEveryState() {
+    var uiState by mutableStateOf(ListingDetailUiState(isLoading = true))
+    composeTestRule.setContent {
+      ListingDetailContent(
+          uiState = uiState,
+          onRequestDates = {},
+          onLenderClick = {},
+          onRetry = {},
+      )
+    }
+
+    listOf(
+            ListingDetailUiState(isLoading = true),
+            ListingDetailUiState(errorMsg = "Network down"),
+            ListingDetailUiState(listingNotFound = true),
+            ListingDetailUiState(listing = listing),
+        )
+        .forEach { state ->
+          uiState = state
+          composeTestRule.onNodeWithTag(C.Tag.listing_detail_screen).assertIsDisplayed()
+        }
+  }
+
+  @Test
+  fun listingDetailScreenShowsErrorThenListingAfterRetry() {
+    // Fails the first load, then returns the listing, so Retry must reach the ViewModel.
+    var calls = 0
+    val repository =
+        object : ListingRepository {
+          override suspend fun getAllListings(): Result<List<Listing>> = Result.success(emptyList())
+
+          override suspend fun getListing(id: String): Result<Listing?> =
+              if (calls++ == 0) Result.failure(IllegalStateException("Network down"))
+              else Result.success(listing.takeIf { it.id == id })
+        }
+    val viewModel = ListingDetailViewModel("tent", repository)
+    var clickedOwnerId: String? = null
+    composeTestRule.setContent {
+      ListingDetailScreen(viewModel = viewModel, onLenderClick = { clickedOwnerId = it })
+    }
+
+    waitForTag(C.Tag.listing_detail_error)
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_error).assertTextEquals("Network down")
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_retry_button).performClick()
+
+    waitForTag(C.Tag.listing_detail_title)
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo().performClick()
+    assertEquals("owner", clickedOwnerId)
   }
 }

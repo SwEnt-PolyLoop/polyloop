@@ -16,7 +16,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** State of the Listing detail screen: the saved listing and the dates the borrower picks. */
+/**
+ * State of the Listing detail screen: the saved listing and the dates the borrower picks.
+ * [errorMsg] is non-null when loading failed; it is blank when the failure carried no message, and
+ * the screen then shows a generic text.
+ */
 data class ListingDetailUiState(
     val listing: Listing? = null,
     val isLoading: Boolean = false,
@@ -69,9 +73,7 @@ class ListingDetailViewModel(
             }
           }
           .onFailure { e ->
-            _uiState.update {
-              it.copy(isLoading = false, errorMsg = e.message ?: LOAD_ERROR_FALLBACK)
-            }
+            _uiState.update { it.copy(isLoading = false, errorMsg = e.message ?: "") }
           }
     }
   }
@@ -119,10 +121,5 @@ class ListingDetailViewModel(
       @Suppress("UNCHECKED_CAST")
       return ListingDetailViewModel(listingId, listingRepository) as T
     }
-  }
-
-  private companion object {
-    /** Used when a failure carries no message, so the error state is never silently empty. */
-    const val LOAD_ERROR_FALLBACK = "Could not load the listing"
   }
 }

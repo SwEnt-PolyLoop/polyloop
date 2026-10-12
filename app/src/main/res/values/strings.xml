@@ -32,6 +32,9 @@
     <string name="listing_detail_deposit_note">The final deposit is agreed in chat before acceptance.</string>
     <string name="listing_detail_pickup_caption">Pickup area · exact address after acceptance</string>
     <string name="listing_detail_request_dates">Request dates</string>
+    <string name="listing_detail_error_fallback">Could not load the listing</string>
+    <string name="listing_detail_retry">Retry</string>
+    <string name="listing_detail_not_found">This listing is no longer available.</string>
 
     <!-- Top-bar menu -->
     <string name="menu_browse">Browse</string>
