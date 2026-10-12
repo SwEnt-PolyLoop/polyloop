@@ -1,0 +1,271 @@
+// Made with ChatGPT and Claude.
+
+package com.swent.polyloop.ui.authentication
+
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.swent.polyloop.R
+import com.swent.polyloop.model.auth.AuthError
+import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.auth.AuthResult
+import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.theme.PolyLoopTheme
+import kotlinx.coroutines.CompletableDeferred
+import org.junit.Assert.assertEquals
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/** UI tests for AuthScreen. No Firebase, network, sleeps or coordinate-based gestures. */
+@RunWith(AndroidJUnit4::class)
+class AuthScreenTest {
+  @get:Rule val composeTestRule = createComposeRule()
+
+  private val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+  private lateinit var repository: FakeAuthRepository
+  private lateinit var viewModel: AuthViewModel
+  private var signedInNavigations = 0
+  private var verificationNavigations = 0
+
+  @Before
+  fun setUp() {
+    repository = FakeAuthRepository()
+    viewModel = AuthViewModel(repository)
+    signedInNavigations = 0
+    verificationNavigations = 0
+    composeTestRule.setContent {
+      PolyLoopTheme {
+        AuthScreen(
+            onSignIn = { signedInNavigations++ },
+            onNavigateToVerification = { verificationNavigations++ },
+            viewModel = viewModel,
+        )
+      }
+    }
+    composeTestRule.waitForIdle()
+  }
+
+  @Test
+  fun loginIsShownInitially() {
+    composeTestRule.onNodeWithText(context.getString(R.string.auth_tagline)).assertExists()
+    composeTestRule.onNodeWithTag(C.Tag.auth_login_tab).assertExists()
+    composeTestRule.onNodeWithTag(C.Tag.auth_signup_tab).assertExists()
+    composeTestRule.onNodeWithTag(C.Tag.auth_email_field).assertExists()
+    composeTestRule
+        .onNodeWithTag(C.Tag.auth_password_field)
+        .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password))
+    composeTestRule.onNodeWithTag(C.Tag.auth_name_field).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.auth_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.auth_email_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.auth_password_error).assertDoesNotExist()
+  }
+
+  @Test
+  fun signUpTabShowsNameAndSignUpButton() {
+    tap(C.Tag.auth_signup_tab)
+    composeTestRule.onNodeWithTag(C.Tag.auth_name_field).assertExists()
+    composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun switchingBackToLoginHidesName() {
+    tap(C.Tag.auth_signup_tab)
+    tap(C.Tag.auth_login_tab)
+    composeTestRule.onNodeWithTag(C.Tag.auth_name_field).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertExists()
+  }
+
+  @Test
+  fun tabsPreserveEmailAndPassword() {
+    type(C.Tag.auth_email_field, VALID_EMAIL)
+    type(C.Tag.auth_password_field, VALID_PASSWORD)
+    tap(C.Tag.auth_signup_tab)
+    tap(C.Tag.auth_login_tab)
+    tap(C.Tag.auth_login_button)
+    composeTestRule.runOnIdle {
+      assertEquals(VALID_EMAIL, repository.loginEmail)
+      assertEquals(VALID_PASSWORD, repository.loginPassword)
+      assertEquals(1, repository.loginCalls)
+    }
+  }
+
+  @Test
+  fun emailErrorShownOnFocus() {
+    tap(C.Tag.auth_email_field)
+    assertErrorText(C.Tag.auth_email_error, R.string.auth_email_required)
+  }
+
+  @Test
+  fun invalidEmailShowsDomainMessageAndCorrectionRemovesIt() {
+    tap(C.Tag.auth_email_field)
+    type(C.Tag.auth_email_field, "test@gmail.com")
+    assertErrorText(C.Tag.auth_email_error, R.string.auth_email_invalid_domain)
+    clear(C.Tag.auth_email_field)
+    type(C.Tag.auth_email_field, VALID_EMAIL)
+    composeTestRule.onNodeWithTag(C.Tag.auth_email_error).assertDoesNotExist()
+  }
+
+  @Test
+  fun emptyLoginShowsOnlyEmailAndPasswordValidation() {
+    tap(C.Tag.auth_login_button)
+    assertErrorText(C.Tag.auth_email_error, R.string.auth_email_required)
+    assertErrorText(C.Tag.auth_password_error, R.string.auth_password_required)
+    composeTestRule.onNodeWithTag(C.Tag.auth_name_error).assertDoesNotExist()
+  }
+
+  @Test
+  fun emptySignUpShowsThreeValidationMessages() {
+    tap(C.Tag.auth_signup_tab)
+    tap(C.Tag.auth_signup_button)
+    assertErrorText(C.Tag.auth_name_error, R.string.auth_name_required)
+    assertErrorText(C.Tag.auth_email_error, R.string.auth_email_required)
+    assertErrorText(C.Tag.auth_password_error, R.string.auth_password_required)
+  }
+
+  @Test
+  fun successfulLoginNavigatesOnce() {
+    fillLogin()
+    tap(C.Tag.auth_login_button)
+    composeTestRule.runOnIdle {
+      assertEquals(1, signedInNavigations)
+      assertEquals(0, verificationNavigations)
+    }
+    // A harmless state update triggers recomposition, but not a second navigation.
+    type(C.Tag.auth_password_field, "x")
+    composeTestRule.runOnIdle { assertEquals(1, signedInNavigations) }
+  }
+
+  @Test
+  fun successfulSignUpNavigatesToVerificationOnce() {
+    fillSignUp()
+    tap(C.Tag.auth_signup_button)
+    composeTestRule.runOnIdle {
+      assertEquals(0, signedInNavigations)
+      assertEquals(1, verificationNavigations)
+    }
+    type(C.Tag.auth_name_field, "x")
+    composeTestRule.runOnIdle { assertEquals(1, verificationNavigations) }
+  }
+
+  @Test
+  fun wrongCredentialsDisplayErrorWithoutNavigation() {
+    repository.loginResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+    fillLogin()
+    tap(C.Tag.auth_login_button)
+    assertErrorText(C.Tag.auth_error, R.string.auth_error_wrong_credentials)
+    composeTestRule.runOnIdle {
+      assertEquals(0, signedInNavigations)
+      assertEquals(0, verificationNavigations)
+    }
+  }
+
+  @Test
+  fun loginButtonDisabledUntilPendingRequestCompletes() {
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+    try {
+      fillLogin()
+      tap(C.Tag.auth_login_button)
+      composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertIsNotEnabled()
+      composeTestRule.runOnIdle { assertEquals(0, signedInNavigations) }
+      gate.complete(Unit)
+      composeTestRule.waitForIdle()
+      composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertIsEnabled()
+      composeTestRule.runOnIdle { assertEquals(1, signedInNavigations) }
+    } finally {
+      gate.complete(Unit)
+    }
+  }
+
+  private fun assertErrorText(tag: String, messageRes: Int) {
+    composeTestRule.onNodeWithTag(tag).assertTextEquals(context.getString(messageRes))
+  }
+
+  private fun fillLogin() {
+    type(C.Tag.auth_email_field, VALID_EMAIL)
+    type(C.Tag.auth_password_field, VALID_PASSWORD)
+  }
+
+  private fun fillSignUp() {
+    tap(C.Tag.auth_signup_tab)
+    type(C.Tag.auth_name_field, VALID_NAME)
+    type(C.Tag.auth_email_field, VALID_EMAIL)
+    type(C.Tag.auth_password_field, VALID_PASSWORD)
+  }
+
+  private fun tap(tag: String) {
+    composeTestRule.onNodeWithTag(tag).performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+  }
+
+  private fun type(tag: String, value: String) {
+    composeTestRule.onNodeWithTag(tag).performScrollTo().performTextInput(value)
+    composeTestRule.waitForIdle()
+  }
+
+  private fun clear(tag: String) {
+    composeTestRule.onNodeWithTag(tag).performScrollTo().performTextClearance()
+    composeTestRule.waitForIdle()
+  }
+
+  private companion object {
+    const val VALID_NAME = "John"
+    const val VALID_EMAIL = "john@epfl.ch"
+    const val VALID_PASSWORD = "secret123"
+  }
+}
+
+/** Test-only controllable dependency: no Firebase or real external operations. */
+private class FakeAuthRepository : AuthRepository {
+  var loginResult: AuthResult<AuthUser> =
+      AuthResult.Success(AuthUser(uid = "test-uid", email = "john@epfl.ch", name = "John"))
+  var gate: CompletableDeferred<Unit>? = null
+
+  var loginCalls = 0
+    private set
+
+  var loginEmail: String? = null
+    private set
+
+  var loginPassword: String? = null
+    private set
+
+  override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> {
+    loginCalls++
+    loginEmail = email
+    loginPassword = password
+    gate?.await()
+    return loginResult
+  }
+
+  override suspend fun signUp(name: String, email: String, password: String): AuthResult<Unit> =
+      AuthResult.Success(Unit)
+
+  override suspend fun resendVerificationEmail(
+      email: String,
+      password: String,
+  ): AuthResult<Unit> = AuthResult.Success(Unit)
+
+  override fun getCurrentUser(): AuthUser? = null
+
+  override fun signOut() = Unit
+}

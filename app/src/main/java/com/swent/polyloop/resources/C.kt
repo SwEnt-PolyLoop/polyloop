@@ -43,6 +43,18 @@ object C {
     const val listing_detail_pickup_caption = "listing_detail_pickup_caption"
     const val listing_detail_request_button = "listing_detail_request_button"
 
+    const val auth_name_field = "auth_name_field"
+    const val auth_email_field = "auth_email_field"
+    const val auth_password_field = "auth_password_field"
+    const val auth_login_tab = "auth_login_tab"
+    const val auth_signup_tab = "auth_signup_tab"
+    const val auth_login_button = "auth_login_button"
+    const val auth_signup_button = "auth_signup_button"
+    const val auth_name_error = "auth_name_error"
+    const val auth_email_error = "auth_email_error"
+    const val auth_password_error = "auth_password_error"
+    const val auth_error = "auth_error"
+
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
     const val top_bar_profile_button = "top_bar_profile_button"
