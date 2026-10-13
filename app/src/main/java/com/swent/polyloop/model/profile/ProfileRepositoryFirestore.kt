@@ -11,6 +11,7 @@ import java.util.concurrent.TimeoutException
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -69,6 +70,14 @@ class ProfileRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fi
       Result.failure(e)
     }
   }
+
+  // Implemented with Firestore in the second PR of #97; nothing calls these yet.
+  override suspend fun getProfile(uid: String): Result<UserProfile?> = TODO("#97")
+
+  override fun observeProfile(uid: String): Flow<UserProfile?> = TODO("#97")
+
+  override suspend fun updateProfile(uid: String, name: String, photoUrl: String): Result<Unit> =
+      TODO("#97")
 
   private companion object {
     const val WRITE_TIMEOUT_MS = 10_000L
