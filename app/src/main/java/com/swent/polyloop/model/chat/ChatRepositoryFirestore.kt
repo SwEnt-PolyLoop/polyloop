@@ -39,6 +39,16 @@ class ChatRepositoryFirestore(
         .map { conversations -> conversations.sortedByDescending { it.lastMessageAt } }
   }
 
+  override suspend fun getConversation(rentalId: String): Result<Conversation?> {
+    if (!isValidId(rentalId)) return Result.success(null)
+    return try {
+      val snapshot = rental(rentalId).get().await()
+      Result.success(snapshot.data?.let { conversationFromDocument(rentalId, it) })
+    } catch (e: FirebaseException) {
+      Result.failure(e)
+    }
+  }
+
   override fun observeMessages(rentalId: String): Flow<List<Message>> {
     if (!isValidId(rentalId)) return flowOf(emptyList())
     return rental(rentalId)

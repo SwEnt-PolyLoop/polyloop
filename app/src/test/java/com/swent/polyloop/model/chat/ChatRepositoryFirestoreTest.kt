@@ -24,6 +24,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
@@ -32,6 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -216,6 +218,8 @@ class ChatRepositoryFirestoreTest {
           "lastMessage" to "Hi",
           "lastMessageAt" to timestamp,
           "status" to "ACCEPTED",
+          "startDate" to "2026-10-20",
+          "endDate" to "2026-10-22",
       )
 
   @Test
@@ -241,6 +245,8 @@ class ChatRepositoryFirestoreTest {
                 "Hi",
                 sentAt,
                 RentalStatus.ACCEPTED,
+                LocalDate.of(2026, 10, 20),
+                LocalDate.of(2026, 10, 22),
             )
         ),
         repository.observeConversations("u1").first(),
@@ -279,5 +285,51 @@ class ChatRepositoryFirestoreTest {
       assertEquals(emptyList<Conversation>(), repository.observeConversations(uid).first())
     }
     verify(exactly = 0) { db.collection(any()) }
+  }
+
+  // ---------- getConversation ----------
+
+  private fun rentalSnapshot(data: Map<String, Any?>?): DocumentSnapshot {
+    val snapshot = mockk<DocumentSnapshot>()
+    every { snapshot.data } returns data
+    every { rental.get() } returns Tasks.forResult(snapshot)
+    return snapshot
+  }
+
+  @Test
+  fun getConversationReadsTheRental() = runTest {
+    rentalSnapshot(rentalData)
+
+    val conversation = repository.getConversation("r1").getOrThrow()
+
+    assertEquals("Camping tent", conversation?.listingTitle)
+    assertEquals(LocalDate.of(2026, 10, 20), conversation?.startDate)
+    assertEquals(RentalStatus.ACCEPTED, conversation?.status)
+  }
+
+  @Test
+  fun getConversationOfAMissingRentalIsNull() = runTest {
+    rentalSnapshot(null)
+    assertNull(repository.getConversation("r1").getOrThrow())
+  }
+
+  @Test
+  fun getConversationOfABrokenRentalIsNull() = runTest {
+    rentalSnapshot(rentalData - "ownerName")
+    assertNull(repository.getConversation("r1").getOrThrow())
+  }
+
+  @Test
+  fun getConversationWithAnInvalidIdIsNullWithoutReading() = runTest {
+    for (id in listOf("", " ", "r1/messages")) {
+      assertNull(repository.getConversation(id).getOrThrow())
+    }
+    verify(exactly = 0) { db.collection(any()) }
+  }
+
+  @Test
+  fun getConversationReturnsTheFirestoreError() = runTest {
+    every { rental.get() } returns Tasks.forException(notFound)
+    assertSame(notFound, repository.getConversation("r1").exceptionOrNull())
   }
 }

@@ -377,6 +377,8 @@ class PolyLoopAppTest {
                 "Hi",
                 Instant.EPOCH,
                 RentalStatus.REQUESTED,
+                LocalDate.of(2026, 10, 20),
+                LocalDate.of(2026, 10, 22),
             )
         )
     setAppSignedIn()
