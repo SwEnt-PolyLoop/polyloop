@@ -102,7 +102,11 @@ fun BrowseContent(
               contentAlignment = Alignment.Center,
           ) {
             Text(
-                text = stringResource(R.string.browse_empty),
+                text =
+                    stringResource(
+                        if (uiState.listings.isEmpty()) R.string.browse_empty
+                        else R.string.browse_no_results
+                    ),
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.testTag(C.Tag.browse_empty),

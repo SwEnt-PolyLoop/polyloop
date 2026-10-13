@@ -16,6 +16,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.resources.C
@@ -120,8 +121,24 @@ class BrowseScreenTest {
   fun emptyListShowsEmptyState() {
     setContent(uiState = BrowseUiState(listings = emptyList()))
 
-    composeTestRule.onNodeWithTag(C.Tag.browse_empty).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.browse_empty)
+        .assertIsDisplayed()
+        .assertTextEquals(string(R.string.browse_empty))
   }
+
+  @Test
+  fun filterWithoutMatchShowsNoResults() {
+    setContent(uiState = BrowseUiState(listings = listings, filter = ListingFilter(query = "zzz")))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.browse_empty)
+        .assertIsDisplayed()
+        .assertTextEquals(string(R.string.browse_no_results))
+  }
+
+  private fun string(id: Int) =
+      InstrumentationRegistry.getInstrumentation().targetContext.getString(id)
 
   @Test
   fun everyCardCanBeReachedByScrolling() {
