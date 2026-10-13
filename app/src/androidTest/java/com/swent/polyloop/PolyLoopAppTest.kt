@@ -228,6 +228,7 @@ class PolyLoopAppTest {
           Screen.CreateListing -> C.Tag.create_listing_screen
           Screen.MyRentals -> C.Tag.my_rentals_screen
           Screen.ChatList -> C.Tag.chat_list_screen
+          Screen.Chat -> C.Tag.chat_screen
           Screen.Profile,
           Screen.UserProfile -> C.Tag.profile_screen
           else -> null
@@ -387,7 +388,43 @@ class PolyLoopAppTest {
     waitForTag(C.Tag.chat_list_row_ + "rental-1")
     composeTestRule.onNodeWithTag(C.Tag.chat_list_row_ + "rental-1").performClick()
 
-    assertCurrentScreen(Screen.Chat, shownRoute = Screen.Chat.createRoute("rental-1"))
+    assertCurrentScreen(Screen.Chat)
+    // The chat of the tapped rental is open: its header shows the item.
+    waitForTag(C.Tag.chat_header_item)
+    composeTestRule.onNodeWithTag(C.Tag.chat_header_item).assertTextEquals("Camping tent")
+  }
+
+  @Test
+  fun rentalDetailsInTheChatOpensTheRental() {
+    chatRepository.conversations.value =
+        listOf(
+            Conversation(
+                "rental-1",
+                "Camping tent",
+                "owner-1",
+                "Ana",
+                "me",
+                "Me",
+                "Hi",
+                Instant.EPOCH,
+                RentalStatus.REQUESTED,
+                LocalDate.of(2026, 10, 20),
+                LocalDate.of(2026, 10, 22),
+            )
+        )
+    setAppSignedIn()
+    currentUser = AuthUser("me", "me@epfl.ch", "Me")
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.Chat.createRoute("rental-1"))
+    }
+
+    waitForTag(C.Tag.chat_rental_details)
+    composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
+
+    assertCurrentScreen(
+        Screen.RentalDetail,
+        shownRoute = Screen.RentalDetail.createRoute("rental-1"),
+    )
   }
 
   @Test
