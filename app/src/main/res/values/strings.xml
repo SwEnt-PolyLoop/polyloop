@@ -38,6 +38,44 @@
     <string name="listing_detail_retry">Retry</string>
     <string name="listing_detail_not_found">This listing is no longer available.</string>
 
+    <!-- Create listing -->
+    <string name="create_listing_headline">New listing</string>
+    <string name="create_listing_photos">Photos</string>
+    <string name="create_listing_photo_count">%1$d of %2$d · at least %3$d</string>
+    <string name="create_listing_photo_description">Photo %1$d</string>
+    <string name="create_listing_remove_photo">Remove photo %1$d</string>
+    <string name="create_listing_add_photo">Add photo</string>
+    <plurals name="create_listing_missing_photos">
+        <item quantity="one">Add %d more photo to publish.</item>
+        <item quantity="other">Add %d more photos to publish.</item>
+    </plurals>
+    <string name="create_listing_title_label">Title</string>
+    <string name="create_listing_title_required">Please enter a title.</string>
+    <string name="create_listing_category_label">Category</string>
+    <string name="create_listing_category_placeholder">Choose a category</string>
+    <string name="create_listing_category_required">Please choose a category.</string>
+    <string name="create_listing_description_label">Description</string>
+    <string name="create_listing_description_required">Please enter a description.</string>
+    <string name="create_listing_price_label">Price per day</string>
+    <string name="create_listing_price_required">Please enter a price per day.</string>
+    <string name="create_listing_price_invalid">Please enter a whole number above 0.</string>
+    <string name="create_listing_item_value_label">Item value</string>
+    <string name="create_listing_item_value_required">Please enter the item value.</string>
+    <string name="create_listing_item_value_invalid">Please enter a whole number above 0.</string>
+    <string name="create_listing_pp_suffix">PP</string>
+    <string name="create_listing_deposit_helper">The item value is shown as the suggested deposit.</string>
+    <string name="create_listing_availability_label">Available from – to</string>
+    <string name="create_listing_availability_placeholder">Choose dates</string>
+    <string name="create_listing_availability_required">Please choose the dates.</string>
+    <string name="create_listing_availability_invalid">Please choose an end date on or after the start date.</string>
+    <string name="create_listing_pickup_label">Pickup address</string>
+    <string name="create_listing_pickup_required">Please enter a pickup address.</string>
+    <string name="create_listing_drop_off_label">Drop-off address</string>
+    <string name="create_listing_drop_off_required">Please enter a drop-off address.</string>
+    <string name="create_listing_address_placeholder">Street, number, town</string>
+    <string name="create_listing_address_helper">Only the area is public. The exact address is shared after acceptance.</string>
+    <string name="create_listing_publish">Publish</string>
+
     <!-- Top-bar menu -->
     <string name="menu_browse">Browse</string>
     <string name="menu_create_listing">Create listing</string>
