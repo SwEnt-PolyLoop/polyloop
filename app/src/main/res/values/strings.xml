@@ -205,4 +205,17 @@
     <!-- The item, then the rental's status, e.g. "Camping tent · Requested" -->
     <string name="chat_list_item_status">%1$s · %2$s</string>
 
+    <!-- Chat -->
+    <string name="chat_unknown_person">Unknown user</string>
+    <string name="chat_date_range">%1$s – %2$s</string>
+    <string name="chat_rental_details">Rental details</string>
+    <string name="chat_empty">No messages yet. Say hi!</string>
+    <string name="chat_error_fallback">Could not load this chat</string>
+    <string name="chat_retry">Retry</string>
+    <string name="chat_input_placeholder">Type a message</string>
+    <string name="chat_send">Send</string>
+    <!-- A message written by the app, then its time, e.g. "Request sent · 15:02" -->
+    <string name="chat_system_message">%1$s · %2$s</string>
+    <string name="chat_send_failed">Message not sent. Press send to try again.</string>
+
 </resources>
