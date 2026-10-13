@@ -8,8 +8,8 @@ import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.ChatRepositoryFirestore
+import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
-import com.swent.polyloop.ui.chat.FakeChatRepository
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import io.mockk.every
 import io.mockk.mockk

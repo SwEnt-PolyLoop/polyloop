@@ -1,11 +1,7 @@
 // Made with Claude.
 
-package com.swent.polyloop.ui.chat
+package com.swent.polyloop.model.chat
 
-import com.swent.polyloop.model.chat.ChatRepository
-import com.swent.polyloop.model.chat.Conversation
-import com.swent.polyloop.model.chat.Message
-import com.swent.polyloop.model.chat.MessageType
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -15,9 +11,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
 /**
- * In-memory [ChatRepository] for tests. Tests change [conversations] and [messages] to make the
- * flows emit, like Firestore would. [sendMessage] behaves like the real repository: it checks the
- * text and the signed-in user, then adds the message and updates the conversation.
+ * In-memory [ChatRepository] for tests and previews; the app itself never uses it. It lives in
+ * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
+ *
+ * Tests change [conversations] and [messages] to make the flows emit, like Firestore would.
+ * [sendMessage] behaves like the real repository: it checks the text and the signed-in user, then
+ * adds the message and updates the conversation.
  */
 class FakeChatRepository(
     // The signed-in user who sends messages; null when nobody is signed in.

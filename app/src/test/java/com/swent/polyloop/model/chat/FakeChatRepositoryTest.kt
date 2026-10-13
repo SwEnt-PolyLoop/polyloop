@@ -1,10 +1,7 @@
 // Made with Claude.
 
-package com.swent.polyloop.ui.chat
+package com.swent.polyloop.model.chat
 
-import com.swent.polyloop.model.chat.Conversation
-import com.swent.polyloop.model.chat.Message
-import com.swent.polyloop.model.chat.MessageType
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
