@@ -142,6 +142,21 @@ class FakeProfileRepositoryTest {
   }
 
   @Test
+  fun gateHoldsObserversBeforeTheirFirstValue() = runTest {
+    val gate = CompletableDeferred<Unit>()
+    val repository = FakeProfileRepository(listOf(john), gate = gate)
+    val emitted = mutableListOf<UserProfile?>()
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+      repository.observeProfile("u1").toList(emitted)
+    }
+    assertTrue(emitted.isEmpty())
+
+    gate.complete(Unit)
+
+    assertEquals(listOf(john), emitted)
+  }
+
+  @Test
   fun gateHoldsCallsUntilItIsCompleted() = runTest {
     val gate = CompletableDeferred<Unit>()
     val repository = FakeProfileRepository(listOf(john), gate = gate)

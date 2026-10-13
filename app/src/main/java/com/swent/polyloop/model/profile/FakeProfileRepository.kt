@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 
 /**
@@ -14,8 +15,9 @@ import kotlinx.coroutines.flow.update
  * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
  *
  * Holds the profiles in memory: every change is emitted by [observeProfile]. When [failure] is set,
- * every call fails with it ([observeProfile] throws it). When [gate] is set, the suspending calls
- * wait for it to complete, so tests can see a loading state.
+ * every call fails with it; an observer throws it when it subscribes or at the next change, not as
+ * soon as it is set. When [gate] is set, every call waits for it to complete (an observer before
+ * its first value), so tests can see a loading state.
  */
 class FakeProfileRepository(
     profiles: List<UserProfile> = emptyList(),
@@ -49,6 +51,7 @@ class FakeProfileRepository(
 
   override fun observeProfile(uid: String): Flow<UserProfile?> =
       stored
+          .onStart { gate?.await() }
           .map { profiles ->
             failure?.let { throw it }
             profiles[uid]
