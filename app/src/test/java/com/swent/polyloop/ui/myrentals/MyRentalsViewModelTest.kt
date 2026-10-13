@@ -167,6 +167,7 @@ class MyRentalsViewModelTest {
 
     rentals.requestRental(
         listing,
+        "Vida",
         AuthUser("loca", "loca@epfl.ch", "Loca"),
         LocalDate.of(2026, 11, 1),
         LocalDate.of(2026, 11, 2),
