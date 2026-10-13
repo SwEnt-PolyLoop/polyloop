@@ -109,9 +109,16 @@ class AuthScreenTest {
   }
 
   @Test
-  fun emailErrorShownOnFocus() {
+  fun tappingEmptyEmailFieldShowsNoError() {
     tap(C.Tag.auth_email_field)
-    assertErrorText(C.Tag.auth_email_error, R.string.auth_email_required)
+    composeTestRule.onNodeWithTag(C.Tag.auth_email_error).assertDoesNotExist()
+  }
+
+  @Test
+  fun invalidEmailErrorStaysAfterMovingToPassword() {
+    type(C.Tag.auth_email_field, "bob@gmail.com")
+    tap(C.Tag.auth_password_field)
+    assertErrorText(C.Tag.auth_email_error, R.string.auth_email_invalid_domain)
   }
 
   @Test

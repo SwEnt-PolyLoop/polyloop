@@ -28,13 +28,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -94,15 +91,13 @@ fun AuthScreen(
   val colors = MaterialTheme.colorScheme
   val isSignUp = state.mode == AuthMode.SIGN_UP
 
-  var isEmailFocused by remember { mutableStateOf(false) }
-
   /*
    * Field validation is driven by the flags exposed by AuthUiState.
    *
    * Name and password errors are shown after the user attempts to submit.
-   * Email errors are shown when the field is focused or after submission.
+   * Email errors are shown as soon as the typed address doesn't match, or after submission.
    */
-  val showEmailError = (isEmailFocused || state.hasAttemptedSubmit) && !state.isEmailValid
+  val showEmailError = (state.email.isNotEmpty() || state.hasAttemptedSubmit) && !state.isEmailValid
 
   val emailError =
       when {
@@ -166,7 +161,6 @@ fun AuthScreen(
         onValueChange = viewModel::onEmailChange,
         errorText = emailError?.let { stringResource(it) },
         keyboardType = KeyboardType.Email,
-        onFocusChange = { isEmailFocused = it },
         testTag = C.Tag.auth_email_field,
         errorTestTag = C.Tag.auth_email_error,
     )
@@ -316,8 +310,7 @@ private fun RowScope.Tab(
 /**
  * Renders a labeled text field, its optional validation message, and a stable error-message slot.
  *
- * Password values are obscured when [isPassword] is true. Focus changes are reported through
- * [onFocusChange], allowing the caller to control when validation feedback appears.
+ * Password values are obscured when [isPassword] is true.
  *
  * @param label visible field label.
  * @param value current field value.
@@ -328,7 +321,6 @@ private fun RowScope.Tab(
  * @param errorTestTag semantic test tag of the validation message for UI tests.
  * @param keyboardType keyboard layout requested for the field.
  * @param isPassword whether to obscure the entered value.
- * @param onFocusChange called when the field gains or loses focus.
  */
 @Composable
 private fun AuthTextField(
@@ -341,7 +333,6 @@ private fun AuthTextField(
     errorTestTag: String,
     keyboardType: KeyboardType = KeyboardType.Text,
     isPassword: Boolean = false,
-    onFocusChange: (Boolean) -> Unit = {},
 ) {
   val colors = MaterialTheme.colorScheme
 
@@ -386,10 +377,7 @@ private fun AuthTextField(
               unfocusedBorderColor = colors.outline,
               cursorColor = colors.primary,
           ),
-      modifier =
-          Modifier.fillMaxWidth().height(62.dp).testTag(testTag).onFocusChanged {
-            onFocusChange(it.isFocused)
-          },
+      modifier = Modifier.fillMaxWidth().height(62.dp).testTag(testTag),
   )
 
   // Keep a stable height so the form does not jump when an error appears.
