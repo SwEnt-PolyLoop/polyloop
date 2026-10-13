@@ -201,10 +201,6 @@ class BrowseScreenTest {
   }
 
   /**
-   * Checks that the list shows exactly the listings [ids]: each can be reached by scrolling, and
-   * every other listing has no card.
-   */
-  /**
    * Scrolls the lazy chip row to the chip with [tag] before clicking it, in case it is off screen.
    */
   private fun clickChip(tag: String) {
@@ -212,6 +208,10 @@ class BrowseScreenTest {
     composeTestRule.onNodeWithTag(tag).performClick()
   }
 
+  /**
+   * Checks that the list shows exactly the listings [ids]: each can be reached by scrolling, and
+   * every other listing has no card.
+   */
   private fun assertShownListings(vararg ids: String) {
     listings.forEach { listing ->
       val cardTag = C.Tag.listing_card_ + listing.id
