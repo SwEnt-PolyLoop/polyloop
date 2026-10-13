@@ -11,6 +11,7 @@ import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.ui.authentication.FakeAuthRepository
 import java.io.IOException
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -51,6 +52,8 @@ class ChatListViewModelTest {
           lastMessage = "Last in $id",
           lastMessageAt = lastMessageAt,
           status = status,
+          startDate = LocalDate.of(2026, 10, 20),
+          endDate = LocalDate.of(2026, 10, 22),
       )
 
   private val borrowed = conversation("tent", ownerId = "vida", borrowerId = "me")
