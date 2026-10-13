@@ -1,3 +1,5 @@
+<!-- Edited with Claude. -->
+
 # PolyLoop
 
 Students often spend money they don't have on things they'll barely use: a tent for one trip, a suit for one gala, a calculator for one exam. Meanwhile, those same items sit idle in dorm rooms nearby.

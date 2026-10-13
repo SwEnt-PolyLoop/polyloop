@@ -1,3 +1,5 @@
+// Edited with Claude.
+
 package com.swent.polyloop.utils
 
 import com.google.firebase.Firebase

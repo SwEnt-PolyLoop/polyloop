@@ -1,3 +1,5 @@
+// Made with Claude.
+
 package com.swent.polyloop.model
 
 import androidx.test.ext.junit.runners.AndroidJUnit4

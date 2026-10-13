@@ -1,3 +1,5 @@
+// Made with Claude.
+
 rules_version = '2';
 
 // !!! DO NOT DEPLOY THIS FILE (no `firebase deploy`, no `firebase deploy --only storage`). !!!
