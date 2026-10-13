@@ -33,5 +33,5 @@ Rules for tests:
 - A test that uses Firebase must call `FirebaseEmulator.connect()` first (in `app/src/androidTest/.../utils/FirebaseEmulator.kt`). Without it, the test talks to the **real** project. If the emulators are not running, `connect()` fails the test with a message saying how to start them.
 - Use a new email for each test (e.g. `test-<random>@epfl.ch`) so leftover accounts never interfere.
 - The Firestore emulator currently allows all reads and writes, because there are no Security Rules yet (#34).
-- The Storage emulator uses `storage.rules`, a placeholder that lets any signed-in user read and write, so a test must sign in before it uploads. The real rules come with #34.
+- The Storage emulator uses `storage.rules`, a placeholder that lets any signed-in user with a verified @epfl.ch email read and write, so a test must sign in with a verified account (see `FirebaseEmulator.verifyEmail`) before it uploads. The real rules come with #34.
 - The emulators are reached at `10.0.2.2`, which only works from the Android emulator, not from a physical phone.

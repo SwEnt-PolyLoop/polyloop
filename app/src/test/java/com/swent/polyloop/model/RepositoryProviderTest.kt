@@ -44,8 +44,9 @@ class RepositoryProviderTest {
 
   @Before
   fun setUp() {
-    // The real repositories get Firebase through FirebaseAuth/FirebaseFirestore.getInstance(),
-    // which needs an initialised Firebase app, so those are stubbed statically.
+    // The real repositories and RepositoryProvider.storage get Firebase through
+    // FirebaseAuth/FirebaseFirestore/FirebaseStorage.getInstance(), which needs an initialised
+    // Firebase app, so those are stubbed statically.
     mockkStatic(FirebaseAuth::class, FirebaseFirestore::class, FirebaseStorage::class)
     every { FirebaseAuth.getInstance() } returns mockk(relaxed = true)
     every { FirebaseFirestore.getInstance() } returns mockk(relaxed = true)
