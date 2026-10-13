@@ -91,6 +91,21 @@ object C {
     const val auth_password_error = "auth_password_error"
     const val auth_error = "auth_error"
 
+    const val chat_list_screen = "chat_list_screen"
+    const val chat_list_title = "chat_list_title"
+    const val chat_list_loading = "chat_list_loading"
+    const val chat_list_error = "chat_list_error"
+    const val chat_list_retry_button = "chat_list_retry_button"
+    const val chat_list_empty = "chat_list_empty"
+    const val chat_list_list = "chat_list_list"
+    // Prefix: each row is tagged chat_list_row_ + rentalId
+    const val chat_list_row_ = "chat_list_row_"
+    const val chat_list_row_avatar = "chat_list_row_avatar"
+    const val chat_list_row_name = "chat_list_row_name"
+    const val chat_list_row_time = "chat_list_row_time"
+    const val chat_list_row_item = "chat_list_row_item"
+    const val chat_list_row_message = "chat_list_row_message"
+
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
     const val top_bar_profile_button = "top_bar_profile_button"
