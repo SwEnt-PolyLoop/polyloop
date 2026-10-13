@@ -43,12 +43,12 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Sign-up / login | AuthViewModel | Auth; Profile (creates the profile on the first verified sign-in) |
 | Profile & reviews | ProfileViewModel | Profile; Listing ("My listings"); Auth ("Sign out") |
 | Wallet | WalletViewModel | Wallet |
-| Chat list | ChatListViewModel | Chat; Profile (the other person); Listing (the item) |
+| Chat list | ChatListViewModel | Chat (the item and the other person are copied on each rental, see "Firestore schema") |
 | Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
 | Browse | BrowseViewModel | Listing; Location (distance and map position) |
 | Listing detail | ListingDetailViewModel | Listing; Rental (booked days, sending the request); Profile (the owner's name and rating) |
 | Create / edit listing | EditListingViewModel | Listing; Rental (editing locked while a rental is accepted or active) |
-| My rentals | MyRentalsViewModel | Rental; Listing (the item); Profile (the other person) |
+| My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |
 | Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos); Rental (the deposit); Listing (the item) |
@@ -65,7 +65,7 @@ The app writes only content it owns (listings, profile fields, chat messages, ph
 - wallet balance changes (recharge, payments, late fees, refunds)
 - dispute outcomes and applying court rulings
 
-Firestore security rules must reject client writes to those fields.
+Firestore security rules must reject client writes to those fields. One temporary exception: until the `requestRental` Cloud Function exists, the app creates a rental request itself (see "Firestore schema" below).
 
 ## Rental statuses
 
@@ -131,9 +131,30 @@ Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels)
 | Notifications | FCM |
 | Admins | Firebase custom claim |
 
+## Firestore schema
+
+Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoints. When a new field is added to an existing collection, reading must give it a default value: documents written before it do not have it.
+
+| Path | Fields | Notes |
+| --- | --- | --- |
+| `users/{uid}` | `name`, `email`, `photoUrl`, `averageRating`, `reviewCount` | Missing fields read as `""` or 0. |
+| `listings/{listingId}` | `ownerId`, `title`, `description`, `category`, `photoUrls`, `pricePerDay`, `itemValue`, `availableFrom`, `availableTo`, `status`, `pickupArea`, `dropOffArea`, `bookedRanges` | Public. `bookedRanges` is a list of `{start, end}` (`YYYY-MM-DD`, both days booked, the 1-day buffer not included); missing reads as an empty list. |
+| `listings/{listingId}/private/addresses` | `pickup`, `dropOff` | Exact addresses, readable only by the owner. |
+| `rentals/{rentalId}` | `listingId`, `listingTitle`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. |
+| `rentals/{rentalId}/messages/{messageId}` | `senderId`, `text`, `sentAt`, `type` (`USER` or `SYSTEM`) | One conversation per rental. |
+
+Rentals:
+- The listing title, both names and the public areas are copied when the rental is created, so My rentals and the chat list need no other read. A missing owner name is stored as `""`; screens show a translated placeholder.
+- `participants` is `[ownerId, borrowerId]`; the chat list queries it with `array-contains`, sorted by `lastMessageAt`, which needs a composite index.
+- `lastMessageAt` is set to `createdAt` when the rental is created: a sorted query leaves out every document that lacks the sorted field.
+- `pickupAddress` and `returnAddress` stay empty until the lender accepts; the borrower cannot read the listing's exact addresses before that.
+- **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants.
+
+Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, so the Storage rules can check the owner. Photos added before this rule live in `listing_images/` and keep working through their download URLs.
+
 ## Not decided yet — ask before implementing
 
-- Firestore collections, document fields and security rules (schema not agreed)
+- Security rules for collections not listed in the schema above
 - Cloud Function names and signatures
 - Whether the auto-cancel waits until a set time on the pickup day (e.g. noon) so offline return scans can sync first
 - The exact list of push notifications
