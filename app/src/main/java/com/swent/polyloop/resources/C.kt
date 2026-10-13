@@ -2,6 +2,8 @@
 
 package com.swent.polyloop.resources
 
+import com.swent.polyloop.model.listing.ListingCategory
+
 // Like R, but C
 object C {
   object Tag {
@@ -15,10 +17,13 @@ object C {
     const val browse_list = "browse_list"
     const val browse_title = "browse_title"
     const val browse_category_all = "browse_category_all"
+    const val browse_clear_search = "browse_clear_search"
     const val browse_loading = "browse_loading"
     const val browse_error = "browse_error"
     const val browse_retry_button = "browse_retry_button"
     const val browse_empty = "browse_empty"
+
+    fun browseCategoryChip(category: ListingCategory) = "browse_category_chip_${category.name}"
 
     // Prefix: each card is tagged listing_card_ + listing.id
     const val listing_card_ = "listing_card_"
