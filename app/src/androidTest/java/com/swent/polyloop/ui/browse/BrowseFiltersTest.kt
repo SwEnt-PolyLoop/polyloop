@@ -33,7 +33,8 @@ import org.junit.runner.RunWith
  * calls. What the actions do to the filter is tested in `BrowseViewModelTest`.
  *
  * Nodes are found by test tag, so the tests do not depend on the device language. The chip row is
- * lazy, so the tests use the first two categories, which are composed on any screen size.
+ * lazy, so the tests scroll it to a chip before using it. Every category is checked for its chip;
+ * the interactions use two categories, since every chip is built and handled the same way.
  */
 @RunWith(AndroidJUnit4::class)
 class BrowseFiltersTest {
