@@ -13,8 +13,8 @@ interface RentalRepository {
   /**
    * Sends a request from [borrower] to rent [listing] from [startDate] to [endDate], both days
    * included, and returns the new rental, with status [RentalStatus.REQUESTED]. Copies the
-   * listing's title, price and public areas, the borrower's name, and the owner's name ("" if the
-   * owner's profile has none; the screens show a placeholder).
+   * listing's title, price and public areas, the borrower's name, and [ownerName], which the caller
+   * has from the owner's profile (a blank name is stored as ""; the screens show a placeholder).
    *
    * Temporary: the app writes the rental itself, without reserving any money, until the
    * `requestRental` Cloud Function exists. The caller checks the dates first (inside the
@@ -23,6 +23,7 @@ interface RentalRepository {
    */
   suspend fun requestRental(
       listing: Listing,
+      ownerName: String,
       borrower: AuthUser,
       startDate: LocalDate,
       endDate: LocalDate,

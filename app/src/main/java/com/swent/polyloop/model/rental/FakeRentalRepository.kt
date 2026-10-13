@@ -17,15 +17,13 @@ import kotlinx.coroutines.flow.update
  * In-memory [RentalRepository] for tests and previews; the app itself never uses it. It lives in
  * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
  *
- * Holds the rentals in memory: every change is emitted to the observers. [ownerNames] stands in for
- * the profiles (owner id to name). When [failure] is set, every call fails with it; an observer
- * throws it when it subscribes or at the next change, not as soon as it is set. When [gate] is set,
- * the suspending calls wait for it to complete, so tests can see a loading state. [clock] gives the
- * creation time of new rentals.
+ * Holds the rentals in memory: every change is emitted to the observers. When [failure] is set,
+ * every call fails with it; an observer throws it when it subscribes or at the next change, not as
+ * soon as it is set. When [gate] is set, the suspending calls wait for it to complete, so tests can
+ * see a loading state. [clock] gives the creation time of new rentals.
  */
 class FakeRentalRepository(
     rentals: List<Rental> = emptyList(),
-    var ownerNames: Map<String, String> = emptyMap(),
     var failure: Throwable? = null,
     var gate: CompletableDeferred<Unit>? = null,
     private val clock: () -> Instant = { Instant.now() },
@@ -39,6 +37,7 @@ class FakeRentalRepository(
 
   override suspend fun requestRental(
       listing: Listing,
+      ownerName: String,
       borrower: AuthUser,
       startDate: LocalDate,
       endDate: LocalDate,
@@ -58,7 +57,7 @@ class FakeRentalRepository(
             listingId = listing.id,
             listingTitle = listing.title,
             ownerId = listing.ownerId,
-            ownerName = ownerNames[listing.ownerId].orEmpty().trim(),
+            ownerName = ownerName.trim(),
             borrowerId = borrower.uid,
             borrowerName = borrower.name,
             startDate = startDate,
