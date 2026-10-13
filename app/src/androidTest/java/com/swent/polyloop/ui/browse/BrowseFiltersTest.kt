@@ -4,6 +4,7 @@ package com.swent.polyloop.ui.browse
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotFocused
@@ -62,8 +63,18 @@ class BrowseFiltersTest {
     }
   }
 
-  private fun chip(category: ListingCategory) =
-      composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(category))
+  /**
+   * Scrolls the chip row to the chip with [tag] and returns it. The row is lazy, so a chip off
+   * screen does not exist until the row is scrolled to it.
+   */
+  private fun chipWithTag(tag: String): SemanticsNodeInteraction {
+    composeTestRule.onNodeWithTag(C.Tag.browse_category_chips).performScrollToNode(hasTestTag(tag))
+    return composeTestRule.onNodeWithTag(tag)
+  }
+
+  private fun chip(category: ListingCategory) = chipWithTag(C.Tag.browseCategoryChip(category))
+
+  private fun allChip() = chipWithTag(C.Tag.browse_category_all)
 
   // --- Search field ---
 
@@ -119,21 +130,16 @@ class BrowseFiltersTest {
   fun everyCategoryHasAChipShowingItsLabel() {
     setFilters()
 
-    ListingCategory.entries.forEach {
-      composeTestRule
-          .onNodeWithTag(C.Tag.browse_category_chips)
-          .performScrollToNode(hasTestTag(C.Tag.browseCategoryChip(it)))
-      chip(it).assertTextEquals(it.label)
-    }
+    ListingCategory.entries.forEach { chip(it).assertTextEquals(it.label) }
   }
 
   @Test
   fun allChipIsSelectedOnlyWhenNoCategoryIsSelected() {
     setFilters()
-    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsSelected()
+    allChip().assertIsSelected()
 
     filter = ListingFilter(categories = setOf(sports))
-    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).assertIsNotSelected()
+    allChip().assertIsNotSelected()
   }
 
   @Test
@@ -163,7 +169,7 @@ class BrowseFiltersTest {
   fun clickingAllChipCallsOnlyOnAllClick() {
     setFilters(ListingFilter(categories = setOf(sports)))
 
-    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).performClick()
+    allChip().performClick()
 
     assertEquals(1, allClicks)
     assertEquals(emptyList<ListingCategory>(), clickedCategories)

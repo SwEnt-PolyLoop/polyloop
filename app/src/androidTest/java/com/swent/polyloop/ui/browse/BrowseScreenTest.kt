@@ -187,6 +187,14 @@ class BrowseScreenTest {
    * Checks that the list shows exactly the listings [ids]: each can be reached by scrolling, and
    * every other listing has no card.
    */
+  /**
+   * Scrolls the lazy chip row to the chip with [tag] before clicking it, in case it is off screen.
+   */
+  private fun clickChip(tag: String) {
+    composeTestRule.onNodeWithTag(C.Tag.browse_category_chips).performScrollToNode(hasTestTag(tag))
+    composeTestRule.onNodeWithTag(tag).performClick()
+  }
+
   private fun assertShownListings(vararg ids: String) {
     listings.forEach { listing ->
       val cardTag = C.Tag.listing_card_ + listing.id
@@ -219,22 +227,20 @@ class BrowseScreenTest {
         listings.map { it.copy(category = categories[it.id] ?: ListingCategory.OTHER) }
     )
     waitForTag(C.Tag.browse_list)
-    val electronicsChip =
-        composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(ListingCategory.ELECTRONICS))
-    val sportsChip =
-        composeTestRule.onNodeWithTag(C.Tag.browseCategoryChip(ListingCategory.SPORTS_OUTDOOR))
+    val electronicsChip = C.Tag.browseCategoryChip(ListingCategory.ELECTRONICS)
+    val sportsChip = C.Tag.browseCategoryChip(ListingCategory.SPORTS_OUTDOOR)
 
-    electronicsChip.performClick()
+    clickChip(electronicsChip)
     assertShownListings("projector")
 
-    sportsChip.performClick()
+    clickChip(sportsChip)
     assertShownListings("projector", "tent")
 
-    electronicsChip.performClick()
+    clickChip(electronicsChip)
     assertShownListings("tent")
 
-    electronicsChip.performClick()
-    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).performClick()
+    clickChip(electronicsChip)
+    clickChip(C.Tag.browse_category_all)
     assertShownListings(*listings.map { it.id }.toTypedArray())
   }
 }
