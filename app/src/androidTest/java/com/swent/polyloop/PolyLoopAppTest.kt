@@ -283,16 +283,16 @@ class PolyLoopAppTest {
   }
 
   @Test
-  fun listingDetailForUnknownListingShowsNoScreen() {
+  fun listingDetailForUnknownListingShowsNotFound() {
     setAppSignedIn()
 
     composeTestRule.runOnUiThread {
-      NavigationActions(navController).navigateTo(Screen.ListingDetail.createRoute("missing"))
+      NavigationActions(navController).navigateTo(Screen.ListingDetail.createRoute("missing-id"))
     }
-    composeTestRule.waitForIdle()
 
+    waitForTag(C.Tag.listing_detail_not_found)
     assertEquals(Screen.ListingDetail.route, navController.currentDestination?.route)
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_screen).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_title).assertDoesNotExist()
   }
 
   @Test

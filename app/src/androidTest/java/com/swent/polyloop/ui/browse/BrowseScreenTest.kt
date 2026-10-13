@@ -10,11 +10,13 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.resources.C
@@ -67,6 +69,22 @@ class BrowseScreenTest {
     }
   }
 
+  private fun setContentWithViewModel(
+      listings: List<Listing>,
+      onListingClick: (String) -> Unit = {},
+  ) {
+    val repository =
+        object : ListingRepository {
+          override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
+
+          override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+        }
+    val viewModel = BrowseViewModel(repository)
+    composeTestRule.setContent {
+      BrowseScreen(viewModel = viewModel, onListingClick = onListingClick)
+    }
+  }
+
   private fun waitForTag(tag: String) {
     composeTestRule.waitUntil(timeoutMillis = 5_000) {
       composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
@@ -103,8 +121,24 @@ class BrowseScreenTest {
   fun emptyListShowsEmptyState() {
     setContent(uiState = BrowseUiState(listings = emptyList()))
 
-    composeTestRule.onNodeWithTag(C.Tag.browse_empty).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.browse_empty)
+        .assertIsDisplayed()
+        .assertTextEquals(string(R.string.browse_empty))
   }
+
+  @Test
+  fun filterWithoutMatchShowsNoResults() {
+    setContent(uiState = BrowseUiState(listings = listings, filter = ListingFilter(query = "zzz")))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.browse_empty)
+        .assertIsDisplayed()
+        .assertTextEquals(string(R.string.browse_no_results))
+  }
+
+  private fun string(id: Int) =
+      InstrumentationRegistry.getInstrumentation().targetContext.getString(id)
 
   @Test
   fun everyCardCanBeReachedByScrolling() {
@@ -122,12 +156,9 @@ class BrowseScreenTest {
     var clickedId: String? = null
     setContent(onListingClick = { clickedId = it })
 
-    listOf(
-            C.Tag.browse_map_toggle,
-            C.Tag.browse_list_toggle,
-            C.Tag.browse_search_bar,
-        )
-        .forEach { composeTestRule.onNodeWithTag(it).performClick() }
+    listOf(C.Tag.browse_map_toggle, C.Tag.browse_list_toggle).forEach {
+      composeTestRule.onNodeWithTag(it).performClick()
+    }
 
     assertNull(clickedId)
   }
@@ -167,5 +198,66 @@ class BrowseScreenTest {
     waitForTag(C.Tag.browse_list)
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "tent").performClick()
     assertEquals("tent", clickedId)
+  }
+
+  /**
+   * Scrolls the lazy chip row to the chip with [tag] before clicking it, in case it is off screen.
+   */
+  private fun clickChip(tag: String) {
+    composeTestRule.onNodeWithTag(C.Tag.browse_category_chips).performScrollToNode(hasTestTag(tag))
+    composeTestRule.onNodeWithTag(tag).performClick()
+  }
+
+  /**
+   * Checks that the list shows exactly the listings [ids]: each can be reached by scrolling, and
+   * every other listing has no card.
+   */
+  private fun assertShownListings(vararg ids: String) {
+    listings.forEach { listing ->
+      val cardTag = C.Tag.listing_card_ + listing.id
+      if (listing.id in ids) {
+        composeTestRule.onNodeWithTag(C.Tag.browse_list).performScrollToNode(hasTestTag(cardTag))
+        composeTestRule.onNodeWithTag(cardTag).assertIsDisplayed()
+      } else {
+        composeTestRule.onNodeWithTag(cardTag).assertDoesNotExist()
+      }
+    }
+  }
+
+  @Test
+  fun searchFiltersListingsAndClearingRestoresThem() {
+    setContentWithViewModel(listings)
+    waitForTag(C.Tag.browse_list)
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput("drill")
+    assertShownListings("drill")
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).performClick()
+    assertShownListings(*listings.map { it.id }.toTypedArray())
+  }
+
+  @Test
+  fun categoryChipsToggleTheirCategoryAndAllClearsThem() {
+    val categories =
+        mapOf("tent" to ListingCategory.SPORTS_OUTDOOR, "projector" to ListingCategory.ELECTRONICS)
+    setContentWithViewModel(
+        listings.map { it.copy(category = categories[it.id] ?: ListingCategory.OTHER) }
+    )
+    waitForTag(C.Tag.browse_list)
+    val electronicsChip = C.Tag.browseCategoryChip(ListingCategory.ELECTRONICS)
+    val sportsChip = C.Tag.browseCategoryChip(ListingCategory.SPORTS_OUTDOOR)
+
+    clickChip(electronicsChip)
+    assertShownListings("projector")
+
+    clickChip(sportsChip)
+    assertShownListings("projector", "tent")
+
+    clickChip(electronicsChip)
+    assertShownListings("tent")
+
+    clickChip(electronicsChip)
+    clickChip(C.Tag.browse_category_all)
+    assertShownListings(*listings.map { it.id }.toTypedArray())
   }
 }

@@ -8,7 +8,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NamedNavArgument
 import androidx.navigation.NavBackStackEntry
@@ -95,17 +94,12 @@ fun PolyLoopApp(
                         listingRepository = RepositoryProvider.listingRepository,
                     )
             )
-        val uiState by listingDetailViewModel.uiState.collectAsStateWithLifecycle()
-        // Loading, error and not-found states have no UI yet: the screen shows once loaded.
-        uiState.listing?.let { listing ->
-          ListingDetailScreen(
-              listing = listing,
-              onRequestDates = listingDetailViewModel::openDatePicker,
-              onLenderClick = {
-                navController.navigate(Screen.UserProfile.createRoute(listing.ownerId))
-              },
-          )
-        }
+        ListingDetailScreen(
+            viewModel = listingDetailViewModel,
+            onLenderClick = { ownerId ->
+              navController.navigate(Screen.UserProfile.createRoute(ownerId))
+            },
+        )
       }
       composable(Screen.EditListing.route, stringArgument(Screen.ARG_LISTING_ID)) { entry ->
         DummyScreen(Screen.EditListing.createRoute(entry.stringArg(Screen.ARG_LISTING_ID)))

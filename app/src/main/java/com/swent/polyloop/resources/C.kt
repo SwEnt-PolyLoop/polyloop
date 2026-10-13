@@ -2,6 +2,8 @@
 
 package com.swent.polyloop.resources
 
+import com.swent.polyloop.model.listing.ListingCategory
+
 // Like R, but C
 object C {
   object Tag {
@@ -15,10 +17,13 @@ object C {
     const val browse_list = "browse_list"
     const val browse_title = "browse_title"
     const val browse_category_all = "browse_category_all"
+    const val browse_clear_search = "browse_clear_search"
     const val browse_loading = "browse_loading"
     const val browse_error = "browse_error"
     const val browse_retry_button = "browse_retry_button"
     const val browse_empty = "browse_empty"
+
+    fun browseCategoryChip(category: ListingCategory) = "browse_category_chip_${category.name}"
 
     // Prefix: each card is tagged listing_card_ + listing.id
     const val listing_card_ = "listing_card_"
@@ -45,6 +50,22 @@ object C {
     const val listing_detail_pickup_area = "listing_detail_pickup_area"
     const val listing_detail_pickup_caption = "listing_detail_pickup_caption"
     const val listing_detail_request_button = "listing_detail_request_button"
+    const val listing_detail_loading = "listing_detail_loading"
+    const val listing_detail_error = "listing_detail_error"
+    const val listing_detail_retry_button = "listing_detail_retry_button"
+    const val listing_detail_not_found = "listing_detail_not_found"
+
+    const val auth_name_field = "auth_name_field"
+    const val auth_email_field = "auth_email_field"
+    const val auth_password_field = "auth_password_field"
+    const val auth_login_tab = "auth_login_tab"
+    const val auth_signup_tab = "auth_signup_tab"
+    const val auth_login_button = "auth_login_button"
+    const val auth_signup_button = "auth_signup_button"
+    const val auth_name_error = "auth_name_error"
+    const val auth_email_error = "auth_email_error"
+    const val auth_password_error = "auth_password_error"
+    const val auth_error = "auth_error"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"

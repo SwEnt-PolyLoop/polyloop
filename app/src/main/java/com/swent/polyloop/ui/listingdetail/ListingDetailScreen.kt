@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +35,7 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,8 +44,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
@@ -63,17 +67,36 @@ internal const val FAKE_LENDER_REVIEW_COUNT = 12
 private const val STAR_COUNT = 5
 
 /**
- * The Listing detail screen for a borrower: photos, title, price, description, the lender, the
- * suggested deposit and availability, the pickup area, and a pinned "Request dates" button. The
- * app's top bar is drawn by the navigation scaffold, not here.
+ * The Listing detail screen, showing the listing loaded by [viewModel]. The app's top bar is drawn
+ * by the navigation scaffold, not here.
  */
 @Composable
 fun ListingDetailScreen(
-    listing: Listing,
+    viewModel: ListingDetailViewModel,
+    onLenderClick: (ownerId: String) -> Unit,
+) {
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  ListingDetailContent(
+      uiState = uiState,
+      onRequestDates = viewModel::openDatePicker,
+      onLenderClick = onLenderClick,
+      onRetry = viewModel::retry,
+  )
+}
+
+/**
+ * Stateless Listing detail content: a loading indicator, an error with a Retry button, a not-found
+ * message or the loaded listing, depending on [uiState].
+ */
+@Composable
+fun ListingDetailContent(
+    uiState: ListingDetailUiState,
     onRequestDates: () -> Unit,
-    onLenderClick: () -> Unit,
+    onLenderClick: (ownerId: String) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+  val listing = uiState.listing
   Column(
       modifier =
           modifier
@@ -81,6 +104,65 @@ fun ListingDetailScreen(
               .background(MaterialTheme.colorScheme.background)
               .testTag(C.Tag.listing_detail_screen)
   ) {
+    when {
+      uiState.isLoading ->
+          Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(modifier = Modifier.testTag(C.Tag.listing_detail_loading))
+          }
+      uiState.errorMsg != null -> ListingDetailError(errorMsg = uiState.errorMsg, onRetry = onRetry)
+      uiState.listingNotFound || listing == null ->
+          Box(
+              modifier = Modifier.fillMaxSize().padding(16.dp),
+              contentAlignment = Alignment.Center,
+          ) {
+            Text(
+                text = stringResource(R.string.listing_detail_not_found),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.testTag(C.Tag.listing_detail_not_found),
+            )
+          }
+      else ->
+          ListingDetailLoaded(
+              listing = listing,
+              onRequestDates = onRequestDates,
+              onLenderClick = { onLenderClick(listing.ownerId) },
+          )
+    }
+  }
+}
+
+/** The load error ([errorMsg], or a generic text if it is blank) and a Retry button. */
+@Composable
+private fun ListingDetailError(errorMsg: String, onRetry: () -> Unit) {
+  Column(
+      modifier = Modifier.fillMaxSize().padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+      horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    Text(
+        text = errorMsg.ifBlank { stringResource(R.string.listing_detail_error_fallback) },
+        style = MaterialTheme.typography.bodyLarge,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.testTag(C.Tag.listing_detail_error),
+    )
+    Button(onClick = onRetry, modifier = Modifier.testTag(C.Tag.listing_detail_retry_button)) {
+      Text(stringResource(R.string.listing_detail_retry))
+    }
+  }
+}
+
+/**
+ * The loaded listing for a borrower: photos, title, price, description, the lender, the suggested
+ * deposit and availability, the pickup area, and a pinned "Request dates" button.
+ */
+@Composable
+private fun ListingDetailLoaded(
+    listing: Listing,
+    onRequestDates: () -> Unit,
+    onLenderClick: () -> Unit,
+) {
+  Column(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -348,7 +430,7 @@ private val previewListing =
 
 @Preview(showBackground = true)
 @Composable
-private fun ListingDetailScreenPreview() {
+private fun ListingDetailContentPreview() {
   PolyLoopTheme {
     Column {
       PolyLoopTopBar(
@@ -356,7 +438,12 @@ private fun ListingDetailScreenPreview() {
           onDestinationClick = {},
           onProfileClick = {},
       )
-      ListingDetailScreen(listing = previewListing, onRequestDates = {}, onLenderClick = {})
+      ListingDetailContent(
+          uiState = ListingDetailUiState(listing = previewListing),
+          onRequestDates = {},
+          onLenderClick = {},
+          onRetry = {},
+      )
     }
   }
 }
