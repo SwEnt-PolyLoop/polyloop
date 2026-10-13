@@ -32,7 +32,7 @@ One repository per type of data, shared by every ViewModel that needs it. ViewMo
 | Location | LocationRepository | The phone's GPS |
 | Connectivity | ConnectivityRepository | The phone's network status |
 
-`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing); add each new repository to it when it is implemented.
+`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing); add each new repository to it when it is implemented. It also exposes the shared `FirebaseStorage` instance, for the repositories that upload photos and PDFs.
 
 ## ViewModels: one per screen
 

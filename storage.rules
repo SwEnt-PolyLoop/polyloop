@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// Placeholder so the Storage emulator can start: any signed-in user may read and write.
+// The real rules come with #34. Do not deploy this file before then.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

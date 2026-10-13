@@ -2,6 +2,9 @@
 
 package com.swent.polyloop.model
 
+import com.google.firebase.Firebase
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.storage
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.listing.ListingRepository
@@ -31,6 +34,13 @@ object RepositoryProvider {
     set(value) {
       listing = value
     }
+
+  /**
+   * The Cloud Storage instance that repositories upload photos and PDFs to. Read on each access, so
+   * Storage is not touched until a repository needs it.
+   */
+  val storage: FirebaseStorage
+    get() = Firebase.storage
 
   /** Forgets every repository, so the next access creates the real ones again. For tests. */
   fun reset() {

@@ -4,6 +4,7 @@ import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
+import com.google.firebase.storage.storage
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -12,14 +13,16 @@ import org.json.JSONObject
 import org.junit.Assert.fail
 
 /**
- * Points Firebase Auth and Firestore at the local Firebase emulators (ports in firebase.json), so
- * tests never touch the real project. Call [connect] first thing in a test's setup.
+ * Points Firebase Auth, Firestore and Storage at the local Firebase emulators (ports in
+ * firebase.json), so tests never touch the real project. Call [connect] first thing in a test's
+ * setup.
  */
 object FirebaseEmulator {
   // From inside the Android emulator, 10.0.2.2 is the computer running it.
   private const val HOST = "10.0.2.2"
   private const val AUTH_PORT = 9099
   private const val FIRESTORE_PORT = 8080
+  private const val STORAGE_PORT = 9199
 
   private var connected = false
 
@@ -32,6 +35,7 @@ object FirebaseEmulator {
     if (connected) return
     Firebase.auth.useEmulator(HOST, AUTH_PORT)
     Firebase.firestore.useEmulator(HOST, FIRESTORE_PORT)
+    Firebase.storage.useEmulator(HOST, STORAGE_PORT)
     connected = true
   }
 
