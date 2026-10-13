@@ -36,6 +36,30 @@
     <string name="listing_detail_retry">Retry</string>
     <string name="listing_detail_not_found">This listing is no longer available.</string>
 
+    <!-- My rentals -->
+    <string name="my_rentals_title">My rentals</string>
+    <string name="my_rentals_tab_borrowing">Borrowing</string>
+    <string name="my_rentals_tab_lending">Lending</string>
+    <string name="my_rentals_empty_borrowing">You are not borrowing anything yet.</string>
+    <string name="my_rentals_empty_lending">Nobody has asked to borrow your items yet.</string>
+    <string name="my_rentals_error_fallback">Could not load your rentals</string>
+    <string name="my_rentals_retry">Retry</string>
+    <string name="my_rentals_lent_by">Lent by %1$s</string>
+    <string name="my_rentals_borrowed_by">Borrowed by %1$s</string>
+    <string name="my_rentals_unknown_person">an unknown user</string>
+    <string name="my_rentals_return_by">Return by %1$s</string>
+    <string name="rental_status_requested">Requested</string>
+    <string name="rental_status_accepted">Accepted</string>
+    <string name="rental_status_active">Active</string>
+    <string name="rental_status_returned">Returned</string>
+    <string name="rental_status_closed">Closed</string>
+    <string name="rental_status_declined">Declined</string>
+    <string name="rental_status_cancelled">Cancelled</string>
+    <string name="rental_status_overdue">Overdue</string>
+    <string name="rental_status_lost">Lost</string>
+    <string name="rental_status_disputed">Disputed</string>
+    <string name="rental_status_frozen">Frozen</string>
+
     <!-- Top-bar menu -->
     <string name="menu_browse">Browse</string>
     <string name="menu_create_listing">Create listing</string>

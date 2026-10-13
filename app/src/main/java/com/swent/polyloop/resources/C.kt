@@ -56,6 +56,23 @@ object C {
 
     fun topBarMenuItem(route: String) = "top_bar_menu_item_$route"
 
+    const val my_rentals_screen = "my_rentals_screen"
+    const val my_rentals_title = "my_rentals_title"
+    const val my_rentals_tab_borrowing = "my_rentals_tab_borrowing"
+    const val my_rentals_tab_lending = "my_rentals_tab_lending"
+    const val my_rentals_list = "my_rentals_list"
+    const val my_rentals_loading = "my_rentals_loading"
+    const val my_rentals_error = "my_rentals_error"
+    const val my_rentals_retry_button = "my_rentals_retry_button"
+    const val my_rentals_empty = "my_rentals_empty"
+    // Prefix: each row is tagged my_rentals_row_ + rental id
+    const val my_rentals_row_ = "my_rentals_row_"
+    const val my_rentals_row_title = "my_rentals_row_title"
+    const val my_rentals_row_person = "my_rentals_row_person"
+    const val my_rentals_row_return = "my_rentals_row_return"
+    const val my_rentals_row_location = "my_rentals_row_location"
+    const val my_rentals_row_status = "my_rentals_row_status"
+
     const val dummy_screen = "dummy_screen"
     const val dummy_screen_text = "dummy_screen_text"
     const val dummy_screen_continue_button = "dummy_screen_continue_button"
