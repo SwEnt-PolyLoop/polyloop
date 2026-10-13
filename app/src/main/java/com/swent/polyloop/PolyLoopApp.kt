@@ -21,6 +21,8 @@ import androidx.navigation.navArgument
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.ui.browse.BrowseScreen
 import com.swent.polyloop.ui.browse.BrowseViewModel
+import com.swent.polyloop.ui.chatlist.ChatListScreen
+import com.swent.polyloop.ui.chatlist.ChatListViewModel
 import com.swent.polyloop.ui.dummy.DummyScreen
 import com.swent.polyloop.ui.listingdetail.ListingDetailScreen
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
@@ -80,7 +82,22 @@ fun PolyLoopApp(
       }
       composable(Screen.CreateListing.route) { DummyScreen(Screen.CreateListing.route) }
       composable(Screen.MyRentals.route) { DummyScreen(Screen.MyRentals.route) }
-      composable(Screen.ChatList.route) { DummyScreen(Screen.ChatList.route) }
+      composable(Screen.ChatList.route) {
+        val chatListViewModel: ChatListViewModel =
+            viewModel(
+                factory =
+                    ChatListViewModel.Factory(
+                        RepositoryProvider.chatRepository,
+                        RepositoryProvider.authRepository,
+                    )
+            )
+        ChatListScreen(
+            viewModel = chatListViewModel,
+            onConversationClick = { rentalId ->
+              navController.navigate(Screen.Chat.createRoute(rentalId))
+            },
+        )
+      }
       composable(Screen.Wallet.route) { DummyScreen(Screen.Wallet.route) }
       composable(Screen.Profile.route) { DummyScreen(Screen.Profile.route) }
       composable(Screen.AdminCourtRuling.route) { DummyScreen(Screen.AdminCourtRuling.route) }
