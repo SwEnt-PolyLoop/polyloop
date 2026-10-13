@@ -21,6 +21,8 @@ import androidx.navigation.navArgument
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.ui.browse.BrowseScreen
 import com.swent.polyloop.ui.browse.BrowseViewModel
+import com.swent.polyloop.ui.chat.ChatScreen
+import com.swent.polyloop.ui.chat.ChatViewModel
 import com.swent.polyloop.ui.chatlist.ChatListScreen
 import com.swent.polyloop.ui.chatlist.ChatListViewModel
 import com.swent.polyloop.ui.dummy.DummyScreen
@@ -125,7 +127,22 @@ fun PolyLoopApp(
         DummyScreen(Screen.RentalDetail.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
       }
       composable(Screen.Chat.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
-        DummyScreen(Screen.Chat.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
+        val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)
+        val chatViewModel: ChatViewModel =
+            viewModel(
+                factory =
+                    ChatViewModel.Factory(
+                        rentalId = rentalId,
+                        chatRepository = RepositoryProvider.chatRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                    )
+            )
+        ChatScreen(
+            viewModel = chatViewModel,
+            onRentalDetailsClick = {
+              navController.navigate(Screen.RentalDetail.createRoute(rentalId))
+            },
+        )
       }
       composable(Screen.Handover.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
         DummyScreen(Screen.Handover.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
