@@ -121,6 +121,20 @@ class RepositoryProviderTest {
     val first = RepositoryProvider.chatRepository
 
     assertSame(first, RepositoryProvider.chatRepository)
+    verify(exactly = 1) { FirebaseFirestore.getInstance() }
+  }
+
+  @Test
+  fun chatRepositoryReturnsAssignedRepository() {
+    val fake = FakeChatRepository()
+
+    RepositoryProvider.chatRepository = fake
+
+    assertSame(fake, RepositoryProvider.chatRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+    verify(exactly = 0) { FirebaseAuth.getInstance() }
+  }
+
   // ---------- profileRepository ----------
 
   @Test
@@ -137,14 +151,6 @@ class RepositoryProviderTest {
   }
 
   @Test
-  fun chatRepositoryReturnsAssignedRepository() {
-    val fake = FakeChatRepository()
-
-    RepositoryProvider.chatRepository = fake
-
-    assertSame(fake, RepositoryProvider.chatRepository)
-    verify(exactly = 0) { FirebaseFirestore.getInstance() }
-    verify(exactly = 0) { FirebaseAuth.getInstance() }
   fun profileRepositoryReturnsAssignedRepository() {
     val fake = FakeProfileRepository()
 

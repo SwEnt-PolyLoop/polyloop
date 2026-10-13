@@ -42,6 +42,8 @@ object RepositoryProvider {
     get() = chat ?: ChatRepositoryFirestore().also { chat = it }
     set(value) {
       chat = value
+    }
+
   var profileRepository: ProfileRepository
     get() = profile ?: ProfileRepositoryFirestore().also { profile = it }
     set(value) {
