@@ -6,12 +6,14 @@
     <!-- Browse -->
     <string name="browse_title">Browse</string>
     <string name="browse_search_hint">Search items</string>
+    <string name="browse_clear_search">Clear search</string>
     <string name="browse_category_all">All</string>
     <string name="browse_map">Map</string>
     <string name="browse_list">List</string>
     <string name="browse_error_fallback">Could not load the listings</string>
     <string name="browse_retry">Retry</string>
     <string name="browse_empty">No listings available yet</string>
+    <string name="browse_no_results">No matching listings</string>
 
     <!-- Listing card -->
     <string name="listing_card_price">%1$d PP</string>
@@ -70,6 +72,33 @@
     <string name="menu_admin_court_ruling">Admin court ruling</string>
     <string name="top_bar_menu">Menu</string>
     <string name="top_bar_profile">Profile</string>
+
+    <!-- Authentication -->
+    <!-- The wordmark is split so each half can have its own color. -->
+    <string name="auth_wordmark_start" translatable="false">Poly</string>
+    <string name="auth_wordmark_end" translatable="false">Loop</string>
+    <string name="auth_tagline">Borrow and lend among EPFL students.</string>
+    <string name="auth_signup">Sign up</string>
+    <string name="auth_login">Log in</string>
+    <string name="auth_name_label">Name</string>
+    <string name="auth_name_placeholder">Enter your name</string>
+    <string name="auth_email_label">EPFL email</string>
+    <string name="auth_email_placeholder">Enter your EPFL email</string>
+    <string name="auth_password_label">Password</string>
+    <string name="auth_password_placeholder">Enter your password</string>
+    <string name="auth_name_required">Please enter your name.</string>
+    <string name="auth_email_required">Please enter your email address.</string>
+    <string name="auth_email_invalid_domain">Use your @epfl.ch address.</string>
+    <string name="auth_password_required">Please enter your password.</string>
+    <string name="auth_error_wrong_credentials">The email or password is incorrect.</string>
+    <string name="auth_error_weak_password">Your password is too weak.</string>
+    <string name="auth_error_email_not_verified">Please verify your email address.</string>
+    <string name="auth_error_too_many_requests">Too many attempts. Please try again later.</string>
+    <string name="auth_error_network">A network error occurred. Please try again.</string>
+    <string name="auth_error_unknown">An unexpected error occurred. Please try again.</string>
+    <string name="auth_error_email_already_in_use">This email already has an account. Try logging in.</string>
+    <string name="auth_error_verification_email_not_sent">Account created, but the verification email could not be sent.</string>
+    <string name="auth_error_name_not_saved">Account created, but your name could not be saved.</string>
 
     <!-- Dummy screen -->
     <string name="dummy_screen_continue">Continue</string>
