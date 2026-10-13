@@ -1,63 +1,50 @@
 package com.swent.polyloop.ui.theme
 
 import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme =
-    darkColorScheme(primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80)
-
+// Light theme only, and no dynamic color, so the app always shows the PolyLoop palette.
+// If these values ever change, modify the asserts in PolyLoopThemeTest.
 private val LightColorScheme =
     lightColorScheme(
-        primary = Purple40,
-        secondary = PurpleGrey40,
-        tertiary = Pink40,
-        // If these values ever change, modify the asserts in PolyLoopThemeTest
-
-        /* Other default colors to override
-        background = Color(0xFFFFFBFE),
-        surface = Color(0xFFFFFBFE),
+        primary = PolyRed,
         onPrimary = Color.White,
+        primaryContainer = BlushRed,
+        onPrimaryContainer = DeepRed,
+        secondary = DeepRed,
         onSecondary = Color.White,
-        onTertiary = Color.White,
-        onBackground = Color(0xFF1C1B1F),
-        onSurface = Color(0xFF1C1B1F),
-        */
+        secondaryContainer = Sand,
+        onSecondaryContainer = Ink,
+        tertiary = DeepRed,
+        tertiaryContainer = OfflineOrange,
+        onTertiaryContainer = OfflineBrown,
+        error = ErrorRed,
+        onError = Color.White,
+        background = Cream,
+        onBackground = Ink,
+        surface = Color.White,
+        onSurface = Ink,
+        surfaceVariant = Sand,
+        onSurfaceVariant = Stone,
+        surfaceContainer = Color.White,
+        outline = Border,
+        outlineVariant = Border,
     )
 
 @Composable
-fun PolyLoopTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit,
-) {
-  val colorScheme =
-      when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-          val context = LocalContext.current
-          if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-      }
+fun PolyLoopTheme(content: @Composable () -> Unit) {
+  val colorScheme = LightColorScheme
   val view = LocalView.current
   if (!view.isInEditMode) {
     SideEffect {
       val window = (view.context as Activity).window
-      window.statusBarColor = colorScheme.primary.toArgb()
-      WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+      WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
     }
   }
 
