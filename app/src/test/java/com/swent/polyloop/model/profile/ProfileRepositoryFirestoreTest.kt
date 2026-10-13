@@ -167,6 +167,16 @@ class ProfileRepositoryFirestoreTest {
     assertSame(bug, thrown)
   }
 
+  @Test
+  fun createProfileIfMissingFailsForAnInvalidIdWithoutCallingFirestore() = runTest {
+    val blank = repository.createProfileIfMissing("", "john@epfl.ch", "John")
+    val withSlash = repository.createProfileIfMissing("users/uid123", "john@epfl.ch", "John")
+
+    assertTrue(blank.exceptionOrNull() is IllegalArgumentException)
+    assertTrue(withSlash.exceptionOrNull() is IllegalArgumentException)
+    verify(exactly = 0) { db.collection(any()) }
+  }
+
   // ---------- getProfile ----------
 
   @Test
@@ -241,6 +251,16 @@ class ProfileRepositoryFirestoreTest {
   }
 
   // ---------- updateProfile ----------
+
+  @Test
+  fun updateProfileFailsForAnInvalidIdWithoutCallingFirestore() = runTest {
+    val blank = repository.updateProfile(" ", "John", "")
+    val withSlash = repository.updateProfile("users/uid123", "John", "")
+
+    assertTrue(blank.exceptionOrNull() is IllegalArgumentException)
+    assertTrue(withSlash.exceptionOrNull() is IllegalArgumentException)
+    verify(exactly = 0) { db.collection(any()) }
+  }
 
   @Test
   fun updateProfileWritesOnlyNameAndPhoto() = runTest {

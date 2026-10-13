@@ -29,24 +29,27 @@ class ProfileRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fi
       uid: String,
       email: String,
       name: String,
-  ): Result<Unit> = withFirebaseErrors {
-    val document = profileDocument(uid)
-    val profile = UserProfile(uid = uid, name = name, email = email)
-    when {
-      document.get().await().exists() -> Result.success(Unit)
-      // Merge writes only the fields the app owns and keeps the others, e.g. the rating fields
-      // that Cloud Functions write.
-      confirmWrite {
-        document.set(
-            mapOf(
-                ProfileFields.NAME to profile.name,
-                ProfileFields.EMAIL to profile.email,
-                ProfileFields.PHOTO_URL to profile.photoUrl,
-            ),
-            SetOptions.merge(),
-        )
-      } -> Result.success(Unit)
-      else -> notConfirmed()
+  ): Result<Unit> {
+    if (!isValidId(uid)) return invalidId(uid)
+    return withFirebaseErrors {
+      val document = profileDocument(uid)
+      val profile = UserProfile(uid = uid, name = name, email = email)
+      when {
+        document.get().await().exists() -> Result.success(Unit)
+        // Merge writes only the fields the app owns and keeps the others, e.g. the rating fields
+        // that Cloud Functions write.
+        confirmWrite {
+          document.set(
+              mapOf(
+                  ProfileFields.NAME to profile.name,
+                  ProfileFields.EMAIL to profile.email,
+                  ProfileFields.PHOTO_URL to profile.photoUrl,
+              ),
+              SetOptions.merge(),
+          )
+        } -> Result.success(Unit)
+        else -> notConfirmed()
+      }
     }
   }
 
@@ -75,26 +78,31 @@ class ProfileRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fi
         .distinctUntilChanged()
   }
 
-  override suspend fun updateProfile(uid: String, name: String, photoUrl: String): Result<Unit> =
-      withFirebaseErrors {
-        // update() fails with NOT_FOUND when the profile does not exist, so this never creates one.
-        val written = confirmWrite {
-          profileDocument(uid)
-              .update(
-                  mapOf<String, Any>(
-                      ProfileFields.NAME to name,
-                      ProfileFields.PHOTO_URL to photoUrl,
-                  )
-              )
-        }
-        if (written) Result.success(Unit) else notConfirmed()
+  override suspend fun updateProfile(uid: String, name: String, photoUrl: String): Result<Unit> {
+    if (!isValidId(uid)) return invalidId(uid)
+    return withFirebaseErrors {
+      // update() fails with NOT_FOUND when the profile does not exist, so this never creates one.
+      val written = confirmWrite {
+        profileDocument(uid)
+            .update(
+                mapOf<String, Any>(
+                    ProfileFields.NAME to name,
+                    ProfileFields.PHOTO_URL to photoUrl,
+                )
+            )
       }
+      if (written) Result.success(Unit) else notConfirmed()
+    }
+  }
 
   private fun profileDocument(uid: String): DocumentReference =
       db.collection(ProfileFields.COLLECTION).document(uid)
 
   /** Firestore throws on these ids instead of failing the task, and no profile can have them. */
   private fun isValidId(uid: String): Boolean = uid.isNotBlank() && '/' !in uid
+
+  private fun invalidId(uid: String): Result<Unit> =
+      Result.failure(IllegalArgumentException("Invalid profile id \"$uid\""))
 
   /**
    * Runs [write] and returns whether the server confirmed it in time. A write only completes once

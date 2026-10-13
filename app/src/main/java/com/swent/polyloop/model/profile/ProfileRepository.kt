@@ -16,8 +16,9 @@ interface ProfileRepository {
    * Creates the profile of a verified user the first time they sign in. Called after every
    * successful sign-in; when the profile already exists nothing is written. Reading and writing are
    * not atomic: two first sign-ins at the same moment can both write (with the same data). Fails
-   * with the cause if the profile cannot be read or written, or with a `TimeoutException` if the
-   * server does not confirm the write in time (e.g. the connection dropped).
+   * with the cause if the profile cannot be read or written, with a `TimeoutException` if the
+   * server does not confirm the write in time (e.g. the connection dropped), or with an
+   * `IllegalArgumentException` if [uid] is blank or contains '/'.
    *
    * @param name the name typed at sign-up (the Firebase Auth display name).
    */
@@ -37,8 +38,9 @@ interface ProfileRepository {
 
   /**
    * Changes the name and photo of an existing profile; the other fields are kept. Fails if the
-   * profile does not exist or cannot be written, or with a `TimeoutException` if the server does
-   * not confirm the write in time.
+   * profile does not exist or cannot be written, with a `TimeoutException` if the server does not
+   * confirm the write in time, or with an `IllegalArgumentException` if [uid] is blank or contains
+   * '/'.
    */
   suspend fun updateProfile(uid: String, name: String, photoUrl: String): Result<Unit>
 }
