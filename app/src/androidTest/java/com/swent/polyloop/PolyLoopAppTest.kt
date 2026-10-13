@@ -24,6 +24,7 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
@@ -196,6 +197,7 @@ class PolyLoopAppTest {
                 "Me",
                 "Hi",
                 Instant.EPOCH,
+                RentalStatus.REQUESTED,
             )
         )
     setAppSignedIn()

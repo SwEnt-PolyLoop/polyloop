@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.chat.ChatRepository
 import com.swent.polyloop.model.chat.Conversation
+import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,7 @@ data class ChatListRow(
     val itemTitle: String,
     val lastMessage: String,
     val lastMessageAt: Instant,
+    val status: RentalStatus,
 )
 
 /**
@@ -107,6 +109,7 @@ class ChatListViewModel(
             itemTitle = listingTitle,
             lastMessage = lastMessage,
             lastMessageAt = lastMessageAt,
+            status = status,
         )
   }
 }

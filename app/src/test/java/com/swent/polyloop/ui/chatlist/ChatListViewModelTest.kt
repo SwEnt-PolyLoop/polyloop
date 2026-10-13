@@ -7,6 +7,7 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.ChatRepository
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
+import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.ui.authentication.FakeAuthRepository
 import java.io.IOException
 import java.time.Instant
@@ -38,6 +39,7 @@ class ChatListViewModelTest {
       ownerId: String,
       borrowerId: String,
       lastMessageAt: Instant = at,
+      status: RentalStatus = RentalStatus.REQUESTED,
   ) =
       Conversation(
           rentalId = id,
@@ -48,6 +50,7 @@ class ChatListViewModelTest {
           borrowerName = "Borrower of $id",
           lastMessage = "Last in $id",
           lastMessageAt = lastMessageAt,
+          status = status,
       )
 
   private val borrowed = conversation("tent", ownerId = "vida", borrowerId = "me")
@@ -90,9 +93,18 @@ class ChatListViewModelTest {
             itemTitle = "Item tent",
             lastMessage = "Last in tent",
             lastMessageAt = at,
+            status = RentalStatus.REQUESTED,
         ),
         viewModel().uiState.value.rows.first(),
     )
+  }
+
+  @Test
+  fun rowCarriesTheRentalStatus() {
+    chat.conversations.value =
+        listOf(conversation("tent", "vida", "me", status = RentalStatus.ACCEPTED))
+
+    assertEquals(RentalStatus.ACCEPTED, viewModel().uiState.value.rows.single().status)
   }
 
   @Test

@@ -16,6 +16,7 @@ import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
+import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
@@ -32,8 +33,17 @@ class ChatListScreenTest {
   // The expected times are built with formatMessageTime too, so the tests pass in any time zone.
   private val now = Instant.parse("2026-10-13T12:00:00Z")
 
-  private val tent = ChatListRow("tent", "Ana", "Camping tent", "See you at 5?", now)
-  private val drill = ChatListRow("drill", "", "Electric drill", "", now.minusSeconds(3 * 86_400))
+  private val tent =
+      ChatListRow("tent", "Ana", "Camping tent", "See you at 5?", now, RentalStatus.ACCEPTED)
+  private val drill =
+      ChatListRow(
+          "drill",
+          "",
+          "Electric drill",
+          "",
+          now.minusSeconds(3 * 86_400),
+          RentalStatus.REQUESTED,
+      )
 
   private var clicked: String? = null
   private var retries = 0
@@ -131,7 +141,19 @@ class ChatListScreenTest {
   fun screenShowsTheViewModelsConversations() {
     val chat = FakeChatRepository(currentUid = "me")
     chat.conversations.value =
-        listOf(Conversation("tent", "Camping tent", "ana", "Ana", "me", "Me", "Hi", now))
+        listOf(
+            Conversation(
+                "tent",
+                "Camping tent",
+                "ana",
+                "Ana",
+                "me",
+                "Me",
+                "Hi",
+                now,
+                RentalStatus.ACCEPTED,
+            )
+        )
     val auth =
         object : AuthRepository {
           override suspend fun signUp(name: String, email: String, password: String) =

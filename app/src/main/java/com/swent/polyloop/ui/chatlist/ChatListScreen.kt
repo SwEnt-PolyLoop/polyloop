@@ -34,6 +34,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
+import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
@@ -226,8 +227,22 @@ private fun ChatListContentPreview() {
             ChatListUiState(
                 rows =
                     listOf(
-                        ChatListRow("r1", "Ana", "Camping tent", "See you at 5?", now),
-                        ChatListRow("r2", "", "Electric drill", "", now.minusSeconds(86_400 * 3)),
+                        ChatListRow(
+                            "r1",
+                            "Ana",
+                            "Camping tent",
+                            "See you at 5?",
+                            now,
+                            RentalStatus.ACCEPTED,
+                        ),
+                        ChatListRow(
+                            "r2",
+                            "",
+                            "Electric drill",
+                            "",
+                            now.minusSeconds(86_400 * 3),
+                            RentalStatus.REQUESTED,
+                        ),
                     ),
                 isLoading = false,
             ),
