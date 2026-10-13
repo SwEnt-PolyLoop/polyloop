@@ -3,10 +3,10 @@
 package com.swent.polyloop.ui.chatlist
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,8 +17,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -74,7 +74,9 @@ fun ChatListContent(
         text = stringResource(R.string.chat_list_title),
         style = MaterialTheme.typography.headlineMedium,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(horizontal = 16.dp).testTag(C.Tag.chat_list_title),
+        modifier =
+            Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 12.dp)
+                .testTag(C.Tag.chat_list_title),
     )
     when {
       uiState.isLoading ->
@@ -95,17 +97,15 @@ fun ChatListContent(
             )
           }
       else ->
-          LazyColumn(
-              modifier = Modifier.fillMaxWidth().testTag(C.Tag.chat_list_list),
-              contentPadding = PaddingValues(16.dp),
-              verticalArrangement = Arrangement.spacedBy(12.dp),
-          ) {
+          // Rows touch each other, separated by a thin line (Figma frame 18).
+          LazyColumn(modifier = Modifier.fillMaxWidth().testTag(C.Tag.chat_list_list)) {
             items(uiState.rows, key = { it.rentalId }) { row ->
               ConversationRow(
                   row = row,
                   now = now,
                   onClick = { onConversationClick(row.rentalId) },
               )
+              HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
           }
     }
@@ -115,50 +115,49 @@ fun ChatListContent(
 /** One conversation: the avatar, the other person and the time, the item, the last message. */
 @Composable
 private fun ConversationRow(row: ChatListRow, now: Instant, onClick: () -> Unit) {
-  OutlinedCard(
-      onClick = onClick,
-      modifier = Modifier.fillMaxWidth().testTag(C.Tag.chat_list_row_ + row.rentalId),
+  Row(
+      modifier =
+          Modifier.fillMaxWidth()
+              .clickable(onClick = onClick)
+              .padding(horizontal = 16.dp, vertical = 12.dp)
+              .testTag(C.Tag.chat_list_row_ + row.rentalId),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
   ) {
-    Row(
-        modifier = Modifier.padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-      Avatar(initial = initialOf(row.otherPersonName))
-      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-              text =
-                  row.otherPersonName.ifBlank { stringResource(R.string.chat_list_unknown_person) },
-              style = MaterialTheme.typography.titleMedium,
-              fontWeight = FontWeight.SemiBold,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-              modifier = Modifier.weight(1f).testTag(C.Tag.chat_list_row_name),
-          )
-          Text(
-              text = formatMessageTime(row.lastMessageAt, now),
-              style = MaterialTheme.typography.labelMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.padding(start = 8.dp).testTag(C.Tag.chat_list_row_time),
-          )
-        }
+    Avatar(initial = initialOf(row.otherPersonName))
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = row.itemTitle,
-            style = MaterialTheme.typography.bodyMedium,
+            text =
+                row.otherPersonName.ifBlank { stringResource(R.string.chat_list_unknown_person) },
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.testTag(C.Tag.chat_list_row_item),
+            modifier = Modifier.weight(1f).testTag(C.Tag.chat_list_row_name),
         )
         Text(
-            text = row.lastMessage.ifBlank { stringResource(R.string.chat_list_no_messages) },
-            style = MaterialTheme.typography.bodyMedium,
+            text = formatMessageTime(row.lastMessageAt, now),
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.testTag(C.Tag.chat_list_row_message),
+            modifier = Modifier.padding(start = 8.dp).testTag(C.Tag.chat_list_row_time),
         )
       }
+      Text(
+          text = row.itemTitle,
+          style = MaterialTheme.typography.bodyMedium,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.testTag(C.Tag.chat_list_row_item),
+      )
+      Text(
+          text = row.lastMessage.ifBlank { stringResource(R.string.chat_list_no_messages) },
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.testTag(C.Tag.chat_list_row_message),
+      )
     }
   }
 }
