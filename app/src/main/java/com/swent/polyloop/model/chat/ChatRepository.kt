@@ -23,8 +23,9 @@ interface ChatRepository {
 
   /**
    * Sends [text] as the signed-in user, and makes it the rental's last message in the chat list.
-   * Fails with an [IllegalArgumentException] if [text] is blank, an [IllegalStateException] if
-   * nobody is signed in, or the cause if it cannot be written. Nothing is written when it fails.
+   * Fails with an [IllegalArgumentException] if [text] is blank or [rentalId] is invalid, an
+   * [IllegalStateException] if nobody is signed in, or the cause if it cannot be written (e.g. the
+   * rental does not exist). Nothing is written when it fails.
    */
   suspend fun sendMessage(rentalId: String, text: String): Result<Unit>
 }
