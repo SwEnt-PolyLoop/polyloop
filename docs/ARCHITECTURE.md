@@ -133,7 +133,7 @@ Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels)
 
 ## Firestore schema
 
-Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoints. When a new field is added to an existing collection, reading must give it a default value: documents written before it do not have it.
+Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoints. Date-times (`createdAt`, `lastMessageAt`, `sentAt`) are Firestore Timestamps, set with `FieldValue.serverTimestamp()`; reads use `ServerTimestampBehavior.ESTIMATE`, because until the server confirms a write a listener otherwise sees these fields as null. When a new field is added to an existing collection, reading must give it a default value: documents written before it do not have it.
 
 | Path | Fields | Notes |
 | --- | --- | --- |
@@ -146,7 +146,8 @@ Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoi
 Rentals:
 - The listing title, both names and the public areas are copied when the rental is created, so My rentals and the chat list need no other read. A missing owner name is stored as `""`; screens show a translated placeholder.
 - `participants` is `[ownerId, borrowerId]`; the chat list queries it with `array-contains`, sorted by `lastMessageAt`, which needs a composite index.
-- `lastMessageAt` is set to `createdAt` when the rental is created: a sorted query leaves out every document that lacks the sorted field.
+- My rentals queries `borrowerId` or `ownerId` only and sorts newest first in the app (a user has few rentals), so it needs no index.
+- `lastMessageAt` is set to the same server timestamp as `createdAt` when the rental is created: a sorted query leaves out every document that lacks the sorted field.
 - `pickupAddress` and `returnAddress` stay empty until the lender accepts; the borrower cannot read the listing's exact addresses before that.
 - **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants.
 
