@@ -39,9 +39,9 @@ class RepositoryProviderStorageEmulatorTest {
     Firebase.auth.signOut()
   }
 
-  /** Signs in a new EPFL user, marking the email as verified if [verified] is true. */
-  private suspend fun signIn(verified: Boolean) {
-    val email = "test-${UUID.randomUUID()}@epfl.ch"
+  /** Signs in a new user at [domain], marking the email as verified if [verified] is true. */
+  private suspend fun signIn(verified: Boolean, domain: String = "epfl.ch") {
+    val email = "test-${UUID.randomUUID()}@$domain"
     val user = Firebase.auth.createUserWithEmailAndPassword(email, PASSWORD).await().user!!
     if (!verified) return
     user.sendEmailVerification().await()
@@ -69,12 +69,25 @@ class RepositoryProviderStorageEmulatorTest {
     runBlocking {
       signIn(verified = false)
 
-      try {
-        RepositoryProvider.storage.reference.child(path).putBytes(bytes).await()
-        fail("The upload should have been refused")
-      } catch (e: StorageException) {
-        assertEquals(StorageException.ERROR_NOT_AUTHORIZED, e.errorCode)
-      }
+      assertUploadIsRefused()
+    }
+  }
+
+  @Test
+  fun verifiedNonEpflUserCannotUpload() {
+    runBlocking {
+      signIn(verified = true, domain = "gmail.com")
+
+      assertUploadIsRefused()
+    }
+  }
+
+  private suspend fun assertUploadIsRefused() {
+    try {
+      RepositoryProvider.storage.reference.child(path).putBytes(bytes).await()
+      fail("The upload should have been refused")
+    } catch (e: StorageException) {
+      assertEquals(StorageException.ERROR_NOT_AUTHORIZED, e.errorCode)
     }
   }
 

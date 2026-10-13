@@ -23,12 +23,13 @@ object FirebaseEmulator {
   private const val AUTH_PORT = 9099
   private const val FIRESTORE_PORT = 8080
   private const val STORAGE_PORT = 9199
+  private const val TIMEOUT_MS = 2000
 
   private var connected = false
 
   /** Fails the test with a clear message if the emulators are not running. */
   fun connect() {
-    if (!isRunning(AUTH_PORT) || !isRunning(STORAGE_PORT)) {
+    if (!listOf(AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT).all { isRunning(it) }) {
       fail("The Firebase emulators are not running. Start them with: firebase emulators:start")
     }
     // useEmulator may only be called once per app process, before Firebase is used.
@@ -58,12 +59,17 @@ object FirebaseEmulator {
   }
 
   /** True if an emulator answers on [port]. Any status code counts: only the answer matters. */
-  private fun isRunning(port: Int): Boolean =
-      try {
-        val connection = URL("http://$HOST:$port").openConnection() as HttpURLConnection
-        connection.connectTimeout = 2000
-        connection.responseCode > 0
-      } catch (e: IOException) {
-        false
-      }
+  private fun isRunning(port: Int): Boolean {
+    val connection = URL("http://$HOST:$port").openConnection() as HttpURLConnection
+    // Both timeouts, so a port that accepts the connection but never answers fails fast.
+    connection.connectTimeout = TIMEOUT_MS
+    connection.readTimeout = TIMEOUT_MS
+    return try {
+      connection.responseCode > 0
+    } catch (e: IOException) {
+      false
+    } finally {
+      connection.disconnect()
+    }
+  }
 }
