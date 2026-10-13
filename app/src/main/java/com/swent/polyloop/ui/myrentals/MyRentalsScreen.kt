@@ -181,12 +181,14 @@ private fun StatusBadge(status: RentalStatus) {
       shape = CircleShape,
       color = container,
       contentColor = content,
-      modifier = Modifier.padding(start = 8.dp).testTag(C.Tag.my_rentals_row_status),
+      modifier = Modifier.padding(start = 8.dp),
   ) {
     Text(
         text = stringResource(status.labelRes),
         style = MaterialTheme.typography.labelMedium,
-        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        modifier =
+            Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                .testTag(C.Tag.my_rentals_row_status),
     )
   }
 }
