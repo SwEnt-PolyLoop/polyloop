@@ -2,8 +2,8 @@
 
 package com.swent.polyloop.resources
 
-import java.time.LocalDate
 import com.swent.polyloop.model.listing.ListingCategory
+import java.time.LocalDate
 
 // Like R, but C
 object C {
@@ -69,6 +69,7 @@ object C {
     const val date_picker_confirm_button = "date_picker_confirm_button"
 
     fun datePickerDay(date: LocalDate) = "date_picker_day_$date"
+
     const val auth_name_field = "auth_name_field"
     const val auth_email_field = "auth_email_field"
     const val auth_password_field = "auth_password_field"
