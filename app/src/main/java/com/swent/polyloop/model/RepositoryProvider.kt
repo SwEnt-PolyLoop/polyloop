@@ -4,6 +4,8 @@ package com.swent.polyloop.model
 
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
+import com.swent.polyloop.model.chat.ChatRepository
+import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 
@@ -19,6 +21,7 @@ object RepositoryProvider {
 
   private var auth: AuthRepository? = null
   private var listing: ListingRepository? = null
+  private var chat: ChatRepository? = null
 
   var authRepository: AuthRepository
     get() = auth ?: AuthRepositoryFirebase().also { auth = it }
@@ -32,9 +35,16 @@ object RepositoryProvider {
       listing = value
     }
 
+  var chatRepository: ChatRepository
+    get() = chat ?: ChatRepositoryFirestore().also { chat = it }
+    set(value) {
+      chat = value
+    }
+
   /** Forgets every repository, so the next access creates the real ones again. For tests. */
   fun reset() {
     auth = null
     listing = null
+    chat = null
   }
 }

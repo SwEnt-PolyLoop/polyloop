@@ -7,7 +7,9 @@ import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
+import com.swent.polyloop.ui.chat.FakeChatRepository
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -105,6 +107,32 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- chatRepository ----------
+
+  @Test
+  fun chatRepositoryDefaultsToFirestoreImplementation() {
+    assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
+  }
+
+  @Test
+  fun chatRepositoryReturnsSameInstanceOnEveryAccess() {
+    val first = RepositoryProvider.chatRepository
+
+    assertSame(first, RepositoryProvider.chatRepository)
+    verify(exactly = 1) { FirebaseFirestore.getInstance() }
+  }
+
+  @Test
+  fun chatRepositoryReturnsAssignedRepository() {
+    val fake = FakeChatRepository()
+
+    RepositoryProvider.chatRepository = fake
+
+    assertSame(fake, RepositoryProvider.chatRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+    verify(exactly = 0) { FirebaseAuth.getInstance() }
+  }
+
   // ---------- laziness and reset ----------
 
   @Test
@@ -126,23 +154,28 @@ class RepositoryProviderTest {
   fun resetForgetsAssignedRepositories() {
     val fakeAuth = FakeAuthRepository()
     val fakeListing = FakeListingRepository()
+    val fakeChat = FakeChatRepository()
     RepositoryProvider.authRepository = fakeAuth
     RepositoryProvider.listingRepository = fakeListing
+    RepositoryProvider.chatRepository = fakeChat
 
     RepositoryProvider.reset()
 
     assertTrue(RepositoryProvider.authRepository is AuthRepositoryFirebase)
     assertTrue(RepositoryProvider.listingRepository is ListingRepositoryFirestore)
+    assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
   }
 
   @Test
   fun resetCreatesNewInstancesOnNextAccess() {
     val firstAuth = RepositoryProvider.authRepository
     val firstListing = RepositoryProvider.listingRepository
+    val firstChat = RepositoryProvider.chatRepository
 
     RepositoryProvider.reset()
 
     assertNotSame(firstAuth, RepositoryProvider.authRepository)
     assertNotSame(firstListing, RepositoryProvider.listingRepository)
+    assertNotSame(firstChat, RepositoryProvider.chatRepository)
   }
 }
