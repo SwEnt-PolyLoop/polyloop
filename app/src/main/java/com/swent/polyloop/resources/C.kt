@@ -66,6 +66,7 @@ object C {
     const val date_picker_summary = "date_picker_summary"
     const val date_picker_summary_total = "date_picker_summary_total"
     const val date_picker_balance = "date_picker_balance"
+    const val date_picker_balance_error = "date_picker_balance_error"
     const val date_picker_confirm_button = "date_picker_confirm_button"
 
     fun datePickerDay(date: LocalDate) = "date_picker_day_$date"

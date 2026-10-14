@@ -142,6 +142,23 @@ class DateRangeSelectionTest {
   }
 
   @Test
+  fun incompleteRangeNeverExceedsBalance() {
+    assertFalse(DateRangeSelection(start = oct(15)).exceedsBalance(pricePerDay = 15, balance = 0))
+  }
+
+  @Test
+  fun totalAboveBalanceExceedsBalance() {
+    val selection = DateRangeSelection(start = oct(15), end = oct(17))
+    assertTrue(selection.exceedsBalance(pricePerDay = 15, balance = 44))
+  }
+
+  @Test
+  fun totalEqualToBalanceDoesNotExceedBalance() {
+    val selection = DateRangeSelection(start = oct(15), end = oct(17))
+    assertFalse(selection.exceedsBalance(pricePerDay = 15, balance = 45))
+  }
+
+  @Test
   fun containsStartAloneOrWholeRange() {
     assertFalse(DateRangeSelection().contains(oct(3)))
     assertTrue(DateRangeSelection(start = oct(3)).contains(oct(3)))

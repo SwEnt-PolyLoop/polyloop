@@ -26,7 +26,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -38,6 +41,11 @@ class PolyLoopDateRangePickerTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
+  private val locale = context.resources.configuration.locales[0]
+
+  /** The month title as the picker writes it in the device's language. */
+  private fun monthTitle(year: Int, month: Int) =
+      YearMonth.of(year, month).format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))
 
   private fun oct(day: Int) = LocalDate.of(2026, 10, day)
 
@@ -76,9 +84,10 @@ class PolyLoopDateRangePickerTest {
   fun requestModeShowsMonthAvailableLegendAndSendRequest() {
     setBody()
 
-    node(C.Tag.date_picker_month_title).assertTextEquals("October 2026")
+    val (from, to) = formatRangeEnds(oct(6), oct(20), locale)
+    node(C.Tag.date_picker_month_title).assertTextEquals(monthTitle(2026, 10))
     node(C.Tag.date_picker_available)
-        .assertTextEquals(context.getString(R.string.date_picker_available, "6", "20 Oct"))
+        .assertTextEquals(context.getString(R.string.date_picker_available, from, to))
     node(C.Tag.date_picker_legend).assertIsDisplayed()
     node(C.Tag.date_picker_confirm_button)
         .assert(hasText(context.getString(R.string.date_picker_send_request)))
@@ -159,6 +168,24 @@ class PolyLoopDateRangePickerTest {
   }
 
   @Test
+  fun sendRequestDisabledWhenTotalExceedsBalance() {
+    setBody(mode = DateRangePickerMode.Request(pricePerDay = 15, balance = 20))
+    tap(oct(15), oct(17))
+
+    node(C.Tag.date_picker_confirm_button).assertIsNotEnabled()
+    node(C.Tag.date_picker_balance_error).assertIsDisplayed()
+  }
+
+  @Test
+  fun sendRequestEnabledWhenTotalEqualsBalance() {
+    setBody(mode = DateRangePickerMode.Request(pricePerDay = 15, balance = 45))
+    tap(oct(15), oct(17))
+
+    node(C.Tag.date_picker_confirm_button).assertIsEnabled()
+    node(C.Tag.date_picker_balance_error).assertDoesNotExist()
+  }
+
+  @Test
   fun monthNavigationMovesBetweenMonthsAndStopsAtWindowEnds() {
     val today = LocalDate.of(2026, 10, 13)
     setBody(
@@ -167,14 +194,14 @@ class PolyLoopDateRangePickerTest {
         today = today,
     )
 
-    node(C.Tag.date_picker_month_title).assertTextEquals("October 2026")
+    node(C.Tag.date_picker_month_title).assertTextEquals(monthTitle(2026, 10))
     node(C.Tag.date_picker_prev_month).assertIsNotEnabled()
     node(C.Tag.date_picker_next_month).performClick()
-    node(C.Tag.date_picker_month_title).assertTextEquals("November 2026")
+    node(C.Tag.date_picker_month_title).assertTextEquals(monthTitle(2026, 11))
     node(C.Tag.date_picker_prev_month).assertIsEnabled()
 
     repeat(11) { node(C.Tag.date_picker_next_month).performClick() }
-    node(C.Tag.date_picker_month_title).assertTextEquals("October 2027")
+    node(C.Tag.date_picker_month_title).assertTextEquals(monthTitle(2027, 10))
     node(C.Tag.date_picker_next_month).assertIsNotEnabled()
   }
 

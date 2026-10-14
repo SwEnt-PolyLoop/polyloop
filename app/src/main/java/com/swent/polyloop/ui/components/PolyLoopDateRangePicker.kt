@@ -73,7 +73,12 @@ sealed interface DateRangePickerMode {
   /** Create listing: the lender picks the availability window. */
   data object Availability : DateRangePickerMode
 
-  /** Listing detail: the borrower picks rental dates and sees the price. */
+  /**
+   * Listing detail: the borrower picks rental dates and sees the price.
+   *
+   * The [balance] check here only guides the user; it is not a security check. The real check is
+   * done server-side when the request is sent (docs/ARCHITECTURE.md, "Money").
+   */
   data class Request(val pricePerDay: Int, val balance: Int) : DateRangePickerMode
 }
 
@@ -189,6 +194,14 @@ internal fun DateRangePickerContent(
         )
       }
       if (selection.isComplete) Summary(selection = selection, mode = mode)
+      if (selection.exceedsBalance(mode.pricePerDay, mode.balance)) {
+        Text(
+            text = stringResource(R.string.date_picker_not_enough_balance),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.testTag(C.Tag.date_picker_balance_error),
+        )
+      }
     }
     ConfirmButton(mode = mode, selection = selection, onConfirm = onConfirm)
   }
@@ -418,7 +431,7 @@ private fun Summary(selection: DateRangeSelection, mode: DateRangePickerMode.Req
           boldValue = false,
       )
       Text(
-          text = stringResource(R.string.date_picker_reserved_note, total),
+          text = pluralStringResource(R.plurals.date_picker_reserved_note, total, total),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -439,7 +452,10 @@ private fun SummaryRow(label: String, value: String, valueTag: String, boldValue
   }
 }
 
-/** "Send request" or "Confirm dates", enabled once a full range is picked. */
+/**
+ * "Send request" or "Confirm dates", enabled once a full range is picked, and in request mode only
+ * if the balance covers its total.
+ */
 @Composable
 private fun ConfirmButton(
     mode: DateRangePickerMode,
@@ -452,7 +468,10 @@ private fun ConfirmButton(
         val end = selection.end
         if (start != null && end != null) onConfirm(start, end)
       },
-      enabled = selection.isComplete,
+      enabled =
+          selection.isComplete &&
+              !(mode is DateRangePickerMode.Request &&
+                  selection.exceedsBalance(mode.pricePerDay, mode.balance)),
       shape = MaterialTheme.shapes.medium,
       modifier = Modifier.fillMaxWidth().height(48.dp).testTag(C.Tag.date_picker_confirm_button),
   ) {
