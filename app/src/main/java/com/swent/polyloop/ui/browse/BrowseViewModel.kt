@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.browse
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
@@ -32,8 +33,14 @@ data class BrowseUiState(
   val visibleListings: List<Listing> by lazy { listings.search(filter) }
 }
 
-/** Loads the published listings shown on the Browse screen and keeps the user's filter. */
-class BrowseViewModel(private val listingRepository: ListingRepository) : ViewModel() {
+/**
+ * Loads the published listings shown on the Browse screen and keeps the user's filter. The
+ * signed-in user's own listings are left out.
+ */
+class BrowseViewModel(
+    private val listingRepository: ListingRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
 
   private val _uiState = MutableStateFlow(BrowseUiState())
   val uiState: StateFlow<BrowseUiState> = _uiState.asStateFlow()
@@ -69,8 +76,11 @@ class BrowseViewModel(private val listingRepository: ListingRepository) : ViewMo
       listingRepository
           .getAllListings()
           .onSuccess { listings ->
-            val published = listings.filter { it.status == ListingStatus.PUBLISHED }
-            _uiState.update { it.copy(isLoading = false, listings = published) }
+            val uid = authRepository.getCurrentUser()?.uid
+            val visible = listings.filter {
+              it.status == ListingStatus.PUBLISHED && it.ownerId != uid
+            }
+            _uiState.update { it.copy(isLoading = false, listings = visible) }
           }
           .onFailure { e ->
             _uiState.update { it.copy(isLoading = false, errorMsg = e.message ?: "") }
@@ -79,13 +89,16 @@ class BrowseViewModel(private val listingRepository: ListingRepository) : ViewMo
   }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */
-  class Factory(private val listingRepository: ListingRepository) : ViewModelProvider.Factory {
+  class Factory(
+      private val listingRepository: ListingRepository,
+      private val authRepository: AuthRepository,
+  ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass.isAssignableFrom(BrowseViewModel::class.java)) {
         "Unknown ViewModel class: ${modelClass.name}"
       }
       @Suppress("UNCHECKED_CAST")
-      return BrowseViewModel(listingRepository) as T
+      return BrowseViewModel(listingRepository, authRepository) as T
     }
   }
 }

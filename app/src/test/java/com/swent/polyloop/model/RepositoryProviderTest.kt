@@ -1,6 +1,8 @@
 // Made with Claude
 package com.swent.polyloop.model
 
+import android.content.Context
+import android.net.ConnectivityManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -10,6 +12,8 @@ import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.chat.FakeChatRepository
+import com.swent.polyloop.model.connectivity.ConnectivityRepositoryAndroid
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
@@ -20,8 +24,10 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -44,6 +50,12 @@ class RepositoryProviderTest {
     override fun signOut() = Unit
   }
 
+  // The app context that init keeps; the real connectivity repository reads its
+  // ConnectivityManager.
+  private val appContext =
+      mockk<Context> {
+        every { getSystemService(ConnectivityManager::class.java) } returns mockk(relaxed = true)
+      }
   private val storage: FirebaseStorage = mockk()
 
   @Before
@@ -55,12 +67,15 @@ class RepositoryProviderTest {
     every { FirebaseAuth.getInstance() } returns mockk(relaxed = true)
     every { FirebaseFirestore.getInstance() } returns mockk(relaxed = true)
     every { FirebaseStorage.getInstance() } returns storage
+    // init is given an activity-like context and must keep its application context.
+    RepositoryProvider.init(mockk { every { applicationContext } returns appContext })
     RepositoryProvider.reset()
   }
 
   @After
   fun tearDown() {
     RepositoryProvider.reset()
+    RepositoryProvider.clearContext()
     unmockkAll()
   }
 
@@ -182,6 +197,42 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- connectivityRepository ----------
+
+  @Test
+  fun connectivityRepositoryDefaultsToAndroidImplementation() {
+    assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
+  }
+
+  @Test
+  fun connectivityRepositoryReturnsSameInstanceOnEveryAccess() {
+    val first = RepositoryProvider.connectivityRepository
+
+    assertSame(first, RepositoryProvider.connectivityRepository)
+    verify(exactly = 1) { appContext.getSystemService(ConnectivityManager::class.java) }
+  }
+
+  @Test
+  fun connectivityRepositoryReturnsAssignedRepository() {
+    val fake = FakeConnectivityRepository()
+
+    RepositoryProvider.connectivityRepository = fake
+
+    assertSame(fake, RepositoryProvider.connectivityRepository)
+    verify(exactly = 0) { appContext.getSystemService(ConnectivityManager::class.java) }
+  }
+
+  @Test
+  fun connectivityRepositoryFailsClearlyWhenInitWasNotCalled() {
+    RepositoryProvider.clearContext()
+
+    val error =
+        assertThrows(IllegalStateException::class.java) {
+          RepositoryProvider.connectivityRepository
+        }
+    assertEquals("RepositoryProvider.init was not called", error.message)
+  }
+
   // ---------- laziness and reset ----------
 
   @Test
@@ -209,6 +260,7 @@ class RepositoryProviderTest {
     RepositoryProvider.listingRepository = fakeListing
     RepositoryProvider.chatRepository = fakeChat
     RepositoryProvider.profileRepository = FakeProfileRepository()
+    RepositoryProvider.connectivityRepository = FakeConnectivityRepository()
 
     RepositoryProvider.reset()
 
@@ -216,6 +268,7 @@ class RepositoryProviderTest {
     assertTrue(RepositoryProvider.listingRepository is ListingRepositoryFirestore)
     assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
     assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
+    assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
   }
 
   @Test
@@ -224,6 +277,7 @@ class RepositoryProviderTest {
     val firstListing = RepositoryProvider.listingRepository
     val firstChat = RepositoryProvider.chatRepository
     val firstProfile = RepositoryProvider.profileRepository
+    val firstConnectivity = RepositoryProvider.connectivityRepository
 
     RepositoryProvider.reset()
 
@@ -231,5 +285,6 @@ class RepositoryProviderTest {
     assertNotSame(firstListing, RepositoryProvider.listingRepository)
     assertNotSame(firstChat, RepositoryProvider.chatRepository)
     assertNotSame(firstProfile, RepositoryProvider.profileRepository)
+    assertNotSame(firstConnectivity, RepositoryProvider.connectivityRepository)
   }
 }
