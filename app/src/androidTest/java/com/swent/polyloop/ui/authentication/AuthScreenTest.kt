@@ -23,6 +23,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -41,6 +42,7 @@ class AuthScreenTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
   private lateinit var repository: FakeAuthRepository
+  private lateinit var profileRepository: FakeProfileRepository
   private lateinit var viewModel: AuthViewModel
   private var signedInNavigations = 0
   private var verificationNavigations = 0
@@ -51,8 +53,9 @@ class AuthScreenTest {
   @Before
   fun setUp() {
     repository = FakeAuthRepository()
+    profileRepository = FakeProfileRepository()
     viewModel =
-        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository))[
+        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository, profileRepository))[
             AuthViewModel::class.java]
     signedInNavigations = 0
     verificationNavigations = 0

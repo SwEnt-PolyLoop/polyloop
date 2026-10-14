@@ -5,11 +5,14 @@ package com.swent.polyloop.ui.authentication
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.auth.AuthResult
+import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.EpflEmail
+import com.swent.polyloop.model.profile.ProfileRepository
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -39,6 +42,9 @@ enum class AuthMode {
  * @property resendCooldownEmail the normalized address the last verification email went to. The
  *   countdown only applies to it: going back to fix a mistyped address must not block the right
  *   one.
+ * @property isAskingName true on the "What's your name?" step, reached after a verified log-in
+ *   whose account has no name (it could not be saved at sign-up); the profile is created once the
+ *   user types it.
  * @property isSignedIn true once a verified user is signed in; the app then leaves this screen.
  */
 data class AuthUiState(
@@ -53,6 +59,7 @@ data class AuthUiState(
     val isVerificationEmailResent: Boolean = false,
     val resendCooldownSeconds: Int = 0,
     val resendCooldownEmail: String = "",
+    val isAskingName: Boolean = false,
     val isSignedIn: Boolean = false,
 ) {
   /** Only checked when signing up, where the name is required. */
@@ -79,13 +86,22 @@ data class AuthUiState(
     get() = !isLoading && resendSecondsLeft == 0
 }
 
-/** Logs in and signs up EPFL users, including the email verification step. */
-class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
+/**
+ * Logs in and signs up EPFL users, including the email verification step, and creates the profile
+ * of a verified user the first time they log in.
+ */
+class AuthViewModel(
+    private val authRepository: AuthRepository,
+    private val profileRepository: ProfileRepository,
+) : ViewModel() {
 
   private val _uiState = MutableStateFlow(AuthUiState())
   val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
   private var resendCooldownJob: Job? = null
+
+  /** The signed-in user who still has to type their name before their profile is created. */
+  private var userWithoutName: AuthUser? = null
 
   fun onNameChange(name: String) = _uiState.update { it.copy(name = name, error = null) }
 
@@ -155,12 +171,20 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     return true
   }
 
+  /** "Continue" on the "What's your name?" step. Only marks the attempt if the name is blank. */
+  fun submitName() {
+    _uiState.update { it.copy(hasAttemptedSubmit = true) }
+    val state = _uiState.value
+    val user = userWithoutName
+    if (state.isLoading || state.isNameBlank || user == null) return
+    launchAction { createProfile(user, state.name.trim()) }
+  }
+
   private fun signIn() {
     val state = _uiState.value
     launchAction {
       when (val result = authRepository.signIn(state.email, state.password)) {
-        is AuthResult.Success ->
-            _uiState.update { it.copy(isSignedIn = true, isAwaitingVerification = false) }
+        is AuthResult.Success -> onVerifiedSignIn(result.data)
         is AuthResult.Failure ->
             _uiState.update {
               it.copy(
@@ -196,6 +220,49 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
       }
     }
+  }
+
+  /** Creates the profile, or first asks for the name when the account has none. */
+  private suspend fun onVerifiedSignIn(user: AuthUser) {
+    if (user.name.isBlank()) {
+      userWithoutName = user
+      _uiState.update {
+        it.copy(isAskingName = true, isAwaitingVerification = false, hasAttemptedSubmit = false)
+      }
+    } else {
+      createProfile(user, user.name)
+    }
+  }
+
+  /**
+   * Creates the profile if it is missing, then lets the user in. If it cannot be created, signs the
+   * user out, so the next launch comes back here instead of opening the app without a profile.
+   */
+  private suspend fun createProfile(user: AuthUser, name: String) {
+    val created = profileRepository.createProfileIfMissing(user.uid, user.email, name).isSuccess
+    userWithoutName = null
+    if (created) {
+      _uiState.update {
+        it.copy(isSignedIn = true, isAwaitingVerification = false, isAskingName = false)
+      }
+    } else {
+      authRepository.signOut()
+      _uiState.update {
+        it.copy(
+            error = AuthError.PROFILE_NOT_CREATED,
+            // The account exists and is verified: the way back in is to log in again.
+            mode = AuthMode.LOG_IN,
+            isAwaitingVerification = false,
+            isAskingName = false,
+            hasAttemptedSubmit = false,
+        )
+      }
+    }
+  }
+
+  /** Leaving on the "What's your name?" step signs out, so no account stays without a profile. */
+  override fun onCleared() {
+    if (userWithoutName != null) authRepository.signOut()
   }
 
   /**
@@ -242,14 +309,16 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
   }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */
-  class Factory(private val authRepository: AuthRepository = AuthRepositoryFirebase()) :
-      ViewModelProvider.Factory {
+  class Factory(
+      private val authRepository: AuthRepository = AuthRepositoryFirebase(),
+      private val profileRepository: ProfileRepository = RepositoryProvider.profileRepository,
+  ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass.isAssignableFrom(AuthViewModel::class.java)) {
         "Unknown ViewModel class: ${modelClass.name}"
       }
       @Suppress("UNCHECKED_CAST")
-      return AuthViewModel(authRepository) as T
+      return AuthViewModel(authRepository, profileRepository) as T
     }
   }
 

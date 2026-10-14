@@ -54,6 +54,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
@@ -528,7 +529,9 @@ internal fun AuthError.messageRes(): Int =
 @Composable
 private fun AuthScreenLogInPreview() {
   val viewModel = remember {
-    AuthViewModel(FakeAuthRepository()).also { it.switchMode(AuthMode.LOG_IN) }
+    AuthViewModel(FakeAuthRepository(), FakeProfileRepository()).also {
+      it.switchMode(AuthMode.LOG_IN)
+    }
   }
 
   PolyLoopTheme {
@@ -545,7 +548,9 @@ private fun AuthScreenLogInPreview() {
 @Composable
 private fun AuthScreenSignUpPreview() {
   val viewModel = remember {
-    AuthViewModel(FakeAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) }
+    AuthViewModel(FakeAuthRepository(), FakeProfileRepository()).also {
+      it.switchMode(AuthMode.SIGN_UP)
+    }
   }
 
   PolyLoopTheme {

@@ -28,6 +28,7 @@ import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -70,7 +71,7 @@ class CheckInboxScreenTest {
    */
   private fun showScreen(typedEmail: String = email) {
     viewModel =
-        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository))[
+        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository, FakeProfileRepository()))[
                 AuthViewModel::class.java]
             .apply {
               onEmailChange(typedEmail)

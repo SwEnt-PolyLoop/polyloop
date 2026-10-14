@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.profile.FakeProfileRepository
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,7 @@ import org.junit.Test
 class AuthViewModelTest {
 
   private lateinit var repository: FakeAuthRepository
+  private lateinit var profileRepository: FakeProfileRepository
   private lateinit var viewModel: AuthViewModel
   private lateinit var scheduler: TestCoroutineScheduler
 
@@ -39,7 +41,8 @@ class AuthViewModelTest {
     scheduler = dispatcher.scheduler
     Dispatchers.setMain(dispatcher)
     repository = FakeAuthRepository()
-    viewModel = AuthViewModel(repository)
+    profileRepository = FakeProfileRepository()
+    viewModel = AuthViewModel(repository, profileRepository)
   }
 
   @After
@@ -632,7 +635,8 @@ class AuthViewModelTest {
 
   @Test
   fun factoryCreatesTheViewModel() {
-    val created = AuthViewModel.Factory(repository).create(AuthViewModel::class.java)
+    val created =
+        AuthViewModel.Factory(repository, profileRepository).create(AuthViewModel::class.java)
 
     assertTrue(created is AuthViewModel)
   }
@@ -642,7 +646,7 @@ class AuthViewModelTest {
     class Other : ViewModel()
 
     assertThrows(IllegalArgumentException::class.java) {
-      AuthViewModel.Factory(repository).create(Other::class.java)
+      AuthViewModel.Factory(repository, profileRepository).create(Other::class.java)
     }
   }
 }
