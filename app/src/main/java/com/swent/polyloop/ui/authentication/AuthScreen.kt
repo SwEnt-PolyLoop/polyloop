@@ -29,7 +29,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -61,35 +60,18 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
 /**
  * Displays the login and sign-up forms and forwards user actions to [AuthViewModel].
  *
- * Successful authentication invokes [onSignIn]. When the account needs email verification,
- * [onNavigateToVerification] is invoked so the host can open the verification step. That step
- * should share this ViewModel instance to retain the credentials needed for verification.
+ * The host navigates once the ViewModel reports a verified signed-in user. When the account needs
+ * email verification, the host shows the "Check your inbox" step instead, sharing this ViewModel
+ * instance to retain the credentials needed for verification.
  *
- * @param onSignIn called after the ViewModel reports a verified signed-in user.
- * @param onNavigateToVerification called when the ViewModel reports that email verification is
- *   required.
  * @param viewModel screen state holder. By default, it is obtained from the current
  *   [androidx.lifecycle.ViewModelStoreOwner].
  */
 @Composable
 fun AuthScreen(
-    onSignIn: () -> Unit,
-    onNavigateToVerification: () -> Unit,
     viewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory()),
 ) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
-
-  LaunchedEffect(state.isSignedIn) {
-    if (state.isSignedIn) {
-      onSignIn()
-    }
-  }
-
-  LaunchedEffect(state.isAwaitingVerification) {
-    if (state.isAwaitingVerification) {
-      onNavigateToVerification()
-    }
-  }
 
   if (state.isAskingName) {
     NameStep(
@@ -608,13 +590,7 @@ private fun AuthScreenLogInPreview() {
     }
   }
 
-  PolyLoopTheme {
-    AuthScreen(
-        onSignIn = {},
-        onNavigateToVerification = {},
-        viewModel = viewModel,
-    )
-  }
+  PolyLoopTheme { AuthScreen(viewModel = viewModel) }
 }
 
 /** Preview of the sign-up form backed by an in-memory authentication repository. */
@@ -627,11 +603,5 @@ private fun AuthScreenSignUpPreview() {
     }
   }
 
-  PolyLoopTheme {
-    AuthScreen(
-        onSignIn = {},
-        onNavigateToVerification = {},
-        viewModel = viewModel,
-    )
-  }
+  PolyLoopTheme { AuthScreen(viewModel = viewModel) }
 }

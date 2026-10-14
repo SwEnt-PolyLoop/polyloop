@@ -5,9 +5,11 @@ package com.swent.polyloop
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NamedNavArgument
 import androidx.navigation.NavBackStackEntry
@@ -19,10 +21,15 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.swent.polyloop.model.RepositoryProvider
+import com.swent.polyloop.ui.authentication.AuthScreen
+import com.swent.polyloop.ui.authentication.AuthViewModel
+import com.swent.polyloop.ui.authentication.CheckInboxScreen
 import com.swent.polyloop.ui.browse.BrowseScreen
 import com.swent.polyloop.ui.browse.BrowseViewModel
 import com.swent.polyloop.ui.chatlist.ChatListScreen
 import com.swent.polyloop.ui.chatlist.ChatListViewModel
+import com.swent.polyloop.ui.createlisting.CreateListingScreen
+import com.swent.polyloop.ui.createlisting.CreateListingViewModel
 import com.swent.polyloop.ui.dummy.DummyScreen
 import com.swent.polyloop.ui.listingdetail.ListingDetailScreen
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
@@ -72,7 +79,21 @@ fun PolyLoopApp(
         modifier = Modifier.padding(innerPadding),
     ) {
       composable(Screen.Auth.route) {
-        DummyScreen(Screen.Auth.route, onContinue = navigationActions::navigateAfterSignIn)
+        val authViewModel: AuthViewModel =
+            viewModel(factory = AuthViewModel.Factory(RepositoryProvider.authRepository))
+        val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+        // The route navigates, once: this entry stays composed while it fades out to Browse.
+        LaunchedEffect(authState.isSignedIn) {
+          if (authState.isSignedIn) navigationActions.navigateAfterSignIn()
+        }
+        // "Check your inbox" is a step of this screen, not a route: both share the ViewModel, which
+        // holds the email and password needed to resend the email and to log in again.
+        when {
+          // Nothing while leaving for Browse, so the form does not flash during the fade.
+          authState.isSignedIn -> Unit
+          authState.isAwaitingVerification -> CheckInboxScreen(viewModel = authViewModel)
+          else -> AuthScreen(viewModel = authViewModel)
+        }
       }
 
       composable(Screen.Browse.route) {
@@ -92,7 +113,10 @@ fun PolyLoopApp(
             onOpenMyRentals = { navigationActions.navigateTo(Screen.MyRentals) },
         )
       }
-      composable(Screen.CreateListing.route) { DummyScreen(Screen.CreateListing.route) }
+      composable(Screen.CreateListing.route) {
+        val createListingViewModel: CreateListingViewModel = viewModel()
+        CreateListingScreen(viewModel = createListingViewModel)
+      }
       composable(Screen.MyRentals.route) {
         val myRentalsViewModel: MyRentalsViewModel =
             viewModel(

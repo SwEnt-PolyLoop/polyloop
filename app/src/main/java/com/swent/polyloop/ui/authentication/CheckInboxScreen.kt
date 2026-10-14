@@ -26,7 +26,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,7 +40,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
-import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.EpflEmail
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
@@ -50,30 +48,17 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
  * The "Check your inbox" step of Sign-up / login, shown while [AuthUiState.isAwaitingVerification].
  *
  * It must share the [AuthViewModel] of [AuthScreen], which holds the email and password needed to
- * resend the email and to log in again.
- *
- * @param onSignIn called once "I've verified" signed the user in.
- * @param onBackToForm called after the user chose to go back to the form (back arrow or system
- *   Back), e.g. to fix a mistyped email. Back does nothing while a request runs. Also called when
- *   "I've verified" leads to the "What's your name?" step or fails to create the profile: both are
- *   shown on the form.
+ * resend the email and to log in again. The host navigates once "I've verified" signed the user in,
+ * and shows the form again once the user goes back to it (back arrow or system Back), e.g. to fix a
+ * mistyped email. The form also shows when "I've verified" leads to the "What's your name?" step or
+ * fails to create the profile, as the ViewModel then leaves this step.
  */
 @Composable
-fun CheckInboxScreen(
-    viewModel: AuthViewModel,
-    onSignIn: () -> Unit,
-    onBackToForm: () -> Unit,
-) {
+fun CheckInboxScreen(viewModel: AuthViewModel) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-  LaunchedEffect(state.isSignedIn) { if (state.isSignedIn) onSignIn() }
-
-  LaunchedEffect(state.isAskingName, state.error) {
-    if (state.isAskingName || state.error == AuthError.PROFILE_NOT_CREATED) onBackToForm()
-  }
-
   // The ViewModel decides: it ignores Back while a request runs, even one started this frame.
-  val backToForm = { if (viewModel.backToForm()) onBackToForm() }
+  val backToForm: () -> Unit = { viewModel.backToForm() }
   // Always enabled: a disabled handler would let system Back leave the screen during a request.
   BackHandler(onBack = backToForm)
 

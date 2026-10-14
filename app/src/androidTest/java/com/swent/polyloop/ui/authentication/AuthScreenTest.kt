@@ -31,6 +31,8 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -46,8 +48,6 @@ class AuthScreenTest {
   private lateinit var repository: FakeAuthRepository
   private lateinit var profileRepository: FakeProfileRepository
   private lateinit var viewModel: AuthViewModel
-  private var signedInNavigations = 0
-  private var verificationNavigations = 0
 
   // Owns the ViewModel so tearDown can clear it and stop the resend countdown.
   private val viewModelStore = ViewModelStore()
@@ -59,17 +59,7 @@ class AuthScreenTest {
     viewModel =
         ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository, profileRepository))[
             AuthViewModel::class.java]
-    signedInNavigations = 0
-    verificationNavigations = 0
-    composeTestRule.setContent {
-      PolyLoopTheme {
-        AuthScreen(
-            onSignIn = { signedInNavigations++ },
-            onNavigateToVerification = { verificationNavigations++ },
-            viewModel = viewModel,
-        )
-      }
-    }
+    composeTestRule.setContent { PolyLoopTheme { AuthScreen(viewModel = viewModel) } }
     composeTestRule.waitForIdle()
   }
 
@@ -164,28 +154,20 @@ class AuthScreenTest {
   }
 
   @Test
-  fun successfulLoginNavigatesOnce() {
+  fun successfulLoginSignsIn() {
     fillLogin()
     tap(C.Tag.auth_login_button)
-    composeTestRule.runOnIdle {
-      assertEquals(1, signedInNavigations)
-      assertEquals(0, verificationNavigations)
-    }
-    // A harmless state update triggers recomposition, but not a second navigation.
-    type(C.Tag.auth_password_field, "x")
-    composeTestRule.runOnIdle { assertEquals(1, signedInNavigations) }
+    composeTestRule.runOnIdle { assertTrue(viewModel.uiState.value.isSignedIn) }
   }
 
   @Test
-  fun successfulSignUpNavigatesToVerificationOnce() {
+  fun successfulSignUpAwaitsVerificationWithoutSigningIn() {
     fillSignUp()
     tap(C.Tag.auth_signup_button)
     composeTestRule.runOnIdle {
-      assertEquals(0, signedInNavigations)
-      assertEquals(1, verificationNavigations)
+      assertFalse(viewModel.uiState.value.isSignedIn)
+      assertTrue(viewModel.uiState.value.isAwaitingVerification)
     }
-    type(C.Tag.auth_name_field, "x")
-    composeTestRule.runOnIdle { assertEquals(1, verificationNavigations) }
   }
 
   @Test
@@ -195,8 +177,8 @@ class AuthScreenTest {
     tap(C.Tag.auth_login_button)
     assertErrorText(C.Tag.auth_error, R.string.auth_error_wrong_credentials)
     composeTestRule.runOnIdle {
-      assertEquals(0, signedInNavigations)
-      assertEquals(0, verificationNavigations)
+      assertFalse(viewModel.uiState.value.isSignedIn)
+      assertFalse(viewModel.uiState.value.isAwaitingVerification)
     }
   }
 
@@ -208,11 +190,11 @@ class AuthScreenTest {
       fillLogin()
       tap(C.Tag.auth_login_button)
       composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertIsNotEnabled()
-      composeTestRule.runOnIdle { assertEquals(0, signedInNavigations) }
+      composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
       gate.complete(Unit)
       composeTestRule.waitForIdle()
       composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertIsEnabled()
-      composeTestRule.runOnIdle { assertEquals(1, signedInNavigations) }
+      composeTestRule.runOnIdle { assertTrue(viewModel.uiState.value.isSignedIn) }
     } finally {
       gate.complete(Unit)
     }
@@ -227,7 +209,7 @@ class AuthScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.auth_name_continue_button).assertIsEnabled()
     composeTestRule.onNodeWithTag(C.Tag.auth_login_tab).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.auth_email_field).assertDoesNotExist()
-    composeTestRule.runOnIdle { assertEquals(0, signedInNavigations) }
+    composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
   }
 
   @Test
@@ -237,11 +219,11 @@ class AuthScreenTest {
     tap(C.Tag.auth_name_continue_button)
 
     assertErrorText(C.Tag.auth_name_error, R.string.auth_name_required)
-    composeTestRule.runOnIdle { assertEquals(0, signedInNavigations) }
+    composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
   }
 
   @Test
-  fun continueWithNameCreatesTheProfileAndNavigatesOnce() {
+  fun continueWithNameCreatesTheProfileAndSignsIn() {
     loginWithoutName()
 
     type(C.Tag.auth_name_field, VALID_NAME)
@@ -252,7 +234,7 @@ class AuthScreenTest {
           listOf(UserProfile("uid1", VALID_NAME, VALID_EMAIL)),
           profileRepository.profiles,
       )
-      assertEquals(1, signedInNavigations)
+      assertTrue(viewModel.uiState.value.isSignedIn)
     }
   }
 
@@ -265,7 +247,7 @@ class AuthScreenTest {
 
     assertErrorText(C.Tag.auth_error, R.string.auth_error_profile_not_created)
     composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertExists()
-    composeTestRule.runOnIdle { assertEquals(0, signedInNavigations) }
+    composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
   }
 
   private fun loginWithoutName() {
