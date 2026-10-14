@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.browse
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
@@ -9,6 +10,7 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
@@ -92,6 +94,12 @@ class BrowseViewModelTest {
               Result.success(listOf(published, listing("draft", ListingStatus.DRAFT)))
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
         }
 
     assertEquals(

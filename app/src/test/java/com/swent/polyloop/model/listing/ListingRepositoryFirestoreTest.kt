@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.listing
 
+import android.net.Uri
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
@@ -18,6 +19,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -27,7 +29,7 @@ class ListingRepositoryFirestoreTest {
   private val collection = mockk<CollectionReference>()
   private val publishedQuery = mockk<Query>()
   private val documentRef = mockk<DocumentReference>()
-  private val repository = ListingRepositoryFirestore(db)
+  private val repository = ListingRepositoryFirestore(db, storageProvider = { mockk() })
 
   private val photoUrls = List(3) { "https://example.com/photo$it.jpg" }
 
@@ -194,6 +196,28 @@ class ListingRepositoryFirestoreTest {
         expectedListing("draft1").copy(status = ListingStatus.DRAFT),
         result.getOrThrow(),
     )
+  }
+
+  @Test
+  fun createListingRejectsInvalidListingWithoutCallingFirebase() = runTest {
+    var storageCalls = 0
+    val repository =
+        ListingRepositoryFirestore(
+            db,
+            storageProvider = {
+              storageCalls++
+              mockk()
+            },
+        )
+    val addresses = ListingAddresses(pickup = "Ecublens", dropOff = "Ecublens")
+
+    // Two photos, one fewer than Listing.MIN_PHOTOS.
+    val result = repository.createListing(expectedListing(""), addresses, List(2) { mockk<Uri>() })
+
+    assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+    assertEquals(0, storageCalls)
+    verify(exactly = 0) { db.collection(any()) }
+    verify(exactly = 0) { db.batch() }
   }
 
   // ---------- getListingsByOwner ----------

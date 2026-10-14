@@ -49,6 +49,20 @@ class ListingDocumentTest {
   @Test fun validDocumentIsMapped() = assertEquals(expected, fromDocument(validData))
 
   @Test
+  fun listingToDocumentIsReadBackUnchanged() =
+      assertEquals(expected, fromDocument(listingToDocument(expected)))
+
+  @Test
+  fun addressesToDocumentKeepsBothAddresses() =
+      assertEquals(
+          mapOf(
+              ListingAddressFields.PICKUP to "Pickup 1",
+              ListingAddressFields.DROP_OFF to "Drop 2",
+          ),
+          addressesToDocument(ListingAddresses(pickup = "Pickup 1", dropOff = "Drop 2")),
+      )
+
+  @Test
   fun documentMissingARequiredFieldIsRejected() {
     val required =
         listOf(

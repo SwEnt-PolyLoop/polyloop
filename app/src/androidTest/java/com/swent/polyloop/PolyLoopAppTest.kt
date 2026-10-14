@@ -2,6 +2,7 @@
 
 package com.swent.polyloop
 
+import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -22,9 +23,12 @@ import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
@@ -75,6 +79,12 @@ class PolyLoopAppTest {
 
         override suspend fun getListing(id: String): Result<Listing?> =
             Result.success(listing.takeIf { it.id == id })
+
+        override suspend fun createListing(
+            listing: Listing,
+            addresses: ListingAddresses,
+            photos: List<Uri>,
+        ): Result<String> = error("Not used in this test")
       }
 
   /** Online by default, so the tests never depend on the emulator's network. */
@@ -101,6 +111,16 @@ class PolyLoopAppTest {
         }
       }
 
+  /** In-memory profiles, so the Profile screens never reach Firestore. */
+  private val profileRepository =
+      FakeProfileRepository(
+          listOf(
+              UserProfile(uid = "me", name = "Me", email = "me@epfl.ch"),
+              UserProfile(uid = "user-1", name = "User", email = "user@epfl.ch"),
+              UserProfile(uid = "owner-1", name = "Owner", email = "owner@epfl.ch"),
+          )
+      )
+
   /** In-memory conversations, so the Chat list never reaches Firestore. */
   private val chatRepository = FakeChatRepository(currentUid = "me")
 
@@ -108,6 +128,7 @@ class PolyLoopAppTest {
   fun setUp() {
     RepositoryProvider.listingRepository = listingRepository
     RepositoryProvider.authRepository = authRepository
+    RepositoryProvider.profileRepository = profileRepository
     RepositoryProvider.chatRepository = chatRepository
     RepositoryProvider.connectivityRepository = connectivity
   }
@@ -151,10 +172,14 @@ class PolyLoopAppTest {
   private fun assertCurrentScreen(screen: Screen, shownRoute: String = screen.route) {
     composeTestRule.waitForIdle()
     assertEquals(screen.route, navController.currentDestination?.route)
-    // Browse and Chat list are wired to their real screens; the others still show DummyScreen with
-    // their route.
+    // Browse, Chat list and the profiles are wired to their real screens; the others still show
+    // DummyScreen with their route.
     if (screen == Screen.Browse) {
       composeTestRule.onNodeWithTag(C.Tag.browse_screen).assertIsDisplayed()
+      return
+    }
+    if (screen == Screen.Profile || screen == Screen.UserProfile) {
+      composeTestRule.onNodeWithTag(C.Tag.profile_screen).assertIsDisplayed()
       return
     }
     if (screen == Screen.ChatList) {
@@ -417,5 +442,21 @@ class PolyLoopAppTest {
         "rental-1",
         navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
     )
+  }
+
+  @Test
+  fun signOutFromProfileReturnsToSignInWithAnEmptyBackStack() {
+    currentUser = AuthUser(uid = "me", email = "me@epfl.ch", name = "Me")
+    setApp()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_profile_button).performClick()
+    waitForTag(C.Tag.profile_sign_out_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.profile_sign_out_button).performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+
+    assertEquals(Screen.Auth.route, navController.currentDestination?.route)
+    assertNull(navController.previousBackStackEntry)
+    assertNull(currentUser)
+    composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist()
   }
 }

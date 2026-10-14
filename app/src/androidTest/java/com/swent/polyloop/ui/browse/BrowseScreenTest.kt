@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.browse
 
+import android.net.Uri
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -22,6 +23,7 @@ import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
@@ -93,6 +95,12 @@ class BrowseScreenTest {
           override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
         }
     val viewModel = BrowseViewModel(repository, authRepository, FakeConnectivityRepository())
     composeTestRule.setContent {
@@ -207,6 +215,12 @@ class BrowseScreenTest {
           override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
         }
     val viewModel = BrowseViewModel(repository, authRepository, connectivity)
     composeTestRule.setContent { BrowseScreen(viewModel = viewModel) }
@@ -236,6 +250,12 @@ class BrowseScreenTest {
               if (calls++ == 0) Result.success(listings) else awaitCancellation()
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
         }
     val viewModel = BrowseViewModel(repository, authRepository, connectivity)
     composeTestRule.setContent { BrowseScreen(viewModel = viewModel) }
@@ -300,6 +320,12 @@ class BrowseScreenTest {
               else Result.success(listings)
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
         }
     val viewModel = BrowseViewModel(repository, authRepository, FakeConnectivityRepository())
     var clickedId: String? = null
