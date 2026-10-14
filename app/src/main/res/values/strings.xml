@@ -38,6 +38,22 @@
     <string name="listing_detail_retry">Retry</string>
     <string name="listing_detail_not_found">This listing is no longer available.</string>
 
+    <!-- Profile -->
+    <string name="profile_name_placeholder">No name yet</string>
+    <plurals name="profile_rating">
+        <item quantity="one">%1$.1f · %2$d review</item>
+        <item quantity="other">%1$.1f · %2$d reviews</item>
+    </plurals>
+    <string name="profile_no_reviews">No reviews yet</string>
+    <string name="profile_my_listings">My listings</string>
+    <string name="profile_no_listings">You haven\'t put anything up for rent yet.</string>
+    <string name="profile_listing_published">Published</string>
+    <string name="profile_listing_draft">Draft</string>
+    <string name="profile_sign_out">Sign out</string>
+    <string name="profile_error_fallback">Could not load the profile</string>
+    <string name="profile_retry">Retry</string>
+    <string name="profile_not_found">This profile doesn\'t exist.</string>
+
     <!-- Top-bar menu -->
     <string name="menu_browse">Browse</string>
     <string name="menu_create_listing">Create listing</string>
