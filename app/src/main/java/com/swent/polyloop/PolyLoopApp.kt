@@ -85,6 +85,7 @@ fun PolyLoopApp(
         BrowseScreen(
             viewModel = browseViewModel,
             onListingClick = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) },
+            onOpenMyRentals = { navigationActions.navigateTo(Screen.MyRentals) },
         )
       }
       composable(Screen.CreateListing.route) { DummyScreen(Screen.CreateListing.route) }

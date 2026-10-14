@@ -363,6 +363,20 @@ class PolyLoopAppTest {
   }
 
   @Test
+  fun openMyRentalsOnOfflineBrowseOpensMyRentals() {
+    setAppSignedIn()
+    connectivity.setOnline(false)
+    waitForTag(C.Tag.browse_offline)
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_offline_my_rentals_button).performClick()
+
+    assertCurrentScreen(Screen.MyRentals)
+    // A top-level destination: Back returns to Browse.
+    composeTestRule.runOnUiThread { navController.popBackStack() }
+    assertCurrentScreen(Screen.Browse)
+  }
+
+  @Test
   fun tappingBrowseCardOpensItsListingDetailAndBackReturnsToBrowse() {
     setAppSignedIn()
     waitForTag(C.Tag.listing_card_ + listing.id)
