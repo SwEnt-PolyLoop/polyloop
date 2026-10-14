@@ -18,10 +18,12 @@ import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -105,6 +107,22 @@ class FirestoreHelpersTest {
     val result = withFirebaseErrors<Int> { throw cancelled }
 
     assertSame(cancelled, result.exceptionOrNull())
+  }
+
+  @Test
+  fun withFirebaseErrorsRethrowsWhenTheCallerIsCancelled() = runTest {
+    var returned = false
+    val job = launch {
+      withFirebaseErrors<Int> { awaitCancellation() }
+      returned = true
+    }
+    runCurrent()
+
+    job.cancel()
+    runCurrent()
+
+    assertTrue(job.isCancelled)
+    assertFalse(returned)
   }
 
   @Test(expected = IllegalStateException::class)
