@@ -50,6 +50,8 @@
     <string name="my_rentals_borrowed_by">Borrowed by %1$s</string>
     <string name="my_rentals_unknown_person">an unknown user</string>
     <string name="my_rentals_return_by">Return by %1$s</string>
+    <string name="my_rentals_pickup_at">Pickup: %1$s</string>
+    <string name="my_rentals_drop_off_at">Drop-off: %1$s</string>
     <string name="rental_status_requested">Requested</string>
     <string name="rental_status_accepted">Accepted</string>
     <string name="rental_status_active">Active</string>

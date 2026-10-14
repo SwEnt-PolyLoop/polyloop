@@ -132,15 +132,6 @@ class MyRentalsViewModel(
   }
 
   private companion object {
-    /** Statuses in which the item has not been picked up yet: the pickup area is what matters. */
-    val BEFORE_PICKUP =
-        setOf(
-            RentalStatus.REQUESTED,
-            RentalStatus.ACCEPTED,
-            RentalStatus.DECLINED,
-            RentalStatus.CANCELLED,
-        )
-
     fun Rental.toRow(uid: String) =
         RentalRow(
             rentalId = id,
@@ -153,3 +144,15 @@ class MyRentalsViewModel(
         )
   }
 }
+
+/**
+ * Statuses in which the item has not been picked up yet: the pickup area is what matters. The
+ * screen uses it too, to label the area.
+ */
+internal val BEFORE_PICKUP =
+    setOf(
+        RentalStatus.REQUESTED,
+        RentalStatus.ACCEPTED,
+        RentalStatus.DECLINED,
+        RentalStatus.CANCELLED,
+    )

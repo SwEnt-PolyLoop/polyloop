@@ -39,10 +39,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.formatDay
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /** The My rentals screen, showing what the signed-in user borrows and lends (Figma frame 10). */
 @Composable
@@ -67,6 +66,7 @@ fun MyRentalsContent(
     onTabSelected: (RentalsTab) -> Unit,
     onRentalClick: (String) -> Unit,
     onRetry: () -> Unit,
+    today: LocalDate = LocalDate.now(),
 ) {
   Column(
       modifier =
@@ -95,7 +95,12 @@ fun MyRentalsContent(
           Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(modifier = Modifier.testTag(C.Tag.my_rentals_loading))
           }
-      uiState.errorMsg != null -> MyRentalsError(errorMsg = uiState.errorMsg, onRetry = onRetry)
+      uiState.errorMsg != null && uiState.selectedRows.isEmpty() ->
+          MyRentalsError(
+              errorMsg = uiState.errorMsg,
+              onRetry = onRetry,
+              modifier = Modifier.fillMaxSize(),
+          )
       uiState.selectedRows.isEmpty() ->
           Box(
               modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -108,27 +113,33 @@ fun MyRentalsContent(
                 modifier = Modifier.testTag(C.Tag.my_rentals_empty),
             )
           }
-      else ->
-          LazyColumn(
-              modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_list),
-              contentPadding = PaddingValues(16.dp),
-              verticalArrangement = Arrangement.spacedBy(12.dp),
-          ) {
-            items(uiState.selectedRows, key = { it.rentalId }) { row ->
-              RentalRowCard(
-                  row = row,
-                  tab = uiState.selectedTab,
-                  onClick = { onRentalClick(row.rentalId) },
-              )
-            }
+      else -> {
+        // The last rows stay visible under the error, e.g. offline (docs/SCREENS.md)
+        uiState.errorMsg?.let {
+          MyRentalsError(errorMsg = it, onRetry = onRetry, modifier = Modifier.fillMaxWidth())
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_list),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+          items(uiState.selectedRows, key = { it.rentalId }) { row ->
+            RentalRowCard(
+                row = row,
+                tab = uiState.selectedTab,
+                today = today,
+                onClick = { onRentalClick(row.rentalId) },
+            )
           }
+        }
+      }
     }
   }
 }
 
 /** One rental: the item, the other person, the return date, the location and the status badge. */
 @Composable
-private fun RentalRowCard(row: RentalRow, tab: RentalsTab, onClick: () -> Unit) {
+private fun RentalRowCard(row: RentalRow, tab: RentalsTab, today: LocalDate, onClick: () -> Unit) {
   OutlinedCard(
       onClick = onClick,
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_row_ + row.rentalId),
@@ -156,14 +167,20 @@ private fun RentalRowCard(row: RentalRow, tab: RentalsTab, onClick: () -> Unit) 
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.testTag(C.Tag.my_rentals_row_person),
       )
-      Text(
-          text = stringResource(R.string.my_rentals_return_by, formatDay(row.returnDate)),
-          style = MaterialTheme.typography.bodyMedium,
-          modifier = Modifier.testTag(C.Tag.my_rentals_row_return),
-      )
-      if (row.location.isNotBlank()) {
+      if (row.status in AWAITING_RETURN) {
+        val returnDay = formatDay(row.returnDate, withYear = row.returnDate.year != today.year)
         Text(
-            text = row.location,
+            text = stringResource(R.string.my_rentals_return_by, returnDay),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.testTag(C.Tag.my_rentals_row_return),
+        )
+      }
+      if (row.location.isNotBlank()) {
+        val locationRes =
+            if (row.status in BEFORE_PICKUP) R.string.my_rentals_pickup_at
+            else R.string.my_rentals_drop_off_at
+        Text(
+            text = stringResource(locationRes, row.location),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag(C.Tag.my_rentals_row_location),
@@ -193,11 +210,14 @@ private fun StatusBadge(status: RentalStatus) {
   }
 }
 
-/** The load error ([errorMsg], or a generic text if it is blank) and a Retry button. */
+/**
+ * The load error ([errorMsg], or a generic text if it is blank) and a Retry button: on the whole
+ * screen when there are no rows, above them otherwise.
+ */
 @Composable
-private fun MyRentalsError(errorMsg: String, onRetry: () -> Unit) {
+private fun MyRentalsError(errorMsg: String, onRetry: () -> Unit, modifier: Modifier) {
   Column(
-      modifier = Modifier.fillMaxSize().padding(16.dp),
+      modifier = modifier.padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
       horizontalAlignment = Alignment.CenterHorizontally,
   ) {
@@ -213,9 +233,9 @@ private fun MyRentalsError(errorMsg: String, onRetry: () -> Unit) {
   }
 }
 
-/** A day written briefly, e.g. "22 Oct". */
-internal fun formatDay(day: LocalDate, locale: Locale = Locale.getDefault()): String =
-    day.format(DateTimeFormatter.ofPattern("d MMM", locale))
+/** Statuses in which the item still has to come back, so the return date matters. */
+private val AWAITING_RETURN =
+    setOf(RentalStatus.REQUESTED, RentalStatus.ACCEPTED, RentalStatus.ACTIVE, RentalStatus.OVERDUE)
 
 @get:StringRes
 private val RentalsTab.labelRes: Int

@@ -23,6 +23,7 @@ import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.formatDay
 import java.time.Instant
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
@@ -42,13 +43,14 @@ class MyRentalsScreenTest {
       status: RentalStatus = RentalStatus.REQUESTED,
       person: String = "Loca",
       location: String = "Renens",
+      returnDate: LocalDate = LocalDate.of(2026, 10, 22),
   ) =
       RentalRow(
           rentalId = id,
           itemTitle = "Item $id",
           otherPersonName = person,
           startDate = LocalDate.of(2026, 10, 20),
-          returnDate = LocalDate.of(2026, 10, 22),
+          returnDate = returnDate,
           location = location,
           status = status,
       )
@@ -65,6 +67,7 @@ class MyRentalsScreenTest {
           onTabSelected = onTabSelected,
           onRentalClick = onRentalClick,
           onRetry = onRetry,
+          today = TODAY,
       )
     }
   }
@@ -89,6 +92,32 @@ class MyRentalsScreenTest {
     setContent(MyRentalsUiState(isLoading = true))
 
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_loading).assertIsDisplayed()
+  }
+
+  @Test
+  fun rowsAreHiddenWhileLoading() {
+    setContent(MyRentalsUiState(borrowing = listOf(row("tent")), isLoading = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_loading).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "tent").assertDoesNotExist()
+  }
+
+  @Test
+  fun errorWithRowsKeepsTheRowsUnderIt() {
+    var retries = 0
+    setContent(
+        MyRentalsUiState(
+            borrowing = listOf(row("tent")),
+            isLoading = false,
+            errorMsg = "No connection",
+        ),
+        onRetry = { retries++ },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_error).assertTextEquals("No connection")
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "tent").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_retry_button).performClick()
+    assertEquals(1, retries)
   }
 
   @Test
@@ -148,9 +177,64 @@ class MyRentalsScreenTest {
         .assertTextEquals(
             context.getString(R.string.my_rentals_return_by, formatDay(LocalDate.of(2026, 10, 22)))
         )
-    inRow("tent", C.Tag.my_rentals_row_location).assertTextEquals("Renens")
+    inRow("tent", C.Tag.my_rentals_row_location)
+        .assertTextEquals(context.getString(R.string.my_rentals_pickup_at, "Renens"))
     inRow("tent", C.Tag.my_rentals_row_status)
         .assertTextEquals(context.getString(R.string.rental_status_requested))
+  }
+
+  @Test
+  fun pickedUpItemShowsTheDropOffArea() {
+    setContent(
+        MyRentalsUiState(
+            borrowing = listOf(row("tent", status = RentalStatus.ACTIVE)),
+            isLoading = false,
+        )
+    )
+
+    inRow("tent", C.Tag.my_rentals_row_location)
+        .assertTextEquals(context.getString(R.string.my_rentals_drop_off_at, "Renens"))
+  }
+
+  @Test
+  fun returnDateIsShownOnlyWhileTheItemStillHasToComeBack() {
+    var state by mutableStateOf(MyRentalsUiState(isLoading = false))
+    composeTestRule.setContent {
+      MyRentalsContent(
+          uiState = state,
+          onTabSelected = {},
+          onRentalClick = {},
+          onRetry = {},
+          today = TODAY,
+      )
+    }
+    val awaitingReturn =
+        setOf(
+            RentalStatus.REQUESTED,
+            RentalStatus.ACCEPTED,
+            RentalStatus.ACTIVE,
+            RentalStatus.OVERDUE,
+        )
+
+    RentalStatus.entries.forEach { status ->
+      state = MyRentalsUiState(borrowing = listOf(row("tent", status = status)), isLoading = false)
+      composeTestRule.waitForIdle()
+      val returnLine = inRow("tent", C.Tag.my_rentals_row_return)
+      if (status in awaitingReturn) returnLine.assertExists() else returnLine.assertDoesNotExist()
+    }
+  }
+
+  @Test
+  fun returnDateInAnotherYearShowsTheYear() {
+    val nextYear = LocalDate.of(2027, 1, 5)
+    setContent(
+        MyRentalsUiState(borrowing = listOf(row("tent", returnDate = nextYear)), isLoading = false)
+    )
+
+    inRow("tent", C.Tag.my_rentals_row_return)
+        .assertTextEquals(
+            context.getString(R.string.my_rentals_return_by, formatDay(nextYear, withYear = true))
+        )
   }
 
   @Test
@@ -268,5 +352,9 @@ class MyRentalsScreenTest {
     override fun getCurrentUser(): AuthUser = user
 
     override fun signOut() {}
+  }
+
+  private companion object {
+    val TODAY: LocalDate = LocalDate.of(2026, 10, 14)
   }
 }
