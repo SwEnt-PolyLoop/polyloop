@@ -62,6 +62,9 @@ class PolyLoopAppTest {
   /** In-memory listings, so screens wired to RepositoryProvider never reach Firestore. */
   private val listingRepository =
       object : ListingRepository {
+        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+            Result.success(emptyList())
+
         override suspend fun getAllListings(): Result<List<Listing>> =
             Result.success(listOf(listing))
 
