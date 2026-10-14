@@ -192,6 +192,9 @@ class BrowseScreenTest {
     val connectivity = FakeConnectivityRepository(online = true)
     val repository =
         object : ListingRepository {
+          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+              Result.success(emptyList())
+
           override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
