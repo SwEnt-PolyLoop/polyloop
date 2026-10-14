@@ -9,6 +9,8 @@ import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
+import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -123,6 +125,29 @@ class RepositoryProviderTest {
     RepositoryProvider.listingRepository
 
     verify(exactly = 0) { FirebaseStorage.getInstance() }
+  // ---------- profileRepository ----------
+
+  @Test
+  fun profileRepositoryDefaultsToFirestoreImplementation() {
+    assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
+  }
+
+  @Test
+  fun profileRepositoryReturnsSameInstanceOnEveryAccess() {
+    val first = RepositoryProvider.profileRepository
+
+    assertSame(first, RepositoryProvider.profileRepository)
+    verify(exactly = 1) { FirebaseFirestore.getInstance() }
+  }
+
+  @Test
+  fun profileRepositoryReturnsAssignedRepository() {
+    val fake = FakeProfileRepository()
+
+    RepositoryProvider.profileRepository = fake
+
+    assertSame(fake, RepositoryProvider.profileRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
   // ---------- laziness and reset ----------
@@ -149,21 +174,25 @@ class RepositoryProviderTest {
     val fakeListing = FakeListingRepository()
     RepositoryProvider.authRepository = fakeAuth
     RepositoryProvider.listingRepository = fakeListing
+    RepositoryProvider.profileRepository = FakeProfileRepository()
 
     RepositoryProvider.reset()
 
     assertTrue(RepositoryProvider.authRepository is AuthRepositoryFirebase)
     assertTrue(RepositoryProvider.listingRepository is ListingRepositoryFirestore)
+    assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
   }
 
   @Test
   fun resetCreatesNewInstancesOnNextAccess() {
     val firstAuth = RepositoryProvider.authRepository
     val firstListing = RepositoryProvider.listingRepository
+    val firstProfile = RepositoryProvider.profileRepository
 
     RepositoryProvider.reset()
 
     assertNotSame(firstAuth, RepositoryProvider.authRepository)
     assertNotSame(firstListing, RepositoryProvider.listingRepository)
+    assertNotSame(firstProfile, RepositoryProvider.profileRepository)
   }
 }

@@ -20,6 +20,8 @@ class FakeAuthRepository(
     var resendResult: AuthResult<Unit> = AuthResult.Success(Unit),
     var gate: CompletableDeferred<Unit>? = null,
     var exception: Exception? = null,
+    // The user returned by getCurrentUser; null means nobody is signed in.
+    var signedInUser: AuthUser? = null,
 ) : AuthRepository {
 
   // The calls received, e.g. "signIn(john@epfl.ch, secret)", in order.
@@ -46,7 +48,7 @@ class FakeAuthRepository(
     return resendResult
   }
 
-  override fun getCurrentUser(): AuthUser? = null
+  override fun getCurrentUser(): AuthUser? = signedInUser
 
   override fun signOut() {
     calls += "signOut()"
