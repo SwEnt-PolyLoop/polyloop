@@ -23,6 +23,10 @@ object C {
     const val browse_error = "browse_error"
     const val browse_retry_button = "browse_retry_button"
     const val browse_empty = "browse_empty"
+    const val browse_offline = "browse_offline"
+    const val browse_offline_my_rentals_button = "browse_offline_my_rentals_button"
+
+    const val offline_banner = "offline_banner"
 
     fun browseCategoryChip(category: ListingCategory) = "browse_category_chip_${category.name}"
 
