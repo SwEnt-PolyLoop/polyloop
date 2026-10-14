@@ -108,6 +108,7 @@ class PolyLoopAppTest {
               UserProfile(uid = "owner-1", name = "Owner", email = "owner@epfl.ch"),
           )
       )
+
   /** In-memory conversations, so the Chat list never reaches Firestore. */
   private val chatRepository = FakeChatRepository(currentUid = "me")
 
@@ -158,16 +159,16 @@ class PolyLoopAppTest {
   private fun assertCurrentScreen(screen: Screen, shownRoute: String = screen.route) {
     composeTestRule.waitForIdle()
     assertEquals(screen.route, navController.currentDestination?.route)
-    // Browse and the profiles are wired to their real screens; the others still show DummyScreen
-    // with their route.
-    // Browse and Chat list are wired to their real screens; the others still show DummyScreen with
-    // their route.
+    // Browse, Chat list and the profiles are wired to their real screens; the others still show
+    // DummyScreen with their route.
     if (screen == Screen.Browse) {
       composeTestRule.onNodeWithTag(C.Tag.browse_screen).assertIsDisplayed()
       return
     }
     if (screen == Screen.Profile || screen == Screen.UserProfile) {
       composeTestRule.onNodeWithTag(C.Tag.profile_screen).assertIsDisplayed()
+      return
+    }
     if (screen == Screen.ChatList) {
       composeTestRule.onNodeWithTag(C.Tag.chat_list_screen).assertIsDisplayed()
       return
