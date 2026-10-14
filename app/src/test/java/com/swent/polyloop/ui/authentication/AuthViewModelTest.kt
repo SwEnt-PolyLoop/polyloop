@@ -515,7 +515,7 @@ class AuthViewModelTest {
   }
 
   @Test
-  fun cannotResendWhileLoading() {
+  fun canResendNeedsNoLoadingAndNoCountdown() {
     assertTrue(AuthUiState().canResend)
     assertFalse(AuthUiState(isLoading = true).canResend)
     assertFalse(AuthUiState(resendCooldownSeconds = 5).canResend)
