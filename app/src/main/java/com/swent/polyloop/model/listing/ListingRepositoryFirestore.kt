@@ -79,7 +79,7 @@ class ListingRepositoryFirestore(
       Result.failure(e)
     }
   }
-  
+
   override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
     if (ownerId.isBlank()) return Result.success(emptyList())
     return try {
