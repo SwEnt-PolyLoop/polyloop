@@ -111,7 +111,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 ## Technical choices
 
-Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase.
+Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase. Firestore repositories share the helpers in `model/firestore/FirestoreHelpers.kt` (reading fields, errors, write timeout, listening to a query) instead of copying them.
 
 | Area | Choice |
 | --- | --- |
