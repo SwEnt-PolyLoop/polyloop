@@ -198,7 +198,13 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     }
   }
 
-  /** Disables "Resend email" for [RESEND_COOLDOWN_SECONDS], counting down once per second. */
+  /**
+   * Disables "Resend email" for [RESEND_COOLDOWN_SECONDS], counting down once per second.
+   *
+   * The countdown lives in memory only, so restarting the app resets it. That is intended: it only
+   * prevents accidental repeated taps, while Firebase rate-limits verification emails on the server
+   * (reported as [AuthError.TOO_MANY_REQUESTS]).
+   */
   private fun startResendCooldown() {
     resendCooldownJob?.cancel()
     _uiState.update { it.copy(resendCooldownEmail = EpflEmail.normalize(it.email)) }
