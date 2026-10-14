@@ -3,6 +3,7 @@ package com.swent.polyloop.model
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.auth.AuthResult
@@ -43,13 +44,17 @@ class RepositoryProviderTest {
     override fun signOut() = Unit
   }
 
+  private val storage: FirebaseStorage = mockk()
+
   @Before
   fun setUp() {
-    // The real repositories get Firebase through FirebaseAuth/FirebaseFirestore.getInstance(),
-    // which needs an initialised Firebase app, so those are stubbed statically.
-    mockkStatic(FirebaseAuth::class, FirebaseFirestore::class)
+    // The real repositories and RepositoryProvider.storage get Firebase through
+    // FirebaseAuth/FirebaseFirestore/FirebaseStorage.getInstance(), which needs an initialised
+    // Firebase app, so those are stubbed statically.
+    mockkStatic(FirebaseAuth::class, FirebaseFirestore::class, FirebaseStorage::class)
     every { FirebaseAuth.getInstance() } returns mockk(relaxed = true)
     every { FirebaseFirestore.getInstance() } returns mockk(relaxed = true)
+    every { FirebaseStorage.getInstance() } returns storage
     RepositoryProvider.reset()
   }
 
@@ -107,6 +112,22 @@ class RepositoryProviderTest {
 
     assertSame(fake, RepositoryProvider.listingRepository)
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
+  }
+
+  // ---------- storage ----------
+
+  @Test
+  fun storageReturnsTheFirebaseStorageInstance() {
+    assertSame(storage, RepositoryProvider.storage)
+  }
+
+  @Test
+  fun accessingRepositoriesDoesNotTouchStorage() {
+    RepositoryProvider.authRepository
+    RepositoryProvider.listingRepository
+    RepositoryProvider.profileRepository
+
+    verify(exactly = 0) { FirebaseStorage.getInstance() }
   }
 
   // ---------- profileRepository ----------
@@ -167,6 +188,7 @@ class RepositoryProviderTest {
 
     verify(exactly = 0) { FirebaseAuth.getInstance() }
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
+    verify(exactly = 0) { FirebaseStorage.getInstance() }
   }
 
   @Test
