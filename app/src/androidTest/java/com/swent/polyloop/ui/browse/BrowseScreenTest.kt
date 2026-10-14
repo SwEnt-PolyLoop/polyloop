@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.browse
 
+import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
@@ -15,6 +16,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
@@ -78,6 +80,12 @@ class BrowseScreenTest {
           override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
         }
     val viewModel = BrowseViewModel(repository)
     composeTestRule.setContent {
@@ -184,6 +192,12 @@ class BrowseScreenTest {
               else Result.success(listings)
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
         }
     val viewModel = BrowseViewModel(repository)
     var clickedId: String? = null

@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.listingdetail
 
+import android.net.Uri
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +26,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
@@ -489,6 +491,12 @@ class ListingDetailScreenTest {
           override suspend fun getListing(id: String): Result<Listing?> =
               if (calls++ == 0) Result.failure(IllegalStateException("Network down"))
               else Result.success(listing.takeIf { it.id == id })
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
         }
     val viewModel = ListingDetailViewModel("tent", repository)
     var clickedOwnerId: String? = null
