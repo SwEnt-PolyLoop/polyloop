@@ -27,6 +27,10 @@ data class DateRangeSelection(
   /** Price per day times [numberOfDays], in PP. */
   fun totalPrice(pricePerDay: Int): Int = pricePerDay * numberOfDays
 
+  /** True once the range is complete and its total is more than [balance]. */
+  fun exceedsBalance(pricePerDay: Int, balance: Int): Boolean =
+      isComplete && totalPrice(pricePerDay) > balance
+
   /** True for the picked start alone, or for every day from [start] to [end]. */
   fun contains(day: LocalDate): Boolean =
       when {

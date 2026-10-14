@@ -3,6 +3,7 @@
 package com.swent.polyloop.resources
 
 import com.swent.polyloop.model.listing.ListingCategory
+import java.time.LocalDate
 
 // Like R, but C
 object C {
@@ -54,6 +55,21 @@ object C {
     const val listing_detail_error = "listing_detail_error"
     const val listing_detail_retry_button = "listing_detail_retry_button"
     const val listing_detail_not_found = "listing_detail_not_found"
+
+    const val date_picker_sheet = "date_picker_sheet"
+    const val date_picker_month_title = "date_picker_month_title"
+    const val date_picker_available = "date_picker_available"
+    const val date_picker_prev_month = "date_picker_prev_month"
+    const val date_picker_next_month = "date_picker_next_month"
+    const val date_picker_legend = "date_picker_legend"
+    const val date_picker_error = "date_picker_error"
+    const val date_picker_summary = "date_picker_summary"
+    const val date_picker_summary_total = "date_picker_summary_total"
+    const val date_picker_balance = "date_picker_balance"
+    const val date_picker_balance_error = "date_picker_balance_error"
+    const val date_picker_confirm_button = "date_picker_confirm_button"
+
+    fun datePickerDay(date: LocalDate) = "date_picker_day_$date"
 
     const val auth_name_field = "auth_name_field"
     const val auth_email_field = "auth_email_field"
