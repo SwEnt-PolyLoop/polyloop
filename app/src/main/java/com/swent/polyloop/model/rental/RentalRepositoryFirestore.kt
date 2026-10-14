@@ -8,6 +8,7 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.firestore.confirmWrite
@@ -16,7 +17,6 @@ import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
 import com.swent.polyloop.model.listing.Listing
 import java.time.LocalDate
-import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.tasks.await
@@ -43,14 +43,14 @@ class RentalRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fir
     return withFirebaseErrors {
       val document = rentals.document()
       val fields = rentalRequestDocument(listing, ownerName, borrower, startDate, endDate)
-      when {
-        !confirmWrite { document.set(fields) } ->
-            Result.failure(TimeoutException("Rental request not confirmed in time"))
-        // Read back to get createdAt as the server set it.
-        else ->
-            readRental(document)?.let { Result.success(it) }
-                ?: Result.failure(IllegalStateException("Rental ${document.id} cannot be read"))
-      }
+      val confirmed = confirmWrite { document.set(fields) }
+      // Confirmed: read back to get createdAt as the server set it. Not confirmed in time: the
+      // write is still queued and Firestore sends it later, so it is not a failure; reporting one
+      // would make the user request again and write a second rental. Read it from the local cache,
+      // where it already is (with an estimated createdAt).
+      val snapshot = (if (confirmed) document.get() else document.get(Source.CACHE)).await()
+      toRental(snapshot)?.let { Result.success(it) }
+          ?: Result.failure(IllegalStateException("Rental ${document.id} cannot be read"))
     }
   }
 

@@ -15,6 +15,7 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.Source
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
@@ -25,7 +26,6 @@ import io.mockk.slot
 import io.mockk.verify
 import java.time.Instant
 import java.time.LocalDate
-import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -165,14 +165,34 @@ class RentalRepositoryFirestoreTest {
     assertSame(firestoreError, result.exceptionOrNull())
   }
 
-  @Test
-  fun requestRentalFailsWhenTheServerNeverConfirms() = runTest {
+  /** The server never confirms the write: it stays queued in Firestore, which sends it later. */
+  private fun newDocumentIsQueued() {
     every { collection.document() } returns newDocument
+    every { newDocument.id } returns "new-id"
     every { newDocument.set(any()) } returns TaskCompletionSource<Void>().task
+  }
+
+  @Test
+  fun requestRentalReturnsTheQueuedRentalFromTheCacheWhenTheServerIsTooSlow() = runTest {
+    newDocumentIsQueued()
+    every { newDocument.get(Source.CACHE) } returns
+        Tasks.forResult(snapshot("new-id", storedData(createdAt)))
+
+    val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+
+    // Not a failure, so the user is not led to request again and write a second rental.
+    assertEquals(expectedRental("new-id", createdAt), rental)
+    verify(exactly = 0) { newDocument.get() }
+  }
+
+  @Test
+  fun requestRentalFailsWhenTheQueuedRentalIsNotInTheCache() = runTest {
+    newDocumentIsQueued()
+    every { newDocument.get(Source.CACHE) } returns Tasks.forException(firestoreError)
 
     val result = repository.requestRental(listing, "Vida", borrower, start, end)
 
-    assertTrue(result.exceptionOrNull() is TimeoutException)
+    assertSame(firestoreError, result.exceptionOrNull())
   }
 
   @Test
