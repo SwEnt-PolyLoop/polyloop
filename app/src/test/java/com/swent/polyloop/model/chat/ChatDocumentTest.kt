@@ -5,6 +5,7 @@ package com.swent.polyloop.model.chat
 import com.google.firebase.Timestamp
 import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -102,6 +103,8 @@ class ChatDocumentTest {
           ChatFields.LAST_MESSAGE to "See you at 5?",
           ChatFields.LAST_MESSAGE_AT to timestamp,
           ChatFields.STATUS to "REQUESTED",
+          ChatFields.START_DATE to "2026-10-20",
+          ChatFields.END_DATE to "2026-10-22",
           // Rental fields the chat list does not use
           "pricePerDay" to 15L,
       )
@@ -117,6 +120,8 @@ class ChatDocumentTest {
           "See you at 5?",
           sentAt,
           RentalStatus.REQUESTED,
+          LocalDate.of(2026, 10, 20),
+          LocalDate.of(2026, 10, 22),
       )
 
   private fun conversation(data: Map<String, Any?>) = conversationFromDocument("r1", data)
@@ -134,6 +139,8 @@ class ChatDocumentTest {
             ChatFields.BORROWER_NAME,
             ChatFields.LAST_MESSAGE_AT,
             ChatFields.STATUS,
+            ChatFields.START_DATE,
+            ChatFields.END_DATE,
         )
     for (field in required) {
       assertNull("Missing $field", conversation(rentalData - field))
@@ -177,4 +184,23 @@ class ChatDocumentTest {
   @Test
   fun participantsAreNotNeededToMapTheRow() =
       assertEquals(expectedConversation, conversation(rentalData - ChatFields.PARTICIPANTS))
+
+  @Test
+  fun rentalDatesAreRead() {
+    val read = conversation(rentalData)
+    assertEquals(LocalDate.of(2026, 10, 20), read?.startDate)
+    assertEquals(LocalDate.of(2026, 10, 22), read?.endDate)
+  }
+
+  @Test
+  fun badDateFormatIsRejected() =
+      assertNull(conversation(rentalData + (ChatFields.START_DATE to "20/10/2026")))
+
+  @Test
+  fun impossibleDateIsRejected() =
+      assertNull(conversation(rentalData + (ChatFields.END_DATE to "2026-02-30")))
+
+  @Test
+  fun dateStoredAsTimestampIsRejected() =
+      assertNull(conversation(rentalData + (ChatFields.START_DATE to timestamp)))
 }

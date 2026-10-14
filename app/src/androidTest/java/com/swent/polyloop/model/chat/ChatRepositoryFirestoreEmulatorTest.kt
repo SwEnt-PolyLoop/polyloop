@@ -8,6 +8,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
 import com.swent.polyloop.utils.FirebaseEmulator
+import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -64,6 +65,8 @@ class ChatRepositoryFirestoreEmulatorTest {
                 "lastMessage" to "",
                 "lastMessageAt" to Timestamp(lastMessageAt, 0),
                 "status" to "REQUESTED",
+                "startDate" to "2026-10-20",
+                "endDate" to "2026-10-22",
             )
         )
         .await()
@@ -126,5 +129,17 @@ class ChatRepositoryFirestoreEmulatorTest {
   private companion object {
     const val PASSWORD = "password123"
     const val TIMEOUT_MS = 10_000L
+  }
+
+  @Test
+  fun getConversationReadsTheRentalAndNullForAMissingOne() = runBlocking {
+    val rentalId = createRental(owner = uid, borrower = "someone", lastMessageAt = 1_000)
+
+    val conversation = repository.getConversation(rentalId).getOrThrow()
+    assertEquals("Camping tent", conversation?.listingTitle)
+    assertEquals(LocalDate.of(2026, 10, 20), conversation?.startDate)
+    assertEquals(LocalDate.of(2026, 10, 22), conversation?.endDate)
+
+    assertEquals(null, repository.getConversation("rental-${UUID.randomUUID()}").getOrThrow())
   }
 }

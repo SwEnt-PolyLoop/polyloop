@@ -143,14 +143,18 @@ class PolyLoopAppTest {
   private fun assertCurrentScreen(screen: Screen, shownRoute: String = screen.route) {
     composeTestRule.waitForIdle()
     assertEquals(screen.route, navController.currentDestination?.route)
-    // Browse and Chat list are wired to their real screens; the others still show DummyScreen with
-    // their route.
+    // Browse, Chat list and Chat are wired to their real screens; the others still show DummyScreen
+    // with their route.
     if (screen == Screen.Browse) {
       composeTestRule.onNodeWithTag(C.Tag.browse_screen).assertIsDisplayed()
       return
     }
     if (screen == Screen.ChatList) {
       composeTestRule.onNodeWithTag(C.Tag.chat_list_screen).assertIsDisplayed()
+      return
+    }
+    if (screen == Screen.Chat) {
+      composeTestRule.onNodeWithTag(C.Tag.chat_screen).assertIsDisplayed()
       return
     }
     composeTestRule.onNodeWithTag(C.Tag.dummy_screen).assertIsDisplayed()
@@ -198,6 +202,8 @@ class PolyLoopAppTest {
                 "Hi",
                 Instant.EPOCH,
                 RentalStatus.REQUESTED,
+                LocalDate.of(2026, 10, 20),
+                LocalDate.of(2026, 10, 22),
             )
         )
     setAppSignedIn()
@@ -209,7 +215,43 @@ class PolyLoopAppTest {
     waitForTag(C.Tag.chat_list_row_ + "rental-1")
     composeTestRule.onNodeWithTag(C.Tag.chat_list_row_ + "rental-1").performClick()
 
-    assertCurrentScreen(Screen.Chat, shownRoute = Screen.Chat.createRoute("rental-1"))
+    assertCurrentScreen(Screen.Chat)
+    // The chat of the tapped rental is open: its header shows the item.
+    waitForTag(C.Tag.chat_header_item)
+    composeTestRule.onNodeWithTag(C.Tag.chat_header_item).assertTextEquals("Camping tent")
+  }
+
+  @Test
+  fun rentalDetailsInTheChatOpensTheRental() {
+    chatRepository.conversations.value =
+        listOf(
+            Conversation(
+                "rental-1",
+                "Camping tent",
+                "owner-1",
+                "Ana",
+                "me",
+                "Me",
+                "Hi",
+                Instant.EPOCH,
+                RentalStatus.REQUESTED,
+                LocalDate.of(2026, 10, 20),
+                LocalDate.of(2026, 10, 22),
+            )
+        )
+    setAppSignedIn()
+    currentUser = AuthUser("me", "me@epfl.ch", "Me")
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.Chat.createRoute("rental-1"))
+    }
+
+    waitForTag(C.Tag.chat_rental_details)
+    composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
+
+    assertCurrentScreen(
+        Screen.RentalDetail,
+        shownRoute = Screen.RentalDetail.createRoute("rental-1"),
+    )
   }
 
   @Test

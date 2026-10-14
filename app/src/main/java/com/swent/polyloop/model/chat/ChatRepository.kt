@@ -15,6 +15,13 @@ interface ChatRepository {
   fun observeConversations(uid: String): Flow<List<Conversation>>
 
   /**
+   * The conversation of the rental [rentalId], read once, e.g. for the chat header. Null if there
+   * is no such rental (including an invalid id) or its document cannot be read as a conversation.
+   * Fails with the cause if it cannot be loaded.
+   */
+  suspend fun getConversation(rentalId: String): Result<Conversation?>
+
+  /**
    * The messages of the rental [rentalId], oldest first (the newest is shown at the bottom). Emits
    * again whenever a message is added. Empty for an unknown rental. The flow fails with the cause
    * if they cannot be loaded.
