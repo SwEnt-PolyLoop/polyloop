@@ -8,7 +8,7 @@ import com.swent.polyloop.model.chat.ChatRepository
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.rental.RentalStatus
-import com.swent.polyloop.ui.authentication.FakeAuthRepository
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
