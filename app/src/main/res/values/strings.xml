@@ -62,6 +62,29 @@
     <string name="rental_status_disputed">Disputed</string>
     <string name="rental_status_frozen">Frozen</string>
 
+    <!-- Date range picker -->
+    <string name="date_picker_available">Available %1$s – %2$s</string>
+    <string name="date_picker_previous_month">Previous month</string>
+    <string name="date_picker_next_month">Next month</string>
+    <string name="date_picker_day_booked">%1$d, booked</string>
+    <string name="date_picker_day_buffer">%1$d, buffer day</string>
+    <string name="date_picker_legend_booked">Booked</string>
+    <string name="date_picker_legend_buffer">Buffer day</string>
+    <string name="date_picker_legend_selected">Your dates</string>
+    <string name="date_picker_buffer_error">Leave 1 free day after your rental for the lender\'s buffer. Pick an earlier end date.</string>
+    <plurals name="date_picker_summary_days">
+        <item quantity="one">%1$d day × %2$d PP</item>
+        <item quantity="other">%1$d days × %2$d PP</item>
+    </plurals>
+    <string name="date_picker_balance">Your balance</string>
+    <plurals name="date_picker_reserved_note">
+        <item quantity="one">%1$d PP is reserved now. The deposit is reserved when the lender accepts.</item>
+        <item quantity="other">%1$d PP are reserved now. The deposit is reserved when the lender accepts.</item>
+    </plurals>
+    <string name="date_picker_not_enough_balance">Not enough balance for these dates. Recharge in Wallet.</string>
+    <string name="date_picker_send_request">Send request</string>
+    <string name="date_picker_confirm_dates">Confirm dates</string>
+
     <!-- Top-bar menu -->
     <string name="menu_browse">Browse</string>
     <string name="menu_create_listing">Create listing</string>
