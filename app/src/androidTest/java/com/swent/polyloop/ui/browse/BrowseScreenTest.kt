@@ -231,6 +231,14 @@ class BrowseScreenTest {
   }
 
   @Test
+  fun ownListingIsNotDisplayed() {
+    setContentWithViewModel(listings.map { if (it.id == "drill") it.copy(ownerId = "me") else it })
+    waitForTag(C.Tag.browse_list)
+
+    assertShownListings("tent", "projector", "helmet", "bike", "guitar")
+  }
+
+  @Test
   fun searchFiltersListingsAndClearingRestoresThem() {
     setContentWithViewModel(listings)
     waitForTag(C.Tag.browse_list)
