@@ -25,10 +25,7 @@ class MainActivityTest : TestCase() {
   fun appStartsOnSignIn() = run {
     step("Start Main Activity") {
       ComposeScreen.onComposeScreen<com.swent.polyloop.screen.MainScreen>(composeTestRule) {
-        continueButton {
-          assertIsDisplayed()
-          assertTextEquals(composeTestRule.activity.getString(R.string.dummy_screen_continue))
-        }
+        loginButton { assertIsDisplayed() }
       }
     }
   }

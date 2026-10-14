@@ -170,6 +170,5 @@ object C {
 
     const val dummy_screen = "dummy_screen"
     const val dummy_screen_text = "dummy_screen_text"
-    const val dummy_screen_continue_button = "dummy_screen_continue_button"
   }
 }

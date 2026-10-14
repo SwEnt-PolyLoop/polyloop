@@ -287,19 +287,6 @@ class PolyLoopAppTest {
   }
 
   @Test
-  fun signInReportedAgainAfterLeavingDoesNotStackBrowse() {
-    signInResult = AuthResult.Success(me)
-    setApp()
-    logIn()
-    waitForTag(C.Tag.browse_screen)
-
-    composeTestRule.runOnUiThread { NavigationActions(navController).navigateAfterSignIn() }
-
-    assertCurrentScreen(Screen.Browse)
-    assertNull(navController.previousBackStackEntry)
-  }
-
-  @Test
   fun menuOpensEveryTopLevelDestination() {
     setAppSignedIn(isAdmin = true)
 

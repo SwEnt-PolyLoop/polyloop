@@ -5,6 +5,7 @@ package com.swent.polyloop
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -79,20 +80,18 @@ fun PolyLoopApp(
         val authViewModel: AuthViewModel =
             viewModel(factory = AuthViewModel.Factory(RepositoryProvider.authRepository))
         val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+        // The route navigates, once: this entry stays composed while it fades out to Browse.
+        LaunchedEffect(authState.isSignedIn) {
+          if (authState.isSignedIn) navigationActions.navigateAfterSignIn()
+        }
         // "Check your inbox" is a step of this screen, not a route: both share the ViewModel, which
         // holds the email and password needed to resend the email and to log in again.
-        if (authState.isAwaitingVerification) {
-          CheckInboxScreen(
-              viewModel = authViewModel,
-              onSignIn = navigationActions::navigateAfterSignIn,
-              onBackToForm = {},
-          )
-        } else {
-          AuthScreen(
-              onSignIn = navigationActions::navigateAfterSignIn,
-              onNavigateToVerification = {},
-              viewModel = authViewModel,
-          )
+        when {
+          // Nothing while leaving for Browse, so the form does not flash during the fade.
+          authState.isSignedIn -> Unit
+          authState.isAwaitingVerification ->
+              CheckInboxScreen(viewModel = authViewModel, onSignIn = {}, onBackToForm = {})
+          else -> AuthScreen(onSignIn = {}, viewModel = authViewModel)
         }
       }
 

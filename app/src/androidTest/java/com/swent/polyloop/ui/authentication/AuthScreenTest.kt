@@ -28,6 +28,8 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -43,7 +45,6 @@ class AuthScreenTest {
   private lateinit var repository: FakeAuthRepository
   private lateinit var viewModel: AuthViewModel
   private var signedInNavigations = 0
-  private var verificationNavigations = 0
 
   // Owns the ViewModel so tearDown can clear it and stop the resend countdown.
   private val viewModelStore = ViewModelStore()
@@ -55,12 +56,10 @@ class AuthScreenTest {
         ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository))[
             AuthViewModel::class.java]
     signedInNavigations = 0
-    verificationNavigations = 0
     composeTestRule.setContent {
       PolyLoopTheme {
         AuthScreen(
             onSignIn = { signedInNavigations++ },
-            onNavigateToVerification = { verificationNavigations++ },
             viewModel = viewModel,
         )
       }
@@ -162,25 +161,20 @@ class AuthScreenTest {
   fun successfulLoginNavigatesOnce() {
     fillLogin()
     tap(C.Tag.auth_login_button)
-    composeTestRule.runOnIdle {
-      assertEquals(1, signedInNavigations)
-      assertEquals(0, verificationNavigations)
-    }
+    composeTestRule.runOnIdle { assertEquals(1, signedInNavigations) }
     // A harmless state update triggers recomposition, but not a second navigation.
     type(C.Tag.auth_password_field, "x")
     composeTestRule.runOnIdle { assertEquals(1, signedInNavigations) }
   }
 
   @Test
-  fun successfulSignUpNavigatesToVerificationOnce() {
+  fun successfulSignUpAwaitsVerificationWithoutSigningIn() {
     fillSignUp()
     tap(C.Tag.auth_signup_button)
     composeTestRule.runOnIdle {
       assertEquals(0, signedInNavigations)
-      assertEquals(1, verificationNavigations)
+      assertTrue(viewModel.uiState.value.isAwaitingVerification)
     }
-    type(C.Tag.auth_name_field, "x")
-    composeTestRule.runOnIdle { assertEquals(1, verificationNavigations) }
   }
 
   @Test
@@ -191,7 +185,7 @@ class AuthScreenTest {
     assertErrorText(C.Tag.auth_error, R.string.auth_error_wrong_credentials)
     composeTestRule.runOnIdle {
       assertEquals(0, signedInNavigations)
-      assertEquals(0, verificationNavigations)
+      assertFalse(viewModel.uiState.value.isAwaitingVerification)
     }
   }
 

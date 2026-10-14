@@ -197,7 +197,4 @@
     <!-- The item, then the rental's status, e.g. "Camping tent · Requested" -->
     <string name="chat_list_item_status">%1$s · %2$s</string>
 
-    <!-- Dummy screen -->
-    <string name="dummy_screen_continue">Continue</string>
-
 </resources>
