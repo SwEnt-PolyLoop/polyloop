@@ -114,7 +114,8 @@ fun BrowseContent(
     }
     when {
       uiState.isOffline -> BrowseOffline(onOpenMyRentals = onOpenMyRentals)
-      uiState.isLoading ->
+      // Listings already loaded stay visible while a reload runs, e.g. after reconnecting.
+      uiState.isLoading && uiState.listings.isEmpty() ->
           Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(modifier = Modifier.testTag(C.Tag.browse_loading))
           }

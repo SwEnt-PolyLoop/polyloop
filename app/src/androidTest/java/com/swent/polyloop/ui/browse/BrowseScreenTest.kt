@@ -28,6 +28,7 @@ import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.resources.C
 import java.time.LocalDate
+import kotlinx.coroutines.awaitCancellation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -121,6 +122,14 @@ class BrowseScreenTest {
   }
 
   @Test
+  fun loadingWithListingsKeepsThemDisplayed() {
+    setContent(uiState = BrowseUiState(listings = listings, isLoading = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_list).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_loading).assertDoesNotExist()
+  }
+
+  @Test
   fun blankErrorShowsGenericMessage() {
     setContent(uiState = BrowseUiState(errorMsg = ""))
 
@@ -211,6 +220,34 @@ class BrowseScreenTest {
     connectivity.setOnline(true)
     waitForTag(C.Tag.browse_list)
     composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertDoesNotExist()
+  }
+
+  @Test
+  fun reconnectingKeepsListingsDisplayedWhileReloading() {
+    // The first load returns the listings; the reload after reconnecting never finishes.
+    val connectivity = FakeConnectivityRepository(online = true)
+    var calls = 0
+    val repository =
+        object : ListingRepository {
+          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+              Result.success(emptyList())
+
+          override suspend fun getAllListings(): Result<List<Listing>> =
+              if (calls++ == 0) Result.success(listings) else awaitCancellation()
+
+          override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+        }
+    val viewModel = BrowseViewModel(repository, authRepository, connectivity)
+    composeTestRule.setContent { BrowseScreen(viewModel = viewModel) }
+    waitForTag(C.Tag.browse_list)
+    connectivity.setOnline(false)
+    waitForTag(C.Tag.browse_offline)
+
+    connectivity.setOnline(true)
+    composeTestRule.waitUntil(timeoutMillis = 5_000) { calls == 2 }
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_list).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_loading).assertDoesNotExist()
   }
 
   private fun string(id: Int) =
