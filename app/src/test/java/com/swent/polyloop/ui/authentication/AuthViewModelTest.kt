@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.authentication
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -393,7 +394,7 @@ class AuthViewModelTest {
     fillLogIn()
     viewModel.submit()
 
-    viewModel.backToForm()
+    assertTrue(viewModel.backToForm())
 
     assertEquals(AuthMode.LOG_IN, state.mode)
     assertFalse(state.isAwaitingVerification)
@@ -426,7 +427,7 @@ class AuthViewModelTest {
     repository.gate = gate
 
     viewModel.confirmVerified()
-    viewModel.backToForm()
+    assertFalse(viewModel.backToForm())
 
     assertTrue(state.isAwaitingVerification)
     gate.complete(Unit)
@@ -539,6 +540,36 @@ class AuthViewModelTest {
   }
 
   @Test
+  fun countdownDoesNotBlockResendForAnotherEmail() {
+    fillSignUp()
+    viewModel.submit()
+    advanceSeconds(10)
+    viewModel.backToForm()
+
+    // The address was mistyped: the user fixes it and logs in to their real, unverified account.
+    viewModel.onEmailChange("jane@epfl.ch")
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    viewModel.switchMode(AuthMode.LOG_IN)
+    viewModel.submit()
+
+    assertTrue(state.isAwaitingVerification)
+    assertEquals(0, state.resendSecondsLeft)
+    assertTrue(state.canResend)
+  }
+
+  @Test
+  fun countdownStillAppliesToTheSameEmailTypedDifferently() {
+    fillSignUp()
+    viewModel.submit()
+    viewModel.backToForm()
+
+    viewModel.onEmailChange(" John@EPFL.ch ")
+
+    assertEquals(60, state.resendSecondsLeft)
+    assertFalse(state.canResend)
+  }
+
+  @Test
   fun signUpWhoseNameWasNotSavedStartsTheCountdown() {
     repository.signUpResult = AuthResult.Failure(AuthError.NAME_NOT_SAVED)
     fillSignUp()
@@ -554,6 +585,22 @@ class AuthViewModelTest {
     assertTrue(AuthUiState().canResend)
     assertFalse(AuthUiState(isLoading = true).canResend)
     assertFalse(AuthUiState(resendCooldownSeconds = 5).canResend)
+    assertFalse(
+        AuthUiState(
+                email = "john@epfl.ch",
+                resendCooldownSeconds = 5,
+                resendCooldownEmail = "john@epfl.ch",
+            )
+            .canResend
+    )
+    assertTrue(
+        AuthUiState(
+                email = "jane@epfl.ch",
+                resendCooldownSeconds = 5,
+                resendCooldownEmail = "john@epfl.ch",
+            )
+            .canResend
+    )
   }
 
   // ---------- unexpected failures ----------

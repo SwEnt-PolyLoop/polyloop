@@ -19,9 +19,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
-import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
-import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -102,9 +101,7 @@ class AuthScreenTest {
     tap(C.Tag.auth_login_tab)
     tap(C.Tag.auth_login_button)
     composeTestRule.runOnIdle {
-      assertEquals(VALID_EMAIL, repository.loginEmail)
-      assertEquals(VALID_PASSWORD, repository.loginPassword)
-      assertEquals(1, repository.loginCalls)
+      assertEquals(listOf("signIn($VALID_EMAIL, $VALID_PASSWORD)"), repository.calls)
     }
   }
 
@@ -175,7 +172,7 @@ class AuthScreenTest {
 
   @Test
   fun wrongCredentialsDisplayErrorWithoutNavigation() {
-    repository.loginResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
     fillLogin()
     tap(C.Tag.auth_login_button)
     assertErrorText(C.Tag.auth_error, R.string.auth_error_wrong_credentials)
@@ -239,40 +236,4 @@ class AuthScreenTest {
     const val VALID_EMAIL = "john@epfl.ch"
     const val VALID_PASSWORD = "secret123"
   }
-}
-
-/** Test-only controllable dependency: no Firebase or real external operations. */
-private class FakeAuthRepository : AuthRepository {
-  var loginResult: AuthResult<AuthUser> =
-      AuthResult.Success(AuthUser(uid = "test-uid", email = "john@epfl.ch", name = "John"))
-  var gate: CompletableDeferred<Unit>? = null
-
-  var loginCalls = 0
-    private set
-
-  var loginEmail: String? = null
-    private set
-
-  var loginPassword: String? = null
-    private set
-
-  override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> {
-    loginCalls++
-    loginEmail = email
-    loginPassword = password
-    gate?.await()
-    return loginResult
-  }
-
-  override suspend fun signUp(name: String, email: String, password: String): AuthResult<Unit> =
-      AuthResult.Success(Unit)
-
-  override suspend fun resendVerificationEmail(
-      email: String,
-      password: String,
-  ): AuthResult<Unit> = AuthResult.Success(Unit)
-
-  override fun getCurrentUser(): AuthUser? = null
-
-  override fun signOut() = Unit
 }

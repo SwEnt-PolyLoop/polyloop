@@ -36,6 +36,9 @@ enum class AuthMode {
  * @property isVerificationEmailResent true once "Resend email" succeeded.
  * @property resendCooldownSeconds seconds left before "Resend email" can be pressed again; counts
  *   down from 60 after each verification email sent, 0 when it can be pressed.
+ * @property resendCooldownEmail the normalized address the last verification email went to. The
+ *   countdown only applies to it: going back to fix a mistyped address must not block the right
+ *   one.
  * @property isSignedIn true once a verified user is signed in; the app then leaves this screen.
  */
 data class AuthUiState(
@@ -49,6 +52,7 @@ data class AuthUiState(
     val isAwaitingVerification: Boolean = false,
     val isVerificationEmailResent: Boolean = false,
     val resendCooldownSeconds: Int = 0,
+    val resendCooldownEmail: String = "",
     val isSignedIn: Boolean = false,
 ) {
   /** Only checked when signing up, where the name is required. */
@@ -66,9 +70,13 @@ data class AuthUiState(
     get() =
         !isLoading && isEmailValid && !isPasswordBlank && (mode == AuthMode.LOG_IN || !isNameBlank)
 
+  /** Seconds left before "Resend email" can be pressed for the current [email], 0 if none. */
+  val resendSecondsLeft: Int
+    get() = if (resendCooldownEmail == EpflEmail.normalize(email)) resendCooldownSeconds else 0
+
   /** True when "Resend email" can be pressed: nothing running and the countdown is over. */
   val canResend: Boolean
-    get() = !isLoading && resendCooldownSeconds == 0
+    get() = !isLoading && resendSecondsLeft == 0
 }
 
 /** Logs in and signs up EPFL users, including the email verification step. */
@@ -130,10 +138,12 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
    * arrives.
    *
    * Ignored while a request runs, so its result cannot land on the form. The resend countdown keeps
-   * running: the email was sent, and going back must not be a way around it.
+   * running for the address it was sent to: going back must not be a way around it.
+   *
+   * @return true if the step was left, false if it was ignored; the screen only navigates on true.
    */
-  fun backToForm() {
-    if (_uiState.value.isLoading) return
+  fun backToForm(): Boolean {
+    if (_uiState.value.isLoading) return false
     _uiState.update {
       it.copy(
           isAwaitingVerification = false,
@@ -142,6 +152,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
           hasAttemptedSubmit = false,
       )
     }
+    return true
   }
 
   private fun signIn() {
@@ -190,6 +201,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
   /** Disables "Resend email" for [RESEND_COOLDOWN_SECONDS], counting down once per second. */
   private fun startResendCooldown() {
     resendCooldownJob?.cancel()
+    _uiState.update { it.copy(resendCooldownEmail = EpflEmail.normalize(it.email)) }
     resendCooldownJob = viewModelScope.launch {
       for (seconds in RESEND_COOLDOWN_SECONDS downTo 1) {
         _uiState.update { it.copy(resendCooldownSeconds = seconds) }

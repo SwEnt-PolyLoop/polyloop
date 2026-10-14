@@ -2,6 +2,8 @@
 
 package com.swent.polyloop.ui.authentication
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertHeightIsAtLeast
@@ -13,18 +15,22 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
-import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,7 +44,9 @@ class CheckInboxScreenTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val email = "jane.doe@epfl.ch"
 
-  private val repository = VerificationAuthRepository()
+  // Unverified until a test sets a successful signInResult.
+  private val repository =
+      FakeAuthRepository(signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED))
   private lateinit var viewModel: AuthViewModel
   private var signIns = 0
   private var backToForms = 0
@@ -47,10 +55,10 @@ class CheckInboxScreenTest {
    * Shows the screen backed by a real [AuthViewModel], reached the same way as in the app: logging
    * in with an unverified EPFL email.
    */
-  private fun showScreen() {
+  private fun showScreen(typedEmail: String = email) {
     viewModel =
         AuthViewModel(repository).apply {
-          onEmailChange(email)
+          onEmailChange(typedEmail)
           onPasswordChange("secret")
           submit()
         }
@@ -81,7 +89,7 @@ class CheckInboxScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.auth_check_inbox_screen).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.auth_check_inbox_body).assertTextContains(email, true)
 
-    repository.verified = true
+    repository.signInResult = AuthResult.Success(AuthUser("uid", email, "Jane"))
     composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).performClick()
 
     composeTestRule.runOnIdle { assertEquals(1, signIns) }
@@ -108,7 +116,7 @@ class CheckInboxScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.auth_error).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.auth_resend_button).assertIsNotEnabled()
     composeTestRule.runOnIdle {
-      assertEquals(1, repository.resendCalls)
+      assertEquals(1, repository.calls.count { it.startsWith("resendVerificationEmail") })
       assertEquals(0, signIns)
     }
   }
@@ -126,8 +134,53 @@ class CheckInboxScreenTest {
   }
 
   @Test
+  fun showsTheNormalizedEmailTheVerificationWentTo() {
+    showScreen(typedEmail = " Jane.Doe@EPFL.ch ")
+
+    composeTestRule.onNodeWithTag(C.Tag.auth_check_inbox_body).assertTextContains(email, true)
+  }
+
+  @Test
+  fun systemBackDuringARequestStaysOnTheScreen() {
+    showScreen()
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+    try {
+      composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).performClick()
+
+      Espresso.pressBack()
+
+      composeTestRule.runOnIdle {
+        assertEquals(0, backToForms)
+        assertTrue(viewModel.uiState.value.isAwaitingVerification)
+      }
+    } finally {
+      gate.complete(Unit)
+    }
+  }
+
+  @Test
+  fun shortScreenScrollsToTheButtons() {
+    composeTestRule.setContent {
+      PolyLoopTheme {
+        // Shorter than the content, as in landscape or with a large font.
+        Box(Modifier.height(240.dp)) {
+          CheckInboxContent(
+              state = AuthUiState(email = email, error = AuthError.VERIFICATION_EMAIL_NOT_SENT),
+              onVerified = {},
+              onResend = {},
+              onBack = {},
+          )
+        }
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.auth_resend_button).performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
   fun countdownDisablesResendAndShowsSecondsLeft() {
-    showContent(AuthUiState(email = email, resendCooldownSeconds = 42))
+    showContent(AuthUiState(email = email, resendCooldownSeconds = 42, resendCooldownEmail = email))
 
     composeTestRule
         .onNodeWithTag(C.Tag.auth_resend_button)
@@ -161,27 +214,4 @@ class CheckInboxScreenTest {
     // A fixed 36dp area used to clip it to about two lines.
     composeTestRule.onNodeWithTag(C.Tag.auth_error).assertHeightIsAtLeast(48.dp)
   }
-}
-
-/** Fails sign-in as unverified until [verified] is set; counts resent emails. */
-private class VerificationAuthRepository : AuthRepository {
-  var verified = false
-  var resendCalls = 0
-    private set
-
-  override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> =
-      if (verified) AuthResult.Success(AuthUser("uid", email, "Jane"))
-      else AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
-
-  override suspend fun resendVerificationEmail(email: String, password: String): AuthResult<Unit> {
-    resendCalls++
-    return AuthResult.Success(Unit)
-  }
-
-  override suspend fun signUp(name: String, email: String, password: String) =
-      AuthResult.Success(Unit)
-
-  override fun getCurrentUser(): AuthUser? = null
-
-  override fun signOut() = Unit
 }

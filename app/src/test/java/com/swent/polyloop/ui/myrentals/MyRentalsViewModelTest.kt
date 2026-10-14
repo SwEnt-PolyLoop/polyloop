@@ -4,6 +4,7 @@ package com.swent.polyloop.ui.myrentals
 
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
@@ -11,7 +12,6 @@ import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
-import com.swent.polyloop.ui.authentication.FakeAuthRepository
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
