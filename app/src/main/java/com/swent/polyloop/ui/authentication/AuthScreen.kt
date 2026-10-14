@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -188,7 +190,7 @@ fun AuthScreen(
         testTag = if (isSignUp) C.Tag.auth_signup_button else C.Tag.auth_login_button,
     )
 
-    ErrorMessage(state.error)
+    AuthMessage(state.error)
   }
 }
 
@@ -404,7 +406,7 @@ private fun AuthTextField(
  * @param testTag semantic test tag for UI tests.
  */
 @Composable
-private fun AuthButton(
+internal fun AuthButton(
     text: String,
     onClick: () -> Unit,
     enabled: Boolean,
@@ -439,17 +441,44 @@ private fun AuthButton(
   }
 }
 
-/** Shows the latest authentication error in a fixed-height area below the primary action. */
+/**
+ * Shows the latest authentication error, or else the "email sent again" confirmation, below the
+ * primary action. The area keeps a minimum height so the layout does not jump when a message
+ * appears, and grows for a message too long for it.
+ *
+ * @param isEmailResent shows the confirmation of "Resend email" when there is no error.
+ * @param centered centers the message, for the centered "Check your inbox" step.
+ */
 @Composable
-private fun ErrorMessage(error: AuthError?) {
-  Column(modifier = Modifier.height(36.dp).fillMaxWidth()) {
-    if (error != null) {
-      Text(
-          text = stringResource(error.messageRes()),
-          color = MaterialTheme.colorScheme.error,
-          fontSize = 13.sp,
-          modifier = Modifier.padding(top = 4.dp).testTag(C.Tag.auth_error),
-      )
+internal fun AuthMessage(
+    error: AuthError?,
+    modifier: Modifier = Modifier,
+    isEmailResent: Boolean = false,
+    centered: Boolean = false,
+) {
+  val colors = MaterialTheme.colorScheme
+  val textAlign = if (centered) TextAlign.Center else TextAlign.Start
+  Column(
+      modifier = modifier.heightIn(min = 36.dp).fillMaxWidth(),
+      horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
+  ) {
+    when {
+      error != null ->
+          Text(
+              text = stringResource(error.messageRes()),
+              color = colors.error,
+              fontSize = 13.sp,
+              textAlign = textAlign,
+              modifier = Modifier.padding(top = 4.dp).testTag(C.Tag.auth_error),
+          )
+      isEmailResent ->
+          Text(
+              text = stringResource(R.string.auth_email_resent),
+              color = colors.onSurfaceVariant,
+              fontSize = 13.sp,
+              textAlign = textAlign,
+              modifier = Modifier.padding(top = 4.dp).testTag(C.Tag.auth_email_resent),
+          )
     }
   }
 }

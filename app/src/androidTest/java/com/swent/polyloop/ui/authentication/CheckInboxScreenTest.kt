@@ -2,6 +2,9 @@
 
 package com.swent.polyloop.ui.authentication
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -10,6 +13,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
@@ -139,6 +143,23 @@ class CheckInboxScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).assertIsNotEnabled()
     composeTestRule.onNodeWithTag(C.Tag.auth_resend_button).assertIsNotEnabled()
     composeTestRule.onNodeWithTag(C.Tag.auth_back_to_form_button).assertIsNotEnabled()
+  }
+
+  @Test
+  fun longErrorGrowsInsteadOfBeingCutOff() {
+    composeTestRule.setContent {
+      PolyLoopTheme {
+        // Narrow enough for the message to wrap over several lines.
+        AuthMessage(
+            error = AuthError.VERIFICATION_EMAIL_NOT_SENT,
+            centered = true,
+            modifier = Modifier.width(100.dp),
+        )
+      }
+    }
+
+    // A fixed 36dp area used to clip it to about two lines.
+    composeTestRule.onNodeWithTag(C.Tag.auth_error).assertHeightIsAtLeast(48.dp)
   }
 }
 

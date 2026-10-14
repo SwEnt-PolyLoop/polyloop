@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Email
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -145,43 +144,20 @@ internal fun CheckInboxContent(
           textAlign = TextAlign.Center,
           modifier = Modifier.testTag(C.Tag.auth_check_inbox_body),
       )
-      // Fixed height, so the text does not jump when a message appears.
-      Box(modifier = Modifier.height(48.dp).padding(top = 12.dp)) {
-        when {
-          state.error != null ->
-              Text(
-                  text = stringResource(state.error.messageRes()),
-                  color = colors.error,
-                  fontSize = 13.sp,
-                  textAlign = TextAlign.Center,
-                  modifier = Modifier.testTag(C.Tag.auth_error),
-              )
-          state.isVerificationEmailResent ->
-              Text(
-                  text = stringResource(R.string.auth_email_resent),
-                  color = colors.onSurfaceVariant,
-                  fontSize = 13.sp,
-                  textAlign = TextAlign.Center,
-                  modifier = Modifier.testTag(C.Tag.auth_email_resent),
-              )
-        }
-      }
+      AuthMessage(
+          error = state.error,
+          isEmailResent = state.isVerificationEmailResent,
+          centered = true,
+          modifier = Modifier.padding(top = 8.dp),
+      )
     }
 
-    Button(
+    AuthButton(
+        text = stringResource(R.string.auth_verified),
         onClick = onVerified,
         enabled = !state.isLoading,
-        shape = RoundedCornerShape(14.dp),
-        colors =
-            ButtonDefaults.buttonColors(
-                containerColor = colors.primary,
-                contentColor = colors.onPrimary,
-            ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-        modifier = Modifier.fillMaxWidth().height(52.dp).testTag(C.Tag.auth_verified_button),
-    ) {
-      Text(stringResource(R.string.auth_verified), fontSize = 17.sp, fontWeight = FontWeight.Medium)
-    }
+        testTag = C.Tag.auth_verified_button,
+    )
     Spacer(Modifier.height(12.dp))
     OutlinedButton(
         onClick = onResend,
