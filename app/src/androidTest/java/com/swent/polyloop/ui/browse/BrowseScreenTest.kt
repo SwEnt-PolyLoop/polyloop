@@ -75,6 +75,9 @@ class BrowseScreenTest {
   ) {
     val repository =
         object : ListingRepository {
+          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+              Result.success(emptyList())
+
           override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
@@ -179,6 +182,9 @@ class BrowseScreenTest {
     var calls = 0
     val repository =
         object : ListingRepository {
+          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+              Result.success(emptyList())
+
           override suspend fun getAllListings(): Result<List<Listing>> =
               if (calls++ == 0) Result.failure(IllegalStateException("Network down"))
               else Result.success(listings)

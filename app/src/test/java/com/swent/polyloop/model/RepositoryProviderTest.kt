@@ -1,12 +1,19 @@
 // Made with Claude
 package com.swent.polyloop.model
 
+import android.content.Context
+import android.net.ConnectivityManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.chat.ChatRepositoryFirestore
+import com.swent.polyloop.model.chat.FakeChatRepository
+import com.swent.polyloop.model.connectivity.ConnectivityRepositoryAndroid
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
@@ -17,8 +24,10 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -41,19 +50,32 @@ class RepositoryProviderTest {
     override fun signOut() = Unit
   }
 
+  // The app context that init keeps; the real connectivity repository reads its
+  // ConnectivityManager.
+  private val appContext =
+      mockk<Context> {
+        every { getSystemService(ConnectivityManager::class.java) } returns mockk(relaxed = true)
+      }
+  private val storage: FirebaseStorage = mockk()
+
   @Before
   fun setUp() {
-    // The real repositories get Firebase through FirebaseAuth/FirebaseFirestore.getInstance(),
-    // which needs an initialised Firebase app, so those are stubbed statically.
-    mockkStatic(FirebaseAuth::class, FirebaseFirestore::class)
+    // The real repositories and RepositoryProvider.storage get Firebase through
+    // FirebaseAuth/FirebaseFirestore/FirebaseStorage.getInstance(), which needs an initialised
+    // Firebase app, so those are stubbed statically.
+    mockkStatic(FirebaseAuth::class, FirebaseFirestore::class, FirebaseStorage::class)
     every { FirebaseAuth.getInstance() } returns mockk(relaxed = true)
     every { FirebaseFirestore.getInstance() } returns mockk(relaxed = true)
+    every { FirebaseStorage.getInstance() } returns storage
+    // init is given an activity-like context and must keep its application context.
+    RepositoryProvider.init(mockk { every { applicationContext } returns appContext })
     RepositoryProvider.reset()
   }
 
   @After
   fun tearDown() {
     RepositoryProvider.reset()
+    RepositoryProvider.clearContext()
     unmockkAll()
   }
 
@@ -107,6 +129,49 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- chatRepository ----------
+
+  @Test
+  fun chatRepositoryDefaultsToFirestoreImplementation() {
+    assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
+  }
+
+  @Test
+  fun chatRepositoryReturnsSameInstanceOnEveryAccess() {
+    val first = RepositoryProvider.chatRepository
+
+    assertSame(first, RepositoryProvider.chatRepository)
+    verify(exactly = 1) { FirebaseFirestore.getInstance() }
+  }
+
+  @Test
+  fun chatRepositoryReturnsAssignedRepository() {
+    val fake = FakeChatRepository()
+
+    RepositoryProvider.chatRepository = fake
+
+    assertSame(fake, RepositoryProvider.chatRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+    verify(exactly = 0) { FirebaseAuth.getInstance() }
+  }
+
+  // ---------- storage ----------
+
+  @Test
+  fun storageReturnsTheFirebaseStorageInstance() {
+    assertSame(storage, RepositoryProvider.storage)
+  }
+
+  @Test
+  fun accessingRepositoriesDoesNotTouchStorage() {
+    RepositoryProvider.authRepository
+    RepositoryProvider.listingRepository
+    RepositoryProvider.profileRepository
+    RepositoryProvider.chatRepository
+
+    verify(exactly = 0) { FirebaseStorage.getInstance() }
+  }
+
   // ---------- profileRepository ----------
 
   @Test
@@ -132,6 +197,42 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- connectivityRepository ----------
+
+  @Test
+  fun connectivityRepositoryDefaultsToAndroidImplementation() {
+    assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
+  }
+
+  @Test
+  fun connectivityRepositoryReturnsSameInstanceOnEveryAccess() {
+    val first = RepositoryProvider.connectivityRepository
+
+    assertSame(first, RepositoryProvider.connectivityRepository)
+    verify(exactly = 1) { appContext.getSystemService(ConnectivityManager::class.java) }
+  }
+
+  @Test
+  fun connectivityRepositoryReturnsAssignedRepository() {
+    val fake = FakeConnectivityRepository()
+
+    RepositoryProvider.connectivityRepository = fake
+
+    assertSame(fake, RepositoryProvider.connectivityRepository)
+    verify(exactly = 0) { appContext.getSystemService(ConnectivityManager::class.java) }
+  }
+
+  @Test
+  fun connectivityRepositoryFailsClearlyWhenInitWasNotCalled() {
+    RepositoryProvider.clearContext()
+
+    val error =
+        assertThrows(IllegalStateException::class.java) {
+          RepositoryProvider.connectivityRepository
+        }
+    assertEquals("RepositoryProvider.init was not called", error.message)
+  }
+
   // ---------- laziness and reset ----------
 
   @Test
@@ -140,6 +241,7 @@ class RepositoryProviderTest {
 
     verify(exactly = 0) { FirebaseAuth.getInstance() }
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
+    verify(exactly = 0) { FirebaseStorage.getInstance() }
   }
 
   @Test
@@ -153,27 +255,36 @@ class RepositoryProviderTest {
   fun resetForgetsAssignedRepositories() {
     val fakeAuth = FakeAuthRepository()
     val fakeListing = FakeListingRepository()
+    val fakeChat = FakeChatRepository()
     RepositoryProvider.authRepository = fakeAuth
     RepositoryProvider.listingRepository = fakeListing
+    RepositoryProvider.chatRepository = fakeChat
     RepositoryProvider.profileRepository = FakeProfileRepository()
+    RepositoryProvider.connectivityRepository = FakeConnectivityRepository()
 
     RepositoryProvider.reset()
 
     assertTrue(RepositoryProvider.authRepository is AuthRepositoryFirebase)
     assertTrue(RepositoryProvider.listingRepository is ListingRepositoryFirestore)
+    assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
     assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
+    assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
   }
 
   @Test
   fun resetCreatesNewInstancesOnNextAccess() {
     val firstAuth = RepositoryProvider.authRepository
     val firstListing = RepositoryProvider.listingRepository
+    val firstChat = RepositoryProvider.chatRepository
     val firstProfile = RepositoryProvider.profileRepository
+    val firstConnectivity = RepositoryProvider.connectivityRepository
 
     RepositoryProvider.reset()
 
     assertNotSame(firstAuth, RepositoryProvider.authRepository)
     assertNotSame(firstListing, RepositoryProvider.listingRepository)
+    assertNotSame(firstChat, RepositoryProvider.chatRepository)
     assertNotSame(firstProfile, RepositoryProvider.profileRepository)
+    assertNotSame(firstConnectivity, RepositoryProvider.connectivityRepository)
   }
 }

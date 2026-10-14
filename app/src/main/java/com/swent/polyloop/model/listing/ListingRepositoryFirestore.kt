@@ -38,4 +38,20 @@ class ListingRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fi
       Result.failure(e)
     }
   }
+
+  override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+    if (ownerId.isBlank()) return Result.success(emptyList())
+    return try {
+      val snapshot =
+          db.collection(ListingFields.COLLECTION)
+              .whereEqualTo(ListingFields.OWNER_ID, ownerId)
+              .get()
+              .await()
+      Result.success(
+          snapshot.documents.mapNotNull { doc -> doc.data?.let { listingFromDocument(doc.id, it) } }
+      )
+    } catch (e: FirebaseException) {
+      Result.failure(e)
+    }
+  }
 }
