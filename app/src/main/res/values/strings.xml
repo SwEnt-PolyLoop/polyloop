@@ -172,6 +172,8 @@
     <string name="auth_password_label">Password</string>
     <string name="auth_password_placeholder">Enter your password</string>
     <string name="auth_name_required">Please enter your name.</string>
+    <string name="auth_name_step_title">What\'s your name?</string>
+    <string name="auth_continue">Continue</string>
     <string name="auth_email_required">Please enter your email address.</string>
     <string name="auth_email_invalid_domain">Use your @epfl.ch address.</string>
     <string name="auth_password_required">Please enter your password.</string>
@@ -184,6 +186,7 @@
     <string name="auth_error_email_already_in_use">This email already has an account. Try logging in.</string>
     <string name="auth_error_verification_email_not_sent">Account created, but the verification email could not be sent.</string>
     <string name="auth_error_name_not_saved">Account created, but your name could not be saved.</string>
+    <string name="auth_error_profile_not_created">Your profile could not be created. Please log in again.</string>
     <string name="auth_check_inbox_title">Check your inbox</string>
     <string name="auth_check_inbox_body">We sent a verification link to %1$s. Open it, then come back here.</string>
     <string name="auth_verified">I\'ve verified</string>

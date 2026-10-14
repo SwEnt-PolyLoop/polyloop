@@ -41,6 +41,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
+import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.EpflEmail
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
@@ -53,7 +54,9 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
  *
  * @param onSignIn called once "I've verified" signed the user in.
  * @param onBackToForm called after the user chose to go back to the form (back arrow or system
- *   Back), e.g. to fix a mistyped email. Back does nothing while a request runs.
+ *   Back), e.g. to fix a mistyped email. Back does nothing while a request runs. Also called when
+ *   "I've verified" leads to the "What's your name?" step or fails to create the profile: both are
+ *   shown on the form.
  */
 @Composable
 fun CheckInboxScreen(
@@ -64,6 +67,10 @@ fun CheckInboxScreen(
   val state by viewModel.uiState.collectAsStateWithLifecycle()
 
   LaunchedEffect(state.isSignedIn) { if (state.isSignedIn) onSignIn() }
+
+  LaunchedEffect(state.isAskingName, state.error) {
+    if (state.isAskingName || state.error == AuthError.PROFILE_NOT_CREATED) onBackToForm()
+  }
 
   // The ViewModel decides: it ignores Back while a request runs, even one started this frame.
   val backToForm = { if (viewModel.backToForm()) onBackToForm() }

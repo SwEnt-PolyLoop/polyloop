@@ -54,6 +54,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
@@ -88,6 +89,15 @@ fun AuthScreen(
     if (state.isAwaitingVerification) {
       onNavigateToVerification()
     }
+  }
+
+  if (state.isAskingName) {
+    NameStep(
+        state = state,
+        onNameChange = viewModel::onNameChange,
+        onContinue = viewModel::submitName,
+    )
+    return
   }
 
   val colors = MaterialTheme.colorScheme
@@ -188,6 +198,71 @@ fun AuthScreen(
         onClick = viewModel::submit,
         enabled = !state.isLoading,
         testTag = if (isSignUp) C.Tag.auth_signup_button else C.Tag.auth_login_button,
+    )
+
+    AuthMessage(state.error)
+  }
+}
+
+/**
+ * Asks for the name of a verified user whose name could not be saved at sign-up, before their
+ * profile is created.
+ *
+ * @param state current screen state; only the name, loading flag and error are used.
+ * @param onNameChange called when the user edits the name.
+ * @param onContinue called when the user presses "Continue".
+ */
+@Composable
+private fun NameStep(
+    state: AuthUiState,
+    onNameChange: (String) -> Unit,
+    onContinue: () -> Unit,
+) {
+  val colors = MaterialTheme.colorScheme
+
+  Column(
+      modifier =
+          Modifier.fillMaxSize()
+              .background(colors.background)
+              .verticalScroll(rememberScrollState())
+              .padding(horizontal = 14.dp)
+              .padding(top = 64.dp)
+  ) {
+    Header()
+
+    Spacer(Modifier.height(16.dp))
+
+    Text(
+        text = stringResource(R.string.auth_name_step_title),
+        color = colors.onBackground,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
+
+    Spacer(Modifier.height(16.dp))
+
+    AuthTextField(
+        label = stringResource(R.string.auth_name_label),
+        value = state.name,
+        placeholder = stringResource(R.string.auth_name_placeholder),
+        onValueChange = onNameChange,
+        errorText =
+            if (state.hasAttemptedSubmit && state.isNameBlank) {
+              stringResource(R.string.auth_name_required)
+            } else {
+              null
+            },
+        testTag = C.Tag.auth_name_field,
+        errorTestTag = C.Tag.auth_name_error,
+    )
+
+    Spacer(Modifier.height(20.dp))
+
+    AuthButton(
+        text = stringResource(R.string.auth_continue),
+        onClick = onContinue,
+        enabled = !state.isLoading,
+        testTag = C.Tag.auth_name_continue_button,
     )
 
     AuthMessage(state.error)
@@ -520,6 +595,7 @@ internal fun AuthError.messageRes(): Int =
       AuthError.EMAIL_ALREADY_IN_USE -> R.string.auth_error_email_already_in_use
       AuthError.VERIFICATION_EMAIL_NOT_SENT -> R.string.auth_error_verification_email_not_sent
       AuthError.NAME_NOT_SAVED -> R.string.auth_error_name_not_saved
+      AuthError.PROFILE_NOT_CREATED -> R.string.auth_error_profile_not_created
     }
 
 /** Preview of the login form backed by an in-memory authentication repository. */
@@ -527,7 +603,9 @@ internal fun AuthError.messageRes(): Int =
 @Composable
 private fun AuthScreenLogInPreview() {
   val viewModel = remember {
-    AuthViewModel(FakeAuthRepository()).also { it.switchMode(AuthMode.LOG_IN) }
+    AuthViewModel(FakeAuthRepository(), FakeProfileRepository()).also {
+      it.switchMode(AuthMode.LOG_IN)
+    }
   }
 
   PolyLoopTheme {
@@ -544,7 +622,9 @@ private fun AuthScreenLogInPreview() {
 @Composable
 private fun AuthScreenSignUpPreview() {
   val viewModel = remember {
-    AuthViewModel(FakeAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) }
+    AuthViewModel(FakeAuthRepository(), FakeProfileRepository()).also {
+      it.switchMode(AuthMode.SIGN_UP)
+    }
   }
 
   PolyLoopTheme {

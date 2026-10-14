@@ -28,6 +28,7 @@ import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -51,6 +52,7 @@ class CheckInboxScreenTest {
   // Unverified until a test sets a successful signInResult.
   private val repository =
       FakeAuthRepository(signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED))
+  private val profileRepository = FakeProfileRepository()
   private lateinit var viewModel: AuthViewModel
   private var signIns = 0
   private var backToForms = 0
@@ -70,7 +72,7 @@ class CheckInboxScreenTest {
    */
   private fun showScreen(typedEmail: String = email) {
     viewModel =
-        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository))[
+        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository, profileRepository))[
                 AuthViewModel::class.java]
             .apply {
               onEmailChange(typedEmail)
@@ -109,6 +111,34 @@ class CheckInboxScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).performClick()
 
     composeTestRule.runOnIdle { assertEquals(1, signIns) }
+  }
+
+  @Test
+  fun verifiedAccountWithoutNameGoesBackToTheFormForTheNameStep() {
+    showScreen()
+
+    repository.signInResult = AuthResult.Success(AuthUser("uid", email, ""))
+    composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).performClick()
+
+    composeTestRule.runOnIdle {
+      assertEquals(1, backToForms)
+      assertEquals(0, signIns)
+      assertTrue(viewModel.uiState.value.isAskingName)
+    }
+  }
+
+  @Test
+  fun profileFailureGoesBackToTheForm() {
+    showScreen()
+    profileRepository.failure = IllegalStateException("offline")
+
+    repository.signInResult = AuthResult.Success(AuthUser("uid", email, "Jane"))
+    composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).performClick()
+
+    composeTestRule.runOnIdle {
+      assertEquals(1, backToForms)
+      assertEquals(0, signIns)
+    }
   }
 
   @Test
