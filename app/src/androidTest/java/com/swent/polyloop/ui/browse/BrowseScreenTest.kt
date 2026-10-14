@@ -14,8 +14,9 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
+import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
-import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
@@ -35,7 +36,7 @@ class BrowseScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   // Signed in as "me", who owns none of the listings below.
-  private val authRepository = FakeAuthRepository(signedInUser = AuthUser("me", "me@epfl.ch", "Me"))
+  private val authRepository = SignedInAuthRepository(AuthUser("me", "me@epfl.ch", "Me"))
 
   private val listings =
       listOf("tent", "projector", "drill", "helmet", "bike", "guitar").map { id ->
@@ -272,5 +273,21 @@ class BrowseScreenTest {
     clickChip(electronicsChip)
     clickChip(C.Tag.browse_category_all)
     assertShownListings(*listings.map { it.id }.toTypedArray())
+  }
+
+  /** An [AuthRepository] where [user] is signed in, or nobody when null; Browse only reads it. */
+  private class SignedInAuthRepository(var user: AuthUser?) : AuthRepository {
+    override suspend fun signUp(name: String, email: String, password: String) =
+        AuthResult.Success(Unit)
+
+    override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> =
+        error("Not used by Browse")
+
+    override suspend fun resendVerificationEmail(email: String, password: String) =
+        AuthResult.Success(Unit)
+
+    override fun getCurrentUser(): AuthUser? = user
+
+    override fun signOut() {}
   }
 }

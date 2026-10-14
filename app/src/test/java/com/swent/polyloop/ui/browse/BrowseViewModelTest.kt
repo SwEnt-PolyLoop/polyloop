@@ -3,8 +3,9 @@
 package com.swent.polyloop.ui.browse
 
 import androidx.lifecycle.ViewModel
+import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
-import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
@@ -49,13 +50,13 @@ class BrowseViewModelTest {
   private lateinit var repository: FakeListingRepository
 
   // Signed in as "me", who owns none of the listings above.
-  private lateinit var authRepository: FakeAuthRepository
+  private lateinit var authRepository: SignedInAuthRepository
 
   @Before
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     repository = FakeListingRepository(listings = listings)
-    authRepository = FakeAuthRepository(signedInUser = AuthUser("me", "me@epfl.ch", "Me"))
+    authRepository = SignedInAuthRepository(AuthUser("me", "me@epfl.ch", "Me"))
   }
 
   @After
@@ -161,7 +162,7 @@ class BrowseViewModelTest {
   @Test
   fun allListingsShownWhenNobodySignedIn() {
     repository.listings = listings + myListing
-    authRepository.signedInUser = null
+    authRepository.user = null
 
     assertEquals(
         listings + myListing,
@@ -249,4 +250,20 @@ class BrowseViewModelTest {
   }
 
   private class OtherViewModel : ViewModel()
+
+  /** An [AuthRepository] where [user] is signed in, or nobody when null; Browse only reads it. */
+  private class SignedInAuthRepository(var user: AuthUser?) : AuthRepository {
+    override suspend fun signUp(name: String, email: String, password: String) =
+        AuthResult.Success(Unit)
+
+    override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> =
+        error("Not used by Browse")
+
+    override suspend fun resendVerificationEmail(email: String, password: String) =
+        AuthResult.Success(Unit)
+
+    override fun getCurrentUser(): AuthUser? = user
+
+    override fun signOut() {}
+  }
 }
