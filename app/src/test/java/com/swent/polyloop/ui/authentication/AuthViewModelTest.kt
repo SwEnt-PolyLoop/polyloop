@@ -520,15 +520,22 @@ class AuthViewModelTest {
   }
 
   @Test
-  fun backToFormStopsTheCountdown() {
+  fun backToFormKeepsTheCountdownSoLoggingInAgainCannotResendRightAway() {
     fillSignUp()
     viewModel.submit()
+    advanceSeconds(10)
 
     viewModel.backToForm()
-    assertEquals(0, state.resendCooldownSeconds)
-
     advanceSeconds(1)
-    assertEquals(0, state.resendCooldownSeconds)
+    assertEquals(49, state.resendCooldownSeconds)
+
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    viewModel.switchMode(AuthMode.LOG_IN)
+    viewModel.submit()
+
+    assertTrue(state.isAwaitingVerification)
+    assertEquals(49, state.resendCooldownSeconds)
+    assertFalse(state.canResend)
   }
 
   @Test

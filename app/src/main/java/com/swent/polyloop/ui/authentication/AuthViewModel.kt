@@ -129,16 +129,15 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
    * email had a typo (a valid EPFL address, but not the user's) and the verification email never
    * arrives.
    *
-   * Ignored while a request runs, so its result cannot land on the form.
+   * Ignored while a request runs, so its result cannot land on the form. The resend countdown keeps
+   * running: the email was sent, and going back must not be a way around it.
    */
   fun backToForm() {
     if (_uiState.value.isLoading) return
-    resendCooldownJob?.cancel()
     _uiState.update {
       it.copy(
           isAwaitingVerification = false,
           isVerificationEmailResent = false,
-          resendCooldownSeconds = 0,
           error = null,
           hasAttemptedSubmit = false,
       )
