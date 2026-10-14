@@ -1,4 +1,4 @@
-// Made with Claude.
+// Edited with Claude.
 
 package com.swent.polyloop.ui.browse
 
@@ -7,14 +7,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -24,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -33,14 +41,22 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
 // TODO: temporary until LocationRepository exists; every card shows the same distance.
 private const val FAKE_DISTANCE_TEXT = "0.6 km"
 
-/** The Browse screen, showing the published listings loaded by [viewModel]. */
+/**
+ * The Browse screen, showing the published listings loaded by [viewModel]. Offline, its button
+ * calls [onOpenMyRentals].
+ */
 @Composable
-fun BrowseScreen(viewModel: BrowseViewModel, onListingClick: (String) -> Unit = {}) {
+fun BrowseScreen(
+    viewModel: BrowseViewModel,
+    onListingClick: (String) -> Unit = {},
+    onOpenMyRentals: () -> Unit = {},
+) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   BrowseContent(
       uiState = uiState,
@@ -49,13 +65,15 @@ fun BrowseScreen(viewModel: BrowseViewModel, onListingClick: (String) -> Unit = 
       onQueryChange = viewModel::setQuery,
       onCategoryClick = viewModel::toggleCategory,
       onAllClick = viewModel::clearCategories,
+      onOpenMyRentals = onOpenMyRentals,
   )
 }
 
 /**
  * Stateless Browse content: the header with the search bar and category chips, then a loading
  * indicator, an error with a Retry button, an empty state or the listings passing the filter,
- * depending on [uiState].
+ * depending on [uiState]. Offline, browsing needs a connection: the offline banner, the title and
+ * the offline state replace the rest.
  */
 @Composable
 fun BrowseContent(
@@ -65,6 +83,7 @@ fun BrowseContent(
     onQueryChange: (String) -> Unit = {},
     onCategoryClick: (ListingCategory) -> Unit = {},
     onAllClick: () -> Unit = {},
+    onOpenMyRentals: () -> Unit = {},
 ) {
   Column(
       modifier =
@@ -72,6 +91,7 @@ fun BrowseContent(
               .background(MaterialTheme.colorScheme.background)
               .testTag(C.Tag.browse_screen)
   ) {
+    if (uiState.isOffline) OfflineBanner()
     Column(
         modifier = Modifier.padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -82,15 +102,18 @@ fun BrowseContent(
           fontWeight = FontWeight.Bold,
           modifier = Modifier.testTag(C.Tag.browse_title),
       )
-      BrowseFilters(
-          filter = uiState.filter,
-          onQueryChange = onQueryChange,
-          onCategoryClick = onCategoryClick,
-          onAllClick = onAllClick,
-      )
-      BrowseViewToggle()
+      if (!uiState.isOffline) {
+        BrowseFilters(
+            filter = uiState.filter,
+            onQueryChange = onQueryChange,
+            onCategoryClick = onCategoryClick,
+            onAllClick = onAllClick,
+        )
+        BrowseViewToggle()
+      }
     }
     when {
+      uiState.isOffline -> BrowseOffline(onOpenMyRentals = onOpenMyRentals)
       uiState.isLoading ->
           Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(modifier = Modifier.testTag(C.Tag.browse_loading))
@@ -150,6 +173,65 @@ private fun BrowseError(errorMsg: String, onRetry: () -> Unit) {
   }
 }
 
+/**
+ * Shown instead of the listings while offline: browsing needs a connection, but My rentals works
+ * offline, so a button leads there.
+ */
+@Composable
+private fun BrowseOffline(onOpenMyRentals: () -> Unit) {
+  Column(
+      modifier = Modifier.fillMaxSize().padding(16.dp).testTag(C.Tag.browse_offline),
+      horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    Column(
+        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+      Box(
+          modifier =
+              Modifier.size(84.dp)
+                  .background(MaterialTheme.colorScheme.tertiaryContainer, CircleShape),
+          contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_wifi_off),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.size(36.dp),
+        )
+      }
+      Spacer(Modifier.height(20.dp))
+      Text(
+          text = stringResource(R.string.browse_offline_title),
+          style = MaterialTheme.typography.titleLarge,
+          fontWeight = FontWeight.Bold,
+          textAlign = TextAlign.Center,
+      )
+      Spacer(Modifier.height(12.dp))
+      Text(
+          text = stringResource(R.string.browse_offline_body),
+          style = MaterialTheme.typography.bodyLarge,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          textAlign = TextAlign.Center,
+      )
+    }
+    OutlinedButton(
+        onClick = onOpenMyRentals,
+        modifier =
+            Modifier.fillMaxWidth().height(56.dp).testTag(C.Tag.browse_offline_my_rentals_button),
+    ) {
+      Icon(
+          painter = painterResource(R.drawable.ic_package),
+          contentDescription = null,
+          modifier = Modifier.size(20.dp),
+      )
+      Spacer(Modifier.width(12.dp))
+      Text(stringResource(R.string.browse_offline_open_my_rentals))
+    }
+  }
+}
+
 /** Map | List toggle with List selected. Pressing Map does nothing yet. */
 @Composable
 private fun BrowseViewToggle() {
@@ -179,4 +261,12 @@ private fun BrowseViewToggle() {
 @Composable
 private fun BrowseContentPreview() {
   PolyLoopTheme { BrowseContent(uiState = BrowseUiState(), onListingClick = {}, onRetry = {}) }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun BrowseOfflinePreview() {
+  PolyLoopTheme {
+    BrowseContent(uiState = BrowseUiState(isOffline = true), onListingClick = {}, onRetry = {})
+  }
 }

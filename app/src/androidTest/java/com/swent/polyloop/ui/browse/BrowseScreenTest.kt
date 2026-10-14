@@ -27,6 +27,7 @@ import com.swent.polyloop.resources.C
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -145,6 +146,64 @@ class BrowseScreenTest {
         .onNodeWithTag(C.Tag.browse_empty)
         .assertIsDisplayed()
         .assertTextEquals(string(R.string.browse_no_results))
+  }
+
+  @Test
+  fun onlineShowsNoOfflineBanner() {
+    setContent()
+
+    composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.browse_offline).assertDoesNotExist()
+  }
+
+  @Test
+  fun offlineShowsBannerAndOfflineStateInsteadOfListings() {
+    var myRentalsOpened = false
+    composeTestRule.setContent {
+      BrowseContent(
+          uiState = BrowseUiState(listings = listings, isOffline = true),
+          onListingClick = {},
+          onRetry = {},
+          onOpenMyRentals = { myRentalsOpened = true },
+      )
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.offline_banner)
+        .assertIsDisplayed()
+        .assertTextEquals(string(R.string.offline_banner))
+    composeTestRule.onNodeWithTag(C.Tag.browse_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_offline).assertIsDisplayed()
+    // Browsing needs a connection: no filters and no listings, even the ones already loaded.
+    (headerTags - C.Tag.browse_title + C.Tag.browse_list).forEach {
+      composeTestRule.onNodeWithTag(it).assertDoesNotExist()
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_offline_my_rentals_button).performClick()
+    assertTrue(myRentalsOpened)
+  }
+
+  @Test
+  fun browseScreenFollowsTheConnection() {
+    val connectivity = FakeConnectivityRepository(online = true)
+    val repository =
+        object : ListingRepository {
+          override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
+
+          override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+        }
+    val viewModel = BrowseViewModel(repository, authRepository, connectivity)
+    composeTestRule.setContent { BrowseScreen(viewModel = viewModel) }
+    waitForTag(C.Tag.browse_list)
+
+    connectivity.setOnline(false)
+    waitForTag(C.Tag.browse_offline)
+    composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_list).assertDoesNotExist()
+
+    connectivity.setOnline(true)
+    waitForTag(C.Tag.browse_list)
+    composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertDoesNotExist()
   }
 
   private fun string(id: Int) =
