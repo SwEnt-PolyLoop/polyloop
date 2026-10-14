@@ -14,6 +14,8 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
+import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
@@ -31,6 +33,10 @@ import org.junit.runner.RunWith
 class BrowseScreenTest {
 
   @get:Rule val composeTestRule = createComposeRule()
+
+  // Signed in as "me", who owns none of the listings below.
+  private val authRepository =
+      FakeAuthRepository(signedInUser = AuthUser("me", "me@epfl.ch", "Me"))
 
   private val listings =
       listOf("tent", "projector", "drill", "helmet", "bike", "guitar").map { id ->
@@ -79,7 +85,7 @@ class BrowseScreenTest {
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
         }
-    val viewModel = BrowseViewModel(repository)
+    val viewModel = BrowseViewModel(repository, authRepository)
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = onListingClick)
     }
@@ -185,7 +191,7 @@ class BrowseScreenTest {
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
         }
-    val viewModel = BrowseViewModel(repository)
+    val viewModel = BrowseViewModel(repository, authRepository)
     var clickedId: String? = null
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = { clickedId = it })

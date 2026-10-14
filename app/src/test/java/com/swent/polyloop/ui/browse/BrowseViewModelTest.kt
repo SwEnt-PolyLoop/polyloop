@@ -3,6 +3,8 @@
 package com.swent.polyloop.ui.browse
 
 import androidx.lifecycle.ViewModel
+import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
@@ -46,10 +48,14 @@ class BrowseViewModelTest {
 
   private lateinit var repository: FakeListingRepository
 
+  // Signed in as "me", who owns none of the listings above.
+  private lateinit var authRepository: FakeAuthRepository
+
   @Before
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     repository = FakeListingRepository(listings = listings)
+    authRepository = FakeAuthRepository(signedInUser = AuthUser("me", "me@epfl.ch", "Me"))
   }
 
   @After
@@ -59,7 +65,7 @@ class BrowseViewModelTest {
 
   @Test
   fun initLoadsListings() {
-    val state = BrowseViewModel(repository).uiState.value
+    val state = BrowseViewModel(repository, authRepository).uiState.value
 
     assertEquals(listings, state.listings)
     assertFalse(state.isLoading)
@@ -78,13 +84,13 @@ class BrowseViewModelTest {
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
         }
 
-    assertEquals(listOf(published), BrowseViewModel(unfiltered).uiState.value.listings)
+    assertEquals(listOf(published), BrowseViewModel(unfiltered, authRepository).uiState.value.listings)
   }
 
   @Test
   fun failureSetsErrorMsgAndStopsLoading() {
     repository.failure = IllegalStateException("Network down")
-    val state = BrowseViewModel(repository).uiState.value
+    val state = BrowseViewModel(repository, authRepository).uiState.value
 
     assertEquals("Network down", state.errorMsg)
     assertFalse(state.isLoading)
@@ -95,12 +101,12 @@ class BrowseViewModelTest {
     repository.failure = RuntimeException()
 
     // Blank, not null: the screen shows its generic error text.
-    assertEquals("", BrowseViewModel(repository).uiState.value.errorMsg)
+    assertEquals("", BrowseViewModel(repository, authRepository).uiState.value.errorMsg)
   }
 
   @Test
   fun failureKeepsPreviouslyLoadedListings() {
-    val vm = BrowseViewModel(repository)
+    val vm = BrowseViewModel(repository, authRepository)
     repository.failure = IllegalStateException("Network down")
 
     vm.refresh()
@@ -112,7 +118,7 @@ class BrowseViewModelTest {
   @Test
   fun refreshAfterFailureClearsErrorWhileLoading() {
     repository.failure = IllegalStateException("Network down")
-    val vm = BrowseViewModel(repository)
+    val vm = BrowseViewModel(repository, authRepository)
 
     repository.failure = null
     val gate = CompletableDeferred<Unit>()
@@ -135,7 +141,7 @@ class BrowseViewModelTest {
 
   private fun filterViewModel(): BrowseViewModel {
     repository.listings = listOf(tent, projector, drill)
-    return BrowseViewModel(repository)
+    return BrowseViewModel(repository, authRepository)
   }
 
   @Test
@@ -197,13 +203,13 @@ class BrowseViewModelTest {
 
   @Test
   fun factoryCreatesBrowseViewModel() {
-    val vm = BrowseViewModel.Factory(repository).create(BrowseViewModel::class.java)
+    val vm = BrowseViewModel.Factory(repository, authRepository).create(BrowseViewModel::class.java)
     assertEquals(listings, vm.uiState.value.listings)
   }
 
   @Test(expected = IllegalArgumentException::class)
   fun factoryRejectsOtherViewModels() {
-    BrowseViewModel.Factory(repository).create(OtherViewModel::class.java)
+    BrowseViewModel.Factory(repository, authRepository).create(OtherViewModel::class.java)
   }
 
   private class OtherViewModel : ViewModel()
