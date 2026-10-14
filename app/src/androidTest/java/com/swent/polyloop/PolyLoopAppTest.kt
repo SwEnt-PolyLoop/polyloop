@@ -4,6 +4,7 @@ package com.swent.polyloop
 
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -24,9 +25,12 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
@@ -79,6 +83,12 @@ class PolyLoopAppTest {
 
         override suspend fun getListing(id: String): Result<Listing?> =
             Result.success(listing.takeIf { it.id == id })
+
+        override suspend fun createListing(
+            listing: Listing,
+            addresses: ListingAddresses,
+            photos: List<Uri>,
+        ): Result<String> = error("Not used in this test")
       }
 
   /** The signed-in user PolyLoopApp reads on start; null means nobody is signed in. */
@@ -107,6 +117,16 @@ class PolyLoopAppTest {
         }
       }
 
+  /** In-memory profiles, so the Profile screens never reach Firestore. */
+  private val profileRepository =
+      FakeProfileRepository(
+          listOf(
+              UserProfile(uid = "me", name = "Me", email = "me@epfl.ch"),
+              UserProfile(uid = "user-1", name = "User", email = "user@epfl.ch"),
+              UserProfile(uid = "owner-1", name = "Owner", email = "owner@epfl.ch"),
+          )
+      )
+
   /** In-memory conversations, so the Chat list never reaches Firestore. */
   private val chatRepository = FakeChatRepository(currentUid = "me")
 
@@ -114,6 +134,7 @@ class PolyLoopAppTest {
   fun setUp() {
     RepositoryProvider.listingRepository = listingRepository
     RepositoryProvider.authRepository = authRepository
+    RepositoryProvider.profileRepository = profileRepository
     RepositoryProvider.chatRepository = chatRepository
   }
 
@@ -178,6 +199,8 @@ class PolyLoopAppTest {
           Screen.Browse -> C.Tag.browse_screen
           Screen.CreateListing -> C.Tag.create_listing_screen
           Screen.ChatList -> C.Tag.chat_list_screen
+          Screen.Profile,
+          Screen.UserProfile -> C.Tag.profile_screen
           else -> null
         }
     if (realScreenTag != null) {
@@ -494,5 +517,21 @@ class PolyLoopAppTest {
         "rental-1",
         navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
     )
+  }
+
+  @Test
+  fun signOutFromProfileReturnsToSignInWithAnEmptyBackStack() {
+    currentUser = AuthUser(uid = "me", email = "me@epfl.ch", name = "Me")
+    setApp()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_profile_button).performClick()
+    waitForTag(C.Tag.profile_sign_out_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.profile_sign_out_button).performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+
+    assertEquals(Screen.Auth.route, navController.currentDestination?.route)
+    assertNull(navController.previousBackStackEntry)
+    assertNull(currentUser)
+    composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist()
   }
 }
