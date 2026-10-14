@@ -56,21 +56,20 @@ data class ChatHeader(
  *
  * [errorMsg] is non-null when the chat cannot be loaded (or nobody is signed in, or the rental does
  * not exist); it is blank when there is no message to show, and the screen then shows a generic
- * text. [draft] is the text being typed: it is cleared only once it is sent, so after a failed send
- * ([sendFailed]) pressing Send again retries it.
+ * text. [draft] is the text being typed: Send clears it right away, and puts it back if the message
+ * could not be sent ([sendFailed]), so pressing Send again retries it.
  */
 data class ChatUiState(
     val header: ChatHeader? = null,
     val messages: List<ChatMessageRow> = emptyList(),
     val draft: String = "",
-    val isSending: Boolean = false,
     val sendFailed: Boolean = false,
     val isLoading: Boolean = true,
     val errorMsg: String? = null,
 ) {
-  /** True when Send can be pressed: some text, and no message already on its way. */
+  /** True when Send can be pressed: there is some text. */
   val canSend: Boolean
-    get() = draft.isNotBlank() && !isSending
+    get() = draft.isNotBlank()
 }
 
 /**
@@ -98,21 +97,19 @@ class ChatViewModel(
   /** Updates the text being typed; typing again hides the "not sent" error. */
   fun onDraftChange(text: String) = _uiState.update { it.copy(draft = text, sendFailed = false) }
 
-  /** Sends the text being typed, unless it is blank or a message is already on its way. */
+  /**
+   * Sends the text being typed, unless it is blank. The field is cleared right away: Firestore
+   * shows the message at once but only confirms it when the server answers, which never happens
+   * offline, so waiting would leave the text in the field and block the next message. If sending
+   * fails, the text comes back, unless the user has started typing a new one.
+   */
   fun send() {
-    val state = _uiState.value
-    if (!state.canSend) return
-    val text = state.draft
-    _uiState.update { it.copy(isSending = true, sendFailed = false) }
+    val text = _uiState.value.draft
+    if (text.isBlank()) return
+    _uiState.update { it.copy(draft = "", sendFailed = false) }
     viewModelScope.launch {
-      val sent = chatRepository.sendMessage(rentalId, text).isSuccess
-      _uiState.update {
-        when {
-          !sent -> it.copy(isSending = false, sendFailed = true)
-          // Keep what the user typed while the message was on its way.
-          it.draft == text -> it.copy(isSending = false, draft = "")
-          else -> it.copy(isSending = false)
-        }
+      if (chatRepository.sendMessage(rentalId, text).isFailure) {
+        _uiState.update { it.copy(sendFailed = true, draft = it.draft.ifBlank { text }) }
       }
     }
   }

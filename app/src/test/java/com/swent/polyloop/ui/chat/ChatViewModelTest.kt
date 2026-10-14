@@ -235,7 +235,6 @@ class ChatViewModelTest {
 
     val state = vm.uiState.value
     assertEquals("", state.draft)
-    assertFalse(state.isSending)
     assertFalse(state.sendFailed)
     assertEquals(
         ChatMessageRow("m4", "See you at 5?", chat.now, MessageKind.MINE),
@@ -266,7 +265,6 @@ class ChatViewModelTest {
     val state = vm.uiState.value
     assertEquals("Hello", state.draft)
     assertTrue(state.sendFailed)
-    assertFalse(state.isSending)
     assertTrue(state.canSend) // pressing Send again retries
   }
 
@@ -298,24 +296,43 @@ class ChatViewModelTest {
   }
 
   @Test
-  fun secondSendWhileTheFirstIsOnItsWayIsIgnored() {
+  fun fieldIsClearedBeforeTheServerConfirms() {
+    // The gate holds sendMessage like a slow or missing network holds Firestore's confirmation.
     val gate = CompletableDeferred<Unit>()
     chat.gate = gate
     val vm = viewModel()
     vm.onDraftChange("Hello")
 
     vm.send()
-    assertTrue(vm.uiState.value.isSending)
-    assertFalse(vm.uiState.value.canSend)
-    vm.send()
 
-    gate.complete(Unit)
+    assertEquals("", vm.uiState.value.draft)
+    assertFalse(vm.uiState.value.sendFailed)
     assertEquals(1, chat.sendMessageCalls)
-    assertFalse(vm.uiState.value.isSending)
+    gate.complete(Unit)
   }
 
   @Test
-  fun textTypedWhileSendingIsKept() {
+  fun aSecondMessageCanBeSentBeforeTheFirstIsConfirmed() {
+    val gate = CompletableDeferred<Unit>()
+    chat.gate = gate
+    val vm = viewModel()
+    vm.onDraftChange("See you at 5?")
+    vm.send()
+
+    vm.onDraftChange("Is that ok?")
+    assertTrue(vm.uiState.value.canSend)
+    vm.send()
+    gate.complete(Unit)
+
+    assertEquals(2, chat.sendMessageCalls)
+    assertEquals(
+        listOf("See you at 5?", "Is that ok?"),
+        vm.uiState.value.messages.takeLast(2).map { it.text },
+    )
+  }
+
+  @Test
+  fun failureDoesNotOverwriteTextTypedMeanwhile() {
     val gate = CompletableDeferred<Unit>()
     chat.gate = gate
     val vm = viewModel()
@@ -323,9 +340,11 @@ class ChatViewModelTest {
     vm.send()
 
     vm.onDraftChange("And another thing")
+    chat.failure = IOException("offline")
     gate.complete(Unit)
 
     assertEquals("And another thing", vm.uiState.value.draft)
+    assertTrue(vm.uiState.value.sendFailed)
   }
 
   // ---------- factory ----------
