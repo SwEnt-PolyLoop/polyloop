@@ -2,8 +2,11 @@
 
 package com.swent.polyloop.model
 
+import android.content.Context
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
+import com.swent.polyloop.model.connectivity.ConnectivityRepository
+import com.swent.polyloop.model.connectivity.ConnectivityRepositoryAndroid
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.ProfileRepository
@@ -16,12 +19,23 @@ import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
  * Each repository is created on first use, not when this object loads, so Firebase is not touched
  * until it is needed (tests can still point it at the emulators first). Tests can also replace a
  * repository with a fake by assigning it before setting content, and call [reset] afterwards.
+ *
+ * Repositories that read the phone (such as the network status) need the app context, which
+ * [com.swent.polyloop.PolyLoopApplication] passes to [init] at startup.
  */
 object RepositoryProvider {
+
+  private var appContext: Context? = null
 
   private var auth: AuthRepository? = null
   private var listing: ListingRepository? = null
   private var profile: ProfileRepository? = null
+  private var connectivity: ConnectivityRepository? = null
+
+  /** Keeps the app context for the repositories that need one. Called once at app startup. */
+  fun init(context: Context) {
+    appContext = context.applicationContext
+  }
 
   var authRepository: AuthRepository
     get() = auth ?: AuthRepositoryFirebase().also { auth = it }
@@ -41,10 +55,25 @@ object RepositoryProvider {
       profile = value
     }
 
-  /** Forgets every repository, so the next access creates the real ones again. For tests. */
+  var connectivityRepository: ConnectivityRepository
+    get() =
+        connectivity
+            ?: ConnectivityRepositoryAndroid(
+                    checkNotNull(appContext) { "RepositoryProvider.init was not called" }
+                )
+                .also { connectivity = it }
+    set(value) {
+      connectivity = value
+    }
+
+  /**
+   * Forgets every repository, so the next access creates the real ones again. Keeps the app
+   * context. For tests.
+   */
   fun reset() {
     auth = null
     listing = null
     profile = null
+    connectivity = null
   }
 }
