@@ -2,9 +2,12 @@
 
 package com.swent.polyloop.ui.browse
 
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -171,7 +174,8 @@ class BrowseScreenTest {
     composeTestRule
         .onNodeWithTag(C.Tag.offline_banner)
         .assertIsDisplayed()
-        .assertTextEquals(string(R.string.offline_banner))
+        // The text is a child of the tagged banner row.
+        .assert(hasAnyDescendant(hasText(string(R.string.offline_banner))))
     composeTestRule.onNodeWithTag(C.Tag.browse_title).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.browse_offline).assertIsDisplayed()
     // Browsing needs a connection: no filters and no listings, even the ones already loaded.
