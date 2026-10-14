@@ -76,4 +76,12 @@ object RepositoryProvider {
     profile = null
     connectivity = null
   }
+
+  /**
+   * Forgets the app context given to [init], so a context set by one test does not leak into the
+   * next one. [reset] keeps it, because the app only calls [init] once. For tests.
+   */
+  internal fun clearContext() {
+    appContext = null
+  }
 }

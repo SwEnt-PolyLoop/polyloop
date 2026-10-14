@@ -21,8 +21,10 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -67,6 +69,7 @@ class RepositoryProviderTest {
   @After
   fun tearDown() {
     RepositoryProvider.reset()
+    RepositoryProvider.clearContext()
     unmockkAll()
   }
 
@@ -168,6 +171,17 @@ class RepositoryProviderTest {
 
     assertSame(fake, RepositoryProvider.connectivityRepository)
     verify(exactly = 0) { appContext.getSystemService(ConnectivityManager::class.java) }
+  }
+
+  @Test
+  fun connectivityRepositoryFailsClearlyWhenInitWasNotCalled() {
+    RepositoryProvider.clearContext()
+
+    val error =
+        assertThrows(IllegalStateException::class.java) {
+          RepositoryProvider.connectivityRepository
+        }
+    assertEquals("RepositoryProvider.init was not called", error.message)
   }
 
   // ---------- laziness and reset ----------
