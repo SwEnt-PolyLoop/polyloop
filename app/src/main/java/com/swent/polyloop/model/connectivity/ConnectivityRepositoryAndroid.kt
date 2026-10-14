@@ -61,7 +61,8 @@ class ConnectivityRepositoryAndroid(
     awaitClose { connectivityManager.unregisterNetworkCallback(callback) }
   }
       .distinctUntilChanged()
-      .shareIn(scope, SharingStarted.WhileSubscribed(), replay = 1)
+      // Drop the last state once nobody collects, so a new collector never sees a stale one.
+      .shareIn(scope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), replay = 1)
 
   private fun isCurrentlyOnline(): Boolean =
       connectivityManager

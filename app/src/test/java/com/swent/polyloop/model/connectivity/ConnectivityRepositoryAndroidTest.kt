@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import io.mockk.Ordering
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -117,7 +118,7 @@ class ConnectivityRepositoryAndroidTest {
 
     val job = collect(mutableListOf())
 
-    verify(ordering = io.mockk.Ordering.ORDERED) {
+    verify(ordering = Ordering.ORDERED) {
       connectivityManager.registerDefaultNetworkCallback(any())
       connectivityManager.activeNetwork
     }
@@ -191,6 +192,23 @@ class ConnectivityRepositoryAndroidTest {
 
     verify(exactly = 1) { connectivityManager.registerDefaultNetworkCallback(any()) }
     first.cancel()
+    second.cancel()
+  }
+
+  @Test
+  fun aNewCollectorDoesNotSeeTheStateFromBeforeCollectionStopped() = runTest {
+    startWithNetwork()
+    val repository = newRepository()
+    val first = collect(mutableListOf(), repository)
+    first.cancel()
+    runCurrent()
+
+    every { connectivityManager.activeNetwork } returns null
+    every { connectivityManager.getNetworkCapabilities(null) } returns null
+    val values = mutableListOf<Boolean>()
+    val second = collect(values, repository)
+
+    assertEquals(listOf(false), values)
     second.cancel()
   }
 
