@@ -35,8 +35,7 @@ class BrowseScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   // Signed in as "me", who owns none of the listings below.
-  private val authRepository =
-      FakeAuthRepository(signedInUser = AuthUser("me", "me@epfl.ch", "Me"))
+  private val authRepository = FakeAuthRepository(signedInUser = AuthUser("me", "me@epfl.ch", "Me"))
 
   private val listings =
       listOf("tent", "projector", "drill", "helmet", "bike", "guitar").map { id ->

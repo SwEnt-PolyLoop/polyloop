@@ -84,7 +84,10 @@ class BrowseViewModelTest {
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
         }
 
-    assertEquals(listOf(published), BrowseViewModel(unfiltered, authRepository).uiState.value.listings)
+    assertEquals(
+        listOf(published),
+        BrowseViewModel(unfiltered, authRepository).uiState.value.listings,
+    )
   }
 
   @Test

@@ -77,8 +77,9 @@ class BrowseViewModel(
           .getAllListings()
           .onSuccess { listings ->
             val uid = authRepository.getCurrentUser()?.uid
-            val visible =
-                listings.filter { it.status == ListingStatus.PUBLISHED && it.ownerId != uid }
+            val visible = listings.filter {
+              it.status == ListingStatus.PUBLISHED && it.ownerId != uid
+            }
             _uiState.update { it.copy(isLoading = false, listings = visible) }
           }
           .onFailure { e ->
