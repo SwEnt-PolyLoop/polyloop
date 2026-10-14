@@ -133,6 +133,39 @@ class BrowseViewModelTest {
     assertEquals(listings, vm.uiState.value.listings)
   }
 
+  // --- Own listings ---
+
+  private val myListing = listing("my-camera").copy(ownerId = "me")
+
+  @Test
+  fun ownListingsAreHidden() {
+    repository.listings = listings + myListing
+
+    assertEquals(listings, BrowseViewModel(repository, authRepository).uiState.value.listings)
+  }
+
+  @Test
+  fun ownListingsStayHiddenAfterRefresh() {
+    val vm = BrowseViewModel(repository, authRepository)
+    val myBike = listing("my-bike").copy(ownerId = "me")
+    repository.listings = listings + myListing + myBike
+
+    vm.refresh()
+
+    assertEquals(listings, vm.uiState.value.listings)
+  }
+
+  @Test
+  fun allListingsShownWhenNobodySignedIn() {
+    repository.listings = listings + myListing
+    authRepository.signedInUser = null
+
+    assertEquals(
+        listings + myListing,
+        BrowseViewModel(repository, authRepository).uiState.value.listings,
+    )
+  }
+
   // --- Filter ---
 
   private val tent = listing("tent").copy(category = ListingCategory.SPORTS_OUTDOOR)
