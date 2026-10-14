@@ -66,8 +66,9 @@ class ProfileRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fi
     val document = profileDocument(uid)
     return callbackFlow {
       val registration = document.addSnapshotListener { snapshot, error ->
-        // Closing with the error throws it to the collector. Firestore's own snapshots()
-        // cancels the flow instead, which a collector's `catch` doesn't report as an error.
+        // Closing with the error throws the Firestore error itself to the collector.
+        // Firestore's own snapshots() cancels the flow instead: the collector would get a
+        // CancellationException with a generic message, the real error being only its cause.
         if (error != null) close(error)
         else if (snapshot != null) {
           trySend(snapshot.data?.let { profileFromDocument(uid, it) })
