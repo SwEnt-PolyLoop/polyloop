@@ -532,6 +532,17 @@ class AuthViewModelTest {
   }
 
   @Test
+  fun signUpWhoseNameWasNotSavedStartsTheCountdown() {
+    repository.signUpResult = AuthResult.Failure(AuthError.NAME_NOT_SAVED)
+    fillSignUp()
+    viewModel.submit()
+
+    assertTrue(state.isAwaitingVerification)
+    assertEquals(60, state.resendCooldownSeconds)
+    assertFalse(state.canResend)
+  }
+
+  @Test
   fun canResendNeedsNoLoadingAndNoCountdown() {
     assertTrue(AuthUiState().canResend)
     assertFalse(AuthUiState(isLoading = true).canResend)

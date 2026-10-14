@@ -173,14 +173,17 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
           _uiState.update { it.copy(isAwaitingVerification = true) }
           startResendCooldown()
         }
-        is AuthResult.Failure ->
-            _uiState.update {
-              it.copy(
-                  error = result.error,
-                  // In both cases the account exists, so the user still has to verify it.
-                  isAwaitingVerification = result.error in ACCOUNT_CREATED_ERRORS,
-              )
-            }
+        is AuthResult.Failure -> {
+          _uiState.update {
+            it.copy(
+                error = result.error,
+                // In both cases the account exists, so the user still has to verify it.
+                isAwaitingVerification = result.error in ACCOUNT_CREATED_ERRORS,
+            )
+          }
+          // Only the name failed: the verification email was sent, so Resend waits too.
+          if (result.error == AuthError.NAME_NOT_SAVED) startResendCooldown()
+        }
       }
     }
   }
