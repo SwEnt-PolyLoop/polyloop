@@ -26,6 +26,44 @@ internal object ListingFields {
 }
 
 /**
+ * Firestore names for a listing's exact addresses, kept in the subcollection document
+ * listings/{listingId}/private/addresses so they are not public.
+ */
+internal object ListingAddressFields {
+  const val COLLECTION = "private"
+  const val DOCUMENT = "addresses"
+  const val PICKUP = "pickup"
+  const val DROP_OFF = "dropOff"
+}
+
+/**
+ * The Firestore fields of [listing], the reverse of [listingFromDocument]; the id is the key.
+ * Amounts are Long, the type Firestore returns them as.
+ */
+internal fun listingToDocument(listing: Listing): Map<String, Any> =
+    mapOf(
+        ListingFields.OWNER_ID to listing.ownerId,
+        ListingFields.TITLE to listing.title,
+        ListingFields.DESCRIPTION to listing.description,
+        ListingFields.CATEGORY to listing.category.name,
+        ListingFields.PHOTO_URLS to listing.photoUrls,
+        ListingFields.PRICE_PER_DAY to listing.pricePerDay.toLong(),
+        ListingFields.ITEM_VALUE to listing.itemValue.toLong(),
+        ListingFields.AVAILABLE_FROM to listing.availableFrom.toString(),
+        ListingFields.AVAILABLE_TO to listing.availableTo.toString(),
+        ListingFields.STATUS to listing.status.name,
+        ListingFields.PICKUP_AREA to listing.pickupArea,
+        ListingFields.DROP_OFF_AREA to listing.dropOffArea,
+    )
+
+/** The Firestore fields of [addresses]. */
+internal fun addressesToDocument(addresses: ListingAddresses): Map<String, Any> =
+    mapOf(
+        ListingAddressFields.PICKUP to addresses.pickup,
+        ListingAddressFields.DROP_OFF to addresses.dropOff,
+    )
+
+/**
  * Builds a [Listing] from a Firestore document, or returns null if a required field is missing or
  * has the wrong type. The areas default to empty because a Cloud Function fills them in later.
  */
