@@ -2,6 +2,8 @@
 
 package com.swent.polyloop
 
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -9,6 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -47,6 +50,8 @@ class PolyLoopAppTest {
 
   private lateinit var navController: NavHostController
 
+  private lateinit var backDispatcher: OnBackPressedDispatcher
+
   private val listing =
       Listing(
           id = "listing-1",
@@ -79,13 +84,18 @@ class PolyLoopAppTest {
   /** The signed-in user PolyLoopApp reads on start; null means nobody is signed in. */
   private var currentUser: AuthUser? = null
 
+  private val me = AuthUser("me", "me@epfl.ch", "Me")
+
+  /** What logging in on the Sign-up / login screen returns. */
+  private var signInResult: AuthResult<AuthUser> = AuthResult.Failure(AuthError.UNKNOWN)
+
   private val authRepository =
       object : AuthRepository {
         override suspend fun signUp(name: String, email: String, password: String) =
             AuthResult.Success(Unit)
 
         override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> =
-            AuthResult.Failure(AuthError.UNKNOWN)
+            signInResult
 
         override suspend fun resendVerificationEmail(email: String, password: String) =
             AuthResult.Success(Unit)
@@ -122,6 +132,7 @@ class PolyLoopAppTest {
   // isSignedIn is left to its default, so the app reads the user from RepositoryProvider.
   private fun setApp(isAdmin: Boolean = false) {
     composeTestRule.setContent {
+      backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
       navController = rememberNavController()
       PolyLoopApp(navController = navController, isAdmin = isAdmin)
     }
@@ -133,9 +144,23 @@ class PolyLoopAppTest {
     }
   }
 
+  /** Starts the app with [me] already signed in, so it opens on Browse. */
   private fun setAppSignedIn(isAdmin: Boolean = false) {
+    currentUser = me
     setApp(isAdmin)
-    composeTestRule.onNodeWithTag(C.Tag.dummy_screen_continue_button).performClick()
+  }
+
+  /** Fills the log-in form of the Sign-up / login screen and presses "Log in". */
+  private fun logIn() {
+    composeTestRule
+        .onNodeWithTag(C.Tag.auth_email_field)
+        .performScrollTo()
+        .performTextInput(me.email)
+    composeTestRule
+        .onNodeWithTag(C.Tag.auth_password_field)
+        .performScrollTo()
+        .performTextInput("pw")
+    composeTestRule.onNodeWithTag(C.Tag.auth_login_button).performScrollTo().performClick()
   }
 
   private fun openFromMenu(screen: Screen.TopLevel) {
@@ -146,14 +171,17 @@ class PolyLoopAppTest {
   private fun assertCurrentScreen(screen: Screen, shownRoute: String = screen.route) {
     composeTestRule.waitForIdle()
     assertEquals(screen.route, navController.currentDestination?.route)
-    // Browse and Chat list are wired to their real screens; the others still show DummyScreen with
-    // their route.
-    if (screen == Screen.Browse) {
-      composeTestRule.onNodeWithTag(C.Tag.browse_screen).assertIsDisplayed()
-      return
-    }
-    if (screen == Screen.ChatList) {
-      composeTestRule.onNodeWithTag(C.Tag.chat_list_screen).assertIsDisplayed()
+    // These are wired to their real screens; the others still show DummyScreen with their route.
+    val realScreenTag =
+        when (screen) {
+          Screen.Auth -> C.Tag.auth_login_button
+          Screen.Browse -> C.Tag.browse_screen
+          Screen.CreateListing -> C.Tag.create_listing_screen
+          Screen.ChatList -> C.Tag.chat_list_screen
+          else -> null
+        }
+    if (realScreenTag != null) {
+      composeTestRule.onNodeWithTag(realScreenTag).assertIsDisplayed()
       return
     }
     composeTestRule.onNodeWithTag(C.Tag.dummy_screen).assertIsDisplayed()
@@ -169,12 +197,83 @@ class PolyLoopAppTest {
   }
 
   @Test
-  fun continueOpensBrowseAndRemovesSignInFromBackStack() {
-    setAppSignedIn()
+  fun logInOpensBrowseAndRemovesSignInFromBackStack() {
+    signInResult = AuthResult.Success(me)
+    setApp()
 
+    logIn()
+
+    waitForTag(C.Tag.browse_screen)
     assertCurrentScreen(Screen.Browse)
     assertNull(navController.previousBackStackEntry)
     composeTestRule.onNodeWithTag(C.Tag.top_bar).assertIsDisplayed()
+  }
+
+  @Test
+  fun unverifiedLogInShowsCheckInboxOnTheSignInRoute() {
+    signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    setApp()
+
+    logIn()
+
+    waitForTag(C.Tag.auth_check_inbox_screen)
+    assertEquals(Screen.Auth.route, navController.currentDestination?.route)
+    composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist()
+  }
+
+  @Test
+  fun backOnCheckInboxReturnsToTheForm() {
+    signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    setApp()
+    logIn()
+    waitForTag(C.Tag.auth_check_inbox_screen)
+
+    composeTestRule.onNodeWithTag(C.Tag.auth_back_to_form_button).performClick()
+
+    assertCurrentScreen(Screen.Auth)
+    composeTestRule.onNodeWithTag(C.Tag.auth_check_inbox_screen).assertDoesNotExist()
+  }
+
+  @Test
+  fun verifiedOnCheckInboxOpensBrowse() {
+    signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    setApp()
+    logIn()
+    waitForTag(C.Tag.auth_check_inbox_screen)
+
+    signInResult = AuthResult.Success(me)
+    composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).performScrollTo().performClick()
+
+    waitForTag(C.Tag.browse_screen)
+    assertCurrentScreen(Screen.Browse)
+    assertNull(navController.previousBackStackEntry)
+  }
+
+  @Test
+  fun systemBackOnCheckInboxReturnsToTheForm() {
+    signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    setApp()
+    logIn()
+    waitForTag(C.Tag.auth_check_inbox_screen)
+
+    // Through the dispatcher, as Espresso.pressBack() waits for window focus and timed out on CI.
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+
+    assertCurrentScreen(Screen.Auth)
+    composeTestRule.onNodeWithTag(C.Tag.auth_check_inbox_screen).assertDoesNotExist()
+  }
+
+  @Test
+  fun signInReportedAgainAfterLeavingDoesNotStackBrowse() {
+    signInResult = AuthResult.Success(me)
+    setApp()
+    logIn()
+    waitForTag(C.Tag.browse_screen)
+
+    composeTestRule.runOnUiThread { NavigationActions(navController).navigateAfterSignIn() }
+
+    assertCurrentScreen(Screen.Browse)
+    assertNull(navController.previousBackStackEntry)
   }
 
   @Test
@@ -204,9 +303,6 @@ class PolyLoopAppTest {
             )
         )
     setAppSignedIn()
-    // Set after the start: a signed-in user would skip the sign-in screen that setAppSignedIn uses.
-    // The Chat list reads the user when it opens.
-    currentUser = AuthUser("me", "me@epfl.ch", "Me")
     openFromMenu(Screen.ChatList)
 
     waitForTag(C.Tag.chat_list_row_ + "rental-1")

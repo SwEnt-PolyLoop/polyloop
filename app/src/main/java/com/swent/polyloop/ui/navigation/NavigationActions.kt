@@ -28,8 +28,14 @@ class NavigationActions(private val navController: NavHostController) {
     navController.navigate(route)
   }
 
-  /** Leaves sign-in for Browse. Sign-in is removed from the back stack so Back exits the app. */
+  /**
+   * Leaves sign-in for Browse. Sign-in is removed from the back stack so Back exits the app.
+   *
+   * Does nothing once sign-in is left: the sign-in screen stays composed while it fades out and can
+   * report the sign-in again, which would otherwise push a second Browse.
+   */
   fun navigateAfterSignIn() {
+    if (navController.currentDestination?.route != Screen.Auth.route) return
     navController.navigate(Screen.Browse.route) { popUpTo(Screen.Auth.route) { inclusive = true } }
   }
 }
