@@ -33,4 +33,11 @@ interface ListingRepository {
       addresses: ListingAddresses,
       photos: List<Uri>,
   ): Result<String>
+  
+  /**
+   * The listings put up by [ownerId], whatever their status (their owner also sees drafts), in no
+   * particular order. A document that cannot be mapped is skipped. Empty for a blank id. Fails with
+   * the cause if they cannot be loaded.
+   */
+  suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>>
 }

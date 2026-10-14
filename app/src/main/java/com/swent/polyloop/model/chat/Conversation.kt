@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.chat
 
+import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
 
 /**
@@ -17,6 +18,7 @@ data class Conversation(
     val borrowerName: String,
     val lastMessage: String, // empty until the first message is sent
     val lastMessageAt: Instant, // the rental's creation time until the first message is sent
+    val status: RentalStatus,
 ) {
   /** The name of the person [myUid] is talking to. */
   fun otherPersonName(myUid: String): String = if (myUid == ownerId) borrowerName else ownerName

@@ -79,6 +79,22 @@ class ListingRepositoryFirestore(
       Result.failure(e)
     }
   }
+  
+  override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+    if (ownerId.isBlank()) return Result.success(emptyList())
+    return try {
+      val snapshot =
+          db.collection(ListingFields.COLLECTION)
+              .whereEqualTo(ListingFields.OWNER_ID, ownerId)
+              .get()
+              .await()
+      Result.success(
+          snapshot.documents.mapNotNull { doc -> doc.data?.let { listingFromDocument(doc.id, it) } }
+      )
+    } catch (e: FirebaseException) {
+      Result.failure(e)
+    }
+  }
 
   /** Uploads the photo at [uri] as listings/{listingId}/{index}.jpg and returns its URL. */
   private suspend fun uploadPhoto(listingId: String, index: Int, uri: Uri): String {

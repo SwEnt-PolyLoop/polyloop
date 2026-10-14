@@ -79,6 +79,29 @@
     <string name="create_listing_category_placeholder">Choose a category</string>
     <string name="create_listing_availability_placeholder">Choose dates</string>
     <string name="create_listing_publish">Publish</string>
+    <string name="create_listing_headline">New listing</string>
+    <string name="create_listing_category_label">Category</string>
+    <string name="create_listing_category_required">Please choose a category.</string>
+    <string name="create_listing_description_label">Description</string>
+    <string name="create_listing_description_required">Please enter a description.</string>
+    <string name="create_listing_price_label">Price per day</string>
+    <string name="create_listing_price_required">Please enter a price per day.</string>
+    <!-- Keep 99,999 in sync with Listing.MAX_AMOUNT -->
+    <string name="create_listing_price_invalid">Please enter a whole number from 1 to 99,999.</string>
+    <string name="create_listing_item_value_label">Item value</string>
+    <string name="create_listing_item_value_required">Please enter the item value.</string>
+    <string name="create_listing_item_value_invalid">Please enter a whole number from 1 to 99,999.</string>
+    <string name="create_listing_pp_suffix">PP</string>
+    <string name="create_listing_deposit_helper">The item value is shown as the suggested deposit.</string>
+    <string name="create_listing_availability_label">Available from – to</string>
+    <string name="create_listing_availability_required">Please choose the dates.</string>
+    <string name="create_listing_availability_invalid">Please choose an end date after the start date.</string>
+    <string name="create_listing_pickup_label">Pickup address</string>
+    <string name="create_listing_pickup_required">Please enter a pickup address.</string>
+    <string name="create_listing_drop_off_label">Drop-off address</string>
+    <string name="create_listing_drop_off_required">Please enter a drop-off address.</string>
+    <string name="create_listing_address_placeholder">Street, number, town</string>
+    <string name="create_listing_address_helper">Only the area is public. The exact address is shared after acceptance.</string>
 
     <!-- Date range picker -->
     <string name="date_picker_available">Available %1$s – %2$s</string>
@@ -140,6 +163,23 @@
     <string name="auth_error_email_already_in_use">This email already has an account. Try logging in.</string>
     <string name="auth_error_verification_email_not_sent">Account created, but the verification email could not be sent.</string>
     <string name="auth_error_name_not_saved">Account created, but your name could not be saved.</string>
+    <string name="auth_check_inbox_title">Check your inbox</string>
+    <string name="auth_check_inbox_body">We sent a verification link to %1$s. Open it, then come back here.</string>
+    <string name="auth_verified">I\'ve verified</string>
+    <string name="auth_resend_email">Resend email</string>
+    <string name="auth_resend_email_countdown">Resend email (%1$d s)</string>
+    <string name="auth_email_resent">We sent the email again.</string>
+    <string name="auth_back_to_form">Back to the form</string>
+
+    <!-- Chat list -->
+    <string name="chat_list_title">Chats</string>
+    <string name="chat_list_empty">No conversations yet. A chat starts when you request an item or someone requests one of yours.</string>
+    <string name="chat_list_error_fallback">Could not load your conversations</string>
+    <string name="chat_list_retry">Retry</string>
+    <string name="chat_list_unknown_person">Unknown user</string>
+    <string name="chat_list_no_messages">No messages yet</string>
+    <!-- The item, then the rental's status, e.g. "Camping tent · Requested" -->
+    <string name="chat_list_item_status">%1$s · %2$s</string>
 
     <!-- Dummy screen -->
     <string name="dummy_screen_continue">Continue</string>

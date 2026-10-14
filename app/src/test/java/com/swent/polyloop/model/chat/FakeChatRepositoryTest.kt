@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.chat
 
+import com.swent.polyloop.model.rental.RentalStatus
 import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
@@ -30,6 +31,7 @@ class FakeChatRepositoryTest {
           borrowerName = "Name $borrower",
           lastMessage = "",
           lastMessageAt = Instant.parse(at),
+          status = RentalStatus.REQUESTED,
       )
 
   private val older = conversation("r1", owner = "u1", borrower = "u2", at = "2026-10-10T10:00:00Z")

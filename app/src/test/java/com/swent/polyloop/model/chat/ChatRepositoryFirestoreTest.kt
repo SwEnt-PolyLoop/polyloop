@@ -18,6 +18,7 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.WriteBatch
+import com.swent.polyloop.model.rental.RentalStatus
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -216,6 +217,7 @@ class ChatRepositoryFirestoreTest {
           "borrowerName" to "Ben",
           "lastMessage" to "Hi",
           "lastMessageAt" to timestamp,
+          "status" to "ACCEPTED",
       )
 
   @Test
@@ -230,7 +232,19 @@ class ChatRepositoryFirestoreTest {
         }
 
     assertEquals(
-        listOf(Conversation("r1", "Camping tent", "u1", "Ana", "u2", "Ben", "Hi", sentAt)),
+        listOf(
+            Conversation(
+                "r1",
+                "Camping tent",
+                "u1",
+                "Ana",
+                "u2",
+                "Ben",
+                "Hi",
+                sentAt,
+                RentalStatus.ACCEPTED,
+            )
+        ),
         repository.observeConversations("u1").first(),
     )
     // The query itself does the filtering and sorting (checked for real on the emulator).

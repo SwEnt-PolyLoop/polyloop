@@ -61,4 +61,10 @@ class FakeListingRepository(
     createdAddresses[saved.id] = addresses
     return Result.success(saved.id)
   }
+
+  override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+    gate?.await()
+    return failure?.let { Result.failure(it) }
+        ?: Result.success(listings.filter { it.ownerId == ownerId })
+  }
 }

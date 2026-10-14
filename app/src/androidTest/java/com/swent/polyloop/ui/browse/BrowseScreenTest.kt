@@ -15,6 +15,9 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
+import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.auth.AuthResult
+import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
@@ -33,6 +36,9 @@ import org.junit.runner.RunWith
 class BrowseScreenTest {
 
   @get:Rule val composeTestRule = createComposeRule()
+
+  // Signed in as "me", who owns none of the listings below.
+  private val authRepository = SignedInAuthRepository(AuthUser("me", "me@epfl.ch", "Me"))
 
   private val listings =
       listOf("tent", "projector", "drill", "helmet", "bike", "guitar").map { id ->
@@ -77,6 +83,9 @@ class BrowseScreenTest {
   ) {
     val repository =
         object : ListingRepository {
+          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+              Result.success(emptyList())
+
           override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
@@ -87,7 +96,7 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository)
+    val viewModel = BrowseViewModel(repository, authRepository)
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = onListingClick)
     }
@@ -187,6 +196,9 @@ class BrowseScreenTest {
     var calls = 0
     val repository =
         object : ListingRepository {
+          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+              Result.success(emptyList())
+
           override suspend fun getAllListings(): Result<List<Listing>> =
               if (calls++ == 0) Result.failure(IllegalStateException("Network down"))
               else Result.success(listings)
@@ -199,7 +211,7 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository)
+    val viewModel = BrowseViewModel(repository, authRepository)
     var clickedId: String? = null
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = { clickedId = it })
@@ -239,6 +251,14 @@ class BrowseScreenTest {
   }
 
   @Test
+  fun ownListingIsNotDisplayed() {
+    setContentWithViewModel(listings.map { if (it.id == "drill") it.copy(ownerId = "me") else it })
+    waitForTag(C.Tag.browse_list)
+
+    assertShownListings("tent", "projector", "helmet", "bike", "guitar")
+  }
+
+  @Test
   fun searchFiltersListingsAndClearingRestoresThem() {
     setContentWithViewModel(listings)
     waitForTag(C.Tag.browse_list)
@@ -273,5 +293,21 @@ class BrowseScreenTest {
     clickChip(electronicsChip)
     clickChip(C.Tag.browse_category_all)
     assertShownListings(*listings.map { it.id }.toTypedArray())
+  }
+
+  /** An [AuthRepository] where [user] is signed in, or nobody when null; Browse only reads it. */
+  private class SignedInAuthRepository(var user: AuthUser?) : AuthRepository {
+    override suspend fun signUp(name: String, email: String, password: String) =
+        AuthResult.Success(Unit)
+
+    override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> =
+        error("Not used by Browse")
+
+    override suspend fun resendVerificationEmail(email: String, password: String) =
+        AuthResult.Success(Unit)
+
+    override fun getCurrentUser(): AuthUser? = user
+
+    override fun signOut() {}
   }
 }

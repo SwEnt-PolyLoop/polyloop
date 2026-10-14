@@ -486,6 +486,9 @@ class ListingDetailScreenTest {
     var calls = 0
     val repository =
         object : ListingRepository {
+          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+              Result.success(emptyList())
+
           override suspend fun getAllListings(): Result<List<Listing>> = Result.success(emptyList())
 
           override suspend fun getListing(id: String): Result<Listing?> =
