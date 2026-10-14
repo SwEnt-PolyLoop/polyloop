@@ -24,6 +24,8 @@ import com.swent.polyloop.ui.browse.BrowseViewModel
 import com.swent.polyloop.ui.dummy.DummyScreen
 import com.swent.polyloop.ui.listingdetail.ListingDetailScreen
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
+import com.swent.polyloop.ui.myrentals.MyRentalsScreen
+import com.swent.polyloop.ui.myrentals.MyRentalsViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
@@ -79,7 +81,20 @@ fun PolyLoopApp(
         )
       }
       composable(Screen.CreateListing.route) { DummyScreen(Screen.CreateListing.route) }
-      composable(Screen.MyRentals.route) { DummyScreen(Screen.MyRentals.route) }
+      composable(Screen.MyRentals.route) {
+        val myRentalsViewModel: MyRentalsViewModel =
+            viewModel(
+                factory =
+                    MyRentalsViewModel.Factory(
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                    )
+            )
+        MyRentalsScreen(
+            viewModel = myRentalsViewModel,
+            onRentalClick = { id -> navController.navigate(Screen.RentalDetail.createRoute(id)) },
+        )
+      }
       composable(Screen.ChatList.route) { DummyScreen(Screen.ChatList.route) }
       composable(Screen.Wallet.route) { DummyScreen(Screen.Wallet.route) }
       composable(Screen.Profile.route) { DummyScreen(Screen.Profile.route) }
