@@ -168,6 +168,19 @@ class ConnectivityRepositoryAndroidTest {
   }
 
   @Test
+  fun emitsOfflineWhenTheCurrentNetworkIsLost() = runTest {
+    startWithNetwork()
+    val values = mutableListOf<Boolean>()
+    val job = collect(values)
+    callback.captured.onCapabilitiesChanged(network, capabilities())
+
+    callback.captured.onLost(network)
+
+    assertEquals(listOf(true, false), values)
+    job.cancel()
+  }
+
+  @Test
   fun doesNotRepeatTheSameState() = runTest {
     startWithNetwork()
     val values = mutableListOf<Boolean>()
