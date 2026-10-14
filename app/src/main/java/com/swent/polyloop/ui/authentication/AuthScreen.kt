@@ -520,6 +520,7 @@ internal fun AuthError.messageRes(): Int =
       AuthError.EMAIL_ALREADY_IN_USE -> R.string.auth_error_email_already_in_use
       AuthError.VERIFICATION_EMAIL_NOT_SENT -> R.string.auth_error_verification_email_not_sent
       AuthError.NAME_NOT_SAVED -> R.string.auth_error_name_not_saved
+      AuthError.PROFILE_NOT_CREATED -> R.string.auth_error_profile_not_created
     }
 
 /** Preview of the login form backed by an in-memory authentication repository. */
