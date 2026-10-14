@@ -141,6 +141,16 @@
     <string name="auth_error_verification_email_not_sent">Account created, but the verification email could not be sent.</string>
     <string name="auth_error_name_not_saved">Account created, but your name could not be saved.</string>
 
+    <!-- Chat list -->
+    <string name="chat_list_title">Chats</string>
+    <string name="chat_list_empty">No conversations yet. A chat starts when you request an item or someone requests one of yours.</string>
+    <string name="chat_list_error_fallback">Could not load your conversations</string>
+    <string name="chat_list_retry">Retry</string>
+    <string name="chat_list_unknown_person">Unknown user</string>
+    <string name="chat_list_no_messages">No messages yet</string>
+    <!-- The item, then the rental's status, e.g. "Camping tent · Requested" -->
+    <string name="chat_list_item_status">%1$s · %2$s</string>
+
     <!-- Dummy screen -->
     <string name="dummy_screen_continue">Continue</string>
 

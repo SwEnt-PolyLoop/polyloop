@@ -3,6 +3,7 @@
 package com.swent.polyloop.model.chat
 
 import com.google.firebase.Timestamp
+import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -100,13 +101,23 @@ class ChatDocumentTest {
           ChatFields.PARTICIPANTS to listOf("u1", "u2"),
           ChatFields.LAST_MESSAGE to "See you at 5?",
           ChatFields.LAST_MESSAGE_AT to timestamp,
+          ChatFields.STATUS to "REQUESTED",
           // Rental fields the chat list does not use
-          "status" to "REQUESTED",
           "pricePerDay" to 15L,
       )
 
   private val expectedConversation =
-      Conversation("r1", "Camping tent", "u1", "Ana", "u2", "Ben", "See you at 5?", sentAt)
+      Conversation(
+          "r1",
+          "Camping tent",
+          "u1",
+          "Ana",
+          "u2",
+          "Ben",
+          "See you at 5?",
+          sentAt,
+          RentalStatus.REQUESTED,
+      )
 
   private fun conversation(data: Map<String, Any?>) = conversationFromDocument("r1", data)
 
@@ -122,6 +133,7 @@ class ChatDocumentTest {
             ChatFields.BORROWER_ID,
             ChatFields.BORROWER_NAME,
             ChatFields.LAST_MESSAGE_AT,
+            ChatFields.STATUS,
         )
     for (field in required) {
       assertNull("Missing $field", conversation(rentalData - field))
@@ -142,6 +154,17 @@ class ChatDocumentTest {
           expectedConversation.copy(lastMessage = ""),
           conversation(rentalData + (ChatFields.LAST_MESSAGE to 3L)),
       )
+
+  @Test
+  fun everyRentalStatusIsMapped() {
+    for (status in RentalStatus.entries) {
+      assertEquals(status, conversation(rentalData + (ChatFields.STATUS to status.name))?.status)
+    }
+  }
+
+  @Test
+  fun unknownRentalStatusIsRejected() =
+      assertNull(conversation(rentalData + (ChatFields.STATUS to "PENDING")))
 
   @Test
   fun lastMessageAtStoredAsTextIsRejected() =

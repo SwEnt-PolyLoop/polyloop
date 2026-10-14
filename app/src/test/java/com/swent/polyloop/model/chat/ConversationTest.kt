@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.chat
 
+import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -18,6 +19,7 @@ class ConversationTest {
           borrowerName = "Ben",
           lastMessage = "",
           lastMessageAt = Instant.EPOCH,
+          status = RentalStatus.REQUESTED,
       )
 
   @Test fun ownerSeesTheBorrowersName() = assertEquals("Ben", conversation.otherPersonName("u1"))

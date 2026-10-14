@@ -63,6 +63,7 @@ class ChatRepositoryFirestoreEmulatorTest {
                 "participants" to listOf(owner, borrower),
                 "lastMessage" to "",
                 "lastMessageAt" to Timestamp(lastMessageAt, 0),
+                "status" to "REQUESTED",
             )
         )
         .await()

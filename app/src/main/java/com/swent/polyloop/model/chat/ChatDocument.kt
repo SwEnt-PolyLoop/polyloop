@@ -3,6 +3,7 @@
 package com.swent.polyloop.model.chat
 
 import com.google.firebase.Timestamp
+import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
 
 /**
@@ -19,6 +20,7 @@ internal object ChatFields {
   const val PARTICIPANTS = "participants"
   const val LAST_MESSAGE = "lastMessage"
   const val LAST_MESSAGE_AT = "lastMessageAt"
+  const val STATUS = "status"
 
   // rentals/{rentalId}/messages/{messageId}
   const val MESSAGES = "messages"
@@ -56,6 +58,8 @@ internal fun conversationFromDocument(id: String, data: Map<String, Any?>): Conv
       borrowerName = data[ChatFields.BORROWER_NAME] as? String ?: return null,
       lastMessage = data[ChatFields.LAST_MESSAGE] as? String ?: "",
       lastMessageAt = instantOrNull(data[ChatFields.LAST_MESSAGE_AT]) ?: return null,
+      status =
+          RentalStatus.entries.firstOrNull { it.name == data[ChatFields.STATUS] } ?: return null,
   )
 }
 
