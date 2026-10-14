@@ -128,8 +128,11 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
    * Leaves "Check your inbox" for the form it came from, keeping what was typed, e.g. when the
    * email had a typo (a valid EPFL address, but not the user's) and the verification email never
    * arrives.
+   *
+   * Ignored while a request runs, so its result cannot land on the form.
    */
   fun backToForm() {
+    if (_uiState.value.isLoading) return
     resendCooldownJob?.cancel()
     _uiState.update {
       it.copy(

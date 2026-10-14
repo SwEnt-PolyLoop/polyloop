@@ -417,6 +417,23 @@ class AuthViewModelTest {
     assertEquals("john@epfl.ch", state.email)
   }
 
+  @Test
+  fun backToFormIsIgnoredWhileARequestRuns() {
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    fillLogIn()
+    viewModel.submit()
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+
+    viewModel.confirmVerified()
+    viewModel.backToForm()
+
+    assertTrue(state.isAwaitingVerification)
+    gate.complete(Unit)
+    assertTrue(state.isAwaitingVerification)
+    assertEquals(AuthError.EMAIL_NOT_VERIFIED, state.error)
+  }
+
   // ---------- resend countdown ----------
 
   @Test

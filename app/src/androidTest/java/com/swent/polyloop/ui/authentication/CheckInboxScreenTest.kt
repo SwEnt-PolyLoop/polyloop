@@ -133,11 +133,12 @@ class CheckInboxScreenTest {
   }
 
   @Test
-  fun loadingDisablesBothButtons() {
+  fun loadingDisablesTheButtonsAndBack() {
     showContent(AuthUiState(email = email, isLoading = true))
 
     composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).assertIsNotEnabled()
     composeTestRule.onNodeWithTag(C.Tag.auth_resend_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.auth_back_to_form_button).assertIsNotEnabled()
   }
 }
 

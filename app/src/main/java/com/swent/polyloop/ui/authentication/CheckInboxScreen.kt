@@ -54,7 +54,7 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
  *
  * @param onSignIn called once "I've verified" signed the user in.
  * @param onBackToForm called after the user chose to go back to the form (back arrow or system
- *   Back), e.g. to fix a mistyped email.
+ *   Back), e.g. to fix a mistyped email. Back does nothing while a request runs.
  */
 @Composable
 fun CheckInboxScreen(
@@ -67,9 +67,12 @@ fun CheckInboxScreen(
   LaunchedEffect(state.isSignedIn) { if (state.isSignedIn) onSignIn() }
 
   val backToForm = {
-    viewModel.backToForm()
-    onBackToForm()
+    if (!state.isLoading) {
+      viewModel.backToForm()
+      onBackToForm()
+    }
   }
+  // Always enabled: a disabled handler would let system Back leave the screen during a request.
   BackHandler(onBack = backToForm)
 
   CheckInboxContent(
@@ -97,7 +100,11 @@ internal fun CheckInboxContent(
               .padding(horizontal = 16.dp, vertical = 16.dp)
               .testTag(C.Tag.auth_check_inbox_screen)
   ) {
-    IconButton(onClick = onBack, modifier = Modifier.testTag(C.Tag.auth_back_to_form_button)) {
+    IconButton(
+        onClick = onBack,
+        enabled = !state.isLoading,
+        modifier = Modifier.testTag(C.Tag.auth_back_to_form_button),
+    ) {
       Icon(
           Icons.AutoMirrored.Filled.ArrowBack,
           contentDescription = stringResource(R.string.auth_back_to_form),
