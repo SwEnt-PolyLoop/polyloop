@@ -1,9 +1,12 @@
+// Edited with Claude.
+
 package com.swent.polyloop.utils
 
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
+import com.google.firebase.storage.storage
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -12,26 +15,30 @@ import org.json.JSONObject
 import org.junit.Assert.fail
 
 /**
- * Points Firebase Auth and Firestore at the local Firebase emulators (ports in firebase.json), so
- * tests never touch the real project. Call [connect] first thing in a test's setup.
+ * Points Firebase Auth, Firestore and Storage at the local Firebase emulators (ports in
+ * firebase.json), so tests never touch the real project. Call [connect] first thing in a test's
+ * setup.
  */
 object FirebaseEmulator {
   // From inside the Android emulator, 10.0.2.2 is the computer running it.
   private const val HOST = "10.0.2.2"
   private const val AUTH_PORT = 9099
   private const val FIRESTORE_PORT = 8080
+  private const val STORAGE_PORT = 9199
+  private const val TIMEOUT_MS = 2000
 
   private var connected = false
 
   /** Fails the test with a clear message if the emulators are not running. */
   fun connect() {
-    if (!isRunning()) {
+    if (!listOf(AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT).all { isRunning(it) }) {
       fail("The Firebase emulators are not running. Start them with: firebase emulators:start")
     }
     // useEmulator may only be called once per app process, before Firebase is used.
     if (connected) return
     Firebase.auth.useEmulator(HOST, AUTH_PORT)
     Firebase.firestore.useEmulator(HOST, FIRESTORE_PORT)
+    Firebase.storage.useEmulator(HOST, STORAGE_PORT)
     connected = true
   }
 
@@ -53,12 +60,18 @@ object FirebaseEmulator {
     Firebase.auth.applyActionCode(code).await()
   }
 
-  private fun isRunning(): Boolean =
-      try {
-        val connection = URL("http://$HOST:$AUTH_PORT").openConnection() as HttpURLConnection
-        connection.connectTimeout = 2000
-        connection.responseCode == HttpURLConnection.HTTP_OK
-      } catch (e: IOException) {
-        false
-      }
+  /** True if an emulator answers on [port]. Any status code counts: only the answer matters. */
+  private fun isRunning(port: Int): Boolean {
+    val connection = URL("http://$HOST:$port").openConnection() as HttpURLConnection
+    // Both timeouts, so a port that accepts the connection but never answers fails fast.
+    connection.connectTimeout = TIMEOUT_MS
+    connection.readTimeout = TIMEOUT_MS
+    return try {
+      connection.responseCode > 0
+    } catch (e: IOException) {
+      false
+    } finally {
+      connection.disconnect()
+    }
+  }
 }
