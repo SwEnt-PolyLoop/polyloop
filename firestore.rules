@@ -1,0 +1,147 @@
+rules_version = '2';
+
+// Firestore Security Rules v1 (#34). The schema is in docs/ARCHITECTURE.md, "Firestore schema".
+// Anything not matched below is denied.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+
+    // A signed-in user with a verified name@epfl.ch email (subdomains rejected, like EpflEmail).
+    function isVerifiedEpfl() {
+      return request.auth != null
+          && request.auth.token.email_verified == true
+          && request.auth.token.email.lower().matches('^[a-z0-9._-]+@epfl[.]ch$');
+    }
+
+    function isUser(uid) {
+      return isVerifiedEpfl() && request.auth.uid == uid;
+    }
+
+    function listingPath(listingId) {
+      return /databases/$(database)/documents/listings/$(listingId);
+    }
+
+    function rentalPath(rentalId) {
+      return /databases/$(database)/documents/rentals/$(rentalId);
+    }
+
+    // The fields a request changes, compared with the stored document.
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ---------- users ----------
+
+    match /users/{uid} {
+      allow read: if isVerifiedEpfl();
+
+      // averageRating and reviewCount are written by Cloud Functions only.
+      allow create: if isUser(uid)
+          && request.resource.data.keys().hasOnly(['name', 'email', 'photoUrl'])
+          && request.resource.data.name is string
+          && request.resource.data.email == request.auth.token.email.lower()
+          && request.resource.data.get('photoUrl', '') is string;
+
+      allow update: if isUser(uid)
+          && changedKeys().hasOnly(['name', 'photoUrl'])
+          && request.resource.data.name is string
+          && request.resource.data.get('photoUrl', '') is string;
+    }
+
+    // ---------- listings ----------
+
+    match /listings/{listingId} {
+      allow read: if isVerifiedEpfl();
+
+      allow create: if isVerifiedEpfl()
+          && request.resource.data.ownerId == request.auth.uid;
+
+      allow update: if isUser(resource.data.ownerId)
+          && request.resource.data.ownerId == resource.data.ownerId;
+
+      allow delete: if isUser(resource.data.ownerId);
+
+      // Exact addresses, readable only by the owner. getAfter() lets the owner write them in the
+      // same batch that creates the listing; get() lets them be deleted with it.
+      match /private/{docId} {
+        allow read: if docId == 'addresses'
+            && isUser(get(listingPath(listingId)).data.ownerId);
+
+        allow write: if docId == 'addresses'
+            && ((exists(listingPath(listingId))
+                    && isUser(get(listingPath(listingId)).data.ownerId))
+                || (existsAfter(listingPath(listingId))
+                    && isUser(getAfter(listingPath(listingId)).data.ownerId)));
+      }
+    }
+
+    // ---------- rentals ----------
+
+    match /rentals/{rentalId} {
+      // ownerId and borrowerId are listed as well as participants so that the My rentals queries
+      // (where borrowerId == uid, where ownerId == uid) pass: Firestore only allows a query if the
+      // rule holds for every document it could return, judging from the query's own filters.
+      allow read: if isVerifiedEpfl()
+          && (request.auth.uid == resource.data.borrowerId
+              || request.auth.uid == resource.data.ownerId
+              || request.auth.uid in resource.data.participants);
+
+      // Temporary exception to the core rule, until the requestRental Cloud Function exists: the
+      // borrower creates the request, with status REQUESTED only and no money reserved.
+      allow create: if isVerifiedEpfl() && isValidNewRental(request.resource.data);
+
+      // Afterwards the participants may only update the chat preview (#101).
+      allow update: if isVerifiedEpfl()
+          && request.auth.uid in resource.data.participants
+          && changedKeys().hasOnly(['lastMessage', 'lastMessageAt'])
+          && request.resource.data.lastMessage is string
+          && request.resource.data.lastMessageAt == request.time;
+
+      function isValidNewRental(rental) {
+        let fields = ['listingId', 'listingTitle', 'ownerId', 'ownerName', 'borrowerId',
+            'borrowerName', 'participants', 'startDate', 'endDate', 'status', 'pricePerDay',
+            'totalPrice', 'pickupArea', 'dropOffArea', 'pickupAddress', 'returnAddress',
+            'createdAt', 'lastMessage', 'lastMessageAt'];
+        let listing = get(listingPath(rental.listingId)).data;
+        return rental.keys().hasOnly(fields)
+            && rental.keys().hasAll(fields)
+            && rental.borrowerId == request.auth.uid
+            && rental.ownerId == listing.ownerId
+            && rental.ownerId != rental.borrowerId
+            && rental.participants == [rental.ownerId, rental.borrowerId]
+            && rental.status == 'REQUESTED'
+            && rental.pricePerDay == listing.pricePerDay
+            // YYYY-MM-DD strings compare in date order.
+            && rental.startDate is string
+            && rental.endDate is string
+            && rental.startDate <= rental.endDate
+            && rental.startDate >= listing.availableFrom
+            && rental.endDate <= listing.availableTo
+            // The exact addresses stay empty until the lender accepts.
+            && rental.pickupAddress == ''
+            && rental.returnAddress == ''
+            && rental.createdAt == request.time
+            && rental.lastMessageAt == request.time
+            && rental.lastMessage == '';
+      }
+
+      // One conversation per rental, visible only to its two participants.
+      match /messages/{messageId} {
+        allow read: if isVerifiedEpfl()
+            && request.auth.uid in get(rentalPath(rentalId)).data.participants;
+
+        // SYSTEM messages are left to Cloud Functions. Messages cannot be edited or deleted.
+        allow create: if isVerifiedEpfl()
+            && request.auth.uid in get(rentalPath(rentalId)).data.participants
+            && request.resource.data.keys().hasOnly(['senderId', 'text', 'sentAt', 'type'])
+            && request.resource.data.keys().hasAll(['senderId', 'text', 'sentAt', 'type'])
+            && request.resource.data.senderId == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.sentAt == request.time
+            && request.resource.data.type == 'USER';
+      }
+    }
+  }
+}
