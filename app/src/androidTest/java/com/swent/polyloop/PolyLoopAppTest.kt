@@ -238,6 +238,44 @@ class PolyLoopAppTest {
   }
 
   @Test
+  fun logInNavigatesToBrowseOnce() {
+    signInResult = AuthResult.Success(me)
+    setApp()
+
+    logIn()
+    waitForTag(C.Tag.browse_screen)
+    // Lets the sign-in route finish fading out: it must not report the sign-in a second time.
+    composeTestRule.waitForIdle()
+
+    composeTestRule.runOnIdle {
+      assertEquals(
+          listOf(Screen.Browse.route),
+          navController.currentBackStack.value.mapNotNull { it.destination.route },
+      )
+    }
+  }
+
+  @Test
+  fun verifiedOnCheckInboxNeverShowsTheFormWhileLeaving() {
+    signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    setApp()
+    logIn()
+    waitForTag(C.Tag.auth_check_inbox_screen)
+
+    signInResult = AuthResult.Success(me)
+    composeTestRule.mainClock.autoAdvance = false
+    composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).performScrollTo().performClick()
+
+    // Frame by frame through the fade to Browse: the sign-in route stays composed meanwhile.
+    repeat(FADE_FRAMES) {
+      composeTestRule.mainClock.advanceTimeByFrame()
+      composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertDoesNotExist()
+    }
+    composeTestRule.mainClock.autoAdvance = true
+    waitForTag(C.Tag.browse_screen)
+  }
+
+  @Test
   fun unverifiedLogInShowsCheckInboxOnTheSignInRoute() {
     signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
     setApp()
@@ -539,5 +577,10 @@ class PolyLoopAppTest {
     assertNull(navController.previousBackStackEntry)
     assertNull(currentUser)
     composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist()
+  }
+
+  private companion object {
+    // NavHost fades between routes in 700 ms; 60 frames of 16 ms cover it.
+    const val FADE_FRAMES = 60
   }
 }

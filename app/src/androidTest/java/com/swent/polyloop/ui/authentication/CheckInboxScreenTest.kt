@@ -52,8 +52,6 @@ class CheckInboxScreenTest {
   private val repository =
       FakeAuthRepository(signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED))
   private lateinit var viewModel: AuthViewModel
-  private var signIns = 0
-  private var backToForms = 0
   private lateinit var backDispatcher: OnBackPressedDispatcher
 
   // Owns the ViewModel so tearDown can clear it and stop the resend countdown.
@@ -79,13 +77,7 @@ class CheckInboxScreenTest {
             }
     composeTestRule.setContent {
       backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
-      PolyLoopTheme {
-        CheckInboxScreen(
-            viewModel = viewModel,
-            onSignIn = { signIns++ },
-            onBackToForm = { backToForms++ },
-        )
-      }
+      PolyLoopTheme { CheckInboxScreen(viewModel = viewModel) }
     }
     composeTestRule.waitForIdle()
   }
@@ -108,7 +100,7 @@ class CheckInboxScreenTest {
     repository.signInResult = AuthResult.Success(AuthUser("uid", email, "Jane"))
     composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).performClick()
 
-    composeTestRule.runOnIdle { assertEquals(1, signIns) }
+    composeTestRule.runOnIdle { assertTrue(viewModel.uiState.value.isSignedIn) }
   }
 
   @Test
@@ -133,7 +125,7 @@ class CheckInboxScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.auth_resend_button).assertIsNotEnabled()
     composeTestRule.runOnIdle {
       assertEquals(1, repository.calls.count { it.startsWith("resendVerificationEmail") })
-      assertEquals(0, signIns)
+      assertFalse(viewModel.uiState.value.isSignedIn)
     }
   }
 
@@ -143,10 +135,7 @@ class CheckInboxScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.auth_back_to_form_button).performClick()
 
-    composeTestRule.runOnIdle {
-      assertEquals(1, backToForms)
-      assertFalse(viewModel.uiState.value.isAwaitingVerification)
-    }
+    composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isAwaitingVerification) }
   }
 
   @Test
@@ -167,10 +156,7 @@ class CheckInboxScreenTest {
       // Through the dispatcher, as Espresso.pressBack() waits for window focus and timed out on CI.
       composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
 
-      composeTestRule.runOnIdle {
-        assertEquals(0, backToForms)
-        assertTrue(viewModel.uiState.value.isAwaitingVerification)
-      }
+      composeTestRule.runOnIdle { assertTrue(viewModel.uiState.value.isAwaitingVerification) }
     } finally {
       gate.complete(Unit)
     }

@@ -89,9 +89,8 @@ fun PolyLoopApp(
         when {
           // Nothing while leaving for Browse, so the form does not flash during the fade.
           authState.isSignedIn -> Unit
-          authState.isAwaitingVerification ->
-              CheckInboxScreen(viewModel = authViewModel, onSignIn = {}, onBackToForm = {})
-          else -> AuthScreen(onSignIn = {}, viewModel = authViewModel)
+          authState.isAwaitingVerification -> CheckInboxScreen(viewModel = authViewModel)
+          else -> AuthScreen(viewModel = authViewModel)
         }
       }
 

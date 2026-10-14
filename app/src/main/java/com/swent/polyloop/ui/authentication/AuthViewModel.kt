@@ -140,7 +140,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
    * Ignored while a request runs, so its result cannot land on the form. The resend countdown keeps
    * running for the address it was sent to: going back must not be a way around it.
    *
-   * @return true if the step was left, false if it was ignored; the screen only navigates on true.
+   * @return true if the step was left, false if it was ignored.
    */
   fun backToForm(): Boolean {
     if (_uiState.value.isLoading) return false
