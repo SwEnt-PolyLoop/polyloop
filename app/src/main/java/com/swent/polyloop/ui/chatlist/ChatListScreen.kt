@@ -36,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.myrentals.labelRes
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
 import java.time.ZoneId
@@ -113,7 +114,10 @@ fun ChatListContent(
   }
 }
 
-/** One conversation: the avatar, the other person and the time, the item, the last message. */
+/**
+ * One conversation: the avatar, the other person and the time, the item and the rental's status,
+ * the last message.
+ */
 @Composable
 private fun ConversationRow(row: ChatListRow, now: Instant, onClick: () -> Unit) {
   Row(
@@ -145,7 +149,12 @@ private fun ConversationRow(row: ChatListRow, now: Instant, onClick: () -> Unit)
         )
       }
       Text(
-          text = row.itemTitle,
+          text =
+              stringResource(
+                  R.string.chat_list_item_status,
+                  row.itemTitle,
+                  stringResource(row.status.labelRes),
+              ),
           style = MaterialTheme.typography.bodyMedium,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,

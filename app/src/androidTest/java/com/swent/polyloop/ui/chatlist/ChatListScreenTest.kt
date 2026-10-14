@@ -9,6 +9,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToKey
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthRepository
@@ -18,6 +19,7 @@ import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.myrentals.labelRes
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -111,7 +113,14 @@ class ChatListScreenTest {
 
     rowNode("tent", C.Tag.chat_list_row_avatar).assertIsDisplayed()
     rowNode("tent", C.Tag.chat_list_row_name).assertTextEquals("Ana")
-    rowNode("tent", C.Tag.chat_list_row_item).assertTextEquals("Camping tent")
+    rowNode("tent", C.Tag.chat_list_row_item)
+        .assertTextEquals(
+            context.getString(
+                R.string.chat_list_item_status,
+                "Camping tent",
+                context.getString(R.string.rental_status_accepted),
+            )
+        )
     rowNode("tent", C.Tag.chat_list_row_message).assertTextEquals("See you at 5?")
     rowNode("tent", C.Tag.chat_list_row_time).assertTextEquals(formatMessageTime(now, now))
   }
@@ -126,6 +135,25 @@ class ChatListScreenTest {
         .assertTextEquals(context.getString(R.string.chat_list_no_messages))
     rowNode("drill", C.Tag.chat_list_row_time)
         .assertTextEquals(formatMessageTime(drill.lastMessageAt, now))
+  }
+
+  @Test
+  fun everyStatusIsShownWithItsLabel() {
+    val rows =
+        RentalStatus.entries.map { status -> tent.copy(rentalId = status.name, status = status) }
+    setContent(ChatListUiState(rows = rows, isLoading = false))
+
+    for (status in RentalStatus.entries) {
+      composeTestRule.onNodeWithTag(C.Tag.chat_list_list).performScrollToKey(status.name)
+      rowNode(status.name, C.Tag.chat_list_row_item)
+          .assertTextEquals(
+              context.getString(
+                  R.string.chat_list_item_status,
+                  "Camping tent",
+                  context.getString(status.labelRes),
+              )
+          )
+    }
   }
 
   @Test
