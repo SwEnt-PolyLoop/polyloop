@@ -53,12 +53,17 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.DateRangePickerMode
 import com.swent.polyloop.ui.components.ListingPhoto
+import com.swent.polyloop.ui.components.PolyLoopDateRangePicker
 import com.swent.polyloop.ui.components.PriceText
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
+
+/** Placeholder until the Wallet exists; replace with the user's real balance. */
+private const val PLACEHOLDER_BALANCE = 120
 
 // Placeholder until the owner's profile comes from ProfileRepository.
 internal const val FAKE_LENDER_RATING = 4.8
@@ -79,6 +84,8 @@ fun ListingDetailScreen(
   ListingDetailContent(
       uiState = uiState,
       onRequestDates = viewModel::openDatePicker,
+      onConfirmDates = viewModel::selectDates,
+      onDismissDatePicker = viewModel::dismissDatePicker,
       onLenderClick = onLenderClick,
       onRetry = viewModel::retry,
   )
@@ -86,15 +93,19 @@ fun ListingDetailScreen(
 
 /**
  * Stateless Listing detail content: a loading indicator, an error with a Retry button, a not-found
- * message or the loaded listing, depending on [uiState].
+ * message or the loaded listing, depending on [uiState]. While the date picker is open, its sheet
+ * is shown over the loaded listing, with [today] as the current date.
  */
 @Composable
 fun ListingDetailContent(
     uiState: ListingDetailUiState,
     onRequestDates: () -> Unit,
+    onConfirmDates: (start: LocalDate, end: LocalDate) -> Unit,
+    onDismissDatePicker: () -> Unit,
     onLenderClick: (ownerId: String) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    today: LocalDate = LocalDate.now(),
 ) {
   val listing = uiState.listing
   Column(
@@ -122,12 +133,27 @@ fun ListingDetailContent(
                 modifier = Modifier.testTag(C.Tag.listing_detail_not_found),
             )
           }
-      else ->
-          ListingDetailLoaded(
-              listing = listing,
-              onRequestDates = onRequestDates,
-              onLenderClick = { onLenderClick(listing.ownerId) },
+      else -> {
+        ListingDetailLoaded(
+            listing = listing,
+            onRequestDates = onRequestDates,
+            onLenderClick = { onLenderClick(listing.ownerId) },
+        )
+        if (uiState.isDatePickerOpen) {
+          PolyLoopDateRangePicker(
+              window = listing.availableFrom..listing.availableTo,
+              disabledDates = emptySet(), // booked days come with #87
+              mode =
+                  DateRangePickerMode.Request(
+                      pricePerDay = listing.pricePerDay,
+                      balance = PLACEHOLDER_BALANCE,
+                  ),
+              onConfirm = onConfirmDates,
+              onDismiss = onDismissDatePicker,
+              today = today,
           )
+        }
+      }
     }
   }
 }
@@ -441,6 +467,8 @@ private fun ListingDetailContentPreview() {
       ListingDetailContent(
           uiState = ListingDetailUiState(listing = previewListing),
           onRequestDates = {},
+          onConfirmDates = { _, _ -> },
+          onDismissDatePicker = {},
           onLenderClick = {},
           onRetry = {},
       )

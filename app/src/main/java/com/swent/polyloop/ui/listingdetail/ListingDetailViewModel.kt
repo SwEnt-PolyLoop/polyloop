@@ -9,7 +9,6 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,21 +28,7 @@ data class ListingDetailUiState(
     val startDate: LocalDate? = null,
     val endDate: LocalDate? = null,
     val isDatePickerOpen: Boolean = false,
-) {
-  /** Days in the selected range, counting both the start and the end day. 0 if none is picked. */
-  val numberOfDays: Int
-    get() =
-        if (startDate == null || endDate == null) 0
-        else ChronoUnit.DAYS.between(startDate, endDate).toInt() + 1
-
-  /** Price per day times [numberOfDays], in PP. */
-  val totalPrice: Int
-    get() = (listing?.pricePerDay ?: 0) * numberOfDays
-
-  /** True once the listing is loaded and a date range is picked. */
-  val canRequest: Boolean
-    get() = listing != null && numberOfDays > 0
-}
+)
 
 /** Shows one published listing and holds the dates the borrower picks to request it. */
 class ListingDetailViewModel(
