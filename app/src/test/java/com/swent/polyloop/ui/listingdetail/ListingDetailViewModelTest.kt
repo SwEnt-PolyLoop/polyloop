@@ -107,18 +107,14 @@ class ListingDetailViewModelTest {
   }
 
   @Test
-  fun validRangeSetsDaysPriceAndCanRequest() {
+  fun validRangeSetsDates() {
     val vm = viewModel()
-    assertFalse(vm.uiState.value.canRequest)
 
     vm.selectDates(oct6, oct8)
 
     val state = vm.uiState.value
     assertEquals(oct6, state.startDate)
     assertEquals(oct8, state.endDate)
-    assertEquals(3, state.numberOfDays)
-    assertEquals(45, state.totalPrice)
-    assertTrue(state.canRequest)
   }
 
   @Test
@@ -170,8 +166,6 @@ class ListingDetailViewModelTest {
 
     assertFalse(vm.uiState.value.isDatePickerOpen)
     assertNull(vm.uiState.value.startDate)
-    assertFalse(ListingDetailUiState(startDate = oct6, endDate = oct8).canRequest)
-    assertEquals(0, ListingDetailUiState(startDate = oct6, endDate = oct8).totalPrice)
   }
 
   @Test

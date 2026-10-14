@@ -2,29 +2,24 @@
 
 package com.swent.polyloop.model.profile
 
+import com.google.android.gms.tasks.Task
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseException
+import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.firestore
 import java.util.concurrent.TimeoutException
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
-
-/**
- * Firestore names for profiles, kept in one place so they are easy to change. Proposed in #45, not
- * agreed by the team yet.
- */
-internal object ProfileFields {
-  const val COLLECTION = "users"
-  const val NAME = "name"
-  const val EMAIL = "email"
-  const val PHOTO_URL = "photoUrl"
-}
 
 /** [ProfileRepository] backed by Firestore, one document per user at `users/{uid}`. */
 class ProfileRepositoryFirestore(private val db: FirebaseFirestore = Firebase.firestore) :
@@ -35,49 +30,109 @@ class ProfileRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fi
       email: String,
       name: String,
   ): Result<Unit> {
-    return try {
-      val document = db.collection(ProfileFields.COLLECTION).document(uid)
-      if (!document.get().await().exists()) {
-        val profile = UserProfile(uid = uid, name = name, email = email)
-        // set() only completes once the server confirms the write, which never happens if the
-        // connection drops, so stop waiting after a while. Firestore still sends the queued write
-        // later, so retrying is safe.
-        val saved =
-            withTimeoutOrNull(WRITE_TIMEOUT_MS) {
-              // Merge writes only the fields the app owns and keeps the others, e.g. the rating
-              // fields that Cloud Functions write.
-              document
-                  .set(
-                      mapOf(
-                          ProfileFields.NAME to profile.name,
-                          ProfileFields.EMAIL to profile.email,
-                          ProfileFields.PHOTO_URL to profile.photoUrl,
-                      ),
-                      SetOptions.merge(),
-                  )
-                  .await()
-              true // await() on set() returns null even on success
-            }
-        if (saved == null) return Result.failure(TimeoutException("Profile not confirmed in time"))
+    if (!isValidId(uid)) return invalidId(uid)
+    return withFirebaseErrors {
+      val document = profileDocument(uid)
+      val profile = UserProfile(uid = uid, name = name, email = email)
+      when {
+        document.get().await().exists() -> Result.success(Unit)
+        // Merge writes only the fields the app owns and keeps the others, e.g. the rating fields
+        // that Cloud Functions write.
+        confirmWrite {
+          document.set(
+              mapOf(
+                  ProfileFields.NAME to profile.name,
+                  ProfileFields.EMAIL to profile.email,
+                  ProfileFields.PHOTO_URL to profile.photoUrl,
+              ),
+              SetOptions.merge(),
+          )
+        } -> Result.success(Unit)
+        else -> notConfirmed()
       }
-      Result.success(Unit)
-    } catch (e: CancellationException) {
-      // Rethrows only if the caller was cancelled (e.g. the screen closed); a task that Firebase
-      // cancelled itself is an ordinary failure.
-      currentCoroutineContext().ensureActive()
-      Result.failure(e)
-    } catch (e: FirebaseException) {
-      Result.failure(e)
     }
   }
 
-  // Implemented with Firestore in the second PR of #97; nothing calls these yet.
-  override suspend fun getProfile(uid: String): Result<UserProfile?> = TODO("#97")
+  override suspend fun getProfile(uid: String): Result<UserProfile?> {
+    if (!isValidId(uid)) return Result.success(null)
+    return withFirebaseErrors {
+      val snapshot = profileDocument(uid).get().await()
+      Result.success(snapshot.data?.let { profileFromDocument(uid, it) })
+    }
+  }
 
-  override fun observeProfile(uid: String): Flow<UserProfile?> = TODO("#97")
+  override fun observeProfile(uid: String): Flow<UserProfile?> {
+    if (!isValidId(uid)) return flowOf(null)
+    val document = profileDocument(uid)
+    return callbackFlow {
+      val registration = document.addSnapshotListener { snapshot, error ->
+        // Closing with the error throws the Firestore error itself to the collector.
+        // Firestore's own snapshots() cancels the flow instead: the collector would get a
+        // CancellationException with a generic message, the real error being only its cause.
+        if (error != null) close(error)
+        else if (snapshot != null) {
+          trySend(snapshot.data?.let { profileFromDocument(uid, it) })
+        }
+      }
+      awaitClose { registration.remove() }
+    }
+        .distinctUntilChanged()
+  }
 
-  override suspend fun updateProfile(uid: String, name: String, photoUrl: String): Result<Unit> =
-      TODO("#97")
+  override suspend fun updateProfile(uid: String, name: String, photoUrl: String): Result<Unit> {
+    if (!isValidId(uid)) return invalidId(uid)
+    return withFirebaseErrors {
+      // update() fails with NOT_FOUND when the profile does not exist, so this never creates one.
+      val written = confirmWrite {
+        profileDocument(uid)
+            .update(
+                mapOf<String, Any>(
+                    ProfileFields.NAME to name,
+                    ProfileFields.PHOTO_URL to photoUrl,
+                )
+            )
+      }
+      if (written) Result.success(Unit) else notConfirmed()
+    }
+  }
+
+  private fun profileDocument(uid: String): DocumentReference =
+      db.collection(ProfileFields.COLLECTION).document(uid)
+
+  /** Firestore throws on these ids instead of failing the task, and no profile can have them. */
+  private fun isValidId(uid: String): Boolean = uid.isNotBlank() && '/' !in uid
+
+  private fun invalidId(uid: String): Result<Unit> =
+      Result.failure(IllegalArgumentException("Invalid profile id \"$uid\""))
+
+  /**
+   * Runs [write] and returns whether the server confirmed it in time. A write only completes once
+   * the server confirms it, which never happens if the connection drops, so stop waiting after a
+   * while. Firestore still sends the queued write later, so retrying is safe.
+   */
+  private suspend fun confirmWrite(write: () -> Task<Void>): Boolean =
+      withTimeoutOrNull(WRITE_TIMEOUT_MS) {
+        write().await()
+        true // await() on a write returns null even on success
+      } ?: false
+
+  private fun notConfirmed(): Result<Unit> =
+      Result.failure(TimeoutException("Profile not confirmed in time"))
+
+  /**
+   * Runs [block] and returns Firebase errors as failures. A cancellation is rethrown only if the
+   * caller was cancelled (e.g. the screen closed); a task that Firebase cancelled itself is an
+   * ordinary failure. Other exceptions are bugs and are not hidden.
+   */
+  private suspend fun <T> withFirebaseErrors(block: suspend () -> Result<T>): Result<T> =
+      try {
+        block()
+      } catch (e: CancellationException) {
+        currentCoroutineContext().ensureActive()
+        Result.failure(e)
+      } catch (e: FirebaseException) {
+        Result.failure(e)
+      }
 
   private companion object {
     const val WRITE_TIMEOUT_MS = 10_000L

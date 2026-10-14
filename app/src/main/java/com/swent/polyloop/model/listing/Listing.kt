@@ -23,15 +23,20 @@ data class Listing(
       title.isNotBlank() &&
           description.isNotBlank() &&
           photoUrls.size in MIN_PHOTOS..MAX_PHOTOS &&
-          pricePerDay > 0 &&
-          itemValue > 0 &&
-          !availableFrom.isAfter(availableTo) &&
+          pricePerDay in 1..MAX_AMOUNT &&
+          itemValue in 1..MAX_AMOUNT &&
+          availableFrom.isBefore(availableTo) &&
           addresses.pickup.isNotBlank() &&
           addresses.dropOff.isNotBlank()
 
   companion object {
     const val MIN_PHOTOS = 3
     const val MAX_PHOTOS = 10
+
+    /**
+     * Highest price per day and item value, in PP, so totals over a year-long window fit in an Int.
+     */
+    const val MAX_AMOUNT = 99_999
   }
 }
 

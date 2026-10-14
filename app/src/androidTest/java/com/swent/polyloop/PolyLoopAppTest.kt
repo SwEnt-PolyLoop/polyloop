@@ -18,14 +18,18 @@ import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.chat.Conversation
+import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
 import com.swent.polyloop.ui.navigation.Screen
+import java.time.Instant
 import java.time.LocalDate
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -62,6 +66,9 @@ class PolyLoopAppTest {
   /** In-memory listings, so screens wired to RepositoryProvider never reach Firestore. */
   private val listingRepository =
       object : ListingRepository {
+        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+            Result.success(emptyList())
+
         override suspend fun getAllListings(): Result<List<Listing>> =
             Result.success(listOf(listing))
 
@@ -90,10 +97,14 @@ class PolyLoopAppTest {
         }
       }
 
+  /** In-memory conversations, so the Chat list never reaches Firestore. */
+  private val chatRepository = FakeChatRepository(currentUid = "me")
+
   @Before
   fun setUp() {
     RepositoryProvider.listingRepository = listingRepository
     RepositoryProvider.authRepository = authRepository
+    RepositoryProvider.chatRepository = chatRepository
   }
 
   @After
@@ -135,9 +146,14 @@ class PolyLoopAppTest {
   private fun assertCurrentScreen(screen: Screen, shownRoute: String = screen.route) {
     composeTestRule.waitForIdle()
     assertEquals(screen.route, navController.currentDestination?.route)
-    // Browse is wired to its real screen; the others still show DummyScreen with their route.
+    // Browse and Chat list are wired to their real screens; the others still show DummyScreen with
+    // their route.
     if (screen == Screen.Browse) {
       composeTestRule.onNodeWithTag(C.Tag.browse_screen).assertIsDisplayed()
+      return
+    }
+    if (screen == Screen.ChatList) {
+      composeTestRule.onNodeWithTag(C.Tag.chat_list_screen).assertIsDisplayed()
       return
     }
     composeTestRule.onNodeWithTag(C.Tag.dummy_screen).assertIsDisplayed()
@@ -169,6 +185,34 @@ class PolyLoopAppTest {
       openFromMenu(screen)
       assertCurrentScreen(screen)
     }
+  }
+
+  @Test
+  fun tappingAConversationOpensItsChat() {
+    chatRepository.conversations.value =
+        listOf(
+            Conversation(
+                "rental-1",
+                "Camping tent",
+                "owner-1",
+                "Ana",
+                "me",
+                "Me",
+                "Hi",
+                Instant.EPOCH,
+                RentalStatus.REQUESTED,
+            )
+        )
+    setAppSignedIn()
+    // Set after the start: a signed-in user would skip the sign-in screen that setAppSignedIn uses.
+    // The Chat list reads the user when it opens.
+    currentUser = AuthUser("me", "me@epfl.ch", "Me")
+    openFromMenu(Screen.ChatList)
+
+    waitForTag(C.Tag.chat_list_row_ + "rental-1")
+    composeTestRule.onNodeWithTag(C.Tag.chat_list_row_ + "rental-1").performClick()
+
+    assertCurrentScreen(Screen.Chat, shownRoute = Screen.Chat.createRoute("rental-1"))
   }
 
   @Test
