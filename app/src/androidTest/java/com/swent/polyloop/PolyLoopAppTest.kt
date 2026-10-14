@@ -32,6 +32,8 @@ import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
+import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
@@ -92,6 +94,26 @@ class PolyLoopAppTest {
         ): Result<String> = error("Not used in this test")
       }
 
+  /** One rental borrowed by "uid", so My rentals shows a row without reaching Firestore. */
+  private val rental =
+      Rental(
+          id = "rental-1",
+          listingId = listing.id,
+          listingTitle = "Camping tent",
+          ownerId = listing.ownerId,
+          ownerName = "Vida",
+          borrowerId = "uid",
+          borrowerName = "John Doe",
+          startDate = LocalDate.of(2026, 10, 8),
+          endDate = LocalDate.of(2026, 10, 10),
+          status = RentalStatus.REQUESTED,
+          pricePerDay = 15,
+          totalPrice = 45,
+          pickupArea = "Ecublens",
+          dropOffArea = "Ecublens",
+          createdAt = Instant.parse("2026-10-07T10:00:00Z"),
+      )
+
   /** Online by default, so the tests never depend on the emulator's network. */
   private val connectivity = FakeConnectivityRepository(online = true)
 
@@ -140,6 +162,7 @@ class PolyLoopAppTest {
     RepositoryProvider.authRepository = authRepository
     RepositoryProvider.profileRepository = profileRepository
     RepositoryProvider.chatRepository = chatRepository
+    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     RepositoryProvider.connectivityRepository = connectivity
   }
 
@@ -203,6 +226,7 @@ class PolyLoopAppTest {
           Screen.Auth -> C.Tag.auth_login_button
           Screen.Browse -> C.Tag.browse_screen
           Screen.CreateListing -> C.Tag.create_listing_screen
+          Screen.MyRentals -> C.Tag.my_rentals_screen
           Screen.ChatList -> C.Tag.chat_list_screen
           Screen.Profile,
           Screen.UserProfile -> C.Tag.profile_screen
@@ -561,6 +585,29 @@ class PolyLoopAppTest {
         "rental-1",
         navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
     )
+  }
+
+  @Test
+  fun myRentalsShowsTheSignedInUsersRentals() {
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+
+    openFromMenu(Screen.MyRentals)
+
+    waitForTag(C.Tag.my_rentals_row_ + rental.id)
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + rental.id).assertIsDisplayed()
+  }
+
+  @Test
+  fun tappingARentalOpensItsRentalDetail() {
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    openFromMenu(Screen.MyRentals)
+    waitForTag(C.Tag.my_rentals_row_ + rental.id)
+
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + rental.id).performClick()
+
+    assertCurrentScreen(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
   }
 
   @Test

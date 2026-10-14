@@ -33,6 +33,8 @@ import com.swent.polyloop.ui.createlisting.CreateListingViewModel
 import com.swent.polyloop.ui.dummy.DummyScreen
 import com.swent.polyloop.ui.listingdetail.ListingDetailScreen
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
+import com.swent.polyloop.ui.myrentals.MyRentalsScreen
+import com.swent.polyloop.ui.myrentals.MyRentalsViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
@@ -115,7 +117,20 @@ fun PolyLoopApp(
         val createListingViewModel: CreateListingViewModel = viewModel()
         CreateListingScreen(viewModel = createListingViewModel)
       }
-      composable(Screen.MyRentals.route) { DummyScreen(Screen.MyRentals.route) }
+      composable(Screen.MyRentals.route) {
+        val myRentalsViewModel: MyRentalsViewModel =
+            viewModel(
+                factory =
+                    MyRentalsViewModel.Factory(
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                    )
+            )
+        MyRentalsScreen(
+            viewModel = myRentalsViewModel,
+            onRentalClick = { id -> navController.navigate(Screen.RentalDetail.createRoute(id)) },
+        )
+      }
       composable(Screen.ChatList.route) {
         val chatListViewModel: ChatListViewModel =
             viewModel(
