@@ -16,8 +16,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -26,6 +28,7 @@ import org.junit.Test
 class ConnectivityRepositoryAndroidTest {
 
   private val network = mockk<Network>()
+  private val otherNetwork = mockk<Network>()
   private val callback = slot<ConnectivityManager.NetworkCallback>()
   private val connectivityManager =
       mockk<ConnectivityManager>(relaxUnitFun = true) {
@@ -36,27 +39,36 @@ class ConnectivityRepositoryAndroidTest {
         every { getSystemService(ConnectivityManager::class.java) } returns connectivityManager
       }
 
-  /** The phone starts with a default network, which has internet or not. */
-  private fun startWithNetwork(hasInternet: Boolean) {
-    val capabilities =
-        mockk<NetworkCapabilities> {
-          every { hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) } returns hasInternet
-        }
+  private fun capabilities(hasInternet: Boolean = true, validated: Boolean = true) =
+      mockk<NetworkCapabilities> {
+        every { hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) } returns hasInternet
+        every { hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) } returns validated
+      }
+
+  /** The phone starts with a default network, with or without validated internet. */
+  private fun startWithNetwork(hasInternet: Boolean = true, validated: Boolean = true) {
     every { connectivityManager.activeNetwork } returns network
-    every { connectivityManager.getNetworkCapabilities(network) } returns capabilities
+    every { connectivityManager.getNetworkCapabilities(network) } returns
+        capabilities(hasInternet, validated)
   }
 
+  private fun TestScope.newRepository() =
+      ConnectivityRepositoryAndroid(
+          context,
+          backgroundScope + UnconfinedTestDispatcher(testScheduler),
+      )
+
   /** Collects isOnline into [values] until the returned job is cancelled. */
-  private fun TestScope.collect(values: MutableList<Boolean>): Job {
-    val repository = ConnectivityRepositoryAndroid(context)
-    return launch(UnconfinedTestDispatcher(testScheduler)) { repository.isOnline.toList(values) }
-  }
+  private fun TestScope.collect(
+      values: MutableList<Boolean>,
+      repository: ConnectivityRepositoryAndroid = newRepository(),
+  ): Job = launch(UnconfinedTestDispatcher(testScheduler)) { repository.isOnline.toList(values) }
 
   // ---------- initial state ----------
 
   @Test
-  fun emitsOnlineWhenThePhoneStartsWithInternet() = runTest {
-    startWithNetwork(hasInternet = true)
+  fun emitsOnlineWhenThePhoneStartsWithValidatedInternet() = runTest {
+    startWithNetwork()
     val values = mutableListOf<Boolean>()
 
     val job = collect(values)
@@ -88,42 +100,107 @@ class ConnectivityRepositoryAndroidTest {
     job.cancel()
   }
 
+  @Test
+  fun emitsOfflineBehindACaptivePortal() = runTest {
+    startWithNetwork(validated = false)
+    val values = mutableListOf<Boolean>()
+
+    val job = collect(values)
+
+    assertEquals(listOf(false), values)
+    job.cancel()
+  }
+
+  @Test
+  fun readsTheCurrentStateAfterRegisteringTheCallback() = runTest {
+    startWithNetwork()
+
+    val job = collect(mutableListOf())
+
+    verify(ordering = io.mockk.Ordering.ORDERED) {
+      connectivityManager.registerDefaultNetworkCallback(any())
+      connectivityManager.activeNetwork
+    }
+    job.cancel()
+  }
+
   // ---------- changes ----------
 
   @Test
   fun emitsOfflineWhenTheNetworkIsLostAndOnlineWhenItComesBack() = runTest {
-    startWithNetwork(hasInternet = true)
+    startWithNetwork()
     val values = mutableListOf<Boolean>()
     val job = collect(values)
 
     callback.captured.onLost(network)
-    callback.captured.onAvailable(network)
+    callback.captured.onCapabilitiesChanged(network, capabilities())
 
     assertEquals(listOf(true, false, true), values)
     job.cancel()
   }
 
   @Test
-  fun doesNotRepeatTheSameState() = runTest {
-    startWithNetwork(hasInternet = true)
+  fun emitsOnlineOnceACaptivePortalIsSignedIn() = runTest {
+    startWithNetwork(validated = false)
     val values = mutableListOf<Boolean>()
     val job = collect(values)
 
-    // Android calls onAvailable right after registering when a network is already up.
-    callback.captured.onAvailable(network)
+    callback.captured.onCapabilitiesChanged(network, capabilities())
+
+    assertEquals(listOf(false, true), values)
+    job.cancel()
+  }
+
+  @Test
+  fun ignoresALateLossOfTheReplacedNetwork() = runTest {
+    startWithNetwork()
+    val values = mutableListOf<Boolean>()
+    val job = collect(values)
+    callback.captured.onCapabilitiesChanged(network, capabilities())
+
+    // Wi-Fi to mobile data: the new network arrives, then the old one is reported lost.
+    callback.captured.onCapabilitiesChanged(otherNetwork, capabilities())
+    callback.captured.onLost(network)
 
     assertEquals(listOf(true), values)
     job.cancel()
   }
 
-  // ---------- cleanup ----------
+  @Test
+  fun doesNotRepeatTheSameState() = runTest {
+    startWithNetwork()
+    val values = mutableListOf<Boolean>()
+    val job = collect(values)
+
+    // Android reports the default network right after registering when one is already up.
+    callback.captured.onCapabilitiesChanged(network, capabilities())
+
+    assertEquals(listOf(true), values)
+    job.cancel()
+  }
+
+  // ---------- sharing and cleanup ----------
+
+  @Test
+  fun collectorsShareOneCallback() = runTest {
+    startWithNetwork()
+    val repository = newRepository()
+
+    val first = collect(mutableListOf(), repository)
+    val second = collect(mutableListOf(), repository)
+
+    verify(exactly = 1) { connectivityManager.registerDefaultNetworkCallback(any()) }
+    first.cancel()
+    second.cancel()
+  }
 
   @Test
   fun unregistersTheCallbackWhenCollectionStops() = runTest {
-    startWithNetwork(hasInternet = true)
+    startWithNetwork()
     val job = collect(mutableListOf())
 
     job.cancel()
+    runCurrent()
 
     verify(exactly = 1) { connectivityManager.unregisterNetworkCallback(callback.captured) }
   }
