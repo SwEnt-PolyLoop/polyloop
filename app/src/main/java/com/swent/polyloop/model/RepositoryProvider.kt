@@ -2,8 +2,13 @@
 
 package com.swent.polyloop.model
 
+import com.google.firebase.Firebase
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.storage
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
+import com.swent.polyloop.model.chat.ChatRepository
+import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.ProfileRepository
@@ -21,6 +26,7 @@ object RepositoryProvider {
 
   private var auth: AuthRepository? = null
   private var listing: ListingRepository? = null
+  private var chat: ChatRepository? = null
   private var profile: ProfileRepository? = null
 
   var authRepository: AuthRepository
@@ -35,16 +41,31 @@ object RepositoryProvider {
       listing = value
     }
 
+  var chatRepository: ChatRepository
+    get() = chat ?: ChatRepositoryFirestore().also { chat = it }
+    set(value) {
+      chat = value
+    }
+
   var profileRepository: ProfileRepository
     get() = profile ?: ProfileRepositoryFirestore().also { profile = it }
     set(value) {
       profile = value
     }
 
+  /**
+   * The Cloud Storage instance that repositories upload photos and PDFs to. Read on each access, so
+   * Storage is not touched until a repository needs it. Repositories should take it as a
+   * constructor parameter defaulting to this, so their tests can pass another instance.
+   */
+  val storage: FirebaseStorage
+    get() = Firebase.storage
+
   /** Forgets every repository, so the next access creates the real ones again. For tests. */
   fun reset() {
     auth = null
     listing = null
+    chat = null
     profile = null
   }
 }

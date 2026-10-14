@@ -86,7 +86,7 @@ Listing detail is where a borrower decides and sends a request. ViewModel: Listi
 
 ## Create / edit listing
 
-This form puts an item up for rent, or changes an existing listing. ViewModel: EditListingViewModel, using ListingRepository and RentalRepository.
+This form puts an item up for rent, or changes an existing listing. ViewModel: CreateListingViewModel, using ListingRepository and RentalRepository.
 
 - A photo row with an “Add photo” button that opens the in-app camera. Each listing needs 3 to 10 photos, which can be removed and reordered.
 - Fields: title, description, category, price per day, item value (the suggested deposit), the availability window (the dates the lender is willing to lend), and the pickup and drop-off addresses, typed as text.

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -66,8 +67,13 @@ class ListingDetailScreenTest {
           pickupArea = "Ecublens",
       )
 
+  private val today = LocalDate.of(2026, 10, 1)
+
+  private fun oct(day: Int) = LocalDate.of(2026, 10, day)
+
   private var requestClicks = 0
   private var lenderClicks = 0
+  private val confirmedDates = mutableListOf<Pair<LocalDate, LocalDate>>()
 
   private fun setContent(listing: Listing = this.listing) {
     composeTestRule.setContent {
@@ -75,8 +81,11 @@ class ListingDetailScreenTest {
       ListingDetailContent(
           uiState = ListingDetailUiState(listing = listing),
           onRequestDates = { requestClicks++ },
+          onConfirmDates = { start, end -> confirmedDates += start to end },
+          onDismissDatePicker = {},
           onLenderClick = { lenderClicks++ },
           onRetry = {},
+          today = today,
       )
     }
   }
@@ -86,10 +95,17 @@ class ListingDetailScreenTest {
       ListingDetailContent(
           uiState = uiState,
           onRequestDates = {},
+          onConfirmDates = { start, end -> confirmedDates += start to end },
+          onDismissDatePicker = {},
           onLenderClick = {},
           onRetry = {},
+          today = today,
       )
     }
+  }
+
+  private fun tapDays(vararg dates: LocalDate) = dates.forEach {
+    composeTestRule.onNodeWithTag(C.Tag.datePickerDay(it)).performClick()
   }
 
   private fun waitForTag(tag: String) {
@@ -384,8 +400,11 @@ class ListingDetailScreenTest {
       ListingDetailContent(
           uiState = uiState,
           onRequestDates = {},
+          onConfirmDates = { _, _ -> },
+          onDismissDatePicker = {},
           onLenderClick = {},
           onRetry = {},
+          today = today,
       )
     }
 
@@ -399,6 +418,64 @@ class ListingDetailScreenTest {
           uiState = state
           composeTestRule.onNodeWithTag(C.Tag.listing_detail_screen).assertIsDisplayed()
         }
+  }
+
+  @Test
+  fun datePickerIsHiddenByDefault() {
+    setContent()
+
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertDoesNotExist()
+  }
+
+  @Test
+  fun datePickerShowsListingWindowAndPrice() {
+    setContent(uiState = ListingDetailUiState(listing = listing, isDatePickerOpen = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertIsDisplayed()
+    val (from, to) =
+        formatRangeEnds(
+            listing.availableFrom,
+            listing.availableTo,
+            context.resources.configuration.locales[0],
+        )
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_available)
+        .assertTextEquals(context.getString(R.string.date_picker_available, from, to))
+
+    tapDays(oct(15), oct(17))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_summary_total)
+        .assertTextEquals(context.getString(R.string.listing_card_price, 3 * listing.pricePerDay))
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_balance)
+        .assertTextEquals(context.getString(R.string.listing_card_price, 120))
+  }
+
+  @Test
+  fun sendRequestDisabledWhenTotalExceedsPlaceholderBalance() {
+    setContent(
+        uiState =
+            ListingDetailUiState(listing = listing.copy(pricePerDay = 50), isDatePickerOpen = true)
+    )
+
+    tapDays(oct(15), oct(17))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_confirm_button)
+        .performScrollTo()
+        .assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_balance_error).assertExists()
+  }
+
+  @Test
+  fun sendRequestCallsOnConfirmDates() {
+    setContent(uiState = ListingDetailUiState(listing = listing, isDatePickerOpen = true))
+
+    tapDays(oct(15), oct(17))
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
+
+    assertEquals(listOf(oct(15) to oct(17)), confirmedDates)
   }
 
   @Test
