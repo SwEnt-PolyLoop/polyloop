@@ -54,7 +54,7 @@ class CreateListingViewModelTest {
       onDropOffAddressChange("Avenue 2, Lausanne")
     }
     assertChangeGives(CreateListingUiState(availableFrom = from, availableTo = to)) {
-      onAvailabilityChange(from, to)
+      selectDates(from, to)
     }
   }
 
@@ -108,5 +108,33 @@ class CreateListingViewModelTest {
 
     assertTrue(state.hasAttemptedPublish)
     assertEquals(before.copy(hasAttemptedPublish = true), state)
+  }
+
+  @Test
+  fun openDatePickerOpensIt() {
+    assertChangeGives(CreateListingUiState(isDatePickerOpen = true)) { openDatePicker() }
+  }
+
+  @Test
+  fun dismissDatePickerClosesItAndKeepsTheDates() {
+    val from = LocalDate.of(2026, 10, 6)
+    val to = LocalDate.of(2026, 10, 20)
+
+    assertChangeGives(CreateListingUiState(availableFrom = from, availableTo = to)) {
+      selectDates(from, to)
+      openDatePicker()
+      dismissDatePicker()
+    }
+  }
+
+  @Test
+  fun selectDatesSetsTheWindowAndClosesThePicker() {
+    val from = LocalDate.of(2026, 10, 6)
+    val to = LocalDate.of(2026, 10, 20)
+
+    assertChangeGives(CreateListingUiState(availableFrom = from, availableTo = to)) {
+      openDatePicker()
+      selectDates(from, to)
+    }
   }
 }
