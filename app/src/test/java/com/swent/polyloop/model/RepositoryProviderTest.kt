@@ -17,6 +17,8 @@ import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
+import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.RentalRepositoryFirestore
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -197,6 +199,31 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- rentalRepository ----------
+
+  @Test
+  fun rentalRepositoryDefaultsToFirestoreImplementation() {
+    assertTrue(RepositoryProvider.rentalRepository is RentalRepositoryFirestore)
+  }
+
+  @Test
+  fun rentalRepositoryReturnsSameInstanceOnEveryAccess() {
+    val first = RepositoryProvider.rentalRepository
+
+    assertSame(first, RepositoryProvider.rentalRepository)
+    verify(exactly = 1) { FirebaseFirestore.getInstance() }
+  }
+
+  @Test
+  fun rentalRepositoryReturnsAssignedRepository() {
+    val fake = FakeRentalRepository()
+
+    RepositoryProvider.rentalRepository = fake
+
+    assertSame(fake, RepositoryProvider.rentalRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+  }
+
   // ---------- connectivityRepository ----------
 
   @Test
@@ -260,12 +287,14 @@ class RepositoryProviderTest {
     RepositoryProvider.listingRepository = fakeListing
     RepositoryProvider.chatRepository = fakeChat
     RepositoryProvider.profileRepository = FakeProfileRepository()
+    RepositoryProvider.rentalRepository = FakeRentalRepository()
     RepositoryProvider.connectivityRepository = FakeConnectivityRepository()
 
     RepositoryProvider.reset()
 
     assertTrue(RepositoryProvider.authRepository is AuthRepositoryFirebase)
     assertTrue(RepositoryProvider.listingRepository is ListingRepositoryFirestore)
+    assertTrue(RepositoryProvider.rentalRepository is RentalRepositoryFirestore)
     assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
     assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
     assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
@@ -277,6 +306,7 @@ class RepositoryProviderTest {
     val firstListing = RepositoryProvider.listingRepository
     val firstChat = RepositoryProvider.chatRepository
     val firstProfile = RepositoryProvider.profileRepository
+    val firstRental = RepositoryProvider.rentalRepository
     val firstConnectivity = RepositoryProvider.connectivityRepository
 
     RepositoryProvider.reset()
@@ -285,6 +315,7 @@ class RepositoryProviderTest {
     assertNotSame(firstListing, RepositoryProvider.listingRepository)
     assertNotSame(firstChat, RepositoryProvider.chatRepository)
     assertNotSame(firstProfile, RepositoryProvider.profileRepository)
+    assertNotSame(firstRental, RepositoryProvider.rentalRepository)
     assertNotSame(firstConnectivity, RepositoryProvider.connectivityRepository)
   }
 }
