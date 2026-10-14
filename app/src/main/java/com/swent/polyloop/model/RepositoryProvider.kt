@@ -7,6 +7,8 @@ import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.storage
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
+import com.swent.polyloop.model.chat.ChatRepository
+import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.ProfileRepository
@@ -24,6 +26,7 @@ object RepositoryProvider {
 
   private var auth: AuthRepository? = null
   private var listing: ListingRepository? = null
+  private var chat: ChatRepository? = null
   private var profile: ProfileRepository? = null
 
   var authRepository: AuthRepository
@@ -36,6 +39,12 @@ object RepositoryProvider {
     get() = listing ?: ListingRepositoryFirestore().also { listing = it }
     set(value) {
       listing = value
+    }
+
+  var chatRepository: ChatRepository
+    get() = chat ?: ChatRepositoryFirestore().also { chat = it }
+    set(value) {
+      chat = value
     }
 
   var profileRepository: ProfileRepository
@@ -56,6 +65,7 @@ object RepositoryProvider {
   fun reset() {
     auth = null
     listing = null
+    chat = null
     profile = null
   }
 }
