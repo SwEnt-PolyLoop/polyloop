@@ -114,7 +114,10 @@ class BrowseViewModelTest {
     repository.failure = RuntimeException()
 
     // Blank, not null: the screen shows its generic error text.
-    assertEquals("", BrowseViewModel(repository, authRepository, connectivity).uiState.value.errorMsg)
+    assertEquals(
+        "",
+        BrowseViewModel(repository, authRepository, connectivity).uiState.value.errorMsg,
+    )
   }
 
   @Test
@@ -154,7 +157,10 @@ class BrowseViewModelTest {
   fun ownListingsAreHidden() {
     repository.listings = listings + myListing
 
-    assertEquals(listings, BrowseViewModel(repository, authRepository, connectivity).uiState.value.listings)
+    assertEquals(
+        listings,
+        BrowseViewModel(repository, authRepository, connectivity).uiState.value.listings,
+    )
   }
 
   @Test
@@ -340,13 +346,16 @@ class BrowseViewModelTest {
 
   @Test
   fun factoryCreatesBrowseViewModel() {
-    val vm = BrowseViewModel.Factory(repository, authRepository, connectivity).create(BrowseViewModel::class.java)
+    val vm =
+        BrowseViewModel.Factory(repository, authRepository, connectivity)
+            .create(BrowseViewModel::class.java)
     assertEquals(listings, vm.uiState.value.listings)
   }
 
   @Test(expected = IllegalArgumentException::class)
   fun factoryRejectsOtherViewModels() {
-    BrowseViewModel.Factory(repository, authRepository, connectivity).create(OtherViewModel::class.java)
+    BrowseViewModel.Factory(repository, authRepository, connectivity)
+        .create(OtherViewModel::class.java)
   }
 
   private class OtherViewModel : ViewModel()
