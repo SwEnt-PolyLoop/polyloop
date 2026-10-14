@@ -32,4 +32,14 @@ class NavigationActions(private val navController: NavHostController) {
   fun navigateAfterSignIn() {
     navController.navigate(Screen.Browse.route) { popUpTo(Screen.Auth.route) { inclusive = true } }
   }
+
+  /**
+   * Leaves the app for sign-in after signing out. The whole back stack is cleared (whichever screen
+   * the app started on), so Back exits the app instead of showing a signed-in screen.
+   */
+  fun navigateAfterSignOut() {
+    navController.navigate(Screen.Auth.route) {
+      popUpTo(navController.graph.id) { inclusive = true }
+    }
+  }
 }

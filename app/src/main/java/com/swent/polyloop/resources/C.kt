@@ -67,6 +67,18 @@ object C {
     const val auth_password_error = "auth_password_error"
     const val auth_error = "auth_error"
 
+    const val profile_screen = "profile_screen"
+    const val profile_avatar = "profile_avatar"
+    const val profile_name = "profile_name"
+    const val profile_rating = "profile_rating"
+    const val profile_listings_title = "profile_listings_title"
+    const val profile_listings_empty = "profile_listings_empty"
+    const val profile_sign_out_button = "profile_sign_out_button"
+    const val profile_loading = "profile_loading"
+    const val profile_error = "profile_error"
+    const val profile_retry_button = "profile_retry_button"
+    const val profile_not_found = "profile_not_found"
+
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
     const val top_bar_profile_button = "top_bar_profile_button"
