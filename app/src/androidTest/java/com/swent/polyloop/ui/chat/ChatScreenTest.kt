@@ -2,6 +2,10 @@
 
 package com.swent.polyloop.ui.chat
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -215,12 +219,28 @@ class ChatScreenTest {
 
   @Test
   fun typingAndSendCallBack() {
-    setContent(loaded.copy(draft = "Hello"))
+    // Holds the draft like the ViewModel does, so the field shows what is typed.
+    composeTestRule.setContent {
+      var draft by remember { mutableStateOf("") }
+      PolyLoopTheme {
+        ChatContent(
+            uiState = loaded.copy(draft = draft),
+            onDraftChange = {
+              draft = it
+              drafts += it
+            },
+            onSend = { sends++ },
+            onRetry = {},
+            onRentalDetailsClick = {},
+            now = now,
+        )
+      }
+    }
 
-    composeTestRule.onNodeWithTag(C.Tag.chat_input).performTextInput("!")
+    composeTestRule.onNodeWithTag(C.Tag.chat_input).performTextInput("Hello")
     composeTestRule.onNodeWithTag(C.Tag.chat_send_button).assertIsEnabled().performClick()
 
-    assertEquals("Hello!", drafts.last())
+    assertEquals("Hello", drafts.last())
     assertEquals(1, sends)
   }
 
