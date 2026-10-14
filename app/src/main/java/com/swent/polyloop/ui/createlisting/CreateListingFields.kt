@@ -3,9 +3,8 @@
 package com.swent.polyloop.ui.createlisting
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -33,16 +32,17 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
@@ -94,6 +94,7 @@ internal fun FormTextField(
     onValueChange: (String) -> Unit,
     isError: Boolean,
     tag: String,
+    label: String,
     placeholder: String? = null,
     suffix: String? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
@@ -109,7 +110,7 @@ internal fun FormTextField(
       minLines = minLines,
       keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
       shape = MaterialTheme.shapes.medium,
-      modifier = Modifier.fillMaxWidth().testTag(tag),
+      modifier = Modifier.fillMaxWidth().testTag(tag).semantics { contentDescription = label },
   )
 }
 
@@ -119,6 +120,7 @@ internal fun FormTextField(
 internal fun CategoryDropdown(
     category: ListingCategory?,
     isError: Boolean,
+    label: String,
     onCategoryChange: (ListingCategory) -> Unit,
 ) {
   var expanded by remember { mutableStateOf(false) }
@@ -135,7 +137,8 @@ internal fun CategoryDropdown(
         modifier =
             Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 .fillMaxWidth()
-                .testTag(C.Tag.create_listing_category_field),
+                .testTag(C.Tag.create_listing_category_field)
+                .semantics { contentDescription = label },
     )
     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
       ListingCategory.entries.forEach { option ->
@@ -158,6 +161,7 @@ internal fun AvailabilityField(
     from: LocalDate?,
     to: LocalDate?,
     isError: Boolean,
+    label: String,
     onClick: () -> Unit,
 ) {
   val text =
@@ -167,32 +171,32 @@ internal fun AvailabilityField(
       } else {
         ""
       }
+  val pickDatesLabel = stringResource(R.string.create_listing_availability_placeholder)
+  // A press interrupted by a scroll ends as a Cancel, so only a real tap opens the picker.
+  val interactionSource = remember { MutableInteractionSource() }
+  val currentOnClick by rememberUpdatedState(onClick)
+  LaunchedEffect(interactionSource) {
+    interactionSource.interactions.collect { if (it is PressInteraction.Release) currentOnClick() }
+  }
   OutlinedTextField(
       value = text,
       onValueChange = {},
       readOnly = true,
-      placeholder = { Text(stringResource(R.string.create_listing_availability_placeholder)) },
+      placeholder = { Text(pickDatesLabel) },
       trailingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) },
       isError = isError,
       singleLine = true,
       shape = MaterialTheme.shapes.medium,
+      interactionSource = interactionSource,
       modifier =
-          Modifier.fillMaxWidth()
-              .testTag(C.Tag.create_listing_availability_field)
-              // A read-only text field keeps taps for itself, so they are caught on the way in.
-              .pointerInput(onClick) {
-                awaitEachGesture {
-                  awaitFirstDown(pass = PointerEventPass.Initial)
-                  if (waitForUpOrCancellation(pass = PointerEventPass.Initial) != null) onClick()
-                }
-              }
-              // The tap above is invisible to accessibility services, so expose it as a click too.
-              .semantics {
-                onClick {
-                  onClick()
-                  true
-                }
-              },
+          Modifier.fillMaxWidth().testTag(C.Tag.create_listing_availability_field).semantics {
+            contentDescription = label
+            // The text field's own accessibility click only focuses it and emits no press.
+            onClick(label = pickDatesLabel) {
+              currentOnClick()
+              true
+            }
+          },
   )
 }
 

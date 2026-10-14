@@ -2,15 +2,25 @@
 
 package com.swent.polyloop.ui.createlisting
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
@@ -30,6 +40,8 @@ class CreateListingFieldsTest {
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
+  private val titleLabel = context.getString(R.string.create_listing_title_label)
+
   private val availableFrom = LocalDate.of(2026, 10, 6)
   private val availableTo = LocalDate.of(2026, 10, 20)
 
@@ -40,7 +52,7 @@ class CreateListingFieldsTest {
   private fun setLabelledField(errorRes: Int?, helperText: String? = null) {
     composeTestRule.setContent {
       LabelledField(
-          label = context.getString(R.string.create_listing_title_label),
+          label = titleLabel,
           errorRes = errorRes,
           errorTag = C.Tag.create_listing_title_error,
           helperText = helperText,
@@ -50,6 +62,7 @@ class CreateListingFieldsTest {
             onValueChange = {},
             isError = isError,
             tag = C.Tag.create_listing_title_field,
+            label = titleLabel,
         )
       }
     }
@@ -57,7 +70,13 @@ class CreateListingFieldsTest {
 
   private fun setAvailabilityField(from: LocalDate?, to: LocalDate?) {
     composeTestRule.setContent {
-      AvailabilityField(from = from, to = to, isError = false, onClick = { pickDatesClicks++ })
+      AvailabilityField(
+          from = from,
+          to = to,
+          isError = false,
+          label = "Available",
+          onClick = { pickDatesClicks++ },
+      )
     }
   }
 
@@ -82,6 +101,13 @@ class CreateListingFieldsTest {
   }
 
   @Test
+  fun titleFieldHasItsLabelAsContentDescription() {
+    setLabelledField(errorRes = null)
+
+    composeTestRule.onNodeWithContentDescription(titleLabel).assertIsDisplayed()
+  }
+
+  @Test
   fun labelledFieldShowsItsHelperText() {
     setLabelledField(errorRes = null, helperText = "Shown to borrowers")
 
@@ -96,6 +122,7 @@ class CreateListingFieldsTest {
           onValueChange = {},
           isError = false,
           tag = C.Tag.create_listing_title_field,
+          label = titleLabel,
           placeholder = "e.g. 5",
           suffix = "PP",
       )
@@ -115,6 +142,7 @@ class CreateListingFieldsTest {
           onValueChange = {},
           isError = false,
           tag = C.Tag.create_listing_title_field,
+          label = titleLabel,
           minLines = 3,
       )
     }
@@ -127,7 +155,12 @@ class CreateListingFieldsTest {
   @Test
   fun categoryDropdownShowsChosenCategory() {
     composeTestRule.setContent {
-      CategoryDropdown(category = ListingCategory.MUSIC, isError = false, onCategoryChange = {})
+      CategoryDropdown(
+          category = ListingCategory.MUSIC,
+          isError = false,
+          label = "Category",
+          onCategoryChange = {},
+      )
     }
 
     composeTestRule
@@ -138,7 +171,12 @@ class CreateListingFieldsTest {
   @Test
   fun choosingCategoryCallsOnCategoryChange() {
     composeTestRule.setContent {
-      CategoryDropdown(category = null, isError = false, onCategoryChange = { chosenCategory = it })
+      CategoryDropdown(
+          category = null,
+          isError = false,
+          label = "Category",
+          onCategoryChange = { chosenCategory = it },
+      )
     }
 
     composeTestRule.onNodeWithTag(C.Tag.create_listing_category_field).performClick()
@@ -181,6 +219,28 @@ class CreateListingFieldsTest {
     composeTestRule.onNodeWithTag(C.Tag.create_listing_availability_field).performClick()
 
     assertEquals(1, pickDatesClicks)
+  }
+
+  @Test
+  fun scrollingFromAvailabilityDoesNotCallOnPickDates() {
+    composeTestRule.setContent {
+      Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        AvailabilityField(
+            from = null,
+            to = null,
+            isError = false,
+            label = "Available",
+            onClick = { pickDatesClicks++ },
+        )
+        Spacer(modifier = Modifier.height(2000.dp))
+      }
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.create_listing_availability_field).performTouchInput {
+      swipeUp()
+    }
+
+    assertEquals(0, pickDatesClicks)
   }
 
   @Test
