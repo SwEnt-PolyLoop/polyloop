@@ -72,6 +72,9 @@ class BrowseViewModelTest {
     // Returns the DRAFT unfiltered, unlike FakeListingRepository, so the ViewModel must hide it.
     val unfiltered =
         object : ListingRepository {
+          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+              Result.success(emptyList())
+
           override suspend fun getAllListings(): Result<List<Listing>> =
               Result.success(listOf(published, listing("draft", ListingStatus.DRAFT)))
 

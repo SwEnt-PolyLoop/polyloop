@@ -195,4 +195,58 @@ class ListingRepositoryFirestoreTest {
         result.getOrThrow(),
     )
   }
+
+  // ---------- getListingsByOwner ----------
+
+  private val ownerQuery = mockk<Query>()
+
+  private fun stubOwnerQuery(vararg documents: DocumentSnapshot) {
+    val snapshot =
+        mockk<QuerySnapshot> { every { this@mockk.documents } returns documents.toList() }
+    every { collection.whereEqualTo(ListingFields.OWNER_ID, "user1") } returns ownerQuery
+    every { ownerQuery.get() } returns Tasks.forResult(snapshot)
+  }
+
+  @Test
+  fun getListingsByOwnerReturnsTheOwnersListingsWhateverTheirStatus() = runTest {
+    stubOwnerQuery(
+        document("listing1", validData),
+        document("draft1", validData + (ListingFields.STATUS to "DRAFT")),
+    )
+
+    val result = repository.getListingsByOwner("user1")
+
+    assertEquals(
+        listOf(
+            expectedListing("listing1"),
+            expectedListing("draft1").copy(status = ListingStatus.DRAFT),
+        ),
+        result.getOrThrow(),
+    )
+    verify(exactly = 0) { collection.whereEqualTo(ListingFields.STATUS, "PUBLISHED") }
+  }
+
+  @Test
+  fun getListingsByOwnerSkipsBrokenDocument() = runTest {
+    stubOwnerQuery(document("listing1", validData), document("broken", brokenData))
+
+    assertEquals(
+        listOf(expectedListing("listing1")),
+        repository.getListingsByOwner("user1").getOrThrow(),
+    )
+  }
+
+  @Test
+  fun getListingsByOwnerReturnsFailureOnFirestoreError() = runTest {
+    stubOwnerQuery()
+    every { ownerQuery.get() } returns Tasks.forException(firestoreError)
+
+    assertSame(firestoreError, repository.getListingsByOwner("user1").exceptionOrNull())
+  }
+
+  @Test
+  fun getListingsByOwnerReturnsNothingForBlankIdWithoutCallingFirestore() = runTest {
+    assertEquals(emptyList<Listing>(), repository.getListingsByOwner(" ").getOrThrow())
+    verify(exactly = 0) { db.collection(any()) }
+  }
 }
