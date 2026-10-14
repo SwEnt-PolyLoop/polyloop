@@ -664,6 +664,33 @@ class AuthViewModelTest {
   }
 
   @Test
+  fun logInWithoutNameButWithAProfileSignsInWithoutTheNameStep() {
+    // The name typed on the name step is only saved in the profile, never in the account.
+    val existing = UserProfile("uid1", "Ben", "john@epfl.ch")
+    profileRepository = FakeProfileRepository(listOf(existing))
+    viewModel = AuthViewModel(repository, profileRepository)
+
+    signInWithoutName()
+
+    assertTrue(state.isSignedIn)
+    assertFalse(state.isAskingName)
+    assertEquals(listOf(existing), profileRepository.profiles)
+  }
+
+  @Test
+  fun logInWithoutNameSignsOutWhenTheProfileCannotBeRead() {
+    profileRepository.failure = IllegalStateException("offline")
+
+    signInWithoutName()
+
+    assertEquals("signOut()", repository.calls.last())
+    assertEquals(AuthError.PROFILE_NOT_CREATED, state.error)
+    assertEquals(AuthMode.LOG_IN, state.mode)
+    assertFalse(state.isAskingName)
+    assertFalse(state.isSignedIn)
+  }
+
+  @Test
   fun confirmVerifiedWithoutNameLeavesCheckInboxForTheNameStep() {
     repository.signUpResult = AuthResult.Failure(AuthError.NAME_NOT_SAVED)
     fillSignUp()

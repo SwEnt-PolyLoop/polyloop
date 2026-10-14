@@ -222,41 +222,57 @@ class AuthViewModel(
     }
   }
 
-  /** Creates the profile, or first asks for the name when the account has none. */
+  /**
+   * Creates the profile, or first asks for the name when the account has none. The typed name is
+   * only saved in the profile, never in the account, so the profile is read first: a user who
+   * already has one is let in without being asked again.
+   */
   private suspend fun onVerifiedSignIn(user: AuthUser) {
-    if (user.name.isBlank()) {
-      userWithoutName = user
-      _uiState.update {
-        it.copy(isAskingName = true, isAwaitingVerification = false, hasAttemptedSubmit = false)
-      }
-    } else {
+    if (user.name.isNotBlank()) {
       createProfile(user, user.name)
+      return
+    }
+    val profile = profileRepository.getProfile(user.uid)
+    when {
+      profile.isFailure -> onProfileFailure()
+      profile.getOrNull() != null -> onSignedIn()
+      else -> {
+        userWithoutName = user
+        _uiState.update {
+          it.copy(isAskingName = true, isAwaitingVerification = false, hasAttemptedSubmit = false)
+        }
+      }
+    }
+  }
+
+  /** Creates the profile if it is missing, then lets the user in. */
+  private suspend fun createProfile(user: AuthUser, name: String) {
+    val created = profileRepository.createProfileIfMissing(user.uid, user.email, name).isSuccess
+    userWithoutName = null
+    if (created) onSignedIn() else onProfileFailure()
+  }
+
+  private fun onSignedIn() {
+    _uiState.update {
+      it.copy(isSignedIn = true, isAwaitingVerification = false, isAskingName = false)
     }
   }
 
   /**
-   * Creates the profile if it is missing, then lets the user in. If it cannot be created, signs the
-   * user out, so the next launch comes back here instead of opening the app without a profile.
+   * Signs the user out when the profile cannot be read or created, so the next launch comes back
+   * here instead of opening the app without a profile.
    */
-  private suspend fun createProfile(user: AuthUser, name: String) {
-    val created = profileRepository.createProfileIfMissing(user.uid, user.email, name).isSuccess
-    userWithoutName = null
-    if (created) {
-      _uiState.update {
-        it.copy(isSignedIn = true, isAwaitingVerification = false, isAskingName = false)
-      }
-    } else {
-      authRepository.signOut()
-      _uiState.update {
-        it.copy(
-            error = AuthError.PROFILE_NOT_CREATED,
-            // The account exists and is verified: the way back in is to log in again.
-            mode = AuthMode.LOG_IN,
-            isAwaitingVerification = false,
-            isAskingName = false,
-            hasAttemptedSubmit = false,
-        )
-      }
+  private fun onProfileFailure() {
+    authRepository.signOut()
+    _uiState.update {
+      it.copy(
+          error = AuthError.PROFILE_NOT_CREATED,
+          // The account exists and is verified: the way back in is to log in again.
+          mode = AuthMode.LOG_IN,
+          isAwaitingVerification = false,
+          isAskingName = false,
+          hasAttemptedSubmit = false,
+      )
     }
   }
 
