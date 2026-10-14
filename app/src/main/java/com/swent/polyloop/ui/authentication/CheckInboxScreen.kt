@@ -50,7 +50,8 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
  * It must share the [AuthViewModel] of [AuthScreen], which holds the email and password needed to
  * resend the email and to log in again. The host navigates once "I've verified" signed the user in,
  * and shows the form again once the user goes back to it (back arrow or system Back), e.g. to fix a
- * mistyped email.
+ * mistyped email. The form also shows when "I've verified" leads to the "What's your name?" step or
+ * fails to create the profile, as the ViewModel then leaves this step.
  */
 @Composable
 fun CheckInboxScreen(viewModel: AuthViewModel) {

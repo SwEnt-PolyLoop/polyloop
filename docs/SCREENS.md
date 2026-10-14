@@ -26,6 +26,7 @@ Only users with a verified EPFL email get past this screen. ViewModel: AuthViewM
 - After sign-up, or when logging in with an EPFL email that isn't verified yet, a “Check your inbox” state with a “Resend email” button, an “I've verified” button that refreshes the account, and a way back to the form to fix a mistyped email. A non-EPFL email gets an error on the form and never reaches this state.
 - “Resend email” is disabled for 60 seconds after each email sent, with a countdown.
 - A “Forgot password” link.
+- The first verified log-in creates the user's profile. If the name could not be saved at sign-up, a “What's your name?” step asks for it first. If the profile cannot be created, the user is signed out and the log-in form shows an error, so they can try again.
 
 ## Profile & reviews
 

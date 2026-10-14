@@ -3,9 +3,14 @@
 package com.swent.polyloop.ui.authentication
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
+import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.profile.UserProfile
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +32,7 @@ import org.junit.Test
 class AuthViewModelTest {
 
   private lateinit var repository: FakeAuthRepository
+  private lateinit var profileRepository: FakeProfileRepository
   private lateinit var viewModel: AuthViewModel
   private lateinit var scheduler: TestCoroutineScheduler
 
@@ -39,7 +45,8 @@ class AuthViewModelTest {
     scheduler = dispatcher.scheduler
     Dispatchers.setMain(dispatcher)
     repository = FakeAuthRepository()
-    viewModel = AuthViewModel(repository)
+    profileRepository = FakeProfileRepository()
+    viewModel = AuthViewModel(repository, profileRepository)
   }
 
   @After
@@ -603,6 +610,215 @@ class AuthViewModelTest {
     )
   }
 
+  // ---------- profile creation ----------
+
+  private fun signInWithoutName() {
+    repository.signInResult =
+        AuthResult.Success(AuthUser(uid = "uid1", email = "john@epfl.ch", name = ""))
+    fillLogIn()
+    viewModel.submit()
+  }
+
+  @Test
+  fun logInCreatesTheProfileWithTheSignUpName() {
+    fillLogIn()
+
+    viewModel.submit()
+
+    assertEquals(listOf(UserProfile("uid1", "John", "john@epfl.ch")), profileRepository.profiles)
+    assertTrue(state.isSignedIn)
+  }
+
+  @Test
+  fun logInKeepsAnExistingProfile() {
+    val existing = UserProfile("uid1", "Johnny", "john@epfl.ch", averageRating = 4.5)
+    profileRepository = FakeProfileRepository(listOf(existing))
+    viewModel = AuthViewModel(repository, profileRepository)
+    fillLogIn()
+
+    viewModel.submit()
+
+    assertEquals(listOf(existing), profileRepository.profiles)
+    assertTrue(state.isSignedIn)
+  }
+
+  @Test
+  fun confirmVerifiedAlsoCreatesTheProfile() {
+    fillSignUp()
+    viewModel.submit()
+
+    viewModel.confirmVerified()
+
+    assertEquals(listOf(UserProfile("uid1", "John", "john@epfl.ch")), profileRepository.profiles)
+    assertTrue(state.isSignedIn)
+  }
+
+  @Test
+  fun logInWithoutNameAsksForTheName() {
+    signInWithoutName()
+
+    assertTrue(state.isAskingName)
+    assertFalse(state.isSignedIn)
+    assertFalse(state.hasAttemptedSubmit)
+    assertTrue(profileRepository.profiles.isEmpty())
+  }
+
+  @Test
+  fun logInWithoutNameButWithAProfileSignsInWithoutTheNameStep() {
+    // The name typed on the name step is only saved in the profile, never in the account.
+    val existing = UserProfile("uid1", "Ben", "john@epfl.ch")
+    profileRepository = FakeProfileRepository(listOf(existing))
+    viewModel = AuthViewModel(repository, profileRepository)
+
+    signInWithoutName()
+
+    assertTrue(state.isSignedIn)
+    assertFalse(state.isAskingName)
+    assertEquals(listOf(existing), profileRepository.profiles)
+  }
+
+  @Test
+  fun logInWithoutNameSignsOutWhenTheProfileCannotBeRead() {
+    profileRepository.failure = IllegalStateException("offline")
+
+    signInWithoutName()
+
+    assertEquals("signOut()", repository.calls.last())
+    assertEquals(AuthError.PROFILE_NOT_CREATED, state.error)
+    assertEquals(AuthMode.LOG_IN, state.mode)
+    assertFalse(state.isAskingName)
+    assertFalse(state.isSignedIn)
+  }
+
+  @Test
+  fun confirmVerifiedWithoutNameLeavesCheckInboxForTheNameStep() {
+    repository.signUpResult = AuthResult.Failure(AuthError.NAME_NOT_SAVED)
+    fillSignUp()
+    viewModel.submit()
+    repository.signInResult =
+        AuthResult.Success(AuthUser(uid = "uid1", email = "john@epfl.ch", name = ""))
+
+    viewModel.confirmVerified()
+
+    assertTrue(state.isAskingName)
+    assertFalse(state.isAwaitingVerification)
+  }
+
+  @Test
+  fun submitNameCreatesTheProfileWithTheTrimmedNameAndSignsIn() {
+    signInWithoutName()
+    viewModel.onNameChange("  Jane Doe ")
+
+    viewModel.submitName()
+
+    assertEquals(
+        listOf(UserProfile("uid1", "Jane Doe", "john@epfl.ch")),
+        profileRepository.profiles,
+    )
+    assertTrue(state.isSignedIn)
+    assertFalse(state.isAskingName)
+  }
+
+  @Test
+  fun submitBlankNameOnlyMarksTheAttempt() {
+    signInWithoutName()
+    viewModel.onNameChange(" ")
+
+    viewModel.submitName()
+
+    assertTrue(state.hasAttemptedSubmit)
+    assertTrue(state.isAskingName)
+    assertTrue(profileRepository.profiles.isEmpty())
+  }
+
+  @Test
+  fun submitNameWithoutPendingUserDoesNothing() {
+    viewModel.onNameChange("John")
+
+    viewModel.submitName()
+
+    assertTrue(profileRepository.profiles.isEmpty())
+    assertFalse(state.isSignedIn)
+  }
+
+  @Test
+  fun submitNameIsIgnoredWhileLoading() {
+    signInWithoutName()
+    viewModel.onNameChange("Jane")
+    val gate = CompletableDeferred<Unit>()
+    profileRepository.gate = gate
+
+    viewModel.submitName()
+    assertTrue(state.isLoading)
+    viewModel.submitName()
+    gate.complete(Unit)
+
+    assertEquals(1, profileRepository.profiles.size)
+    assertTrue(state.isSignedIn)
+  }
+
+  @Test
+  fun profileFailureSignsOutAndShowsTheErrorOnTheLogInForm() {
+    profileRepository.failure = IllegalStateException("offline")
+    fillSignUp()
+    viewModel.submit()
+
+    viewModel.confirmVerified()
+
+    assertEquals("signOut()", repository.calls.last())
+    assertEquals(AuthError.PROFILE_NOT_CREATED, state.error)
+    assertEquals(AuthMode.LOG_IN, state.mode)
+    assertFalse(state.isSignedIn)
+    assertFalse(state.isAwaitingVerification)
+    assertEquals("john@epfl.ch", state.email)
+  }
+
+  @Test
+  fun profileFailureAfterTheNameStepSignsOut() {
+    signInWithoutName()
+    profileRepository.failure = IllegalStateException("offline")
+    viewModel.onNameChange("Jane")
+
+    viewModel.submitName()
+
+    assertEquals("signOut()", repository.calls.last())
+    assertEquals(AuthError.PROFILE_NOT_CREATED, state.error)
+    assertFalse(state.isAskingName)
+    assertFalse(state.isSignedIn)
+  }
+
+  @Test
+  fun leavingOnTheNameStepSignsOut() {
+    val store = ViewModelStore()
+    val created =
+        ViewModelProvider(store, AuthViewModel.Factory(repository, profileRepository))[
+            AuthViewModel::class.java]
+    repository.signInResult =
+        AuthResult.Success(AuthUser(uid = "uid1", email = "john@epfl.ch", name = ""))
+    created.onEmailChange("john@epfl.ch")
+    created.onPasswordChange("secret")
+    created.submit()
+
+    store.clear()
+
+    assertEquals("signOut()", repository.calls.last())
+  }
+
+  @Test
+  fun leavingAfterSigningInDoesNotSignOut() {
+    val store = ViewModelStore()
+    val created =
+        ViewModelProvider(store, AuthViewModel.Factory(repository, profileRepository))[
+            AuthViewModel::class.java]
+    created.onEmailChange("john@epfl.ch")
+    created.onPasswordChange("secret")
+    created.submit()
+
+    store.clear()
+
+    assertFalse("signOut()" in repository.calls)
+  }
+
   // ---------- unexpected failures ----------
 
   @Test
@@ -632,7 +848,8 @@ class AuthViewModelTest {
 
   @Test
   fun factoryCreatesTheViewModel() {
-    val created = AuthViewModel.Factory(repository).create(AuthViewModel::class.java)
+    val created =
+        AuthViewModel.Factory(repository, profileRepository).create(AuthViewModel::class.java)
 
     assertTrue(created is AuthViewModel)
   }
@@ -642,7 +859,7 @@ class AuthViewModelTest {
     class Other : ViewModel()
 
     assertThrows(IllegalArgumentException::class.java) {
-      AuthViewModel.Factory(repository).create(Other::class.java)
+      AuthViewModel.Factory(repository, profileRepository).create(Other::class.java)
     }
   }
 }

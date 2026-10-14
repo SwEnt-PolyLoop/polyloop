@@ -22,7 +22,10 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
+import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import kotlinx.coroutines.CompletableDeferred
@@ -43,6 +46,7 @@ class AuthScreenTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
   private lateinit var repository: FakeAuthRepository
+  private lateinit var profileRepository: FakeProfileRepository
   private lateinit var viewModel: AuthViewModel
 
   // Owns the ViewModel so tearDown can clear it and stop the resend countdown.
@@ -51,8 +55,9 @@ class AuthScreenTest {
   @Before
   fun setUp() {
     repository = FakeAuthRepository()
+    profileRepository = FakeProfileRepository()
     viewModel =
-        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository))[
+        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository, profileRepository))[
             AuthViewModel::class.java]
     composeTestRule.setContent { PolyLoopTheme { AuthScreen(viewModel = viewModel) } }
     composeTestRule.waitForIdle()
@@ -193,6 +198,63 @@ class AuthScreenTest {
     } finally {
       gate.complete(Unit)
     }
+  }
+
+  @Test
+  fun loginWithoutNameShowsTheNameStepInsteadOfTheForm() {
+    loginWithoutName()
+
+    composeTestRule.onNodeWithText(context.getString(R.string.auth_name_step_title)).assertExists()
+    composeTestRule.onNodeWithTag(C.Tag.auth_name_field).assertExists()
+    composeTestRule.onNodeWithTag(C.Tag.auth_name_continue_button).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.auth_login_tab).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.auth_email_field).assertDoesNotExist()
+    composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
+  }
+
+  @Test
+  fun continueWithBlankNameShowsTheNameError() {
+    loginWithoutName()
+
+    tap(C.Tag.auth_name_continue_button)
+
+    assertErrorText(C.Tag.auth_name_error, R.string.auth_name_required)
+    composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
+  }
+
+  @Test
+  fun continueWithNameCreatesTheProfileAndSignsIn() {
+    loginWithoutName()
+
+    type(C.Tag.auth_name_field, VALID_NAME)
+    tap(C.Tag.auth_name_continue_button)
+
+    composeTestRule.runOnIdle {
+      assertEquals(
+          listOf(UserProfile("uid1", VALID_NAME, VALID_EMAIL)),
+          profileRepository.profiles,
+      )
+      assertTrue(viewModel.uiState.value.isSignedIn)
+    }
+  }
+
+  @Test
+  fun profileFailureShowsTheErrorOnTheLoginForm() {
+    profileRepository.failure = IllegalStateException("offline")
+    fillLogin()
+
+    tap(C.Tag.auth_login_button)
+
+    assertErrorText(C.Tag.auth_error, R.string.auth_error_profile_not_created)
+    composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertExists()
+    composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
+  }
+
+  private fun loginWithoutName() {
+    repository.signInResult =
+        AuthResult.Success(AuthUser(uid = "uid1", email = VALID_EMAIL, name = ""))
+    fillLogin()
+    tap(C.Tag.auth_login_button)
   }
 
   private fun assertErrorText(tag: String, messageRes: Int) {

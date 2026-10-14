@@ -25,6 +25,7 @@ class AuthErrorMessageTest {
             AuthError.VERIFICATION_EMAIL_NOT_SENT to
                 R.string.auth_error_verification_email_not_sent,
             AuthError.NAME_NOT_SAVED to R.string.auth_error_name_not_saved,
+            AuthError.PROFILE_NOT_CREATED to R.string.auth_error_profile_not_created,
         )
 
     assertEquals(expected, AuthError.entries.associateWith { it.messageRes() })
