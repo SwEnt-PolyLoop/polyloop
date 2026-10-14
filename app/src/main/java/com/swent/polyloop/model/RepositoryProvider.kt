@@ -8,6 +8,8 @@ import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
+import com.swent.polyloop.model.rental.RentalRepository
+import com.swent.polyloop.model.rental.RentalRepositoryFirestore
 
 /**
  * The single place that creates the app's repositories, so screens and ViewModels share one
@@ -22,6 +24,7 @@ object RepositoryProvider {
   private var auth: AuthRepository? = null
   private var listing: ListingRepository? = null
   private var profile: ProfileRepository? = null
+  private var rental: RentalRepository? = null
 
   var authRepository: AuthRepository
     get() = auth ?: AuthRepositoryFirebase().also { auth = it }
@@ -41,10 +44,17 @@ object RepositoryProvider {
       profile = value
     }
 
+  var rentalRepository: RentalRepository
+    get() = rental ?: RentalRepositoryFirestore().also { rental = it }
+    set(value) {
+      rental = value
+    }
+
   /** Forgets every repository, so the next access creates the real ones again. For tests. */
   fun reset() {
     auth = null
     listing = null
     profile = null
+    rental = null
   }
 }

@@ -32,7 +32,7 @@ One repository per type of data, shared by every ViewModel that needs it. ViewMo
 | Location | LocationRepository | The phone's GPS |
 | Connectivity | ConnectivityRepository | The phone's network status |
 
-`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing, Profile); add each new repository to it when it is implemented.
+`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing, Profile, Rental); add each new repository to it when it is implemented.
 
 ## ViewModels: one per screen
 
@@ -111,7 +111,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 ## Technical choices
 
-Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase.
+Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase. Firestore repositories share the helpers in `model/firestore/FirestoreHelpers.kt` (reading fields, errors, write timeout, listening to a query) instead of copying them.
 
 | Area | Choice |
 | --- | --- |
