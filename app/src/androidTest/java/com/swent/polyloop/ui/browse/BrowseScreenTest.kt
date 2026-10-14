@@ -1,4 +1,4 @@
-// Made with Claude.
+// Edited with Claude.
 
 package com.swent.polyloop.ui.browse
 
@@ -17,6 +17,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
@@ -88,7 +89,7 @@ class BrowseScreenTest {
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
         }
-    val viewModel = BrowseViewModel(repository, authRepository)
+    val viewModel = BrowseViewModel(repository, authRepository, FakeConnectivityRepository())
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = onListingClick)
     }
@@ -197,7 +198,7 @@ class BrowseScreenTest {
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
         }
-    val viewModel = BrowseViewModel(repository, authRepository)
+    val viewModel = BrowseViewModel(repository, authRepository, FakeConnectivityRepository())
     var clickedId: String? = null
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = { clickedId = it })

@@ -79,6 +79,7 @@ fun PolyLoopApp(
                     BrowseViewModel.Factory(
                         RepositoryProvider.listingRepository,
                         RepositoryProvider.authRepository,
+                        RepositoryProvider.connectivityRepository,
                     )
             )
         BrowseScreen(

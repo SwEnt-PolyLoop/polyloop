@@ -1,4 +1,4 @@
-// Made with Claude.
+// Edited with Claude.
 
 package com.swent.polyloop
 
@@ -20,6 +20,7 @@ import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
@@ -76,6 +77,9 @@ class PolyLoopAppTest {
             Result.success(listing.takeIf { it.id == id })
       }
 
+  /** Online by default, so the tests never depend on the emulator's network. */
+  private val connectivity = FakeConnectivityRepository(online = true)
+
   /** The signed-in user PolyLoopApp reads on start; null means nobody is signed in. */
   private var currentUser: AuthUser? = null
 
@@ -105,6 +109,7 @@ class PolyLoopAppTest {
     RepositoryProvider.listingRepository = listingRepository
     RepositoryProvider.authRepository = authRepository
     RepositoryProvider.chatRepository = chatRepository
+    RepositoryProvider.connectivityRepository = connectivity
   }
 
   @After
