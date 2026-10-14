@@ -63,6 +63,14 @@ object C {
     // Prefix: each photo's remove button is tagged create_listing_remove_photo_ + its index
     const val create_listing_remove_photo_ = "create_listing_remove_photo_"
     const val create_listing_add_photo = "create_listing_add_photo"
+    const val create_listing_title_field = "create_listing_title_field"
+    const val create_listing_title_error = "create_listing_title_error"
+    const val create_listing_category_field = "create_listing_category_field"
+    // Prefix: each dropdown option is tagged create_listing_category_option_ + the category name
+    const val create_listing_category_option_ = "create_listing_category_option_"
+    const val create_listing_availability_field = "create_listing_availability_field"
+    const val create_listing_publish_button = "create_listing_publish_button"
+    const val create_listing_publishing = "create_listing_publishing"
 
     const val date_picker_sheet = "date_picker_sheet"
     const val date_picker_month_title = "date_picker_month_title"
