@@ -37,7 +37,7 @@ object RepositoryProvider {
     set(value) {
       listing = value
     }
-  
+
   var profileRepository: ProfileRepository
     get() = profile ?: ProfileRepositoryFirestore().also { profile = it }
     set(value) {
@@ -51,8 +51,6 @@ object RepositoryProvider {
    */
   val storage: FirebaseStorage
     get() = Firebase.storage
-  
-  
 
   /** Forgets every repository, so the next access creates the real ones again. For tests. */
   fun reset() {

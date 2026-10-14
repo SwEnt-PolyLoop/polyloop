@@ -123,8 +123,11 @@ class RepositoryProviderTest {
   fun accessingRepositoriesDoesNotTouchStorage() {
     RepositoryProvider.authRepository
     RepositoryProvider.listingRepository
+    RepositoryProvider.profileRepository
 
     verify(exactly = 0) { FirebaseStorage.getInstance() }
+  }
+
   // ---------- profileRepository ----------
 
   @Test
