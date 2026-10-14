@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.createlisting
 
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,6 +23,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -66,6 +68,8 @@ class CreateListingScreenTest {
           onPickupAddressChange = {},
           onDropOffAddressChange = {},
           onPickDates = {},
+          onConfirmDates = { _, _ -> },
+          onDismissDatePicker = {},
           onAddPhoto = {},
           onRemovePhoto = {},
           onPublish = { publishClicks++ },
@@ -159,6 +163,8 @@ class CreateListingScreenTest {
           onPickupAddressChange = { state = state.copy(pickupAddress = it) },
           onDropOffAddressChange = { state = state.copy(dropOffAddress = it) },
           onPickDates = {},
+          onConfirmDates = { _, _ -> },
+          onDismissDatePicker = {},
           onAddPhoto = {},
           onRemovePhoto = {},
           onPublish = {},
@@ -216,11 +222,8 @@ class CreateListingScreenTest {
     setContent(CreateListingUiState(pricePerDay = "12.5", itemValue = "0"))
 
     composeTestRule.onNodeWithTag(C.Tag.create_listing_price_field).assert(hasError)
-    assertErrorText(C.Tag.create_listing_price_error, R.string.create_listing_price_invalid)
-    assertErrorText(
-        C.Tag.create_listing_item_value_error,
-        R.string.create_listing_item_value_invalid,
-    )
+    assertErrorText(C.Tag.create_listing_price_error, R.string.create_listing_amount_invalid)
+    assertErrorText(C.Tag.create_listing_item_value_error, R.string.create_listing_amount_invalid)
   }
 
   @Test
@@ -293,5 +296,49 @@ class CreateListingScreenTest {
 
     assertEquals("Tent", viewModel.uiState.value.title)
     assertTrue(viewModel.uiState.value.hasAttemptedPublish)
+  }
+
+  @Test
+  fun tappingAvailabilityOpensThePickerAndConfirmingFillsTheField() {
+    val today = LocalDate.of(2026, 10, 1)
+    val from = today.plusDays(2)
+    val to = today.plusDays(5)
+    val viewModel = CreateListingViewModel()
+    composeTestRule.setContent {
+      val uiState by viewModel.uiState.collectAsState()
+      CreateListingContent(
+          uiState = uiState,
+          onTitleChange = {},
+          onDescriptionChange = {},
+          onCategoryChange = {},
+          onPricePerDayChange = {},
+          onItemValueChange = {},
+          onPickupAddressChange = {},
+          onDropOffAddressChange = {},
+          onPickDates = viewModel::openDatePicker,
+          onConfirmDates = viewModel::selectDates,
+          onDismissDatePicker = viewModel::dismissDatePicker,
+          onAddPhoto = {},
+          onRemovePhoto = {},
+          onPublish = {},
+          today = today,
+      )
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.create_listing_availability_field)
+        .performScrollTo()
+        .performClick()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.datePickerDay(from)).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.datePickerDay(to)).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertDoesNotExist()
+    val (start, end) = formatRangeEnds(from, to, context.resources.configuration.locales[0])
+    composeTestRule
+        .onNodeWithTag(C.Tag.create_listing_availability_field)
+        .performScrollTo()
+        .assertTextContains(context.getString(R.string.listing_detail_date_range, start, end))
   }
 }

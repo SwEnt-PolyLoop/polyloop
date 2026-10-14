@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.update
  * @property hasAttemptedPublish true once the user pressed "Publish", so the screen can show the
  *   errors of empty fields from then on.
  * @property isPublishing true while the listing is being published; "Publish" is disabled then.
+ * @property isDatePickerOpen true while the date picker for the availability window is shown.
  */
 data class CreateListingUiState(
     val title: String = "",
@@ -38,6 +39,7 @@ data class CreateListingUiState(
     val photos: List<String> = emptyList(),
     val hasAttemptedPublish: Boolean = false,
     val isPublishing: Boolean = false,
+    val isDatePickerOpen: Boolean = false,
 ) {
   val isTitleBlank: Boolean
     get() = title.isBlank()
@@ -116,9 +118,15 @@ class CreateListingViewModel : ViewModel() {
     it.copy(dropOffAddress = dropOffAddress)
   }
 
-  /** Sets the availability window, as picked in the date picker. */
-  fun onAvailabilityChange(from: LocalDate, to: LocalDate) = _uiState.update {
-    it.copy(availableFrom = from, availableTo = to)
+  /** Opens the date picker. */
+  fun openDatePicker() = _uiState.update { it.copy(isDatePickerOpen = true) }
+
+  /** Closes the date picker and keeps the dates already chosen. */
+  fun dismissDatePicker() = _uiState.update { it.copy(isDatePickerOpen = false) }
+
+  /** Sets the availability window to [start]..[end] and closes the date picker. */
+  fun selectDates(start: LocalDate, end: LocalDate) = _uiState.update {
+    it.copy(availableFrom = start, availableTo = end, isDatePickerOpen = false)
   }
 
   /** Appends the photo at [uri]. Ignored once there are [Listing.MAX_PHOTOS] photos. */

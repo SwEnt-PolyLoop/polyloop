@@ -26,6 +26,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.DateRangePickerMode
+import com.swent.polyloop.ui.components.PolyLoopDateRangePicker
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
 
@@ -47,8 +49,9 @@ fun CreateListingScreen(
       onItemValueChange = viewModel::onItemValueChange,
       onPickupAddressChange = viewModel::onPickupAddressChange,
       onDropOffAddressChange = viewModel::onDropOffAddressChange,
-      // The date picker comes with #112.
-      onPickDates = {},
+      onPickDates = viewModel::openDatePicker,
+      onConfirmDates = viewModel::selectDates,
+      onDismissDatePicker = viewModel::dismissDatePicker,
       // The in-app camera comes with #111.
       onAddPhoto = {},
       onRemovePhoto = viewModel::onRemovePhoto,
@@ -64,7 +67,8 @@ fun CreateListingScreen(
  * Like the Sign-up / login screen, an empty required field shows its error only once
  * [CreateListingUiState.hasAttemptedPublish] is true, while a price or item value that is not a
  * whole number from 1 to Listing.MAX_AMOUNT, and dates in the wrong order or on the same day, show
- * theirs right away.
+ * theirs right away. While the date picker is open, its sheet is shown over the form, with [today]
+ * as the current date.
  */
 @Composable
 fun CreateListingContent(
@@ -77,10 +81,13 @@ fun CreateListingContent(
     onPickupAddressChange: (String) -> Unit,
     onDropOffAddressChange: (String) -> Unit,
     onPickDates: () -> Unit,
+    onConfirmDates: (start: LocalDate, end: LocalDate) -> Unit,
+    onDismissDatePicker: () -> Unit,
     onAddPhoto: () -> Unit,
     onRemovePhoto: (index: Int) -> Unit,
     onPublish: () -> Unit,
     modifier: Modifier = Modifier,
+    today: LocalDate = LocalDate.now(),
 ) {
   val attempted = uiState.hasAttemptedPublish
   val addressPlaceholder = stringResource(R.string.create_listing_address_placeholder)
@@ -180,7 +187,7 @@ fun CreateListingContent(
                       uiState.isPricePerDayValid,
                       attempted,
                       R.string.create_listing_price_required,
-                      R.string.create_listing_price_invalid,
+                      R.string.create_listing_amount_invalid,
                   ),
               errorTag = C.Tag.create_listing_price_error,
               modifier = Modifier.weight(1f),
@@ -203,7 +210,7 @@ fun CreateListingContent(
                       uiState.isItemValueValid,
                       attempted,
                       R.string.create_listing_item_value_required,
-                      R.string.create_listing_item_value_invalid,
+                      R.string.create_listing_amount_invalid,
                   ),
               errorTag = C.Tag.create_listing_item_value_error,
               modifier = Modifier.weight(1f),
@@ -275,6 +282,16 @@ fun CreateListingContent(
       }
     }
     PublishBar(isPublishing = uiState.isPublishing, onPublish = onPublish)
+    if (uiState.isDatePickerOpen) {
+      PolyLoopDateRangePicker(
+          window = today..today.plusYears(1),
+          disabledDates = emptySet(),
+          mode = DateRangePickerMode.Availability,
+          onConfirm = onConfirmDates,
+          onDismiss = onDismissDatePicker,
+          today = today,
+      )
+    }
   }
 }
 
@@ -343,6 +360,8 @@ private fun CreateListingContentPreview() {
         onPickupAddressChange = {},
         onDropOffAddressChange = {},
         onPickDates = {},
+        onConfirmDates = { _, _ -> },
+        onDismissDatePicker = {},
         onAddPhoto = {},
         onRemovePhoto = {},
         onPublish = {},
