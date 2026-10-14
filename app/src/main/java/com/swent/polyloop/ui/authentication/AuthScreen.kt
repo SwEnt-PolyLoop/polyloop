@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.authentication
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -41,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -49,9 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
-import com.swent.polyloop.model.auth.AuthRepository
-import com.swent.polyloop.model.auth.AuthResult
-import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
@@ -188,7 +190,7 @@ fun AuthScreen(
         testTag = if (isSignUp) C.Tag.auth_signup_button else C.Tag.auth_login_button,
     )
 
-    ErrorMessage(state.error)
+    AuthMessage(state.error)
   }
 }
 
@@ -396,60 +398,109 @@ private fun AuthTextField(
 }
 
 /**
- * Displays the primary form action.
+ * Displays a form action: filled for the main one, outlined for a [secondary] one.
  *
  * @param text button label.
  * @param onClick action invoked when enabled and pressed.
  * @param enabled whether the user can invoke the action.
  * @param testTag semantic test tag for UI tests.
+ * @param secondary shows the outlined style, e.g. for "Resend email" below the main action.
  */
 @Composable
-private fun AuthButton(
+internal fun AuthButton(
     text: String,
     onClick: () -> Unit,
     enabled: Boolean,
     testTag: String,
+    secondary: Boolean = false,
 ) {
   val colors = MaterialTheme.colorScheme
-
-  Button(
-      onClick = onClick,
-      enabled = enabled,
-      shape = RoundedCornerShape(14.dp),
-      colors =
-          ButtonDefaults.buttonColors(
-              containerColor = colors.primary,
-              contentColor = colors.onPrimary,
-          ),
-      elevation =
-          ButtonDefaults.buttonElevation(
-              defaultElevation = 0.dp,
-              pressedElevation = 0.dp,
-              focusedElevation = 0.dp,
-              hoveredElevation = 0.dp,
-              disabledElevation = 0.dp,
-          ),
-      modifier = Modifier.fillMaxWidth().height(52.dp).testTag(testTag),
-  ) {
+  val shape = RoundedCornerShape(14.dp)
+  val modifier = Modifier.fillMaxWidth().height(52.dp).testTag(testTag)
+  val label: @Composable RowScope.() -> Unit = {
     Text(
         text = text,
         fontSize = 17.sp,
         fontWeight = FontWeight.Medium,
     )
   }
+
+  if (secondary) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = shape,
+        border = BorderStroke(1.dp, colors.outline),
+        colors =
+            ButtonDefaults.outlinedButtonColors(
+                containerColor = colors.surface,
+                contentColor = colors.onSurface,
+            ),
+        modifier = modifier,
+        content = label,
+    )
+  } else {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        shape = shape,
+        colors =
+            ButtonDefaults.buttonColors(
+                containerColor = colors.primary,
+                contentColor = colors.onPrimary,
+            ),
+        elevation =
+            ButtonDefaults.buttonElevation(
+                defaultElevation = 0.dp,
+                pressedElevation = 0.dp,
+                focusedElevation = 0.dp,
+                hoveredElevation = 0.dp,
+                disabledElevation = 0.dp,
+            ),
+        modifier = modifier,
+        content = label,
+    )
+  }
 }
 
-/** Shows the latest authentication error in a fixed-height area below the primary action. */
+/**
+ * Shows the latest authentication error, or else the "email sent again" confirmation, below the
+ * primary action. The area keeps a minimum height so the layout does not jump when a message
+ * appears, and grows for a message too long for it.
+ *
+ * @param isEmailResent shows the confirmation of "Resend email" when there is no error.
+ * @param centered centers the message, for the centered "Check your inbox" step.
+ */
 @Composable
-private fun ErrorMessage(error: AuthError?) {
-  Column(modifier = Modifier.height(36.dp).fillMaxWidth()) {
-    if (error != null) {
-      Text(
-          text = stringResource(error.messageRes()),
-          color = MaterialTheme.colorScheme.error,
-          fontSize = 13.sp,
-          modifier = Modifier.padding(top = 4.dp).testTag(C.Tag.auth_error),
-      )
+internal fun AuthMessage(
+    error: AuthError?,
+    modifier: Modifier = Modifier,
+    isEmailResent: Boolean = false,
+    centered: Boolean = false,
+) {
+  val colors = MaterialTheme.colorScheme
+  val textAlign = if (centered) TextAlign.Center else TextAlign.Start
+  Column(
+      modifier = modifier.heightIn(min = 36.dp).fillMaxWidth(),
+      horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
+  ) {
+    when {
+      error != null ->
+          Text(
+              text = stringResource(error.messageRes()),
+              color = colors.error,
+              fontSize = 13.sp,
+              textAlign = textAlign,
+              modifier = Modifier.padding(top = 4.dp).testTag(C.Tag.auth_error),
+          )
+      isEmailResent ->
+          Text(
+              text = stringResource(R.string.auth_email_resent),
+              color = colors.onSurfaceVariant,
+              fontSize = 13.sp,
+              textAlign = textAlign,
+              modifier = Modifier.padding(top = 4.dp).testTag(C.Tag.auth_email_resent),
+          )
     }
   }
 }
@@ -476,7 +527,7 @@ internal fun AuthError.messageRes(): Int =
 @Composable
 private fun AuthScreenLogInPreview() {
   val viewModel = remember {
-    AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.LOG_IN) }
+    AuthViewModel(FakeAuthRepository()).also { it.switchMode(AuthMode.LOG_IN) }
   }
 
   PolyLoopTheme {
@@ -493,7 +544,7 @@ private fun AuthScreenLogInPreview() {
 @Composable
 private fun AuthScreenSignUpPreview() {
   val viewModel = remember {
-    AuthViewModel(PreviewAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) }
+    AuthViewModel(FakeAuthRepository()).also { it.switchMode(AuthMode.SIGN_UP) }
   }
 
   PolyLoopTheme {
@@ -503,35 +554,4 @@ private fun AuthScreenSignUpPreview() {
         viewModel = viewModel,
     )
   }
-}
-
-/** In-memory repository used by previews to avoid Firebase dependencies. */
-private class PreviewAuthRepository : AuthRepository {
-
-  override suspend fun signUp(
-      name: String,
-      email: String,
-      password: String,
-  ): AuthResult<Unit> = AuthResult.Success(Unit)
-
-  override suspend fun signIn(
-      email: String,
-      password: String,
-  ): AuthResult<AuthUser> =
-      AuthResult.Success(
-          AuthUser(
-              uid = "preview",
-              email = email,
-              name = "Preview",
-          )
-      )
-
-  override suspend fun resendVerificationEmail(
-      email: String,
-      password: String,
-  ): AuthResult<Unit> = AuthResult.Success(Unit)
-
-  override fun getCurrentUser(): AuthUser? = null
-
-  override fun signOut() = Unit
 }

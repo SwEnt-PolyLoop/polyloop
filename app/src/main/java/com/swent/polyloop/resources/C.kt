@@ -111,6 +111,12 @@ object C {
     const val auth_email_error = "auth_email_error"
     const val auth_password_error = "auth_password_error"
     const val auth_error = "auth_error"
+    const val auth_check_inbox_screen = "auth_check_inbox_screen"
+    const val auth_check_inbox_body = "auth_check_inbox_body"
+    const val auth_verified_button = "auth_verified_button"
+    const val auth_resend_button = "auth_resend_button"
+    const val auth_email_resent = "auth_email_resent"
+    const val auth_back_to_form_button = "auth_back_to_form_button"
 
     const val chat_list_screen = "chat_list_screen"
     const val chat_list_title = "chat_list_title"

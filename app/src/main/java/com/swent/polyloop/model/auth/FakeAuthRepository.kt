@@ -1,17 +1,16 @@
 // Made with Claude.
 
-package com.swent.polyloop.ui.authentication
+package com.swent.polyloop.model.auth
 
-import com.swent.polyloop.model.auth.AuthRepository
-import com.swent.polyloop.model.auth.AuthResult
-import com.swent.polyloop.model.auth.AuthUser
 import kotlinx.coroutines.CompletableDeferred
 
 /**
- * In-memory [AuthRepository] for tests. Each call returns the matching result, which tests set
- * beforehand. When [gate] is set, calls wait for it to complete, so tests can see the loading
- * state. When [exception] is set, calls throw it instead of returning. Every call is recorded in
- * [calls].
+ * In-memory [AuthRepository] for tests and previews; the app itself never uses it. It lives in
+ * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
+ *
+ * Each call returns the matching result, which tests set beforehand. When [gate] is set, calls wait
+ * for it to complete, so tests can see the loading state. When [exception] is set, calls throw it
+ * instead of returning. Every call is recorded in [calls].
  */
 class FakeAuthRepository(
     var signUpResult: AuthResult<Unit> = AuthResult.Success(Unit),

@@ -5,10 +5,12 @@ package com.swent.polyloop.ui.authentication
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -26,13 +28,16 @@ class AuthViewModelTest {
 
   private lateinit var repository: FakeAuthRepository
   private lateinit var viewModel: AuthViewModel
+  private lateinit var scheduler: TestCoroutineScheduler
 
   private val state
     get() = viewModel.uiState.value
 
   @Before
   fun setUp() {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
+    val dispatcher = UnconfinedTestDispatcher()
+    scheduler = dispatcher.scheduler
+    Dispatchers.setMain(dispatcher)
     repository = FakeAuthRepository()
     viewModel = AuthViewModel(repository)
   }
@@ -51,6 +56,12 @@ class AuthViewModelTest {
     viewModel.switchMode(AuthMode.SIGN_UP)
     viewModel.onNameChange("John")
     fillLogIn()
+  }
+
+  /** Moves the virtual clock forward, running what was due, e.g. the resend countdown. */
+  private fun advanceSeconds(seconds: Long) {
+    scheduler.advanceTimeBy(seconds * 1_000)
+    scheduler.runCurrent()
   }
 
   // ---------- form ----------
@@ -301,6 +312,7 @@ class AuthViewModelTest {
   fun resendSucceeds() {
     fillSignUp()
     viewModel.submit()
+    advanceSeconds(60)
 
     viewModel.resendVerificationEmail()
 
@@ -314,6 +326,7 @@ class AuthViewModelTest {
     repository.resendResult = AuthResult.Failure(AuthError.TOO_MANY_REQUESTS)
     fillSignUp()
     viewModel.submit()
+    advanceSeconds(60)
 
     viewModel.resendVerificationEmail()
 
@@ -326,6 +339,7 @@ class AuthViewModelTest {
     val gate = CompletableDeferred<Unit>()
     fillSignUp()
     viewModel.submit()
+    advanceSeconds(60)
     repository.gate = gate
 
     viewModel.resendVerificationEmail()
@@ -380,7 +394,7 @@ class AuthViewModelTest {
     fillLogIn()
     viewModel.submit()
 
-    viewModel.backToForm()
+    assertTrue(viewModel.backToForm())
 
     assertEquals(AuthMode.LOG_IN, state.mode)
     assertFalse(state.isAwaitingVerification)
@@ -391,6 +405,7 @@ class AuthViewModelTest {
   fun backToFormReturnsToSignUpKeepingTheFields() {
     fillSignUp()
     viewModel.submit()
+    advanceSeconds(60)
     viewModel.resendVerificationEmail()
 
     viewModel.backToForm()
@@ -401,6 +416,191 @@ class AuthViewModelTest {
     assertFalse(state.hasAttemptedSubmit)
     assertEquals("John", state.name)
     assertEquals("john@epfl.ch", state.email)
+  }
+
+  @Test
+  fun backToFormIsIgnoredWhileARequestRuns() {
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    fillLogIn()
+    viewModel.submit()
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+
+    viewModel.confirmVerified()
+    assertFalse(viewModel.backToForm())
+
+    assertTrue(state.isAwaitingVerification)
+    gate.complete(Unit)
+    assertTrue(state.isAwaitingVerification)
+    assertEquals(AuthError.EMAIL_NOT_VERIFIED, state.error)
+  }
+
+  // ---------- resend countdown ----------
+
+  @Test
+  fun signUpDisablesResendFor60Seconds() {
+    fillSignUp()
+    viewModel.submit()
+
+    assertEquals(60, state.resendCooldownSeconds)
+    assertFalse(state.canResend)
+
+    advanceSeconds(1)
+    assertEquals(59, state.resendCooldownSeconds)
+
+    advanceSeconds(58)
+    assertEquals(1, state.resendCooldownSeconds)
+    assertFalse(state.canResend)
+
+    advanceSeconds(1)
+    assertEquals(0, state.resendCooldownSeconds)
+    assertTrue(state.canResend)
+  }
+
+  @Test
+  fun resendIsIgnoredDuringTheCountdown() {
+    fillSignUp()
+    viewModel.submit()
+    advanceSeconds(30)
+
+    viewModel.resendVerificationEmail()
+
+    assertEquals(0, repository.calls.count { it.startsWith("resend") })
+    assertEquals(30, state.resendCooldownSeconds)
+  }
+
+  @Test
+  fun resendSuccessRestartsTheCountdown() {
+    fillSignUp()
+    viewModel.submit()
+    advanceSeconds(60)
+
+    viewModel.resendVerificationEmail()
+
+    assertEquals(60, state.resendCooldownSeconds)
+    advanceSeconds(1)
+    assertEquals(59, state.resendCooldownSeconds)
+  }
+
+  @Test
+  fun resendFailureDoesNotStartTheCountdown() {
+    repository.resendResult = AuthResult.Failure(AuthError.TOO_MANY_REQUESTS)
+    fillSignUp()
+    viewModel.submit()
+    advanceSeconds(60)
+
+    viewModel.resendVerificationEmail()
+
+    assertEquals(0, state.resendCooldownSeconds)
+    assertTrue(state.canResend)
+  }
+
+  @Test
+  fun signUpWhoseEmailWasNotSentCanResendRightAway() {
+    repository.signUpResult = AuthResult.Failure(AuthError.VERIFICATION_EMAIL_NOT_SENT)
+    fillSignUp()
+    viewModel.submit()
+
+    assertTrue(state.isAwaitingVerification)
+    assertEquals(0, state.resendCooldownSeconds)
+    assertTrue(state.canResend)
+  }
+
+  @Test
+  fun logInWithUnverifiedEmailCanResendRightAway() {
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    fillLogIn()
+    viewModel.submit()
+
+    assertTrue(state.isAwaitingVerification)
+    assertEquals(0, state.resendCooldownSeconds)
+
+    viewModel.resendVerificationEmail()
+
+    assertEquals("resendVerificationEmail(john@epfl.ch, secret)", repository.calls.last())
+  }
+
+  @Test
+  fun backToFormKeepsTheCountdownSoLoggingInAgainCannotResendRightAway() {
+    fillSignUp()
+    viewModel.submit()
+    advanceSeconds(10)
+
+    viewModel.backToForm()
+    advanceSeconds(1)
+    assertEquals(49, state.resendCooldownSeconds)
+
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    viewModel.switchMode(AuthMode.LOG_IN)
+    viewModel.submit()
+
+    assertTrue(state.isAwaitingVerification)
+    assertEquals(49, state.resendCooldownSeconds)
+    assertFalse(state.canResend)
+  }
+
+  @Test
+  fun countdownDoesNotBlockResendForAnotherEmail() {
+    fillSignUp()
+    viewModel.submit()
+    advanceSeconds(10)
+    viewModel.backToForm()
+
+    // The address was mistyped: the user fixes it and logs in to their real, unverified account.
+    viewModel.onEmailChange("jane@epfl.ch")
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    viewModel.switchMode(AuthMode.LOG_IN)
+    viewModel.submit()
+
+    assertTrue(state.isAwaitingVerification)
+    assertEquals(0, state.resendSecondsLeft)
+    assertTrue(state.canResend)
+  }
+
+  @Test
+  fun countdownStillAppliesToTheSameEmailTypedDifferently() {
+    fillSignUp()
+    viewModel.submit()
+    viewModel.backToForm()
+
+    viewModel.onEmailChange(" John@EPFL.ch ")
+
+    assertEquals(60, state.resendSecondsLeft)
+    assertFalse(state.canResend)
+  }
+
+  @Test
+  fun signUpWhoseNameWasNotSavedStartsTheCountdown() {
+    repository.signUpResult = AuthResult.Failure(AuthError.NAME_NOT_SAVED)
+    fillSignUp()
+    viewModel.submit()
+
+    assertTrue(state.isAwaitingVerification)
+    assertEquals(60, state.resendCooldownSeconds)
+    assertFalse(state.canResend)
+  }
+
+  @Test
+  fun canResendNeedsNoLoadingAndNoCountdown() {
+    assertTrue(AuthUiState().canResend)
+    assertFalse(AuthUiState(isLoading = true).canResend)
+    assertFalse(AuthUiState(resendCooldownSeconds = 5).canResend)
+    assertFalse(
+        AuthUiState(
+                email = "john@epfl.ch",
+                resendCooldownSeconds = 5,
+                resendCooldownEmail = "john@epfl.ch",
+            )
+            .canResend
+    )
+    assertTrue(
+        AuthUiState(
+                email = "jane@epfl.ch",
+                resendCooldownSeconds = 5,
+                resendCooldownEmail = "john@epfl.ch",
+            )
+            .canResend
+    )
   }
 
   // ---------- unexpected failures ----------
