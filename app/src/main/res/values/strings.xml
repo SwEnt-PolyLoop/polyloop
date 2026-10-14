@@ -38,6 +38,71 @@
     <string name="listing_detail_retry">Retry</string>
     <string name="listing_detail_not_found">This listing is no longer available.</string>
 
+    <!-- My rentals -->
+    <string name="my_rentals_title">My rentals</string>
+    <string name="my_rentals_tab_borrowing">Borrowing</string>
+    <string name="my_rentals_tab_lending">Lending</string>
+    <string name="my_rentals_empty_borrowing">You are not borrowing anything yet.</string>
+    <string name="my_rentals_empty_lending">Nobody has asked to borrow your items yet.</string>
+    <string name="my_rentals_error_fallback">Could not load your rentals</string>
+    <string name="my_rentals_retry">Retry</string>
+    <string name="my_rentals_lender">Lender: %1$s</string>
+    <string name="my_rentals_borrower">Borrower: %1$s</string>
+    <string name="my_rentals_unknown_person">an unknown user</string>
+    <string name="my_rentals_return_by">Return by %1$s</string>
+    <string name="my_rentals_pickup_at">Pickup: %1$s</string>
+    <string name="my_rentals_drop_off_at">Drop-off: %1$s</string>
+    <string name="rental_status_requested">Requested</string>
+    <string name="rental_status_accepted">Accepted</string>
+    <string name="rental_status_active">Active</string>
+    <string name="rental_status_returned">Returned</string>
+    <string name="rental_status_closed">Closed</string>
+    <string name="rental_status_declined">Declined</string>
+    <string name="rental_status_cancelled">Cancelled</string>
+    <string name="rental_status_overdue">Overdue</string>
+    <string name="rental_status_lost">Lost</string>
+    <string name="rental_status_disputed">Disputed</string>
+    <string name="rental_status_frozen">Frozen</string>
+
+    <!-- Create listing -->
+    <string name="create_listing_photos">Photos</string>
+    <string name="create_listing_photo_count">%1$d of %2$d · at least %3$d</string>
+    <string name="create_listing_photo_description">Photo %1$d</string>
+    <string name="create_listing_remove_photo">Remove photo %1$d</string>
+    <string name="create_listing_add_photo">Add photo</string>
+    <plurals name="create_listing_missing_photos">
+        <item quantity="one">Add %d more photo to publish.</item>
+        <item quantity="other">Add %d more photos to publish.</item>
+    </plurals>
+    <string name="create_listing_title_label">Title</string>
+    <string name="create_listing_title_required">Please enter a title.</string>
+    <string name="create_listing_category_placeholder">Choose a category</string>
+    <string name="create_listing_availability_placeholder">Choose dates</string>
+    <string name="create_listing_publish">Publish</string>
+
+    <!-- Date range picker -->
+    <string name="date_picker_available">Available %1$s – %2$s</string>
+    <string name="date_picker_previous_month">Previous month</string>
+    <string name="date_picker_next_month">Next month</string>
+    <string name="date_picker_day_booked">%1$d, booked</string>
+    <string name="date_picker_day_buffer">%1$d, buffer day</string>
+    <string name="date_picker_legend_booked">Booked</string>
+    <string name="date_picker_legend_buffer">Buffer day</string>
+    <string name="date_picker_legend_selected">Your dates</string>
+    <string name="date_picker_buffer_error">Leave 1 free day after your rental for the lender\'s buffer. Pick an earlier end date.</string>
+    <plurals name="date_picker_summary_days">
+        <item quantity="one">%1$d day × %2$d PP</item>
+        <item quantity="other">%1$d days × %2$d PP</item>
+    </plurals>
+    <string name="date_picker_balance">Your balance</string>
+    <plurals name="date_picker_reserved_note">
+        <item quantity="one">%1$d PP is reserved now. The deposit is reserved when the lender accepts.</item>
+        <item quantity="other">%1$d PP are reserved now. The deposit is reserved when the lender accepts.</item>
+    </plurals>
+    <string name="date_picker_not_enough_balance">Not enough balance for these dates. Recharge in Wallet.</string>
+    <string name="date_picker_send_request">Send request</string>
+    <string name="date_picker_confirm_dates">Confirm dates</string>
+
     <!-- Top-bar menu -->
     <string name="menu_browse">Browse</string>
     <string name="menu_create_listing">Create listing</string>

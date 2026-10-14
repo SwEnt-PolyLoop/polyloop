@@ -23,7 +23,7 @@ One repository per type of data, shared by every ViewModel that needs it. ViewMo
 | --- | --- | --- |
 | Auth | AuthRepository | Firebase Auth |
 | Profile | ProfileRepository | Firestore, Cloud Storage |
-| Chat | ChatRepository | Firestore |
+| Chat | ChatRepository | Firestore; Firebase Auth (the sender of a message) |
 | Listing | ListingRepository | Firestore, Cloud Storage |
 | Rental | RentalRepository | Firestore, Cloud Functions, Local upload queue → Cloud Storage (mid-rental photos) |
 | Handover | HandoverRepository | Local upload queue → Cloud Storage, Cloud Functions |
@@ -32,7 +32,7 @@ One repository per type of data, shared by every ViewModel that needs it. ViewMo
 | Location | LocationRepository | The phone's GPS |
 | Connectivity | ConnectivityRepository | The phone's network status |
 
-`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing, Profile); add each new repository to it when it is implemented.
+`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing, Profile, Chat); add each new repository to it when it is implemented. It also exposes the shared `FirebaseStorage` instance, for the repositories that upload photos and PDFs.
 
 ## ViewModels: one per screen
 
@@ -47,7 +47,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
 | Browse | BrowseViewModel | Listing; Location (distance and map position) |
 | Listing detail | ListingDetailViewModel | Listing; Rental (booked days, sending the request); Profile (the owner's name and rating) |
-| Create / edit listing | EditListingViewModel | Listing; Rental (editing locked while a rental is accepted or active) |
+| Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active) |
 | My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |

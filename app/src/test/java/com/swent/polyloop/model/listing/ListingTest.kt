@@ -70,8 +70,26 @@ class ListingTest {
       assertFalse(valid.copy(availableTo = LocalDate.of(2026, 10, 5)).canPublish(addresses))
 
   @Test
-  fun singleDayAvailabilityCanBePublished() =
-      assertTrue(valid.copy(availableTo = valid.availableFrom).canPublish(addresses))
+  fun singleDayAvailabilityCannotBePublished() =
+      assertFalse(valid.copy(availableTo = valid.availableFrom).canPublish(addresses))
+
+  @Test
+  fun twoDayAvailabilityCanBePublished() =
+      assertTrue(valid.copy(availableTo = valid.availableFrom.plusDays(1)).canPublish(addresses))
+
+  @Test
+  fun maxAmountCanBePublished() =
+      assertTrue(
+          valid
+              .copy(pricePerDay = Listing.MAX_AMOUNT, itemValue = Listing.MAX_AMOUNT)
+              .canPublish(addresses)
+      )
+
+  @Test
+  fun amountAboveMaxCannotBePublished() {
+    assertFalse(valid.copy(pricePerDay = Listing.MAX_AMOUNT + 1).canPublish(addresses))
+    assertFalse(valid.copy(itemValue = Listing.MAX_AMOUNT + 1).canPublish(addresses))
+  }
 
   @Test
   fun blankPickupAddressCannotBePublished() =

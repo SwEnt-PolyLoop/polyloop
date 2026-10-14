@@ -1,0 +1,18 @@
+// Made with Claude.
+
+rules_version = '2';
+
+// !!! DO NOT DEPLOY THIS FILE (no `firebase deploy`, no `firebase deploy --only storage`). !!!
+// It is a placeholder so the Storage emulator can start, and it is listed in firebase.json, so a
+// deploy would push it to the real project. Any verified @epfl.ch user can read, overwrite and
+// delete every file, including other users' photos and court rulings. The real per-path rules
+// come with #34.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null
+          && request.auth.token.email_verified == true
+          && request.auth.token.email.lower().matches('.*@epfl[.]ch$');
+    }
+  }
+}
