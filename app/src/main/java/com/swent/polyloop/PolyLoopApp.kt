@@ -76,7 +76,13 @@ fun PolyLoopApp(
       composable(Screen.Browse.route) {
         // Scoped to this back-stack entry: cleared when Browse leaves the back stack.
         val browseViewModel: BrowseViewModel =
-            viewModel(factory = BrowseViewModel.Factory(RepositoryProvider.listingRepository))
+            viewModel(
+                factory =
+                    BrowseViewModel.Factory(
+                        RepositoryProvider.listingRepository,
+                        RepositoryProvider.authRepository,
+                    )
+            )
         BrowseScreen(
             viewModel = browseViewModel,
             onListingClick = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) },

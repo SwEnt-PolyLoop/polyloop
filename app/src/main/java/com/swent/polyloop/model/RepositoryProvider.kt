@@ -89,8 +89,10 @@ object RepositoryProvider {
 
   /**
    * The Cloud Storage instance that repositories upload photos and PDFs to. Read on each access, so
-   * Storage is not touched until a repository needs it. Repositories should take it as a
-   * constructor parameter defaulting to this, so their tests can pass another instance.
+   * Storage is not touched until a repository needs it. Repositories should take it as a lazy
+   * provider defaulting to `{ RepositoryProvider.storage }` and read it through `by lazy`, so
+   * Storage is only initialized when something is uploaded (a plain default argument would
+   * initialize it as soon as the repository is created) and their tests can pass another instance.
    */
   val storage: FirebaseStorage
     get() = Firebase.storage
