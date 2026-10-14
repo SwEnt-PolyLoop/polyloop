@@ -24,6 +24,8 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
@@ -76,6 +78,26 @@ class PolyLoopAppTest {
             Result.success(listing.takeIf { it.id == id })
       }
 
+  /** One rental borrowed by "uid", so My rentals shows a row without reaching Firestore. */
+  private val rental =
+      Rental(
+          id = "rental-1",
+          listingId = listing.id,
+          listingTitle = "Camping tent",
+          ownerId = listing.ownerId,
+          ownerName = "Vida",
+          borrowerId = "uid",
+          borrowerName = "John Doe",
+          startDate = LocalDate.of(2026, 10, 8),
+          endDate = LocalDate.of(2026, 10, 10),
+          status = RentalStatus.REQUESTED,
+          pricePerDay = 15,
+          totalPrice = 45,
+          pickupArea = "Ecublens",
+          dropOffArea = "Ecublens",
+          createdAt = Instant.parse("2026-10-07T10:00:00Z"),
+      )
+
   /** The signed-in user PolyLoopApp reads on start; null means nobody is signed in. */
   private var currentUser: AuthUser? = null
 
@@ -105,6 +127,7 @@ class PolyLoopAppTest {
     RepositoryProvider.listingRepository = listingRepository
     RepositoryProvider.authRepository = authRepository
     RepositoryProvider.chatRepository = chatRepository
+    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
   }
 
   @After
@@ -146,10 +169,14 @@ class PolyLoopAppTest {
   private fun assertCurrentScreen(screen: Screen, shownRoute: String = screen.route) {
     composeTestRule.waitForIdle()
     assertEquals(screen.route, navController.currentDestination?.route)
-    // Browse and Chat list are wired to their real screens; the others still show DummyScreen with
-    // their route.
+    // Browse, My rentals and Chat list are wired to their real screens; the others still show
+    // DummyScreen with their route.
     if (screen == Screen.Browse) {
       composeTestRule.onNodeWithTag(C.Tag.browse_screen).assertIsDisplayed()
+      return
+    }
+    if (screen == Screen.MyRentals) {
+      composeTestRule.onNodeWithTag(C.Tag.my_rentals_screen).assertIsDisplayed()
       return
     }
     if (screen == Screen.ChatList) {
@@ -398,5 +425,28 @@ class PolyLoopAppTest {
         "rental-1",
         navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
     )
+  }
+
+  @Test
+  fun myRentalsShowsTheSignedInUsersRentals() {
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+
+    openFromMenu(Screen.MyRentals)
+
+    waitForTag(C.Tag.my_rentals_row_ + rental.id)
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + rental.id).assertIsDisplayed()
+  }
+
+  @Test
+  fun tappingARentalOpensItsRentalDetail() {
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    openFromMenu(Screen.MyRentals)
+    waitForTag(C.Tag.my_rentals_row_ + rental.id)
+
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + rental.id).performClick()
+
+    assertCurrentScreen(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
   }
 }

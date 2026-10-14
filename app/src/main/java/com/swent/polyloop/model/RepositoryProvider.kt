@@ -16,6 +16,8 @@ import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
+import com.swent.polyloop.model.rental.RentalRepository
+import com.swent.polyloop.model.rental.RentalRepositoryFirestore
 
 /**
  * The single place that creates the app's repositories, so screens and ViewModels share one
@@ -36,6 +38,7 @@ object RepositoryProvider {
   private var listing: ListingRepository? = null
   private var chat: ChatRepository? = null
   private var profile: ProfileRepository? = null
+  private var rental: RentalRepository? = null
   private var connectivity: ConnectivityRepository? = null
 
   /** Keeps the app context for the repositories that need one. Called once at app startup. */
@@ -67,6 +70,12 @@ object RepositoryProvider {
       profile = value
     }
 
+  var rentalRepository: RentalRepository
+    get() = rental ?: RentalRepositoryFirestore().also { rental = it }
+    set(value) {
+      rental = value
+    }
+
   var connectivityRepository: ConnectivityRepository
     get() =
         connectivity
@@ -95,6 +104,7 @@ object RepositoryProvider {
     listing = null
     chat = null
     profile = null
+    rental = null
     connectivity = null
   }
 
