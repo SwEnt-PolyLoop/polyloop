@@ -1,11 +1,14 @@
-// Made with Claude.
+// Edited with Claude.
 
 package com.swent.polyloop.ui.browse
 
 import android.net.Uri
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -18,6 +21,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
@@ -26,8 +30,10 @@ import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.resources.C
 import java.time.LocalDate
+import kotlinx.coroutines.awaitCancellation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -96,7 +102,7 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository, authRepository)
+    val viewModel = BrowseViewModel(repository, authRepository, FakeConnectivityRepository())
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = onListingClick)
     }
@@ -121,6 +127,14 @@ class BrowseScreenTest {
     setContent(uiState = BrowseUiState(isLoading = true))
 
     composeTestRule.onNodeWithTag(C.Tag.browse_loading).assertIsDisplayed()
+  }
+
+  @Test
+  fun loadingWithListingsKeepsThemDisplayed() {
+    setContent(uiState = BrowseUiState(listings = listings, isLoading = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_list).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_loading).assertDoesNotExist()
   }
 
   @Test
@@ -152,6 +166,108 @@ class BrowseScreenTest {
         .onNodeWithTag(C.Tag.browse_empty)
         .assertIsDisplayed()
         .assertTextEquals(string(R.string.browse_no_results))
+  }
+
+  @Test
+  fun onlineShowsNoOfflineBanner() {
+    setContent()
+
+    composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.browse_offline).assertDoesNotExist()
+  }
+
+  @Test
+  fun offlineShowsBannerAndOfflineStateInsteadOfListings() {
+    var myRentalsOpened = false
+    composeTestRule.setContent {
+      BrowseContent(
+          uiState = BrowseUiState(listings = listings, isOffline = true),
+          onListingClick = {},
+          onRetry = {},
+          onOpenMyRentals = { myRentalsOpened = true },
+      )
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.offline_banner)
+        .assertIsDisplayed()
+        // The text is a child of the tagged banner row.
+        .assert(hasAnyDescendant(hasText(string(R.string.offline_banner))))
+    composeTestRule.onNodeWithTag(C.Tag.browse_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_offline).assertIsDisplayed()
+    // Browsing needs a connection: no filters and no listings, even the ones already loaded.
+    (headerTags - C.Tag.browse_title + C.Tag.browse_list).forEach {
+      composeTestRule.onNodeWithTag(it).assertDoesNotExist()
+    }
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_offline_my_rentals_button).performClick()
+    assertTrue(myRentalsOpened)
+  }
+
+  @Test
+  fun browseScreenFollowsTheConnection() {
+    val connectivity = FakeConnectivityRepository(online = true)
+    val repository =
+        object : ListingRepository {
+          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+              Result.success(emptyList())
+
+          override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
+
+          override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
+        }
+    val viewModel = BrowseViewModel(repository, authRepository, connectivity)
+    composeTestRule.setContent { BrowseScreen(viewModel = viewModel) }
+    waitForTag(C.Tag.browse_list)
+
+    connectivity.setOnline(false)
+    waitForTag(C.Tag.browse_offline)
+    composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_list).assertDoesNotExist()
+
+    connectivity.setOnline(true)
+    waitForTag(C.Tag.browse_list)
+    composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertDoesNotExist()
+  }
+
+  @Test
+  fun reconnectingKeepsListingsDisplayedWhileReloading() {
+    // The first load returns the listings; the reload after reconnecting never finishes.
+    val connectivity = FakeConnectivityRepository(online = true)
+    var calls = 0
+    val repository =
+        object : ListingRepository {
+          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+              Result.success(emptyList())
+
+          override suspend fun getAllListings(): Result<List<Listing>> =
+              if (calls++ == 0) Result.success(listings) else awaitCancellation()
+
+          override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
+        }
+    val viewModel = BrowseViewModel(repository, authRepository, connectivity)
+    composeTestRule.setContent { BrowseScreen(viewModel = viewModel) }
+    waitForTag(C.Tag.browse_list)
+    connectivity.setOnline(false)
+    waitForTag(C.Tag.browse_offline)
+
+    connectivity.setOnline(true)
+    composeTestRule.waitUntil(timeoutMillis = 5_000) { calls == 2 }
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_list).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_loading).assertDoesNotExist()
   }
 
   private fun string(id: Int) =
@@ -211,7 +327,7 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository, authRepository)
+    val viewModel = BrowseViewModel(repository, authRepository, FakeConnectivityRepository())
     var clickedId: String? = null
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = { clickedId = it })
