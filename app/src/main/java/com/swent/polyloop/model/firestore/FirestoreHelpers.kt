@@ -20,7 +20,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 
 // Tools shared by the Firestore repositories, so they all read fields and handle errors the same
-// way. New repositories use these; Listing and Profile still have their own private copies, to be
+// way. New repositories use these; Listing, Profile and Chat still keep private copies, to be
 // moved here in a follow-up.
 
 /** How long a write waits for the server to confirm it; see [confirmWrite]. */
