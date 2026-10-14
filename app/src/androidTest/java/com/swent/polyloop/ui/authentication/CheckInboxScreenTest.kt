@@ -2,6 +2,8 @@
 
 package com.swent.polyloop.ui.authentication
 
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -17,7 +19,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
-import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
@@ -50,6 +51,7 @@ class CheckInboxScreenTest {
   private lateinit var viewModel: AuthViewModel
   private var signIns = 0
   private var backToForms = 0
+  private lateinit var backDispatcher: OnBackPressedDispatcher
 
   /**
    * Shows the screen backed by a real [AuthViewModel], reached the same way as in the app: logging
@@ -63,6 +65,7 @@ class CheckInboxScreenTest {
           submit()
         }
     composeTestRule.setContent {
+      backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
       PolyLoopTheme {
         CheckInboxScreen(
             viewModel = viewModel,
@@ -148,7 +151,8 @@ class CheckInboxScreenTest {
     try {
       composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).performClick()
 
-      Espresso.pressBack()
+      // Through the dispatcher, as Espresso.pressBack() waits for window focus and timed out on CI.
+      composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
 
       composeTestRule.runOnIdle {
         assertEquals(0, backToForms)
