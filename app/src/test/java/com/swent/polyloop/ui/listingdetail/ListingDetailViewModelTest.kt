@@ -88,8 +88,9 @@ class ListingDetailViewModelTest {
     repository.failure = IllegalStateException("Network down")
     assertEquals("Network down", viewModel().uiState.value.errorMsg)
 
+    // Blank, not null: the screen shows its generic error text.
     repository.failure = RuntimeException()
-    assertFalse(viewModel().uiState.value.errorMsg.isNullOrBlank())
+    assertEquals("", viewModel().uiState.value.errorMsg)
   }
 
   @Test
