@@ -26,6 +26,8 @@ import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
@@ -127,6 +129,16 @@ class PolyLoopAppTest {
         }
       }
 
+  /** In-memory profiles, so the Profile screens never reach Firestore. */
+  private val profileRepository =
+      FakeProfileRepository(
+          listOf(
+              UserProfile(uid = "me", name = "Me", email = "me@epfl.ch"),
+              UserProfile(uid = "user-1", name = "User", email = "user@epfl.ch"),
+              UserProfile(uid = "owner-1", name = "Owner", email = "owner@epfl.ch"),
+          )
+      )
+
   /** In-memory conversations, so the Chat list never reaches Firestore. */
   private val chatRepository = FakeChatRepository(currentUid = "me")
 
@@ -134,6 +146,7 @@ class PolyLoopAppTest {
   fun setUp() {
     RepositoryProvider.listingRepository = listingRepository
     RepositoryProvider.authRepository = authRepository
+    RepositoryProvider.profileRepository = profileRepository
     RepositoryProvider.chatRepository = chatRepository
     RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
   }
@@ -177,14 +190,18 @@ class PolyLoopAppTest {
   private fun assertCurrentScreen(screen: Screen, shownRoute: String = screen.route) {
     composeTestRule.waitForIdle()
     assertEquals(screen.route, navController.currentDestination?.route)
-    // Browse, My rentals and Chat list are wired to their real screens; the others still show
-    // DummyScreen with their route.
+    // Browse, My rentals, Chat list and the profiles are wired to their real screens; the
+    // others show DummyScreen with their route.
     if (screen == Screen.Browse) {
       composeTestRule.onNodeWithTag(C.Tag.browse_screen).assertIsDisplayed()
       return
     }
     if (screen == Screen.MyRentals) {
       composeTestRule.onNodeWithTag(C.Tag.my_rentals_screen).assertIsDisplayed()
+      return
+    }
+    if (screen == Screen.Profile || screen == Screen.UserProfile) {
+      composeTestRule.onNodeWithTag(C.Tag.profile_screen).assertIsDisplayed()
       return
     }
     if (screen == Screen.ChatList) {
@@ -456,5 +473,21 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + rental.id).performClick()
 
     assertCurrentScreen(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
+  }
+
+  @Test
+  fun signOutFromProfileReturnsToSignInWithAnEmptyBackStack() {
+    currentUser = AuthUser(uid = "me", email = "me@epfl.ch", name = "Me")
+    setApp()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_profile_button).performClick()
+    waitForTag(C.Tag.profile_sign_out_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.profile_sign_out_button).performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+
+    assertEquals(Screen.Auth.route, navController.currentDestination?.route)
+    assertNull(navController.previousBackStackEntry)
+    assertNull(currentUser)
+    composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist()
   }
 }

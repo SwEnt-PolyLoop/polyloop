@@ -31,6 +31,8 @@ import com.swent.polyloop.ui.myrentals.MyRentalsViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
+import com.swent.polyloop.ui.profile.ProfileScreen
+import com.swent.polyloop.ui.profile.ProfileViewModel
 
 /**
  * The app's navigation: the top bar and a NavHost holding every route. Screens that are not built
@@ -120,7 +122,9 @@ fun PolyLoopApp(
         )
       }
       composable(Screen.Wallet.route) { DummyScreen(Screen.Wallet.route) }
-      composable(Screen.Profile.route) { DummyScreen(Screen.Profile.route) }
+      composable(Screen.Profile.route) {
+        ProfileRoute(userId = null, navController = navController, navigationActions)
+      }
       composable(Screen.AdminCourtRuling.route) { DummyScreen(Screen.AdminCourtRuling.route) }
 
       composable(Screen.ListingDetail.route, stringArgument(Screen.ARG_LISTING_ID)) { entry ->
@@ -155,10 +159,35 @@ fun PolyLoopApp(
         DummyScreen(Screen.Dispute.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
       }
       composable(Screen.UserProfile.route, stringArgument(Screen.ARG_USER_ID)) { entry ->
-        DummyScreen(Screen.UserProfile.createRoute(entry.stringArg(Screen.ARG_USER_ID)))
+        ProfileRoute(entry.stringArg(Screen.ARG_USER_ID), navController, navigationActions)
       }
     }
   }
+}
+
+/** The Profile screen, for the own profile ([userId] null) or someone else's. */
+@Composable
+private fun ProfileRoute(
+    userId: String?,
+    navController: NavHostController,
+    navigationActions: NavigationActions,
+) {
+  // Scoped to this back-stack entry: cleared when the profile leaves the back stack.
+  val profileViewModel: ProfileViewModel =
+      viewModel(
+          factory =
+              ProfileViewModel.Factory(
+                  userId = userId,
+                  profileRepository = RepositoryProvider.profileRepository,
+                  listingRepository = RepositoryProvider.listingRepository,
+                  authRepository = RepositoryProvider.authRepository,
+              )
+      )
+  ProfileScreen(
+      viewModel = profileViewModel,
+      onListingClick = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) },
+      onSignedOut = navigationActions::navigateAfterSignOut,
+  )
 }
 
 private fun stringArgument(name: String): List<NamedNavArgument> =
