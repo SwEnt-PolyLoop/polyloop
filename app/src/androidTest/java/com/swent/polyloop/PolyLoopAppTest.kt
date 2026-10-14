@@ -1,4 +1,4 @@
-// Made with Claude.
+// Edited with Claude.
 
 package com.swent.polyloop
 
@@ -24,6 +24,7 @@ import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
@@ -91,6 +92,9 @@ class PolyLoopAppTest {
         ): Result<String> = error("Not used in this test")
       }
 
+  /** Online by default, so the tests never depend on the emulator's network. */
+  private val connectivity = FakeConnectivityRepository(online = true)
+
   /** The signed-in user PolyLoopApp reads on start; null means nobody is signed in. */
   private var currentUser: AuthUser? = null
 
@@ -136,6 +140,7 @@ class PolyLoopAppTest {
     RepositoryProvider.authRepository = authRepository
     RepositoryProvider.profileRepository = profileRepository
     RepositoryProvider.chatRepository = chatRepository
+    RepositoryProvider.connectivityRepository = connectivity
   }
 
   @After
@@ -461,6 +466,20 @@ class PolyLoopAppTest {
 
     waitForTag(C.Tag.listing_card_ + listing.id)
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + listing.id).assertIsDisplayed()
+  }
+
+  @Test
+  fun openMyRentalsOnOfflineBrowseOpensMyRentals() {
+    setAppSignedIn()
+    connectivity.setOnline(false)
+    waitForTag(C.Tag.browse_offline)
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_offline_my_rentals_button).performClick()
+
+    assertCurrentScreen(Screen.MyRentals)
+    // A top-level destination: Back returns to Browse.
+    composeTestRule.runOnUiThread { navController.popBackStack() }
+    assertCurrentScreen(Screen.Browse)
   }
 
   @Test

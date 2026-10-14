@@ -14,6 +14,12 @@
     <string name="browse_retry">Retry</string>
     <string name="browse_empty">No listings available yet</string>
     <string name="browse_no_results">No matching listings</string>
+    <string name="browse_offline_title">Browsing needs a connection</string>
+    <string name="browse_offline_body">Your rentals, deadlines and meeting points are still available offline.</string>
+    <string name="browse_offline_open_my_rentals">Open My rentals</string>
+
+    <!-- Offline banner -->
+    <string name="offline_banner">You\'re offline. Some actions are paused until you reconnect.</string>
 
     <!-- Listing card -->
     <string name="listing_card_price">%1$d PP</string>

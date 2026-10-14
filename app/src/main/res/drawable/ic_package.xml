@@ -1,0 +1,14 @@
+<!-- Made with Claude. -->
+<!-- Outlined parcel icon, used for My rentals; tinted with the theme color in code. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12,2.5L20.5,7.25V16.75L12,21.5L3.5,16.75V7.25ZM3.5,7.25L12,12L20.5,7.25M12,12V21.5M7.75,4.88L16.25,9.63"
+        android:strokeWidth="2"
+        android:strokeColor="@android:color/black"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

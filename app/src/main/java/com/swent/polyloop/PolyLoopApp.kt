@@ -103,11 +103,13 @@ fun PolyLoopApp(
                     BrowseViewModel.Factory(
                         RepositoryProvider.listingRepository,
                         RepositoryProvider.authRepository,
+                        RepositoryProvider.connectivityRepository,
                     )
             )
         BrowseScreen(
             viewModel = browseViewModel,
             onListingClick = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) },
+            onOpenMyRentals = { navigationActions.navigateTo(Screen.MyRentals) },
         )
       }
       composable(Screen.CreateListing.route) {
