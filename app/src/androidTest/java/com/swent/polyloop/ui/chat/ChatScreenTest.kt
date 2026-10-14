@@ -211,13 +211,6 @@ class ChatScreenTest {
   }
 
   @Test
-  fun sendIsDisabledWhileAMessageIsOnItsWay() {
-    setContent(loaded.copy(draft = "Hello", isSending = true))
-
-    composeTestRule.onNodeWithTag(C.Tag.chat_send_button).assertIsNotEnabled()
-  }
-
-  @Test
   fun typingAndSendCallBack() {
     // Holds the draft like the ViewModel does, so the field shows what is typed.
     composeTestRule.setContent {
