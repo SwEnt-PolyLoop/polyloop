@@ -15,10 +15,12 @@ import kotlinx.coroutines.flow.update
  * State of the Create listing screen: the fields as typed, plus checks that follow the rules of
  * [Listing.canPublish].
  *
- * @property pricePerDay the price per day as typed; valid when it is a whole number of PP above 0.
+ * @property pricePerDay the price per day as typed; valid when it is a whole number of PP from 1 to
+ *   [Listing.MAX_AMOUNT].
  * @property itemValue the item value as typed, shown as the suggested deposit; same rule as
  *   [pricePerDay].
- * @property photos the URIs of the photos taken, in order.
+ * @property photos the URIs of the photos taken, in order. Reordering photos (SCREENS.md) comes
+ *   later.
  * @property hasAttemptedPublish true once the user pressed "Publish", so the screen can show the
  *   errors of empty fields from then on.
  * @property isPublishing true while the listing is being published; "Publish" is disabled then.
@@ -65,9 +67,11 @@ data class CreateListingUiState(
   val isItemValueValid: Boolean
     get() = itemValue.isWholeNumberAboveZero()
 
-  /** True when both dates are set and the window does not end before it starts. */
+  /**
+   * True when both dates are set and the window ends after it starts, so it spans at least 2 days.
+   */
   val isAvailabilityValid: Boolean
-    get() = availableFrom != null && availableTo != null && !availableFrom.isAfter(availableTo)
+    get() = availableFrom != null && availableTo != null && availableFrom.isBefore(availableTo)
 
   /** True when "Publish" would succeed: every check passes and nothing is already running. */
   val canPublish: Boolean
@@ -135,6 +139,6 @@ class CreateListingViewModel : ViewModel() {
   fun onPublish() = _uiState.update { it.copy(hasAttemptedPublish = true) }
 }
 
-/** Only the digits 0-9 ("007" is 7), fitting in an Int, and above 0. */
+/** Only the digits 0-9 ("007" is 7), from 1 to [Listing.MAX_AMOUNT]. */
 private fun String.isWholeNumberAboveZero(): Boolean =
-    isNotEmpty() && all { it in '0'..'9' } && (toIntOrNull() ?: 0) > 0
+    isNotEmpty() && all { it in '0'..'9' } && (toIntOrNull() ?: 0) in 1..Listing.MAX_AMOUNT

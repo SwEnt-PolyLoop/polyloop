@@ -110,7 +110,7 @@ class CreateListingUiStateTest {
 
   @Test
   fun wholeNumbersAboveZeroAreValidAmounts() {
-    listOf("1", "15", "007", Int.MAX_VALUE.toString()).forEach {
+    listOf("1", "15", "007", Listing.MAX_AMOUNT.toString()).forEach {
       assertTrue(it, complete.copy(pricePerDay = it).isPricePerDayValid)
       assertTrue(it, complete.copy(itemValue = it).isItemValueValid)
     }
@@ -119,22 +119,38 @@ class CreateListingUiStateTest {
   @Test
   fun otherAmountsAreInvalid() {
     val tooBig = (Int.MAX_VALUE.toLong() + 1).toString()
+    val aboveMax = (Listing.MAX_AMOUNT + 1).toString()
     val arabicFive = "٥" // a digit for Char.isDigit(), but not 0-9
-    listOf("", "0", "000", "-3", "+5", "12.5", "1 000", " 5", "abc", arabicFive, tooBig).forEach {
-      val price = complete.copy(pricePerDay = it)
-      val value = complete.copy(itemValue = it)
-      assertFalse(it, price.isPricePerDayValid)
-      assertFalse(it, price.canPublish)
-      assertFalse(it, value.isItemValueValid)
-      assertFalse(it, value.canPublish)
-    }
+    listOf("", "0", "000", "-3", "+5", "12.5", "1 000", " 5", "abc", arabicFive, aboveMax, tooBig)
+        .forEach {
+          val price = complete.copy(pricePerDay = it)
+          val value = complete.copy(itemValue = it)
+          assertFalse(it, price.isPricePerDayValid)
+          assertFalse(it, price.canPublish)
+          assertFalse(it, value.isItemValueValid)
+          assertFalse(it, value.canPublish)
+        }
   }
 
   @Test
-  fun sameStartAndEndDateIsValid() {
+  fun sameStartAndEndDateIsInvalid() {
     val day = LocalDate.of(2026, 10, 6)
+    val state = complete.copy(availableFrom = day, availableTo = day)
 
-    assertTrue(complete.copy(availableFrom = day, availableTo = day).isAvailabilityValid)
+    assertFalse(state.isAvailabilityValid)
+    assertFalse(state.canPublish)
+  }
+
+  @Test
+  fun endOneDayAfterStartIsValid() {
+    val state =
+        complete.copy(
+            availableFrom = LocalDate.of(2026, 10, 6),
+            availableTo = LocalDate.of(2026, 10, 7),
+        )
+
+    assertTrue(state.isAvailabilityValid)
+    assertTrue(state.canPublish)
   }
 
   @Test
