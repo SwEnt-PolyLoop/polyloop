@@ -56,6 +56,14 @@ object C {
     const val listing_detail_retry_button = "listing_detail_retry_button"
     const val listing_detail_not_found = "listing_detail_not_found"
 
+    const val create_listing_photos_counter = "create_listing_photos_counter"
+    const val create_listing_photos_hint = "create_listing_photos_hint"
+    // Prefix: each photo is tagged create_listing_photo_ + its index
+    const val create_listing_photo_ = "create_listing_photo_"
+    // Prefix: each photo's remove button is tagged create_listing_remove_photo_ + its index
+    const val create_listing_remove_photo_ = "create_listing_remove_photo_"
+    const val create_listing_add_photo = "create_listing_add_photo"
+
     const val date_picker_sheet = "date_picker_sheet"
     const val date_picker_month_title = "date_picker_month_title"
     const val date_picker_available = "date_picker_available"
