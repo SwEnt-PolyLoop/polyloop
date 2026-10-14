@@ -44,6 +44,8 @@ class MyRentalsScreenTest {
       person: String = "Loca",
       location: String = "Renens",
       returnDate: LocalDate = LocalDate.of(2026, 10, 22),
+      isPickupArea: Boolean = true,
+      showReturnDate: Boolean = true,
   ) =
       RentalRow(
           rentalId = id,
@@ -53,6 +55,8 @@ class MyRentalsScreenTest {
           returnDate = returnDate,
           location = location,
           status = status,
+          isPickupArea = isPickupArea,
+          showReturnDate = showReturnDate,
       )
 
   private fun setContent(
@@ -95,11 +99,11 @@ class MyRentalsScreenTest {
   }
 
   @Test
-  fun rowsAreHiddenWhileLoading() {
+  fun rowsStayVisibleWhileReloading() {
     setContent(MyRentalsUiState(borrowing = listOf(row("tent")), isLoading = true))
 
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_loading).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "tent").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "tent").assertIsDisplayed()
   }
 
   @Test
@@ -172,7 +176,7 @@ class MyRentalsScreenTest {
 
     inRow("tent", C.Tag.my_rentals_row_title).assertTextEquals("Item tent")
     inRow("tent", C.Tag.my_rentals_row_person)
-        .assertTextEquals(context.getString(R.string.my_rentals_lent_by, "Loca"))
+        .assertTextEquals(context.getString(R.string.my_rentals_lender, "Loca"))
     inRow("tent", C.Tag.my_rentals_row_return)
         .assertTextEquals(
             context.getString(R.string.my_rentals_return_by, formatDay(LocalDate.of(2026, 10, 22)))
@@ -187,7 +191,7 @@ class MyRentalsScreenTest {
   fun pickedUpItemShowsTheDropOffArea() {
     setContent(
         MyRentalsUiState(
-            borrowing = listOf(row("tent", status = RentalStatus.ACTIVE)),
+            borrowing = listOf(row("tent", status = RentalStatus.ACTIVE, isPickupArea = false)),
             isLoading = false,
         )
     )
@@ -197,31 +201,15 @@ class MyRentalsScreenTest {
   }
 
   @Test
-  fun returnDateIsShownOnlyWhileTheItemStillHasToComeBack() {
-    var state by mutableStateOf(MyRentalsUiState(isLoading = false))
-    composeTestRule.setContent {
-      MyRentalsContent(
-          uiState = state,
-          onTabSelected = {},
-          onRentalClick = {},
-          onRetry = {},
-          today = TODAY,
-      )
-    }
-    val awaitingReturn =
-        setOf(
-            RentalStatus.REQUESTED,
-            RentalStatus.ACCEPTED,
-            RentalStatus.ACTIVE,
-            RentalStatus.OVERDUE,
+  fun returnDateIsHiddenWhenTheRowSaysSo() {
+    setContent(
+        MyRentalsUiState(
+            borrowing = listOf(row("tent", status = RentalStatus.CLOSED, showReturnDate = false)),
+            isLoading = false,
         )
+    )
 
-    RentalStatus.entries.forEach { status ->
-      state = MyRentalsUiState(borrowing = listOf(row("tent", status = status)), isLoading = false)
-      composeTestRule.waitForIdle()
-      val returnLine = inRow("tent", C.Tag.my_rentals_row_return)
-      if (status in awaitingReturn) returnLine.assertExists() else returnLine.assertDoesNotExist()
-    }
+    inRow("tent", C.Tag.my_rentals_row_return).assertDoesNotExist()
   }
 
   @Test
@@ -248,7 +236,7 @@ class MyRentalsScreenTest {
     )
 
     inRow("drill", C.Tag.my_rentals_row_person)
-        .assertTextEquals(context.getString(R.string.my_rentals_borrowed_by, "Loca"))
+        .assertTextEquals(context.getString(R.string.my_rentals_borrower, "Loca"))
   }
 
   @Test
@@ -257,7 +245,7 @@ class MyRentalsScreenTest {
 
     val unknown = context.getString(R.string.my_rentals_unknown_person)
     inRow("tent", C.Tag.my_rentals_row_person)
-        .assertTextEquals(context.getString(R.string.my_rentals_lent_by, unknown))
+        .assertTextEquals(context.getString(R.string.my_rentals_lender, unknown))
   }
 
   @Test

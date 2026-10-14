@@ -32,6 +32,9 @@ enum class RentalsTab {
  *   name is missing, and the screen then shows a placeholder.
  * @property returnDate the last day of the rental, when the item must be back.
  * @property location the public pickup area until the item is picked up, then the drop-off area.
+ * @property isPickupArea true while [location] is the pickup area, false once it is the drop-off
+ *   area.
+ * @property showReturnDate true while the item still has to come back, so [returnDate] matters.
  */
 data class RentalRow(
     val rentalId: String,
@@ -41,6 +44,8 @@ data class RentalRow(
     val returnDate: LocalDate,
     val location: String,
     val status: RentalStatus,
+    val isPickupArea: Boolean,
+    val showReturnDate: Boolean,
 )
 
 /**
@@ -132,6 +137,24 @@ class MyRentalsViewModel(
   }
 
   private companion object {
+    /** Statuses in which the item has not been picked up yet: the pickup area is what matters. */
+    val BEFORE_PICKUP =
+        setOf(
+            RentalStatus.REQUESTED,
+            RentalStatus.ACCEPTED,
+            RentalStatus.DECLINED,
+            RentalStatus.CANCELLED,
+        )
+
+    /** Statuses in which the item still has to come back, so the return date matters. */
+    val AWAITING_RETURN =
+        setOf(
+            RentalStatus.REQUESTED,
+            RentalStatus.ACCEPTED,
+            RentalStatus.ACTIVE,
+            RentalStatus.OVERDUE,
+        )
+
     fun Rental.toRow(uid: String) =
         RentalRow(
             rentalId = id,
@@ -141,18 +164,8 @@ class MyRentalsViewModel(
             returnDate = endDate,
             location = if (status in BEFORE_PICKUP) pickupArea else dropOffArea,
             status = status,
+            isPickupArea = status in BEFORE_PICKUP,
+            showReturnDate = status in AWAITING_RETURN,
         )
   }
 }
-
-/**
- * Statuses in which the item has not been picked up yet: the pickup area is what matters. The
- * screen uses it too, to label the area.
- */
-internal val BEFORE_PICKUP =
-    setOf(
-        RentalStatus.REQUESTED,
-        RentalStatus.ACCEPTED,
-        RentalStatus.DECLINED,
-        RentalStatus.CANCELLED,
-    )

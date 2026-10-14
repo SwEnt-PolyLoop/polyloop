@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.PrimaryTabRow
@@ -91,7 +92,7 @@ fun MyRentalsContent(
       }
     }
     when {
-      uiState.isLoading ->
+      uiState.isLoading && uiState.selectedRows.isEmpty() ->
           Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(modifier = Modifier.testTag(C.Tag.my_rentals_loading))
           }
@@ -114,7 +115,13 @@ fun MyRentalsContent(
             )
           }
       else -> {
-        // The last rows stay visible under the error, e.g. offline (docs/SCREENS.md)
+        // The last rows stay visible while reloading and under the error, e.g. offline
+        // (docs/SCREENS.md)
+        if (uiState.isLoading) {
+          LinearProgressIndicator(
+              modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_loading)
+          )
+        }
         uiState.errorMsg?.let {
           MyRentalsError(errorMsg = it, onRetry = onRetry, modifier = Modifier.fillMaxWidth())
         }
@@ -167,7 +174,7 @@ private fun RentalRowCard(row: RentalRow, tab: RentalsTab, today: LocalDate, onC
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.testTag(C.Tag.my_rentals_row_person),
       )
-      if (row.status in AWAITING_RETURN) {
+      if (row.showReturnDate) {
         val returnDay = formatDay(row.returnDate, withYear = row.returnDate.year != today.year)
         Text(
             text = stringResource(R.string.my_rentals_return_by, returnDay),
@@ -177,8 +184,7 @@ private fun RentalRowCard(row: RentalRow, tab: RentalsTab, today: LocalDate, onC
       }
       if (row.location.isNotBlank()) {
         val locationRes =
-            if (row.status in BEFORE_PICKUP) R.string.my_rentals_pickup_at
-            else R.string.my_rentals_drop_off_at
+            if (row.isPickupArea) R.string.my_rentals_pickup_at else R.string.my_rentals_drop_off_at
         Text(
             text = stringResource(locationRes, row.location),
             style = MaterialTheme.typography.bodyMedium,
@@ -233,10 +239,6 @@ private fun MyRentalsError(errorMsg: String, onRetry: () -> Unit, modifier: Modi
   }
 }
 
-/** Statuses in which the item still has to come back, so the return date matters. */
-private val AWAITING_RETURN =
-    setOf(RentalStatus.REQUESTED, RentalStatus.ACCEPTED, RentalStatus.ACTIVE, RentalStatus.OVERDUE)
-
 @get:StringRes
 private val RentalsTab.labelRes: Int
   get() =
@@ -253,13 +255,13 @@ private val RentalsTab.emptyRes: Int
         RentalsTab.LENDING -> R.string.my_rentals_empty_lending
       }
 
-/** "Lent by …" on a borrowed item, "Borrowed by …" on a lent one. */
+/** "Lender: …" on a borrowed item, "Borrower: …" on a lent one, true for every status. */
 @get:StringRes
 private val RentalsTab.personRes: Int
   get() =
       when (this) {
-        RentalsTab.BORROWING -> R.string.my_rentals_lent_by
-        RentalsTab.LENDING -> R.string.my_rentals_borrowed_by
+        RentalsTab.BORROWING -> R.string.my_rentals_lender
+        RentalsTab.LENDING -> R.string.my_rentals_borrower
       }
 
 private val RentalsTab.testTag: String
@@ -317,6 +319,8 @@ private fun MyRentalsContentPreview() {
           returnDate = LocalDate.of(2026, 10, 22),
           location = "Renens",
           status = RentalStatus.REQUESTED,
+          isPickupArea = true,
+          showReturnDate = true,
       )
   PolyLoopTheme {
     MyRentalsContent(

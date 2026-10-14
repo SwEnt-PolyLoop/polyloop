@@ -46,8 +46,8 @@
     <string name="my_rentals_empty_lending">Nobody has asked to borrow your items yet.</string>
     <string name="my_rentals_error_fallback">Could not load your rentals</string>
     <string name="my_rentals_retry">Retry</string>
-    <string name="my_rentals_lent_by">Lent by %1$s</string>
-    <string name="my_rentals_borrowed_by">Borrowed by %1$s</string>
+    <string name="my_rentals_lender">Lender: %1$s</string>
+    <string name="my_rentals_borrower">Borrower: %1$s</string>
     <string name="my_rentals_unknown_person">an unknown user</string>
     <string name="my_rentals_return_by">Return by %1$s</string>
     <string name="my_rentals_pickup_at">Pickup: %1$s</string>
