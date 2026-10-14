@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.profile
 
+import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
@@ -17,6 +18,7 @@ import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
@@ -244,6 +246,12 @@ class ProfileScreenTest {
           override suspend fun getListing(id: String) = Result.success<Listing?>(null)
 
           override suspend fun getListingsByOwner(ownerId: String) = Result.success(listOf(tent))
+
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = error("Not used in this test")
         }
     val viewModel = ProfileViewModel(null, FakeProfileRepository(listOf(john)), listings, auth)
     composeTestRule.setContent {
