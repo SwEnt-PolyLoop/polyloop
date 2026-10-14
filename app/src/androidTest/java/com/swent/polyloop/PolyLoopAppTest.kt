@@ -2,6 +2,7 @@
 
 package com.swent.polyloop
 
+import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -21,6 +22,7 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
@@ -74,6 +76,12 @@ class PolyLoopAppTest {
 
         override suspend fun getListing(id: String): Result<Listing?> =
             Result.success(listing.takeIf { it.id == id })
+
+        override suspend fun createListing(
+            listing: Listing,
+            addresses: ListingAddresses,
+            photos: List<Uri>,
+        ): Result<String> = error("Not used in this test")
       }
 
   /** The signed-in user PolyLoopApp reads on start; null means nobody is signed in. */
