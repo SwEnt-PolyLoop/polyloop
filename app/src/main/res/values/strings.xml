@@ -151,6 +151,8 @@
     <string name="auth_password_label">Password</string>
     <string name="auth_password_placeholder">Enter your password</string>
     <string name="auth_name_required">Please enter your name.</string>
+    <string name="auth_name_step_title">What\'s your name?</string>
+    <string name="auth_continue">Continue</string>
     <string name="auth_email_required">Please enter your email address.</string>
     <string name="auth_email_invalid_domain">Use your @epfl.ch address.</string>
     <string name="auth_password_required">Please enter your password.</string>

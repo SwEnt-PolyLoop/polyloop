@@ -117,6 +117,7 @@ object C {
     const val auth_resend_button = "auth_resend_button"
     const val auth_email_resent = "auth_email_resent"
     const val auth_back_to_form_button = "auth_back_to_form_button"
+    const val auth_name_continue_button = "auth_name_continue_button"
 
     const val chat_list_screen = "chat_list_screen"
     const val chat_list_title = "chat_list_title"

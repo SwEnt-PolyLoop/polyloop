@@ -91,6 +91,15 @@ fun AuthScreen(
     }
   }
 
+  if (state.isAskingName) {
+    NameStep(
+        state = state,
+        onNameChange = viewModel::onNameChange,
+        onContinue = viewModel::submitName,
+    )
+    return
+  }
+
   val colors = MaterialTheme.colorScheme
   val isSignUp = state.mode == AuthMode.SIGN_UP
 
@@ -189,6 +198,71 @@ fun AuthScreen(
         onClick = viewModel::submit,
         enabled = !state.isLoading,
         testTag = if (isSignUp) C.Tag.auth_signup_button else C.Tag.auth_login_button,
+    )
+
+    AuthMessage(state.error)
+  }
+}
+
+/**
+ * Asks for the name of a verified user whose name could not be saved at sign-up, before their
+ * profile is created.
+ *
+ * @param state current screen state; only the name, loading flag and error are used.
+ * @param onNameChange called when the user edits the name.
+ * @param onContinue called when the user presses "Continue".
+ */
+@Composable
+private fun NameStep(
+    state: AuthUiState,
+    onNameChange: (String) -> Unit,
+    onContinue: () -> Unit,
+) {
+  val colors = MaterialTheme.colorScheme
+
+  Column(
+      modifier =
+          Modifier.fillMaxSize()
+              .background(colors.background)
+              .verticalScroll(rememberScrollState())
+              .padding(horizontal = 14.dp)
+              .padding(top = 64.dp)
+  ) {
+    Header()
+
+    Spacer(Modifier.height(16.dp))
+
+    Text(
+        text = stringResource(R.string.auth_name_step_title),
+        color = colors.onBackground,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
+
+    Spacer(Modifier.height(16.dp))
+
+    AuthTextField(
+        label = stringResource(R.string.auth_name_label),
+        value = state.name,
+        placeholder = stringResource(R.string.auth_name_placeholder),
+        onValueChange = onNameChange,
+        errorText =
+            if (state.hasAttemptedSubmit && state.isNameBlank) {
+              stringResource(R.string.auth_name_required)
+            } else {
+              null
+            },
+        testTag = C.Tag.auth_name_field,
+        errorTestTag = C.Tag.auth_name_error,
+    )
+
+    Spacer(Modifier.height(20.dp))
+
+    AuthButton(
+        text = stringResource(R.string.auth_continue),
+        onClick = onContinue,
+        enabled = !state.isLoading,
+        testTag = C.Tag.auth_name_continue_button,
     )
 
     AuthMessage(state.error)
