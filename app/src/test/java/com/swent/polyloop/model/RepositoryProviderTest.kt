@@ -1,12 +1,16 @@
 // Made with Claude
 package com.swent.polyloop.model
 
+import android.content.Context
+import android.net.ConnectivityManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.connectivity.ConnectivityRepositoryAndroid
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
@@ -41,6 +45,13 @@ class RepositoryProviderTest {
     override fun signOut() = Unit
   }
 
+  // The app context that init keeps; the real connectivity repository reads its
+  // ConnectivityManager.
+  private val appContext =
+      mockk<Context> {
+        every { getSystemService(ConnectivityManager::class.java) } returns mockk(relaxed = true)
+      }
+
   @Before
   fun setUp() {
     // The real repositories get Firebase through FirebaseAuth/FirebaseFirestore.getInstance(),
@@ -48,6 +59,8 @@ class RepositoryProviderTest {
     mockkStatic(FirebaseAuth::class, FirebaseFirestore::class)
     every { FirebaseAuth.getInstance() } returns mockk(relaxed = true)
     every { FirebaseFirestore.getInstance() } returns mockk(relaxed = true)
+    // init is given an activity-like context and must keep its application context.
+    RepositoryProvider.init(mockk { every { applicationContext } returns appContext })
     RepositoryProvider.reset()
   }
 
@@ -132,6 +145,31 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- connectivityRepository ----------
+
+  @Test
+  fun connectivityRepositoryDefaultsToAndroidImplementation() {
+    assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
+  }
+
+  @Test
+  fun connectivityRepositoryReturnsSameInstanceOnEveryAccess() {
+    val first = RepositoryProvider.connectivityRepository
+
+    assertSame(first, RepositoryProvider.connectivityRepository)
+    verify(exactly = 1) { appContext.getSystemService(ConnectivityManager::class.java) }
+  }
+
+  @Test
+  fun connectivityRepositoryReturnsAssignedRepository() {
+    val fake = FakeConnectivityRepository()
+
+    RepositoryProvider.connectivityRepository = fake
+
+    assertSame(fake, RepositoryProvider.connectivityRepository)
+    verify(exactly = 0) { appContext.getSystemService(ConnectivityManager::class.java) }
+  }
+
   // ---------- laziness and reset ----------
 
   @Test
@@ -156,12 +194,14 @@ class RepositoryProviderTest {
     RepositoryProvider.authRepository = fakeAuth
     RepositoryProvider.listingRepository = fakeListing
     RepositoryProvider.profileRepository = FakeProfileRepository()
+    RepositoryProvider.connectivityRepository = FakeConnectivityRepository()
 
     RepositoryProvider.reset()
 
     assertTrue(RepositoryProvider.authRepository is AuthRepositoryFirebase)
     assertTrue(RepositoryProvider.listingRepository is ListingRepositoryFirestore)
     assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
+    assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
   }
 
   @Test
@@ -169,11 +209,13 @@ class RepositoryProviderTest {
     val firstAuth = RepositoryProvider.authRepository
     val firstListing = RepositoryProvider.listingRepository
     val firstProfile = RepositoryProvider.profileRepository
+    val firstConnectivity = RepositoryProvider.connectivityRepository
 
     RepositoryProvider.reset()
 
     assertNotSame(firstAuth, RepositoryProvider.authRepository)
     assertNotSame(firstListing, RepositoryProvider.listingRepository)
     assertNotSame(firstProfile, RepositoryProvider.profileRepository)
+    assertNotSame(firstConnectivity, RepositoryProvider.connectivityRepository)
   }
 }
