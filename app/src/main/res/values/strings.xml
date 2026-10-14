@@ -19,7 +19,7 @@
     <string name="browse_offline_open_my_rentals">Open My rentals</string>
 
     <!-- Offline banner -->
-    <string name="offline_banner">You\'re offline</string>
+    <string name="offline_banner">You\'re offline. Some actions are paused until you reconnect.</string>
 
     <!-- Listing card -->
     <string name="listing_card_price">%1$d PP</string>
