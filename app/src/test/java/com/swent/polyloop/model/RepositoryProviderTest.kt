@@ -8,6 +8,8 @@ import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.chat.ChatRepositoryFirestore
+import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
@@ -112,6 +114,32 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- chatRepository ----------
+
+  @Test
+  fun chatRepositoryDefaultsToFirestoreImplementation() {
+    assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
+  }
+
+  @Test
+  fun chatRepositoryReturnsSameInstanceOnEveryAccess() {
+    val first = RepositoryProvider.chatRepository
+
+    assertSame(first, RepositoryProvider.chatRepository)
+    verify(exactly = 1) { FirebaseFirestore.getInstance() }
+  }
+
+  @Test
+  fun chatRepositoryReturnsAssignedRepository() {
+    val fake = FakeChatRepository()
+
+    RepositoryProvider.chatRepository = fake
+
+    assertSame(fake, RepositoryProvider.chatRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+    verify(exactly = 0) { FirebaseAuth.getInstance() }
+  }
+
   // ---------- storage ----------
 
   @Test
@@ -124,6 +152,7 @@ class RepositoryProviderTest {
     RepositoryProvider.authRepository
     RepositoryProvider.listingRepository
     RepositoryProvider.profileRepository
+    RepositoryProvider.chatRepository
 
     verify(exactly = 0) { FirebaseStorage.getInstance() }
   }
@@ -175,14 +204,17 @@ class RepositoryProviderTest {
   fun resetForgetsAssignedRepositories() {
     val fakeAuth = FakeAuthRepository()
     val fakeListing = FakeListingRepository()
+    val fakeChat = FakeChatRepository()
     RepositoryProvider.authRepository = fakeAuth
     RepositoryProvider.listingRepository = fakeListing
+    RepositoryProvider.chatRepository = fakeChat
     RepositoryProvider.profileRepository = FakeProfileRepository()
 
     RepositoryProvider.reset()
 
     assertTrue(RepositoryProvider.authRepository is AuthRepositoryFirebase)
     assertTrue(RepositoryProvider.listingRepository is ListingRepositoryFirestore)
+    assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
     assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
   }
 
@@ -190,12 +222,14 @@ class RepositoryProviderTest {
   fun resetCreatesNewInstancesOnNextAccess() {
     val firstAuth = RepositoryProvider.authRepository
     val firstListing = RepositoryProvider.listingRepository
+    val firstChat = RepositoryProvider.chatRepository
     val firstProfile = RepositoryProvider.profileRepository
 
     RepositoryProvider.reset()
 
     assertNotSame(firstAuth, RepositoryProvider.authRepository)
     assertNotSame(firstListing, RepositoryProvider.listingRepository)
+    assertNotSame(firstChat, RepositoryProvider.chatRepository)
     assertNotSame(firstProfile, RepositoryProvider.profileRepository)
   }
 }
