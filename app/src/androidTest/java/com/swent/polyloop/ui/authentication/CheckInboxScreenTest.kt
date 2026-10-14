@@ -19,6 +19,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
@@ -29,6 +31,7 @@ import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import kotlinx.coroutines.CompletableDeferred
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -53,17 +56,27 @@ class CheckInboxScreenTest {
   private var backToForms = 0
   private lateinit var backDispatcher: OnBackPressedDispatcher
 
+  // Owns the ViewModel so tearDown can clear it and stop the resend countdown.
+  private val viewModelStore = ViewModelStore()
+
+  @After
+  fun tearDown() {
+    viewModelStore.clear()
+  }
+
   /**
    * Shows the screen backed by a real [AuthViewModel], reached the same way as in the app: logging
    * in with an unverified EPFL email.
    */
   private fun showScreen(typedEmail: String = email) {
     viewModel =
-        AuthViewModel(repository).apply {
-          onEmailChange(typedEmail)
-          onPasswordChange("secret")
-          submit()
-        }
+        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository))[
+                AuthViewModel::class.java]
+            .apply {
+              onEmailChange(typedEmail)
+              onPasswordChange("secret")
+              submit()
+            }
     composeTestRule.setContent {
       backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
       PolyLoopTheme {

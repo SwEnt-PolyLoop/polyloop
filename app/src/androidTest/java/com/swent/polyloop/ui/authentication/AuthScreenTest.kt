@@ -15,6 +15,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
@@ -24,6 +26,7 @@ import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import kotlinx.coroutines.CompletableDeferred
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
@@ -42,10 +45,15 @@ class AuthScreenTest {
   private var signedInNavigations = 0
   private var verificationNavigations = 0
 
+  // Owns the ViewModel so tearDown can clear it and stop the resend countdown.
+  private val viewModelStore = ViewModelStore()
+
   @Before
   fun setUp() {
     repository = FakeAuthRepository()
-    viewModel = AuthViewModel(repository)
+    viewModel =
+        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository))[
+            AuthViewModel::class.java]
     signedInNavigations = 0
     verificationNavigations = 0
     composeTestRule.setContent {
@@ -58,6 +66,11 @@ class AuthScreenTest {
       }
     }
     composeTestRule.waitForIdle()
+  }
+
+  @After
+  fun tearDown() {
+    viewModelStore.clear()
   }
 
   @Test
