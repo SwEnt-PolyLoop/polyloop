@@ -116,6 +116,17 @@ class FakeChatRepositoryTest {
   }
 
   @Test
+  fun sendingToAnUnknownRentalIsRefusedAndNotStored() = runTest {
+    repository.conversations.value = listOf(older)
+
+    val result = repository.sendMessage("nope", "Hi")
+
+    assertTrue(result.exceptionOrNull() is NoSuchElementException)
+    assertEquals(emptyList<Message>(), repository.observeMessages("nope").first())
+    assertEquals(older, repository.observeConversations("u1").first().single())
+  }
+
+  @Test
   fun failureFailsSendingAndBothFlows() = runTest {
     val error = IOException("offline")
     repository.failure = error
@@ -143,6 +154,7 @@ class FakeChatRepositoryTest {
     val gate = CompletableDeferred<Unit>()
     repository.gate = gate
 
+    repository.conversations.value = listOf(older)
     val sending = async { repository.sendMessage("r1", "Hi") }
     yield()
     assertFalse(sending.isCompleted)

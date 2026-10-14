@@ -15,8 +15,8 @@ import kotlinx.coroutines.flow.update
  * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
  *
  * Tests change [conversations] and [messages] to make the flows emit, like Firestore would.
- * [sendMessage] behaves like the real repository: it checks the text and the signed-in user, then
- * adds the message and updates the conversation.
+ * [sendMessage] behaves like the real repository: it checks the text, the signed-in user and that
+ * the rental exists, then adds the message and updates the conversation.
  */
 class FakeChatRepository(
     // The signed-in user who sends messages; null when nobody is signed in.
@@ -57,6 +57,10 @@ class FakeChatRepository(
     }
     if (text.isBlank()) return Result.failure(IllegalArgumentException("Blank message"))
     val uid = currentUid ?: return Result.failure(IllegalStateException("Nobody is signed in"))
+    // Like Firestore, which refuses to update a rental that does not exist.
+    if (conversations.value.none { it.rentalId == rentalId }) {
+      return Result.failure(NoSuchElementException("No rental $rentalId"))
+    }
 
     messages.update { all ->
       val sent = all[rentalId].orEmpty()
