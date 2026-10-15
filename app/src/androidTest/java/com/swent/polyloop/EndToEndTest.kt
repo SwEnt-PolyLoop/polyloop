@@ -146,7 +146,8 @@ class EndToEndTest {
     waitForTag(C.Tag.auth_check_inbox_screen)
     composeTestRule.onNodeWithTag(C.Tag.auth_resend_button).assertIsNotEnabled()
     pressWhenEnabled(C.Tag.auth_verified_button)
-    waitUntilEnabled(C.Tag.auth_verified_button)
+    // Waits for the log-in attempt to end: it asks to verify the email, and the screen stays.
+    waitForText(C.Tag.auth_error, context.getString(R.string.auth_error_email_not_verified))
     composeTestRule.onNodeWithTag(C.Tag.auth_check_inbox_screen).assertIsDisplayed()
 
     runBlocking { FirebaseEmulator.verifyEmail(email) }
