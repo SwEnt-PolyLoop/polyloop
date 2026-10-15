@@ -23,6 +23,10 @@ object C {
     const val browse_error = "browse_error"
     const val browse_retry_button = "browse_retry_button"
     const val browse_empty = "browse_empty"
+    const val browse_offline = "browse_offline"
+    const val browse_offline_my_rentals_button = "browse_offline_my_rentals_button"
+
+    const val offline_banner = "offline_banner"
 
     fun browseCategoryChip(category: ListingCategory) = "browse_category_chip_${category.name}"
 
@@ -71,6 +75,19 @@ object C {
     const val create_listing_availability_field = "create_listing_availability_field"
     const val create_listing_publish_button = "create_listing_publish_button"
     const val create_listing_publishing = "create_listing_publishing"
+    const val create_listing_screen = "create_listing_screen"
+    const val create_listing_category_error = "create_listing_category_error"
+    const val create_listing_description_field = "create_listing_description_field"
+    const val create_listing_description_error = "create_listing_description_error"
+    const val create_listing_price_field = "create_listing_price_field"
+    const val create_listing_price_error = "create_listing_price_error"
+    const val create_listing_item_value_field = "create_listing_item_value_field"
+    const val create_listing_item_value_error = "create_listing_item_value_error"
+    const val create_listing_availability_error = "create_listing_availability_error"
+    const val create_listing_pickup_field = "create_listing_pickup_field"
+    const val create_listing_pickup_error = "create_listing_pickup_error"
+    const val create_listing_drop_off_field = "create_listing_drop_off_field"
+    const val create_listing_drop_off_error = "create_listing_drop_off_error"
 
     const val date_picker_sheet = "date_picker_sheet"
     const val date_picker_month_title = "date_picker_month_title"
@@ -98,6 +115,13 @@ object C {
     const val auth_email_error = "auth_email_error"
     const val auth_password_error = "auth_password_error"
     const val auth_error = "auth_error"
+    const val auth_check_inbox_screen = "auth_check_inbox_screen"
+    const val auth_check_inbox_body = "auth_check_inbox_body"
+    const val auth_verified_button = "auth_verified_button"
+    const val auth_resend_button = "auth_resend_button"
+    const val auth_email_resent = "auth_email_resent"
+    const val auth_back_to_form_button = "auth_back_to_form_button"
+    const val auth_name_continue_button = "auth_name_continue_button"
 
     const val chat_list_screen = "chat_list_screen"
     const val chat_list_title = "chat_list_title"
@@ -113,6 +137,18 @@ object C {
     const val chat_list_row_time = "chat_list_row_time"
     const val chat_list_row_item = "chat_list_row_item"
     const val chat_list_row_message = "chat_list_row_message"
+
+    const val profile_screen = "profile_screen"
+    const val profile_avatar = "profile_avatar"
+    const val profile_name = "profile_name"
+    const val profile_rating = "profile_rating"
+    const val profile_listings_title = "profile_listings_title"
+    const val profile_listings_empty = "profile_listings_empty"
+    const val profile_sign_out_button = "profile_sign_out_button"
+    const val profile_loading = "profile_loading"
+    const val profile_error = "profile_error"
+    const val profile_retry_button = "profile_retry_button"
+    const val profile_not_found = "profile_not_found"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
@@ -139,6 +175,5 @@ object C {
 
     const val dummy_screen = "dummy_screen"
     const val dummy_screen_text = "dummy_screen_text"
-    const val dummy_screen_continue_button = "dummy_screen_continue_button"
   }
 }

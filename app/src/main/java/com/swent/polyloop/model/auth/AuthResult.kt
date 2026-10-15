@@ -19,6 +19,8 @@ enum class AuthError {
   VERIFICATION_EMAIL_NOT_SENT,
   /** The account was created and the email sent, but the name could not be saved. */
   NAME_NOT_SAVED,
+  /** The user signed in, but their profile could not be created; they are signed out again. */
+  PROFILE_NOT_CREATED,
   TOO_MANY_REQUESTS,
   NETWORK,
   UNKNOWN,

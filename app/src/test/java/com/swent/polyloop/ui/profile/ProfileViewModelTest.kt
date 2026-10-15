@@ -4,12 +4,12 @@ package com.swent.polyloop.ui.profile
 
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
-import com.swent.polyloop.ui.authentication.FakeAuthRepository
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred

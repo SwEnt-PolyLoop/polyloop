@@ -13,5 +13,5 @@ class MainScreen(semanticsProvider: SemanticsNodeInteractionsProvider) :
         viewBuilderAction = { hasTestTag(C.Tag.main_screen_container) },
     ) {
 
-  val continueButton: KNode = child { hasTestTag(C.Tag.dummy_screen_continue_button) }
+  val loginButton: KNode = child { hasTestTag(C.Tag.auth_login_button) }
 }

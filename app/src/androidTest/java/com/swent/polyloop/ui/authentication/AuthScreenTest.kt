@@ -15,17 +15,24 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
-import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import kotlinx.coroutines.CompletableDeferred
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -39,26 +46,26 @@ class AuthScreenTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
   private lateinit var repository: FakeAuthRepository
+  private lateinit var profileRepository: FakeProfileRepository
   private lateinit var viewModel: AuthViewModel
-  private var signedInNavigations = 0
-  private var verificationNavigations = 0
+
+  // Owns the ViewModel so tearDown can clear it and stop the resend countdown.
+  private val viewModelStore = ViewModelStore()
 
   @Before
   fun setUp() {
     repository = FakeAuthRepository()
-    viewModel = AuthViewModel(repository)
-    signedInNavigations = 0
-    verificationNavigations = 0
-    composeTestRule.setContent {
-      PolyLoopTheme {
-        AuthScreen(
-            onSignIn = { signedInNavigations++ },
-            onNavigateToVerification = { verificationNavigations++ },
-            viewModel = viewModel,
-        )
-      }
-    }
+    profileRepository = FakeProfileRepository()
+    viewModel =
+        ViewModelProvider(viewModelStore, AuthViewModel.Factory(repository, profileRepository))[
+            AuthViewModel::class.java]
+    composeTestRule.setContent { PolyLoopTheme { AuthScreen(viewModel = viewModel) } }
     composeTestRule.waitForIdle()
+  }
+
+  @After
+  fun tearDown() {
+    viewModelStore.clear()
   }
 
   @Test
@@ -102,9 +109,7 @@ class AuthScreenTest {
     tap(C.Tag.auth_login_tab)
     tap(C.Tag.auth_login_button)
     composeTestRule.runOnIdle {
-      assertEquals(VALID_EMAIL, repository.loginEmail)
-      assertEquals(VALID_PASSWORD, repository.loginPassword)
-      assertEquals(1, repository.loginCalls)
+      assertEquals(listOf("signIn($VALID_EMAIL, $VALID_PASSWORD)"), repository.calls)
     }
   }
 
@@ -149,39 +154,31 @@ class AuthScreenTest {
   }
 
   @Test
-  fun successfulLoginNavigatesOnce() {
+  fun successfulLoginSignsIn() {
     fillLogin()
     tap(C.Tag.auth_login_button)
-    composeTestRule.runOnIdle {
-      assertEquals(1, signedInNavigations)
-      assertEquals(0, verificationNavigations)
-    }
-    // A harmless state update triggers recomposition, but not a second navigation.
-    type(C.Tag.auth_password_field, "x")
-    composeTestRule.runOnIdle { assertEquals(1, signedInNavigations) }
+    composeTestRule.runOnIdle { assertTrue(viewModel.uiState.value.isSignedIn) }
   }
 
   @Test
-  fun successfulSignUpNavigatesToVerificationOnce() {
+  fun successfulSignUpAwaitsVerificationWithoutSigningIn() {
     fillSignUp()
     tap(C.Tag.auth_signup_button)
     composeTestRule.runOnIdle {
-      assertEquals(0, signedInNavigations)
-      assertEquals(1, verificationNavigations)
+      assertFalse(viewModel.uiState.value.isSignedIn)
+      assertTrue(viewModel.uiState.value.isAwaitingVerification)
     }
-    type(C.Tag.auth_name_field, "x")
-    composeTestRule.runOnIdle { assertEquals(1, verificationNavigations) }
   }
 
   @Test
   fun wrongCredentialsDisplayErrorWithoutNavigation() {
-    repository.loginResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
     fillLogin()
     tap(C.Tag.auth_login_button)
     assertErrorText(C.Tag.auth_error, R.string.auth_error_wrong_credentials)
     composeTestRule.runOnIdle {
-      assertEquals(0, signedInNavigations)
-      assertEquals(0, verificationNavigations)
+      assertFalse(viewModel.uiState.value.isSignedIn)
+      assertFalse(viewModel.uiState.value.isAwaitingVerification)
     }
   }
 
@@ -193,14 +190,71 @@ class AuthScreenTest {
       fillLogin()
       tap(C.Tag.auth_login_button)
       composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertIsNotEnabled()
-      composeTestRule.runOnIdle { assertEquals(0, signedInNavigations) }
+      composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
       gate.complete(Unit)
       composeTestRule.waitForIdle()
       composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertIsEnabled()
-      composeTestRule.runOnIdle { assertEquals(1, signedInNavigations) }
+      composeTestRule.runOnIdle { assertTrue(viewModel.uiState.value.isSignedIn) }
     } finally {
       gate.complete(Unit)
     }
+  }
+
+  @Test
+  fun loginWithoutNameShowsTheNameStepInsteadOfTheForm() {
+    loginWithoutName()
+
+    composeTestRule.onNodeWithText(context.getString(R.string.auth_name_step_title)).assertExists()
+    composeTestRule.onNodeWithTag(C.Tag.auth_name_field).assertExists()
+    composeTestRule.onNodeWithTag(C.Tag.auth_name_continue_button).assertIsEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.auth_login_tab).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.auth_email_field).assertDoesNotExist()
+    composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
+  }
+
+  @Test
+  fun continueWithBlankNameShowsTheNameError() {
+    loginWithoutName()
+
+    tap(C.Tag.auth_name_continue_button)
+
+    assertErrorText(C.Tag.auth_name_error, R.string.auth_name_required)
+    composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
+  }
+
+  @Test
+  fun continueWithNameCreatesTheProfileAndSignsIn() {
+    loginWithoutName()
+
+    type(C.Tag.auth_name_field, VALID_NAME)
+    tap(C.Tag.auth_name_continue_button)
+
+    composeTestRule.runOnIdle {
+      assertEquals(
+          listOf(UserProfile("uid1", VALID_NAME, VALID_EMAIL)),
+          profileRepository.profiles,
+      )
+      assertTrue(viewModel.uiState.value.isSignedIn)
+    }
+  }
+
+  @Test
+  fun profileFailureShowsTheErrorOnTheLoginForm() {
+    profileRepository.failure = IllegalStateException("offline")
+    fillLogin()
+
+    tap(C.Tag.auth_login_button)
+
+    assertErrorText(C.Tag.auth_error, R.string.auth_error_profile_not_created)
+    composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertExists()
+    composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
+  }
+
+  private fun loginWithoutName() {
+    repository.signInResult =
+        AuthResult.Success(AuthUser(uid = "uid1", email = VALID_EMAIL, name = ""))
+    fillLogin()
+    tap(C.Tag.auth_login_button)
   }
 
   private fun assertErrorText(tag: String, messageRes: Int) {
@@ -239,40 +293,4 @@ class AuthScreenTest {
     const val VALID_EMAIL = "john@epfl.ch"
     const val VALID_PASSWORD = "secret123"
   }
-}
-
-/** Test-only controllable dependency: no Firebase or real external operations. */
-private class FakeAuthRepository : AuthRepository {
-  var loginResult: AuthResult<AuthUser> =
-      AuthResult.Success(AuthUser(uid = "test-uid", email = "john@epfl.ch", name = "John"))
-  var gate: CompletableDeferred<Unit>? = null
-
-  var loginCalls = 0
-    private set
-
-  var loginEmail: String? = null
-    private set
-
-  var loginPassword: String? = null
-    private set
-
-  override suspend fun signIn(email: String, password: String): AuthResult<AuthUser> {
-    loginCalls++
-    loginEmail = email
-    loginPassword = password
-    gate?.await()
-    return loginResult
-  }
-
-  override suspend fun signUp(name: String, email: String, password: String): AuthResult<Unit> =
-      AuthResult.Success(Unit)
-
-  override suspend fun resendVerificationEmail(
-      email: String,
-      password: String,
-  ): AuthResult<Unit> = AuthResult.Success(Unit)
-
-  override fun getCurrentUser(): AuthUser? = null
-
-  override fun signOut() = Unit
 }
