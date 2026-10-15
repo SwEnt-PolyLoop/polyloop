@@ -25,6 +25,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.firestore
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
@@ -33,7 +34,9 @@ import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFields
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.listingToDocument
+import com.swent.polyloop.model.profile.ProfileFields
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
+import com.swent.polyloop.model.rental.RentalFields
 import com.swent.polyloop.model.rental.RentalRepositoryFirestore
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
@@ -81,6 +84,9 @@ class EndToEndTest {
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
+  // Documents written by the test itself, deleted after each test.
+  private val seededDocs = mutableListOf<DocumentReference>()
+
   @Before
   fun setUp() {
     FirebaseEmulator.connect()
@@ -92,8 +98,23 @@ class EndToEndTest {
 
   @After
   fun tearDown() {
+    runBlocking {
+      seededDocs.forEach { runCatching { it.delete().await() } }
+      deleteAccount()
+    }
     Firebase.auth.signOut()
     RepositoryProvider.reset()
+  }
+
+  /** Deletes the test's account and its profile, if the test got as far as signing up. */
+  private suspend fun deleteAccount() {
+    runCatching {
+      val user = Firebase.auth.signInWithEmailAndPassword(email, PASSWORD).await().user
+      if (user != null) {
+        Firebase.firestore.collection(ProfileFields.COLLECTION).document(user.uid).delete().await()
+        user.delete().await()
+      }
+    }
   }
 
   @Test
@@ -238,6 +259,7 @@ class EndToEndTest {
           .requestRental(listing, LENDER_NAME, borrower, firstDay, firstDay.plusDays(1))
           .getOrThrow()
     }
+    seededDocs += Firebase.firestore.collection(RentalFields.COLLECTION).document(rental.id)
     val row = C.Tag.my_rentals_row_ + rental.id
 
     // My rentals: the request is under Borrowing, Lending is empty.
@@ -374,6 +396,7 @@ class EndToEndTest {
     ProfileRepositoryFirestore()
         .createProfileIfMissing(lenderId, "$lenderId@epfl.ch", LENDER_NAME)
         .getOrThrow()
+    seededDocs += Firebase.firestore.collection(ProfileFields.COLLECTION).document(lenderId)
     val listing =
         Listing(
             id = "",
@@ -390,13 +413,10 @@ class EndToEndTest {
             pickupArea = "Ecublens",
             dropOffArea = "Renens",
         )
-    val id =
-        Firebase.firestore
-            .collection(ListingFields.COLLECTION)
-            .add(listingToDocument(listing))
-            .await()
-            .id
-    listing.copy(id = id)
+    val document =
+        Firebase.firestore.collection(ListingFields.COLLECTION).add(listingToDocument(listing)).await()
+    seededDocs += document
+    listing.copy(id = document.id)
   }
 
   /**
