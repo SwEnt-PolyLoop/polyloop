@@ -50,7 +50,6 @@ class ChatRepositoryFirestoreTest {
   private val newMessage = mockk<DocumentReference>()
   private val messagesQuery = mockk<Query>()
   private val myRentals = mockk<Query>()
-  private val myRentalsQuery = mockk<Query>()
   private val batch = mockk<WriteBatch>()
   private val registration = mockk<ListenerRegistration>(relaxed = true)
   private val repository = ChatRepositoryFirestore(db, auth)
@@ -77,7 +76,6 @@ class ChatRepositoryFirestoreTest {
     every { messages.document() } returns newMessage
     every { messages.orderBy("sentAt") } returns messagesQuery
     every { rentals.whereArrayContains("participants", "u1") } returns myRentals
-    every { myRentals.orderBy("lastMessageAt", Query.Direction.DESCENDING) } returns myRentalsQuery
 
     every { db.batch() } returns batch
     every { batch.set(newMessage, capture(messageData)) } returns batch
@@ -221,8 +219,8 @@ class ChatRepositoryFirestoreTest {
       )
 
   @Test
-  fun conversationsComeFromTheUsersRentalsNewestFirst() = runTest {
-    every { myRentalsQuery.addSnapshotListener(capture(listener)) } answers
+  fun conversationsComeFromTheUsersRentals() = runTest {
+    every { myRentals.addSnapshotListener(capture(listener)) } answers
         {
           listener.captured.onEvent(
               snapshotOf(document("r1", rentalData), document("r9", mapOf("ownerId" to "u1"))),
@@ -247,9 +245,32 @@ class ChatRepositoryFirestoreTest {
         ),
         repository.observeConversations("u1").first(),
     )
-    // The query itself does the filtering and sorting (checked for real on the emulator).
+    // The query does the filtering (checked for real on the emulator).
     verify { rentals.whereArrayContains("participants", "u1") }
-    verify { myRentals.orderBy("lastMessageAt", Query.Direction.DESCENDING) }
+  }
+
+  @Test
+  fun conversationsAreSortedNewestFirstWithoutAskingFirestoreToSort() = runTest {
+    fun rentalAt(id: String, minutes: Long) =
+        document(
+            id,
+            rentalData + ("lastMessageAt" to Timestamp(sentAt.epochSecond + minutes * 60, 0)),
+        )
+    every { myRentals.addSnapshotListener(capture(listener)) } answers
+        {
+          listener.captured.onEvent(
+              snapshotOf(rentalAt("old", 0), rentalAt("new", 10), rentalAt("middle", 5)),
+              null,
+          )
+          registration
+        }
+
+    assertEquals(
+        listOf("new", "middle", "old"),
+        repository.observeConversations("u1").first().map { it.rentalId },
+    )
+    // Sorting by Firestore would need a composite index on the real database.
+    verify(exactly = 0) { myRentals.orderBy(any<String>(), any()) }
   }
 
   @Test
