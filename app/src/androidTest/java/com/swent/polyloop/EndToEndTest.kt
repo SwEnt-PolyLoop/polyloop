@@ -29,6 +29,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
+import com.google.firebase.firestore.snapshots
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
@@ -45,6 +46,7 @@ import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.tasks.await
@@ -52,7 +54,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -384,14 +385,17 @@ class EndToEndTest {
     composeTestRule.onNodeWithTag(C.Tag.create_listing_publish_button).performClick()
     assertRoute(Screen.CreateListing)
     val uid = requireNotNull(RepositoryProvider.authRepository.getCurrentUser()).uid
-    val ownListings = runBlocking {
-      Firebase.firestore
-          .collection(ListingFields.COLLECTION)
-          .whereEqualTo(ListingFields.OWNER_ID, uid)
-          .get()
-          .await()
+    // A wrongly accepted Publish would write later, from a coroutine: keep watching for a while.
+    val ownListing = runBlocking {
+      withTimeoutOrNull(NO_WRITE_WAIT_MS) {
+        Firebase.firestore
+            .collection(ListingFields.COLLECTION)
+            .whereEqualTo(ListingFields.OWNER_ID, uid)
+            .snapshots()
+            .first { !it.isEmpty }
+      }
     }
-    assertTrue(ownListings.isEmpty)
+    assertNull(ownListing)
   }
 
   private fun openFromMenu(screen: Screen.TopLevel) {
@@ -549,6 +553,9 @@ class EndToEndTest {
     const val PASSWORD = "Password123!"
     const val TIMEOUT_MS = 15_000L
     const val CLEANUP_TIMEOUT_MS = 30_000L
+
+    /** How long a refused Publish is watched, to be sure it writes nothing. */
+    const val NO_WRITE_WAIT_MS = 3_000L
 
     /** The test's days are at most one month ahead; a few more months leaves room. */
     const val MAX_MONTHS_AHEAD = 3
