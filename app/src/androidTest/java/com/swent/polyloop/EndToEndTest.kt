@@ -79,8 +79,6 @@ class EndToEndTest {
   private val firstDay =
       if (today.plusDays(2).month == today.month) today else today.plusMonths(1).withDayOfMonth(1)
 
-  private lateinit var listing: Listing
-
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
   @Before
@@ -90,8 +88,6 @@ class EndToEndTest {
     Firebase.auth.signOut()
     RepositoryProvider.reset()
     RepositoryProvider.connectivityRepository = FakeConnectivityRepository(online = true)
-    // Written before the app starts: Browse loads the listings once, when it opens.
-    listing = runBlocking { seedLenderAndListing() }
   }
 
   @After
@@ -175,6 +171,7 @@ class EndToEndTest {
 
   @Test
   fun browseFindsAListingAndOpensItsDetail() {
+    val listing = seedLenderAndListing()
     setApp()
     signUpAndVerify()
     val card = C.Tag.listing_card_ + listing.id
@@ -231,6 +228,7 @@ class EndToEndTest {
 
   @Test
   fun rentalRequestShowsInMyRentalsAndChatList() {
+    val listing = seedLenderAndListing()
     setApp()
     signUpAndVerify()
     // Sent by the test: the Request button does not send it yet.
@@ -368,8 +366,11 @@ class EndToEndTest {
     waitForTag(C.Tag.browse_screen)
   }
 
-  /** The lender's profile and a published listing of theirs, as the app would have saved them. */
-  private suspend fun seedLenderAndListing(): Listing {
+  /**
+   * The lender's profile and a published listing of theirs, as the app would have saved them.
+   * Called before [setApp]: Browse loads the listings once, when it opens.
+   */
+  private fun seedLenderAndListing(): Listing = runBlocking {
     ProfileRepositoryFirestore()
         .createProfileIfMissing(lenderId, "$lenderId@epfl.ch", LENDER_NAME)
         .getOrThrow()
@@ -395,7 +396,7 @@ class EndToEndTest {
             .add(listingToDocument(listing))
             .await()
             .id
-    return listing.copy(id = id)
+    listing.copy(id = id)
   }
 
   /**
