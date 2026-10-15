@@ -3,9 +3,11 @@
 package com.swent.polyloop
 
 import android.util.Log
-import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -19,7 +21,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
-import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -75,7 +77,10 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class EndToEndTest {
 
-  @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+  @get:Rule val composeTestRule = createComposeRule()
+
+  // Set to false before the cleanup, to take the app off the screen.
+  private var showApp by mutableStateOf(true)
 
   private lateinit var navController: NavHostController
 
@@ -113,9 +118,10 @@ class EndToEndTest {
 
   @After
   fun tearDown() {
-    // Closes the app first: its listeners and auth navigation would react to the deletes and the
-    // sign-out below.
-    composeTestRule.activityRule.scenario.close()
+    // Takes the app off the screen first, so its screens and auth navigation do not react to the
+    // deletes and the sign-out below.
+    composeTestRule.runOnIdle { showApp = false }
+    composeTestRule.waitForIdle()
     // Best effort, but bounded: a delete waits for the server, so a lost emulator would hang here.
     runBlocking {
       withTimeoutOrNull(CLEANUP_TIMEOUT_MS) {
@@ -140,8 +146,11 @@ class EndToEndTest {
           Firebase.auth.currentUser?.takeIf { it.email == email }
               ?: Firebase.auth.signInWithEmailAndPassword(email, PASSWORD).await().user
       if (user != null) {
-        runInterruptible(Dispatchers.IO) {
-          FirebaseEmulator.deleteDocumentAsAdmin("${ProfileFields.COLLECTION}/${user.uid}")
+        // Separate steps, so a failed profile delete still deletes the account.
+        bestEffort {
+          runInterruptible(Dispatchers.IO) {
+            FirebaseEmulator.deleteDocumentAsAdmin("${ProfileFields.COLLECTION}/${user.uid}")
+          }
         }
         user.delete().await()
       }
@@ -294,6 +303,8 @@ class EndToEndTest {
     composeTestRule
         .onNodeWithTag(C.Tag.date_picker_summary_total)
         .assertTextEquals(context.getString(R.string.listing_card_price, 2 * PRICE_PER_DAY))
+    // Enabled only because Listing detail still uses a placeholder balance: once it reads the
+    // wallet, the test must give the new account enough PolyPoints first.
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
     composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertDoesNotExist()
     assertRoute(Screen.ListingDetail)
@@ -406,7 +417,7 @@ class EndToEndTest {
             .first { !it.isEmpty }
       }
     }
-    assertNull(ownListing)
+    assertNull("Publish without photos wrote a listing", ownListing)
   }
 
   private fun openFromMenu(screen: Screen.TopLevel) {
@@ -524,9 +535,11 @@ class EndToEndTest {
 
   private fun setApp() {
     composeTestRule.setContent {
-      backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
-      navController = rememberNavController()
-      PolyLoopApp(navController = navController)
+      if (showApp) {
+        backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+        navController = rememberNavController()
+        PolyLoopApp(navController = navController)
+      }
     }
   }
 
@@ -589,6 +602,6 @@ class EndToEndTest {
     const val CLEANUP_TIMEOUT_MS = 30_000L
 
     /** How long a refused Publish is watched, to be sure it writes nothing. */
-    const val NO_WRITE_WAIT_MS = 3_000L
+    const val NO_WRITE_WAIT_MS = 5_000L
   }
 }

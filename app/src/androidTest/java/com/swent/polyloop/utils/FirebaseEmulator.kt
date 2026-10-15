@@ -50,7 +50,7 @@ object FirebaseEmulator {
    */
   suspend fun verifyEmail(email: String) {
     val projectId = FirebaseApp.getInstance().options.projectId
-    val json = URL("http://$HOST:$AUTH_PORT/emulator/v1/projects/$projectId/oobCodes").readText()
+    val json = request("GET", "http://$HOST:$AUTH_PORT/emulator/v1/projects/$projectId/oobCodes")
     val codes = JSONObject(json).getJSONArray("oobCodes")
     val code =
         (0 until codes.length())
@@ -70,14 +70,14 @@ object FirebaseEmulator {
     val collection = path.substringBeforeLast('/')
     val id = path.substringAfterLast('/')
     val body = JSONObject().put("fields", toFields(fields))
-    adminRequest("POST", "${documentsUrl()}/$collection?documentId=$id", body.toString())
+    request("POST", "${documentsUrl()}/$collection?documentId=$id", body.toString(), asAdmin = true)
   }
 
   /**
    * Deletes the document at [path], skipping the Security Rules. A missing document is no error.
    */
   fun deleteDocumentAsAdmin(path: String) {
-    adminRequest("DELETE", "${documentsUrl()}/$path", body = null)
+    request("DELETE", "${documentsUrl()}/$path", asAdmin = true)
   }
 
   private fun documentsUrl(): String {
@@ -85,14 +85,20 @@ object FirebaseEmulator {
     return "http://$HOST:$FIRESTORE_PORT/v1/projects/$projectId/databases/(default)/documents"
   }
 
-  private fun adminRequest(method: String, url: String, body: String?) {
+  /** Sends a bounded HTTP request to an emulator and returns the response body. */
+  private fun request(
+      method: String,
+      url: String,
+      body: String? = null,
+      asAdmin: Boolean = false,
+  ): String {
     val connection = URL(url).openConnection() as HttpURLConnection
     connection.requestMethod = method
     connection.connectTimeout = REQUEST_TIMEOUT_MS
     connection.readTimeout = REQUEST_TIMEOUT_MS
     // The Firestore emulator lets this token skip the Security Rules.
-    connection.setRequestProperty("Authorization", "Bearer owner")
-    try {
+    if (asAdmin) connection.setRequestProperty("Authorization", "Bearer owner")
+    return try {
       if (body != null) {
         connection.doOutput = true
         connection.setRequestProperty("Content-Type", "application/json")
@@ -102,6 +108,7 @@ object FirebaseEmulator {
       check(code in 200..299) {
         "$method $url failed ($code): ${connection.errorStream?.bufferedReader()?.readText()}"
       }
+      connection.inputStream.bufferedReader().use { it.readText() }
     } finally {
       connection.disconnect()
     }
@@ -115,11 +122,18 @@ object FirebaseEmulator {
       when (value) {
         null -> JSONObject().put("nullValue", JSONObject.NULL)
         is String -> JSONObject().put("stringValue", value)
+        is Boolean -> JSONObject().put("booleanValue", value)
         is Int,
         is Long -> JSONObject().put("integerValue", value.toString())
         is List<*> ->
             JSONObject()
                 .put("arrayValue", JSONObject().put("values", JSONArray(value.map(::toValue))))
+        is Map<*, *> ->
+            JSONObject()
+                .put(
+                    "mapValue",
+                    JSONObject().put("fields", toFields(value.mapKeys { it.key.toString() })),
+                )
         else -> throw IllegalArgumentException("Unsupported field value: $value")
       }
 
