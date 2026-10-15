@@ -8,6 +8,7 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -26,6 +27,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.navigation.NavHostController
@@ -199,7 +201,8 @@ class EndToEndTest {
         .performScrollTo()
         .performTextInput(PASSWORD)
     composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).performScrollTo().performClick()
-    composeTestRule.onNodeWithTag(C.Tag.auth_email_error).assertIsDisplayed()
+    // Scrolled to: on a phone, the open keyboard pushes the form up past the email field.
+    composeTestRule.onNodeWithTag(C.Tag.auth_email_error).performScrollTo().assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.auth_check_inbox_screen).assertDoesNotExist()
 
     composeTestRule.onNodeWithTag(C.Tag.auth_email_field).performTextReplacement(email)
@@ -290,7 +293,7 @@ class EndToEndTest {
     composeTestRule.onNodeWithTag(card).performClick()
     waitForText(C.Tag.listing_detail_title, listing.title)
     assertRoute(Screen.ListingDetail)
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_price).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_price).performScrollTo().assertIsDisplayed()
     composeTestRule
         .onNodeWithTag(C.Tag.listing_detail_deposit)
         .performScrollTo()
@@ -380,13 +383,15 @@ class EndToEndTest {
 
     fillField(C.Tag.create_listing_title_field, "Electric drill")
     fillField(C.Tag.create_listing_description_field, "Cordless, two batteries.")
+    // Tapped through their click action: on a phone, the keyboard left open by the description can
+    // cover the menu, and a real tap would then land on the keyboard.
     composeTestRule
         .onNodeWithTag(C.Tag.create_listing_category_field)
         .performScrollTo()
-        .performClick()
+        .performSemanticsAction(SemanticsActions.OnClick)
     composeTestRule
         .onNodeWithTag(C.Tag.create_listing_category_option_ + ListingCategory.TOOLS_DIY.name)
-        .performClick()
+        .performSemanticsAction(SemanticsActions.OnClick)
     fillField(C.Tag.create_listing_price_field, "4")
     fillField(C.Tag.create_listing_item_value_field, "90")
     composeTestRule
