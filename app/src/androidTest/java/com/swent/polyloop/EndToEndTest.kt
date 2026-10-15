@@ -361,12 +361,17 @@ class EndToEndTest {
     composeTestRule.onNodeWithTag(row).performClick()
     assertOpenedFor(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
 
-    // Chat list: the rental's conversation opens its chat.
+    // Chat list: the rental's conversation opens its chat, whose header names the lender and the
+    // item (a wrong rental would show another title), and links back to Rental detail.
     openFromMenu(Screen.ChatList)
     val conversation = C.Tag.chat_list_row_ + rental.id
     waitForTag(conversation)
     composeTestRule.onNodeWithTag(conversation).performClick()
-    assertOpenedFor(Screen.Chat, Screen.Chat.createRoute(rental.id))
+    waitForText(C.Tag.chat_header_item, listing.title)
+    assertRoute(Screen.Chat)
+    composeTestRule.onNodeWithTag(C.Tag.chat_header_name).assertTextEquals(LENDER_NAME)
+    composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
+    assertOpenedFor(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
   }
 
   @Test
