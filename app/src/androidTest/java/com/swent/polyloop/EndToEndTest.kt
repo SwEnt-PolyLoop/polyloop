@@ -79,10 +79,13 @@ class EndToEndTest {
   private val lenderId = "lender-${UUID.randomUUID()}"
   private val titleWord = List(8) { ('a'..'z').random() }.joinToString("")
 
-  // The listing is available four days in the same month, so the date picker shows them all.
-  private val today = LocalDate.now()
+  // The listing is available four days in the same month, so the date picker shows them all. It
+  // starts tomorrow at the earliest: today is a pickup day, and a run that goes past midnight
+  // still finds the first day selectable.
   private val firstDay =
-      if (today.plusDays(3).month == today.month) today else today.plusMonths(1).withDayOfMonth(1)
+      LocalDate.now().plusDays(1).let {
+        if (it.plusDays(3).month == it.month) it else it.plusMonths(1).withDayOfMonth(1)
+      }
   private val lastDay = firstDay.plusDays(3)
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
