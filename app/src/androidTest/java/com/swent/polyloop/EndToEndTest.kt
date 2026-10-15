@@ -3,6 +3,7 @@
 package com.swent.polyloop
 
 import android.util.Log
+import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.semantics.SemanticsNode
@@ -18,7 +19,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
-import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -74,7 +75,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class EndToEndTest {
 
-  @get:Rule val composeTestRule = createComposeRule()
+  @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
   private lateinit var navController: NavHostController
 
@@ -112,6 +113,9 @@ class EndToEndTest {
 
   @After
   fun tearDown() {
+    // Closes the app first: its listeners and auth navigation would react to the deletes and the
+    // sign-out below.
+    composeTestRule.activityRule.scenario.close()
     // Best effort, but bounded: a delete waits for the server, so a lost emulator would hang here.
     runBlocking {
       withTimeoutOrNull(CLEANUP_TIMEOUT_MS) {
