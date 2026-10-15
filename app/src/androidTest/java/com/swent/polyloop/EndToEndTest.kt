@@ -2,6 +2,7 @@
 
 package com.swent.polyloop
 
+import android.util.Log
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.test.SemanticsMatcher
@@ -42,6 +43,7 @@ import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.time.LocalDate
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
@@ -110,7 +112,7 @@ class EndToEndTest {
       withTimeoutOrNull(CLEANUP_TIMEOUT_MS) {
         // As an admin: the rules forbid the borrower to delete other people's data or a rental.
         seededDocs.forEach { path ->
-          runCatching {
+          bestEffort {
             runInterruptible(Dispatchers.IO) { FirebaseEmulator.deleteDocumentAsAdmin(path) }
           }
         }
@@ -123,7 +125,7 @@ class EndToEndTest {
 
   /** Deletes the test's account and its profile, if the test got as far as signing up. */
   private suspend fun deleteAccount() {
-    runCatching {
+    bestEffort {
       val user = Firebase.auth.signInWithEmailAndPassword(email, PASSWORD).await().user
       if (user != null) {
         runInterruptible(Dispatchers.IO) {
@@ -131,6 +133,20 @@ class EndToEndTest {
         }
         user.delete().await()
       }
+    }
+  }
+
+  /**
+   * Runs [block] and ignores its failure, but not a cancellation: the cleanup timeout must still
+   * stop the remaining steps.
+   */
+  private suspend fun bestEffort(block: suspend () -> Unit) {
+    try {
+      block()
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      Log.w(TAG, "Cleanup step failed", e)
     }
   }
 
@@ -513,6 +529,7 @@ class EndToEndTest {
   }
 
   private companion object {
+    const val TAG = "EndToEndTest"
     const val NAME = "Eve Student"
     const val LENDER_NAME = "Lena"
     const val PRICE_PER_DAY = 5
