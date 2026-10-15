@@ -135,7 +135,10 @@ class EndToEndTest {
   /** Deletes the test's account and its profile, if the test got as far as signing up. */
   private suspend fun deleteAccount() {
     bestEffort {
-      val user = Firebase.auth.signInWithEmailAndPassword(email, PASSWORD).await().user
+      // Usually still signed in from the test; signs in again only if not.
+      val user =
+          Firebase.auth.currentUser?.takeIf { it.email == email }
+              ?: Firebase.auth.signInWithEmailAndPassword(email, PASSWORD).await().user
       if (user != null) {
         runInterruptible(Dispatchers.IO) {
           FirebaseEmulator.deleteDocumentAsAdmin("${ProfileFields.COLLECTION}/${user.uid}")
