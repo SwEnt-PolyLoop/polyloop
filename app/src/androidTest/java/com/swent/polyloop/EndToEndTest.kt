@@ -118,10 +118,20 @@ class EndToEndTest {
 
   @After
   fun tearDown() {
-    // Takes the app off the screen first, so its screens and auth navigation do not react to the
-    // deletes and the sign-out below.
-    composeTestRule.runOnIdle { showApp = false }
-    composeTestRule.waitForIdle()
+    try {
+      // Takes the app off the screen first, so its screens and auth navigation do not react to
+      // the deletes and the sign-out below.
+      composeTestRule.runOnIdle { showApp = false }
+      composeTestRule.waitForIdle()
+    } finally {
+      // Only on the emulators: if connect() failed, Firebase still points at the real project.
+      if (FirebaseEmulator.connected) deleteTestData()
+      RepositoryProvider.reset()
+    }
+  }
+
+  /** Deletes what the test wrote, then signs out. */
+  private fun deleteTestData() {
     // Best effort, but bounded: a delete waits for the server, so a lost emulator would hang here.
     runBlocking {
       withTimeoutOrNull(CLEANUP_TIMEOUT_MS) {
@@ -135,7 +145,6 @@ class EndToEndTest {
       }
     }
     Firebase.auth.signOut()
-    RepositoryProvider.reset()
   }
 
   /** Deletes the test's account and its profile, if the test got as far as signing up. */
@@ -503,7 +512,10 @@ class EndToEndTest {
   private fun pickDay(day: LocalDate) {
     val target = YearMonth.from(day)
     var shown = shownMonth()
+    var moves = 0
     while (shown != target) {
+      // A click that does not change the month would otherwise loop forever.
+      if (moves++ == MAX_MONTH_MOVES) fail("The date picker never reached the month of $day")
       val arrow = if (shown < target) C.Tag.date_picker_next_month else C.Tag.date_picker_prev_month
       if (
           composeTestRule
@@ -603,5 +615,8 @@ class EndToEndTest {
 
     /** How long a refused Publish is watched, to be sure it writes nothing. */
     const val NO_WRITE_WAIT_MS = 5_000L
+
+    /** The test's days are at most two months away; a year leaves plenty of room. */
+    const val MAX_MONTH_MOVES = 12
   }
 }
