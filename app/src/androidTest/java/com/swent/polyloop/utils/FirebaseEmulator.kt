@@ -11,6 +11,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.tasks.await
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.fail
 
@@ -26,6 +27,7 @@ object FirebaseEmulator {
   private const val FIRESTORE_PORT = 8080
   private const val STORAGE_PORT = 9199
   private const val TIMEOUT_MS = 2000
+  private const val REQUEST_TIMEOUT_MS = 10_000
 
   private var connected = false
 
@@ -59,6 +61,67 @@ object FirebaseEmulator {
             .getString("oobCode")
     Firebase.auth.applyActionCode(code).await()
   }
+
+  /**
+   * Creates the document at [path] (e.g. "users/abc") with [fields], skipping the Security Rules as
+   * an admin would. For test data that belongs to another user, which the app may not write.
+   */
+  fun createDocumentAsAdmin(path: String, fields: Map<String, Any?>) {
+    val collection = path.substringBeforeLast('/')
+    val id = path.substringAfterLast('/')
+    val body = JSONObject().put("fields", toFields(fields))
+    adminRequest("POST", "${documentsUrl()}/$collection?documentId=$id", body.toString())
+  }
+
+  /**
+   * Deletes the document at [path], skipping the Security Rules. A missing document is no error.
+   */
+  fun deleteDocumentAsAdmin(path: String) {
+    adminRequest("DELETE", "${documentsUrl()}/$path", body = null)
+  }
+
+  private fun documentsUrl(): String {
+    val projectId = FirebaseApp.getInstance().options.projectId
+    return "http://$HOST:$FIRESTORE_PORT/v1/projects/$projectId/databases/(default)/documents"
+  }
+
+  private fun adminRequest(method: String, url: String, body: String?) {
+    val connection = URL(url).openConnection() as HttpURLConnection
+    connection.requestMethod = method
+    connection.connectTimeout = REQUEST_TIMEOUT_MS
+    connection.readTimeout = REQUEST_TIMEOUT_MS
+    // The Firestore emulator lets this token skip the Security Rules.
+    connection.setRequestProperty("Authorization", "Bearer owner")
+    try {
+      if (body != null) {
+        connection.doOutput = true
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.outputStream.use { it.write(body.toByteArray()) }
+      }
+      val code = connection.responseCode
+      check(code in 200..299) {
+        "$method $url failed ($code): ${connection.errorStream?.bufferedReader()?.readText()}"
+      }
+    } finally {
+      connection.disconnect()
+    }
+  }
+
+  /** The fields of a Firestore REST document. Covers the types the tests write. */
+  private fun toFields(fields: Map<String, Any?>): JSONObject =
+      JSONObject().apply { fields.forEach { (name, value) -> put(name, toValue(value)) } }
+
+  private fun toValue(value: Any?): JSONObject =
+      when (value) {
+        null -> JSONObject().put("nullValue", JSONObject.NULL)
+        is String -> JSONObject().put("stringValue", value)
+        is Int,
+        is Long -> JSONObject().put("integerValue", value.toString())
+        is List<*> ->
+            JSONObject()
+                .put("arrayValue", JSONObject().put("values", JSONArray(value.map(::toValue))))
+        else -> throw IllegalArgumentException("Unsupported field value: $value")
+      }
 
   /** True if an emulator answers on [port]. Any status code counts: only the answer matters. */
   private fun isRunning(port: Int): Boolean {

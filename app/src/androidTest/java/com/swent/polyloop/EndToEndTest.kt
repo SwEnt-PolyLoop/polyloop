@@ -27,7 +27,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
-import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.firestore
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
@@ -37,14 +36,15 @@ import com.swent.polyloop.model.listing.ListingFields
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.listingToDocument
 import com.swent.polyloop.model.profile.ProfileFields
-import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.RentalFields
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.time.LocalDate
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
@@ -91,8 +91,8 @@ class EndToEndTest {
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
-  // Documents written by the test itself, deleted after each test.
-  private val seededDocs = mutableListOf<DocumentReference>()
+  // Paths of the documents written by the test itself, deleted after each test.
+  private val seededDocs = mutableListOf<String>()
 
   @Before
   fun setUp() {
@@ -108,7 +108,12 @@ class EndToEndTest {
     // Best effort, but bounded: a delete waits for the server, so a lost emulator would hang here.
     runBlocking {
       withTimeoutOrNull(CLEANUP_TIMEOUT_MS) {
-        seededDocs.forEach { runCatching { it.delete().await() } }
+        // As an admin: the rules forbid the borrower to delete other people's data or a rental.
+        seededDocs.forEach { path ->
+          runCatching {
+            runInterruptible(Dispatchers.IO) { FirebaseEmulator.deleteDocumentAsAdmin(path) }
+          }
+        }
         deleteAccount()
       }
     }
@@ -121,7 +126,9 @@ class EndToEndTest {
     runCatching {
       val user = Firebase.auth.signInWithEmailAndPassword(email, PASSWORD).await().user
       if (user != null) {
-        Firebase.firestore.collection(ProfileFields.COLLECTION).document(user.uid).delete().await()
+        runInterruptible(Dispatchers.IO) {
+          FirebaseEmulator.deleteDocumentAsAdmin("${ProfileFields.COLLECTION}/${user.uid}")
+        }
         user.delete().await()
       }
     }
@@ -283,7 +290,7 @@ class EndToEndTest {
           .requestRental(listing, LENDER_NAME, borrower, firstDay, firstDay.plusDays(1))
           .getOrThrow()
     }
-    seededDocs += Firebase.firestore.collection(RentalFields.COLLECTION).document(rental.id)
+    seededDocs += "${RentalFields.COLLECTION}/${rental.id}"
     val row = C.Tag.my_rentals_row_ + rental.id
 
     // My rentals: the request is under Borrowing, Lending is empty.
@@ -405,16 +412,23 @@ class EndToEndTest {
 
   /**
    * The lender's profile and a published listing of theirs, as the app would have saved them.
-   * Called before [setApp]: Browse loads the listings once, when it opens.
+   * Written as an admin: the rules let only the lender write them. Called before [setApp]: Browse
+   * loads the listings once, when it opens.
    */
-  private fun seedLenderAndListing(): Listing = runBlocking {
-    ProfileRepositoryFirestore()
-        .createProfileIfMissing(lenderId, "$lenderId@epfl.ch", LENDER_NAME)
-        .getOrThrow()
-    seededDocs += Firebase.firestore.collection(ProfileFields.COLLECTION).document(lenderId)
+  private fun seedLenderAndListing(): Listing {
+    val profilePath = "${ProfileFields.COLLECTION}/$lenderId"
+    FirebaseEmulator.createDocumentAsAdmin(
+        profilePath,
+        mapOf(
+            ProfileFields.NAME to LENDER_NAME,
+            ProfileFields.EMAIL to "$lenderId@epfl.ch",
+            ProfileFields.PHOTO_URL to "",
+        ),
+    )
+    seededDocs += profilePath
     val listing =
         Listing(
-            id = "",
+            id = UUID.randomUUID().toString(),
             ownerId = lenderId,
             title = "Camping tent $titleWord",
             description = "Light 2-person tent.",
@@ -428,13 +442,10 @@ class EndToEndTest {
             pickupArea = "Ecublens",
             dropOffArea = "Renens",
         )
-    val document =
-        Firebase.firestore
-            .collection(ListingFields.COLLECTION)
-            .add(listingToDocument(listing))
-            .await()
-    seededDocs += document
-    listing.copy(id = document.id)
+    val listingPath = "${ListingFields.COLLECTION}/${listing.id}"
+    FirebaseEmulator.createDocumentAsAdmin(listingPath, listingToDocument(listing))
+    seededDocs += listingPath
+    return listing
   }
 
   /** Taps [start] then [end] in the open date picker. */
