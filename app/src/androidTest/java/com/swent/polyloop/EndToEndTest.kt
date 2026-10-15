@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -33,8 +34,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
-import com.google.firebase.firestore.snapshots
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
@@ -52,7 +53,6 @@ import java.time.YearMonth
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.tasks.await
@@ -60,6 +60,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
@@ -266,7 +267,7 @@ class EndToEndTest {
     waitForTag(card)
     composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).performClick()
     composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput("zzqqxxnotaword")
-    composeTestRule.onNodeWithTag(C.Tag.browse_empty).assertIsDisplayed()
+    waitForTag(C.Tag.browse_empty)
     composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).performClick()
 
     // Categories: another category hides it, "All" brings it back.
@@ -415,18 +416,18 @@ class EndToEndTest {
     // Publish is refused without photos: the form stays and nothing reaches Firestore.
     composeTestRule.onNodeWithTag(C.Tag.create_listing_publish_button).performClick()
     assertRoute(Screen.CreateListing)
+    // A Publish that went through would still be running (the button disabled while it uploads)
+    // or would already have written the listing.
+    composeTestRule.onNodeWithTag(C.Tag.create_listing_publish_button).assertIsEnabled()
     val uid = requireNotNull(RepositoryProvider.authRepository.getCurrentUser()).uid
-    // A wrongly accepted Publish would write later, from a coroutine: keep watching for a while.
-    val ownListing = runBlocking {
-      withTimeoutOrNull(NO_WRITE_WAIT_MS) {
-        Firebase.firestore
-            .collection(ListingFields.COLLECTION)
-            .whereEqualTo(ListingFields.OWNER_ID, uid)
-            .snapshots()
-            .first { !it.isEmpty }
-      }
+    val ownListings = runBlocking {
+      Firebase.firestore
+          .collection(ListingFields.COLLECTION)
+          .whereEqualTo(ListingFields.OWNER_ID, uid)
+          .get(Source.SERVER)
+          .await()
     }
-    assertNull("Publish without photos wrote a listing", ownListing)
+    assertTrue("Publish without photos wrote a listing", ownListings.isEmpty)
   }
 
   private fun openFromMenu(screen: Screen.TopLevel) {
@@ -612,9 +613,6 @@ class EndToEndTest {
     const val PASSWORD = "Password123!"
     const val TIMEOUT_MS = 15_000L
     const val CLEANUP_TIMEOUT_MS = 30_000L
-
-    /** How long a refused Publish is watched, to be sure it writes nothing. */
-    const val NO_WRITE_WAIT_MS = 5_000L
 
     /** The test's days are at most two months away; a year leaves plenty of room. */
     const val MAX_MONTH_MOVES = 12
