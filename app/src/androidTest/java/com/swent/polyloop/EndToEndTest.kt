@@ -213,10 +213,7 @@ class EndToEndTest {
         .assertIsDisplayed()
 
     // Request: pick two days; confirming closes the picker (sending the request comes later).
-    composeTestRule
-        .onNodeWithTag(C.Tag.listing_detail_request_button)
-        .performScrollTo()
-        .performClick()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).performClick()
     waitForTag(C.Tag.date_picker_sheet)
     pickDays(firstDay, firstDay.plusDays(1))
     composeTestRule.onNodeWithTag(C.Tag.date_picker_summary_total).assertIsDisplayed()
@@ -276,10 +273,7 @@ class EndToEndTest {
     openFromMenu(Screen.CreateListing)
     waitForTag(C.Tag.create_listing_screen)
 
-    composeTestRule
-        .onNodeWithTag(C.Tag.create_listing_publish_button)
-        .performScrollTo()
-        .performClick()
+    composeTestRule.onNodeWithTag(C.Tag.create_listing_publish_button).performClick()
     FIELD_ERRORS.forEach { error ->
       composeTestRule.onNodeWithTag(error).performScrollTo().assertIsDisplayed()
     }
@@ -309,14 +303,17 @@ class EndToEndTest {
     FIELD_ERRORS.forEach { error -> composeTestRule.onNodeWithTag(error).assertDoesNotExist() }
     // Only the photos are missing: "Add photo" does not open the camera yet.
     composeTestRule.onNodeWithTag(C.Tag.create_listing_add_photo).performScrollTo().performClick()
+    // Checked by its text: on a phone the keyboard left open by the last field can cover it.
     composeTestRule
         .onNodeWithTag(C.Tag.create_listing_photos_hint)
-        .performScrollTo()
-        .assertIsDisplayed()
-    composeTestRule
-        .onNodeWithTag(C.Tag.create_listing_publish_button)
-        .performScrollTo()
-        .performClick()
+        .assertTextEquals(
+            context.resources.getQuantityString(
+                R.plurals.create_listing_missing_photos,
+                Listing.MIN_PHOTOS,
+                Listing.MIN_PHOTOS,
+            )
+        )
+    composeTestRule.onNodeWithTag(C.Tag.create_listing_publish_button).performClick()
     assertRoute(Screen.CreateListing)
   }
 
