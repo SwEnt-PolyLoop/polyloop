@@ -5,6 +5,7 @@ package com.swent.polyloop.model.chat
 import com.swent.polyloop.model.rental.RentalStatus
 import java.io.IOException
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -32,6 +33,8 @@ class FakeChatRepositoryTest {
           lastMessage = "",
           lastMessageAt = Instant.parse(at),
           status = RentalStatus.REQUESTED,
+          startDate = LocalDate.of(2026, 10, 20),
+          endDate = LocalDate.of(2026, 10, 22),
       )
 
   private val older = conversation("r1", owner = "u1", borrower = "u2", at = "2026-10-10T10:00:00Z")
@@ -165,5 +168,25 @@ class FakeChatRepositoryTest {
     gate.complete(Unit)
     assertTrue(sending.await().isSuccess)
     assertEquals(1, repository.observeMessages("r1").first().size)
+  }
+
+  // ---------- getConversation ----------
+
+  @Test
+  fun getConversationFindsTheRental() = runTest {
+    repository.conversations.value = listOf(older, newer)
+    assertEquals(newer, repository.getConversation("r2").getOrThrow())
+  }
+
+  @Test
+  fun getConversationOfAnUnknownRentalIsNull() = runTest {
+    assertEquals(null, repository.getConversation("nope").getOrThrow())
+  }
+
+  @Test
+  fun getConversationFailsWithTheFailure() = runTest {
+    val error = IOException("offline")
+    repository.failure = error
+    assertSame(error, repository.getConversation("r1").exceptionOrNull())
   }
 }

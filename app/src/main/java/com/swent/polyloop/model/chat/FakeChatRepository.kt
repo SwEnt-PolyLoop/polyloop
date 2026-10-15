@@ -46,6 +46,10 @@ class FakeChatRepository(
                 .sortedByDescending { it.lastMessageAt }
           }
 
+  override suspend fun getConversation(rentalId: String): Result<Conversation?> =
+      failure?.let { Result.failure(it) }
+          ?: Result.success(conversations.value.find { it.rentalId == rentalId })
+
   override fun observeMessages(rentalId: String): Flow<List<Message>> =
       failing() ?: messages.map { it[rentalId].orEmpty() }
 

@@ -5,6 +5,8 @@ package com.swent.polyloop.model.chat
 import com.google.firebase.Timestamp
 import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 
 /**
  * Firestore names for chat, from the schema in #94, kept in one place so they are easy to change.
@@ -21,6 +23,8 @@ internal object ChatFields {
   const val LAST_MESSAGE = "lastMessage"
   const val LAST_MESSAGE_AT = "lastMessageAt"
   const val STATUS = "status"
+  const val START_DATE = "startDate"
+  const val END_DATE = "endDate"
 
   // rentals/{rentalId}/messages/{messageId}
   const val MESSAGES = "messages"
@@ -60,8 +64,18 @@ internal fun conversationFromDocument(id: String, data: Map<String, Any?>): Conv
       lastMessageAt = instantOrNull(data[ChatFields.LAST_MESSAGE_AT]) ?: return null,
       status =
           RentalStatus.entries.firstOrNull { it.name == data[ChatFields.STATUS] } ?: return null,
+      startDate = dateOrNull(data[ChatFields.START_DATE]) ?: return null,
+      endDate = dateOrNull(data[ChatFields.END_DATE]) ?: return null,
   )
 }
 
 /** Firestore returns its date-times as [Timestamp]; anything else (e.g. text) is rejected. */
 private fun instantOrNull(value: Any?): Instant? = (value as? Timestamp)?.toInstant()
+
+/** Dates without a time are stored as `YYYY-MM-DD` text; anything else is rejected. */
+private fun dateOrNull(value: Any?): LocalDate? =
+    try {
+      (value as? String)?.let(LocalDate::parse)
+    } catch (e: DateTimeParseException) {
+      null
+    }
