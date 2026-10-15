@@ -214,7 +214,7 @@ class EndToEndTest {
         .performScrollTo()
         .performTextInput("wrong-password")
     composeTestRule.onNodeWithTag(C.Tag.auth_login_button).performScrollTo().performClick()
-    waitForTag(C.Tag.auth_error)
+    waitForText(C.Tag.auth_error, context.getString(R.string.auth_error_wrong_credentials))
 
     composeTestRule.onNodeWithTag(C.Tag.auth_password_field).performTextReplacement(PASSWORD)
     pressWhenEnabled(C.Tag.auth_login_button)
