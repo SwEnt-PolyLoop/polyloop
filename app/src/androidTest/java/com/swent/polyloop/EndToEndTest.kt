@@ -46,6 +46,7 @@ import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -100,9 +101,12 @@ class EndToEndTest {
 
   @After
   fun tearDown() {
+    // Best effort, but bounded: a delete waits for the server, so a lost emulator would hang here.
     runBlocking {
-      seededDocs.forEach { runCatching { it.delete().await() } }
-      deleteAccount()
+      withTimeoutOrNull(CLEANUP_TIMEOUT_MS) {
+        seededDocs.forEach { runCatching { it.delete().await() } }
+        deleteAccount()
+      }
     }
     Firebase.auth.signOut()
     RepositoryProvider.reset()
@@ -520,6 +524,7 @@ class EndToEndTest {
         )
     const val PASSWORD = "Password123!"
     const val TIMEOUT_MS = 15_000L
+    const val CLEANUP_TIMEOUT_MS = 30_000L
 
     /** The test's days are at most one month ahead; a few more months leaves room. */
     const val MAX_MONTHS_AHEAD = 3
