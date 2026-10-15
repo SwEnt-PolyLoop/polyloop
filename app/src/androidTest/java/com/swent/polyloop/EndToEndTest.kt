@@ -217,6 +217,7 @@ class EndToEndTest {
 
     // Categories: another category hides it, "All" brings it back.
     composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput(titleWord)
+    waitForTag(card)
     composeTestRule
         .onNodeWithTag(C.Tag.browseCategoryChip(ListingCategory.ELECTRONICS))
         .performScrollTo()
