@@ -398,12 +398,17 @@ class EndToEndTest {
     return listing.copy(id = id)
   }
 
-  /** Taps [start] then [end] in the open date picker, moving to later months as needed. */
+  /**
+   * Taps [start] then [end] in the open date picker, moving up to [MAX_MONTHS_AHEAD] months later
+   * as needed. A day never shown fails the tap instead of looping forever.
+   */
   private fun pickDays(start: LocalDate, end: LocalDate) {
     listOf(start, end).forEach { day ->
       val tag = C.Tag.datePickerDay(day)
-      while (composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-        composeTestRule.onNodeWithTag(C.Tag.date_picker_next_month).performClick()
+      repeat(MAX_MONTHS_AHEAD) {
+        if (composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
+          composeTestRule.onNodeWithTag(C.Tag.date_picker_next_month).performClick()
+        }
       }
       composeTestRule.onNodeWithTag(tag).performScrollTo().performClick()
     }
@@ -462,5 +467,8 @@ class EndToEndTest {
         )
     const val PASSWORD = "Password123!"
     const val TIMEOUT_MS = 15_000L
+
+    /** The test's days are at most one month ahead; a few more months leaves room. */
+    const val MAX_MONTHS_AHEAD = 3
   }
 }
