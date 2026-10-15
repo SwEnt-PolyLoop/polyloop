@@ -7,6 +7,8 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -77,10 +79,11 @@ class EndToEndTest {
   private val lenderId = "lender-${UUID.randomUUID()}"
   private val titleWord = List(8) { ('a'..'z').random() }.joinToString("")
 
-  // Three days in the same month, so the date picker shows the picked range and its buffer day.
+  // The listing is available four days in the same month, so the date picker shows them all.
   private val today = LocalDate.now()
   private val firstDay =
-      if (today.plusDays(2).month == today.month) today else today.plusMonths(1).withDayOfMonth(1)
+      if (today.plusDays(3).month == today.month) today else today.plusMonths(1).withDayOfMonth(1)
+  private val lastDay = firstDay.plusDays(3)
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
@@ -231,11 +234,23 @@ class EndToEndTest {
         .performScrollTo()
         .assertIsDisplayed()
 
-    // Request: pick two days; confirming closes the picker (sending the request comes later).
+    // Request: ending on the last available day leaves no free day after it, so it is refused.
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).performClick()
     waitForTag(C.Tag.date_picker_sheet)
-    pickDays(firstDay, firstDay.plusDays(1))
-    composeTestRule.onNodeWithTag(C.Tag.date_picker_summary_total).assertIsDisplayed()
+    pickDays(firstDay, lastDay)
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).assertIsNotEnabled()
+
+    // Two days instead: both picked, priced at two days; confirming closes the picker (sending
+    // the request comes later).
+    pickDay(firstDay.plusDays(1))
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.datePickerDay(firstDay)).assertIsSelected()
+    composeTestRule.onNodeWithTag(C.Tag.datePickerDay(firstDay.plusDays(1))).assertIsSelected()
+    composeTestRule.onNodeWithTag(C.Tag.datePickerDay(lastDay)).assertIsNotSelected()
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_summary_total)
+        .assertTextEquals(context.getString(R.string.listing_card_price, 2 * PRICE_PER_DAY))
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
     composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertDoesNotExist()
     assertRoute(Screen.ListingDetail)
@@ -406,10 +421,10 @@ class EndToEndTest {
             description = "Light 2-person tent.",
             category = ListingCategory.SPORTS_OUTDOOR,
             photoUrls = emptyList(),
-            pricePerDay = 5,
+            pricePerDay = PRICE_PER_DAY,
             itemValue = 120,
             availableFrom = firstDay,
-            availableTo = firstDay.plusDays(20),
+            availableTo = lastDay,
             status = ListingStatus.PUBLISHED,
             pickupArea = "Ecublens",
             dropOffArea = "Renens",
@@ -420,20 +435,24 @@ class EndToEndTest {
     listing.copy(id = document.id)
   }
 
-  /**
-   * Taps [start] then [end] in the open date picker, moving up to [MAX_MONTHS_AHEAD] months later
-   * as needed. A day never shown fails the tap instead of looping forever.
-   */
+  /** Taps [start] then [end] in the open date picker. */
   private fun pickDays(start: LocalDate, end: LocalDate) {
-    listOf(start, end).forEach { day ->
-      val tag = C.Tag.datePickerDay(day)
-      repeat(MAX_MONTHS_AHEAD) {
-        if (composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-          composeTestRule.onNodeWithTag(C.Tag.date_picker_next_month).performClick()
-        }
+    pickDay(start)
+    pickDay(end)
+  }
+
+  /**
+   * Taps [day] in the open date picker, moving up to [MAX_MONTHS_AHEAD] months later as needed. A
+   * day never shown fails the tap instead of looping forever.
+   */
+  private fun pickDay(day: LocalDate) {
+    val tag = C.Tag.datePickerDay(day)
+    repeat(MAX_MONTHS_AHEAD) {
+      if (composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
+        composeTestRule.onNodeWithTag(C.Tag.date_picker_next_month).performClick()
       }
-      composeTestRule.onNodeWithTag(tag).performScrollTo().performClick()
     }
+    composeTestRule.onNodeWithTag(tag).performScrollTo().performClick()
   }
 
   private fun setApp() {
@@ -474,6 +493,7 @@ class EndToEndTest {
   private companion object {
     const val NAME = "Eve Student"
     const val LENDER_NAME = "Lena"
+    const val PRICE_PER_DAY = 5
 
     /** The error of each required field of Create listing, shown while the field is empty. */
     val FIELD_ERRORS =
