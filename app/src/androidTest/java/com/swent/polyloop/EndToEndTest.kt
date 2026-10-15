@@ -11,6 +11,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -21,13 +22,22 @@ import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.firestore
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingFields
+import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.listing.listingToDocument
+import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.utils.FirebaseEmulator
+import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.tasks.await
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -56,6 +66,17 @@ class EndToEndTest {
   // A new account for each run, so accounts left by earlier runs never get in the way.
   private val email = "e2e-${UUID.randomUUID().toString().take(8)}@epfl.ch"
 
+  // Another user's listing, with a made-up word in its title so a search finds only this one.
+  private val lenderId = "lender-${UUID.randomUUID()}"
+  private val titleWord = List(8) { ('a'..'z').random() }.joinToString("")
+
+  // Three days in the same month, so the date picker shows the picked range and its buffer day.
+  private val today = LocalDate.now()
+  private val firstDay =
+      if (today.plusDays(2).month == today.month) today else today.plusMonths(1).withDayOfMonth(1)
+
+  private lateinit var listing: Listing
+
   @Before
   fun setUp() {
     FirebaseEmulator.connect()
@@ -63,6 +84,8 @@ class EndToEndTest {
     Firebase.auth.signOut()
     RepositoryProvider.reset()
     RepositoryProvider.connectivityRepository = FakeConnectivityRepository(online = true)
+    // Written before the app starts: Browse loads the listings once, when it opens.
+    listing = runBlocking { seedLenderAndListing() }
   }
 
   @After
@@ -144,6 +167,122 @@ class EndToEndTest {
     assertEquals(email, RepositoryProvider.authRepository.getCurrentUser()?.email)
   }
 
+  @Test
+  fun browseFindsAListingAndOpensItsDetail() {
+    setApp()
+    signUpAndVerify()
+    val card = C.Tag.listing_card_ + listing.id
+
+    // Search: the made-up word finds the listing, an unknown word finds nothing.
+    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput(titleWord)
+    waitForTag(card)
+    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput("zzqqxxnotaword")
+    composeTestRule.onNodeWithTag(C.Tag.browse_empty).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_clear_search).performClick()
+
+    // Categories: another category hides it, "All" brings it back.
+    composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput(titleWord)
+    composeTestRule
+        .onNodeWithTag(C.Tag.browseCategoryChip(ListingCategory.ELECTRONICS))
+        .performScrollTo()
+        .performClick()
+    composeTestRule.onNodeWithTag(card).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.browse_category_all).performScrollTo().performClick()
+    composeTestRule.onNodeWithTag(card).assertIsDisplayed()
+
+    // The map toggle does nothing yet: the list stays.
+    composeTestRule.onNodeWithTag(C.Tag.browse_map_toggle).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.browse_list_toggle).performClick()
+    composeTestRule.onNodeWithTag(card).assertIsDisplayed()
+
+    // Listing detail.
+    composeTestRule.onNodeWithTag(card).performClick()
+    waitForText(C.Tag.listing_detail_title, listing.title)
+    assertRoute(Screen.ListingDetail)
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_price).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_detail_deposit)
+        .performScrollTo()
+        .assertIsDisplayed()
+
+    // Request: pick two days; confirming closes the picker (sending the request comes later).
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_detail_request_button)
+        .performScrollTo()
+        .performClick()
+    waitForTag(C.Tag.date_picker_sheet)
+    pickDays(firstDay, firstDay.plusDays(1))
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_summary_total).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertDoesNotExist()
+    assertRoute(Screen.ListingDetail)
+
+    // The lender card opens the lender's profile; Back returns to the listing.
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo().performClick()
+    waitForText(C.Tag.profile_name, LENDER_NAME)
+    assertRoute(Screen.UserProfile)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertRoute(Screen.ListingDetail)
+  }
+
+  /** Signs up [email] through the UI, verifies it in the emulator and logs in, ending on Browse. */
+  private fun signUpAndVerify() {
+    composeTestRule.onNodeWithTag(C.Tag.auth_signup_tab).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.auth_name_field).performScrollTo().performTextInput(NAME)
+    composeTestRule.onNodeWithTag(C.Tag.auth_email_field).performScrollTo().performTextInput(email)
+    composeTestRule
+        .onNodeWithTag(C.Tag.auth_password_field)
+        .performScrollTo()
+        .performTextInput(PASSWORD)
+    composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).performScrollTo().performClick()
+    waitForTag(C.Tag.auth_check_inbox_screen)
+    runBlocking { FirebaseEmulator.verifyEmail(email) }
+    pressWhenEnabled(C.Tag.auth_verified_button)
+    waitForTag(C.Tag.browse_screen)
+  }
+
+  /** The lender's profile and a published listing of theirs, as the app would have saved them. */
+  private suspend fun seedLenderAndListing(): Listing {
+    ProfileRepositoryFirestore()
+        .createProfileIfMissing(lenderId, "$lenderId@epfl.ch", LENDER_NAME)
+        .getOrThrow()
+    val listing =
+        Listing(
+            id = "",
+            ownerId = lenderId,
+            title = "Camping tent $titleWord",
+            description = "Light 2-person tent.",
+            category = ListingCategory.SPORTS_OUTDOOR,
+            photoUrls = emptyList(),
+            pricePerDay = 5,
+            itemValue = 120,
+            availableFrom = firstDay,
+            availableTo = firstDay.plusDays(20),
+            status = ListingStatus.PUBLISHED,
+            pickupArea = "Ecublens",
+            dropOffArea = "Renens",
+        )
+    val id =
+        Firebase.firestore
+            .collection(ListingFields.COLLECTION)
+            .add(listingToDocument(listing))
+            .await()
+            .id
+    return listing.copy(id = id)
+  }
+
+  /** Taps [start] then [end] in the open date picker, moving to later months as needed. */
+  private fun pickDays(start: LocalDate, end: LocalDate) {
+    listOf(start, end).forEach { day ->
+      val tag = C.Tag.datePickerDay(day)
+      while (composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
+        composeTestRule.onNodeWithTag(C.Tag.date_picker_next_month).performClick()
+      }
+      composeTestRule.onNodeWithTag(tag).performScrollTo().performClick()
+    }
+  }
+
   private fun setApp() {
     composeTestRule.setContent {
       backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
@@ -181,6 +320,7 @@ class EndToEndTest {
 
   private companion object {
     const val NAME = "Eve Student"
+    const val LENDER_NAME = "Lena"
     const val PASSWORD = "Password123!"
     const val TIMEOUT_MS = 15_000L
   }
