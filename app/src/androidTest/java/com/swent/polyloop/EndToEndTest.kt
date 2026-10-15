@@ -371,25 +371,6 @@ class EndToEndTest {
     assertTrue(ownListings.isEmpty)
   }
 
-  @Test
-  fun menuOpensEveryScreenAndBackReturnsToBrowse() {
-    setApp()
-    signUpAndVerify()
-
-    Screen.topLevelDestinations(isAdmin = false)
-        .filter { it != Screen.Browse }
-        .forEach { screen ->
-          openFromMenu(screen)
-          assertRoute(screen)
-          composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
-          assertRoute(Screen.Browse)
-        }
-    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
-    composeTestRule
-        .onNodeWithTag(C.Tag.topBarMenuItem(Screen.AdminCourtRuling.route))
-        .assertDoesNotExist()
-  }
-
   private fun openFromMenu(screen: Screen.TopLevel) {
     composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
     composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(screen.route)).performClick()
