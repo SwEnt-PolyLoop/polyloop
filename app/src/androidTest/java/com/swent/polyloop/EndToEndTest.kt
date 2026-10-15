@@ -39,7 +39,6 @@ import com.swent.polyloop.model.listing.listingToDocument
 import com.swent.polyloop.model.profile.ProfileFields
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.RentalFields
-import com.swent.polyloop.model.rental.RentalRepositoryFirestore
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.utils.FirebaseEmulator
@@ -271,7 +270,7 @@ class EndToEndTest {
     // Sent by the test: the Request button does not send it yet.
     val borrower = requireNotNull(RepositoryProvider.authRepository.getCurrentUser())
     val rental = runBlocking {
-      RentalRepositoryFirestore()
+      RepositoryProvider.rentalRepository
           .requestRental(listing, LENDER_NAME, borrower, firstDay, firstDay.plusDays(1))
           .getOrThrow()
     }
@@ -430,7 +429,10 @@ class EndToEndTest {
             dropOffArea = "Renens",
         )
     val document =
-        Firebase.firestore.collection(ListingFields.COLLECTION).add(listingToDocument(listing)).await()
+        Firebase.firestore
+            .collection(ListingFields.COLLECTION)
+            .add(listingToDocument(listing))
+            .await()
     seededDocs += document
     listing.copy(id = document.id)
   }
