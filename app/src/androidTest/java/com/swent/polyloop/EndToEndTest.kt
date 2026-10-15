@@ -50,6 +50,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -356,8 +357,18 @@ class EndToEndTest {
                 Listing.MIN_PHOTOS,
             )
         )
+    // Publish is refused without photos: the form stays and nothing reaches Firestore.
     composeTestRule.onNodeWithTag(C.Tag.create_listing_publish_button).performClick()
     assertRoute(Screen.CreateListing)
+    val uid = requireNotNull(RepositoryProvider.authRepository.getCurrentUser()).uid
+    val ownListings = runBlocking {
+      Firebase.firestore
+          .collection(ListingFields.COLLECTION)
+          .whereEqualTo(ListingFields.OWNER_ID, uid)
+          .get()
+          .await()
+    }
+    assertTrue(ownListings.isEmpty)
   }
 
   @Test
