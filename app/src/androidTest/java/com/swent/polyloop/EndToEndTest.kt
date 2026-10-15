@@ -5,6 +5,9 @@ package com.swent.polyloop
 import android.util.Log
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -16,7 +19,6 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -43,6 +45,7 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.time.LocalDate
+import java.time.YearMonth
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +57,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -475,18 +479,41 @@ class EndToEndTest {
   }
 
   /**
-   * Taps [day] in the open date picker, moving up to [MAX_MONTHS_AHEAD] months later as needed. A
-   * day never shown fails the tap instead of looping forever.
+   * Taps [day] in the open date picker, moving to its month with the arrows. Fails with a clear
+   * message if the picker cannot show that month, i.e. [day] is outside the window.
    */
   private fun pickDay(day: LocalDate) {
-    val tag = C.Tag.datePickerDay(day)
-    repeat(MAX_MONTHS_AHEAD) {
-      if (composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()) {
-        composeTestRule.onNodeWithTag(C.Tag.date_picker_next_month).performClick()
+    val target = YearMonth.from(day)
+    var shown = shownMonth()
+    while (shown != target) {
+      val arrow = if (shown < target) C.Tag.date_picker_next_month else C.Tag.date_picker_prev_month
+      if (
+          composeTestRule
+              .onAllNodes(hasTestTag(arrow) and isEnabled())
+              .fetchSemanticsNodes()
+              .isEmpty()
+      ) {
+        fail("The date picker shows $shown and cannot move towards $day")
       }
+      composeTestRule.onNodeWithTag(arrow).performClick()
+      shown = shownMonth()
     }
-    composeTestRule.onNodeWithTag(tag).performScrollTo().performClick()
+    composeTestRule.onNodeWithTag(C.Tag.datePickerDay(day)).performScrollTo().performClick()
   }
+
+  /** The month the open date picker shows, read from the tag of one of its days. */
+  private fun shownMonth(): YearMonth {
+    val dayTag = C.Tag.datePickerDay(firstDay).removeSuffix(firstDay.toString())
+    val tag =
+        composeTestRule
+            .onAllNodes(SemanticsMatcher("is a day") { it.testTag()?.startsWith(dayTag) == true })
+            .fetchSemanticsNodes()
+            .first()
+            .testTag()!!
+    return YearMonth.from(LocalDate.parse(tag.removePrefix(dayTag)))
+  }
+
+  private fun SemanticsNode.testTag(): String? = config.getOrNull(SemanticsProperties.TestTag)
 
   private fun setApp() {
     composeTestRule.setContent {
@@ -556,8 +583,5 @@ class EndToEndTest {
 
     /** How long a refused Publish is watched, to be sure it writes nothing. */
     const val NO_WRITE_WAIT_MS = 3_000L
-
-    /** The test's days are at most one month ahead; a few more months leaves room. */
-    const val MAX_MONTHS_AHEAD = 3
   }
 }
