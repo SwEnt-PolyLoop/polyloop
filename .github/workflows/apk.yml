@@ -1,0 +1,52 @@
+# Made with Claude.
+
+name: Build APK
+
+# Runs only when started by hand: Actions → Build APK → Run workflow, on any branch (e.g. M1).
+# It never runs on pushes or pull requests; ci.yml does that.
+on:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Same step as ci.yml: the app needs google-services.json to reach Firebase
+      - name: Decode secrets
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES" ]; then
+            echo "$GOOGLE_SERVICES" | base64 --decode > ./app/google-services.json
+          else
+            echo "::error::GOOGLE_SERVICES secret is not set. google-services.json will not be created."
+            exit 1
+          fi
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # The debug APK is signed automatically, so it installs on any phone
+      - name: Build the APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: polyloop-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
