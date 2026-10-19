@@ -24,9 +24,11 @@ import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.formatDay
+import com.swent.polyloop.ui.components.formatDayRange
 import java.time.Instant
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,11 +61,27 @@ class MyRentalsScreenTest {
           showReturnDate = showReturnDate,
       )
 
+  /** A pending request for "Camping tent" from Loca, 15 to 17 Oct 2026, 45 PP reserved. */
+  private fun request(id: String, person: String = "Loca") =
+      RentalRow(
+          rentalId = id,
+          itemTitle = "Camping tent",
+          otherPersonName = person,
+          startDate = LocalDate.of(2026, 10, 15),
+          returnDate = LocalDate.of(2026, 10, 17),
+          location = "Ecublens",
+          status = RentalStatus.REQUESTED,
+          isPickupArea = true,
+          showReturnDate = true,
+          totalPrice = 45,
+      )
+
   private fun setContent(
       state: MyRentalsUiState,
       onTabSelected: (RentalsTab) -> Unit = {},
       onRentalClick: (String) -> Unit = {},
       onRetry: () -> Unit = {},
+      onReviewRequest: (String) -> Unit = {},
   ) {
     composeTestRule.setContent {
       MyRentalsContent(
@@ -71,6 +89,7 @@ class MyRentalsScreenTest {
           onTabSelected = onTabSelected,
           onRentalClick = onRentalClick,
           onRetry = onRetry,
+          onReviewRequest = onReviewRequest,
           today = TODAY,
       )
     }
@@ -80,6 +99,23 @@ class MyRentalsScreenTest {
       composeTestRule.onNode(
           hasTestTag(tag) and hasAnyAncestor(hasTestTag(C.Tag.my_rentals_row_ + id)),
           useUnmergedTree = true,
+      )
+
+  private fun inRequest(id: String, tag: String) =
+      composeTestRule.onNode(
+          hasTestTag(tag) and hasAnyAncestor(hasTestTag(C.Tag.my_rentals_request_ + id)),
+          useUnmergedTree = true,
+      )
+
+  private fun lending(
+      requests: List<RentalRow> = emptyList(),
+      current: List<RentalRow> = emptyList(),
+  ) =
+      MyRentalsUiState(
+          selectedTab = RentalsTab.LENDING,
+          lendingRequests = requests,
+          lendingCurrent = current,
+          isLoading = false,
       )
 
   @Test
@@ -227,16 +263,109 @@ class MyRentalsScreenTest {
 
   @Test
   fun lentRowNamesTheBorrower() {
-    setContent(
-        MyRentalsUiState(
-            selectedTab = RentalsTab.LENDING,
-            lendingRequests = listOf(row("drill")),
-            isLoading = false,
-        )
-    )
+    setContent(lending(current = listOf(row("drill", status = RentalStatus.ACTIVE))))
 
     inRow("drill", C.Tag.my_rentals_row_person)
         .assertTextEquals(context.getString(R.string.my_rentals_borrower, "Loca"))
+  }
+
+  @Test
+  fun requestCardShowsTitleBorrowerDatesBadgeAndReservedLine() {
+    setContent(lending(requests = listOf(request("tent"))))
+
+    inRequest("tent", C.Tag.my_rentals_row_title).assertTextEquals("Camping tent")
+    inRequest("tent", C.Tag.my_rentals_row_person).assertTextEquals("Loca · $TENT_DATES")
+    inRequest("tent", C.Tag.my_rentals_row_status)
+        .assertTextEquals(context.getString(R.string.my_rentals_badge_new_request))
+    inRequest("tent", C.Tag.my_rentals_row_reserved)
+        .assertTextEquals("45 PP reserved · waiting for your answer")
+    inRequest("tent", C.Tag.my_rentals_review_request_button).assertIsDisplayed()
+  }
+
+  @Test
+  fun reviewRequestButtonCallsBackWithTheRentalId() {
+    val reviewed = mutableListOf<String>()
+    val opened = mutableListOf<String>()
+    setContent(
+        lending(requests = listOf(request("tent"))),
+        onRentalClick = { opened += it },
+        onReviewRequest = { reviewed += it },
+    )
+
+    inRequest("tent", C.Tag.my_rentals_review_request_button).performClick()
+
+    assertEquals(listOf("tent"), reviewed)
+    assertEquals(emptyList<String>(), opened)
+  }
+
+  @Test
+  fun tappingARequestCardOpensTheRental() {
+    val opened = mutableListOf<String>()
+    setContent(lending(requests = listOf(request("tent"))), onRentalClick = { opened += it })
+
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent").performClick()
+
+    assertEquals(listOf("tent"), opened)
+  }
+
+  @Test
+  fun blankBorrowerShowsPlaceholderOnRequestCard() {
+    setContent(lending(requests = listOf(request("tent", person = ""))))
+
+    val unknown = context.getString(R.string.my_rentals_unknown_person)
+    inRequest("tent", C.Tag.my_rentals_row_person).assertTextEquals("$unknown · $TENT_DATES")
+  }
+
+  @Test
+  fun onlyRequestsShowsOnlyTheRequestsHeader() {
+    setContent(lending(requests = listOf(request("tent"))))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.my_rentals_section_requests)
+        .assertTextEquals(context.getString(R.string.my_rentals_section_requests))
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_current).assertDoesNotExist()
+  }
+
+  @Test
+  fun onlyCurrentShowsOnlyTheCurrentHeader() {
+    setContent(lending(current = listOf(row("drill", status = RentalStatus.ACTIVE))))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.my_rentals_section_current)
+        .assertTextEquals(context.getString(R.string.my_rentals_section_current))
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_requests).assertDoesNotExist()
+  }
+
+  @Test
+  fun bothSectionsShowRequestsAboveCurrent() {
+    setContent(
+        lending(
+            requests = listOf(request("tent")),
+            current = listOf(row("drill", status = RentalStatus.ACTIVE)),
+        )
+    )
+
+    val top = { tag: String ->
+      composeTestRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.top
+    }
+    val requestsHeader = top(C.Tag.my_rentals_section_requests)
+    val request = top(C.Tag.my_rentals_request_ + "tent")
+    val currentHeader = top(C.Tag.my_rentals_section_current)
+    val current = top(C.Tag.my_rentals_row_ + "drill")
+    assertTrue(requestsHeader < request)
+    assertTrue(request < currentHeader)
+    assertTrue(currentHeader < current)
+  }
+
+  @Test
+  fun noLentRentalsShowsTheEmptyText() {
+    setContent(lending())
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.my_rentals_empty)
+        .assertTextEquals(context.getString(R.string.my_rentals_empty_lending))
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_requests).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_current).assertDoesNotExist()
   }
 
   @Test
@@ -303,7 +432,7 @@ class MyRentalsScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "tent").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_tab_lending).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "drill").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "drill").assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "tent").assertDoesNotExist()
   }
 
@@ -344,5 +473,6 @@ class MyRentalsScreenTest {
 
   private companion object {
     val TODAY: LocalDate = LocalDate.of(2026, 10, 14)
+    val TENT_DATES = formatDayRange(LocalDate.of(2026, 10, 15), LocalDate.of(2026, 10, 17), TODAY)
   }
 }

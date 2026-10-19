@@ -74,6 +74,13 @@
     <string name="my_rentals_return_by">Return by %1$s</string>
     <string name="my_rentals_pickup_at">Pickup: %1$s</string>
     <string name="my_rentals_drop_off_at">Drop-off: %1$s</string>
+    <string name="my_rentals_section_requests">REQUESTS</string>
+    <string name="my_rentals_section_current">CURRENT</string>
+    <string name="my_rentals_badge_new_request">New request</string>
+    <!-- The borrower's name, then the rental's dates, e.g. "Loca · 15 – 17 Oct" -->
+    <string name="my_rentals_person_and_dates">%1$s · %2$s</string>
+    <string name="my_rentals_reserved">%1$d PP reserved · waiting for your answer</string>
+    <string name="my_rentals_review_request">Review request</string>
     <string name="rental_status_requested">Requested</string>
     <string name="rental_status_accepted">Accepted</string>
     <string name="rental_status_active">Active</string>

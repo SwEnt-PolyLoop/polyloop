@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -28,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -40,26 +43,37 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.ListingPhoto
 import com.swent.polyloop.ui.components.formatDay
+import com.swent.polyloop.ui.components.formatDayRange
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
 
-/** The My rentals screen, showing what the signed-in user borrows and lends (Figma frame 10). */
+/**
+ * The My rentals screen, showing what the signed-in user borrows and lends (Figma frame 10).
+ * [onReviewRequest] receives the rental id of a request whose "Review request" button is tapped.
+ */
 @Composable
-fun MyRentalsScreen(viewModel: MyRentalsViewModel, onRentalClick: (String) -> Unit = {}) {
+fun MyRentalsScreen(
+    viewModel: MyRentalsViewModel,
+    onRentalClick: (String) -> Unit = {},
+    onReviewRequest: (String) -> Unit = {},
+) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   MyRentalsContent(
       uiState = uiState,
       onTabSelected = viewModel::selectTab,
       onRentalClick = onRentalClick,
       onRetry = viewModel::retry,
+      onReviewRequest = onReviewRequest,
   )
 }
 
 /**
  * Stateless My rentals content: the title and the Borrowing / Lending tabs, then a loading
  * indicator, an error with a Retry button, the empty state of the tab or its rows, depending on
- * [uiState].
+ * [uiState]. Lending shows its rows in two sections, REQUESTS and CURRENT, each only when it has
+ * rows.
  */
 @Composable
 fun MyRentalsContent(
@@ -67,6 +81,7 @@ fun MyRentalsContent(
     onTabSelected: (RentalsTab) -> Unit,
     onRentalClick: (String) -> Unit,
     onRetry: () -> Unit,
+    onReviewRequest: (String) -> Unit = {},
     today: LocalDate = LocalDate.now(),
 ) {
   Column(
@@ -130,15 +145,130 @@ fun MyRentalsContent(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-          items(uiState.selectedRows, key = { it.rentalId }) { row ->
-            RentalRowCard(
-                row = row,
-                tab = uiState.selectedTab,
-                today = today,
-                onClick = { onRentalClick(row.rentalId) },
-            )
+          if (uiState.selectedTab == RentalsTab.BORROWING) {
+            items(uiState.borrowing, key = { it.rentalId }) { row ->
+              RentalRowCard(
+                  row = row,
+                  tab = uiState.selectedTab,
+                  today = today,
+                  onClick = { onRentalClick(row.rentalId) },
+              )
+            }
+          } else {
+            if (uiState.lendingRequests.isNotEmpty()) {
+              item(key = C.Tag.my_rentals_section_requests) {
+                SectionHeader(
+                    R.string.my_rentals_section_requests,
+                    C.Tag.my_rentals_section_requests,
+                )
+              }
+              items(uiState.lendingRequests, key = { it.rentalId }) { row ->
+                RequestCard(
+                    row = row,
+                    today = today,
+                    onClick = { onRentalClick(row.rentalId) },
+                    onReviewRequest = { onReviewRequest(row.rentalId) },
+                )
+              }
+            }
+            if (uiState.lendingCurrent.isNotEmpty()) {
+              item(key = C.Tag.my_rentals_section_current) {
+                SectionHeader(R.string.my_rentals_section_current, C.Tag.my_rentals_section_current)
+              }
+              items(uiState.lendingCurrent, key = { it.rentalId }) { row ->
+                RentalRowCard(
+                    row = row,
+                    tab = uiState.selectedTab,
+                    today = today,
+                    onClick = { onRentalClick(row.rentalId) },
+                )
+              }
+            }
           }
         }
+      }
+    }
+  }
+}
+
+/** The title of a section of Lending, e.g. "REQUESTS". */
+@Composable
+private fun SectionHeader(@StringRes textRes: Int, testTag: String) {
+  Text(
+      text = stringResource(textRes),
+      style = MaterialTheme.typography.labelLarge,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.testTag(testTag),
+  )
+}
+
+/**
+ * A pending request on one of the user's listings (Figma frame 10): the listing photo, the title
+ * and a "New request" badge, the borrower and the dates, the reserved price, and a "Review request"
+ * button calling [onReviewRequest]. Tapping the rest of the card calls [onClick].
+ */
+@Composable
+private fun RequestCard(
+    row: RentalRow,
+    today: LocalDate,
+    onClick: () -> Unit,
+    onReviewRequest: () -> Unit,
+) {
+  OutlinedCard(
+      onClick = onClick,
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_request_ + row.rentalId),
+  ) {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Row {
+        ListingPhoto(
+            url = row.listingPhotoUrl.ifBlank { null },
+            contentDescription = null,
+            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
+        )
+        Column(
+            modifier = Modifier.weight(1f).padding(start = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+          Row {
+            Text(
+                text = row.itemTitle,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).testTag(C.Tag.my_rentals_row_title),
+            )
+            StatusBadge(row.status, isNewRequest = true)
+          }
+          val person =
+              row.otherPersonName.ifBlank { stringResource(R.string.my_rentals_unknown_person) }
+          Text(
+              text =
+                  stringResource(
+                      R.string.my_rentals_person_and_dates,
+                      person,
+                      formatDayRange(row.startDate, row.returnDate, today),
+                  ),
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.testTag(C.Tag.my_rentals_row_person),
+          )
+        }
+      }
+      Text(
+          text = stringResource(R.string.my_rentals_reserved, row.totalPrice),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.testTag(C.Tag.my_rentals_row_reserved),
+      )
+      Button(
+          onClick = onReviewRequest,
+          modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_review_request_button),
+      ) {
+        Text(stringResource(R.string.my_rentals_review_request))
       }
     }
   }
@@ -196,10 +326,13 @@ private fun RentalRowCard(row: RentalRow, tab: RentalsTab, today: LocalDate, onC
   }
 }
 
-/** The status of a rental as a small coloured label. */
+/** The status of a rental as a small coloured label, or "New request" with [isNewRequest]. */
 @Composable
-private fun StatusBadge(status: RentalStatus) {
-  val (container, content) = status.badgeColors()
+private fun StatusBadge(status: RentalStatus, isNewRequest: Boolean = false) {
+  val colors = MaterialTheme.colorScheme
+  val (container, content) =
+      if (isNewRequest) colors.primaryContainer to colors.onPrimaryContainer
+      else status.badgeColors()
   Surface(
       shape = CircleShape,
       color = container,
@@ -207,7 +340,10 @@ private fun StatusBadge(status: RentalStatus) {
       modifier = Modifier.padding(start = 8.dp),
   ) {
     Text(
-        text = stringResource(status.labelRes),
+        text =
+            stringResource(
+                if (isNewRequest) R.string.my_rentals_badge_new_request else status.labelRes
+            ),
         style = MaterialTheme.typography.labelMedium,
         modifier =
             Modifier.padding(horizontal = 10.dp, vertical = 4.dp)

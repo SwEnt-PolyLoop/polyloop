@@ -190,6 +190,12 @@ object C {
     const val my_rentals_row_return = "my_rentals_row_return"
     const val my_rentals_row_location = "my_rentals_row_location"
     const val my_rentals_row_status = "my_rentals_row_status"
+    const val my_rentals_row_reserved = "my_rentals_row_reserved"
+    const val my_rentals_section_requests = "my_rentals_section_requests"
+    const val my_rentals_section_current = "my_rentals_section_current"
+    // Prefix: each request card on Lending is tagged my_rentals_request_ + rental id
+    const val my_rentals_request_ = "my_rentals_request_"
+    const val my_rentals_review_request_button = "my_rentals_review_request_button"
 
     const val dummy_screen = "dummy_screen"
     const val dummy_screen_text = "dummy_screen_text"
