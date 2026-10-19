@@ -230,7 +230,7 @@ class MyRentalsScreenTest {
     setContent(
         MyRentalsUiState(
             selectedTab = RentalsTab.LENDING,
-            lending = listOf(row("drill")),
+            lendingRequests = listOf(row("drill")),
             isLoading = false,
         )
     )
