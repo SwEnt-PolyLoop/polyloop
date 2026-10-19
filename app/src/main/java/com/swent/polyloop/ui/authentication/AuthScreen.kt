@@ -123,7 +123,7 @@ fun AuthScreen(
               .background(colors.background)
               .verticalScroll(rememberScrollState())
               .padding(horizontal = 14.dp)
-              .padding(top = 64.dp)
+              .padding(top = 59.dp)
   ) {
     Header()
 
@@ -148,7 +148,7 @@ fun AuthScreen(
           errorTestTag = C.Tag.auth_name_error,
       )
 
-      Spacer(Modifier.height(16.dp))
+      Spacer(Modifier.height(4.dp))
     }
 
     AuthTextField(
@@ -162,7 +162,7 @@ fun AuthScreen(
         errorTestTag = C.Tag.auth_email_error,
     )
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(4.dp))
 
     AuthTextField(
         label = stringResource(R.string.auth_password_label),
