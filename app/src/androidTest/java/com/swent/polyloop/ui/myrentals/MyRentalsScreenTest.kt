@@ -262,11 +262,158 @@ class MyRentalsScreenTest {
   }
 
   @Test
-  fun lentRowNamesTheBorrower() {
+  fun currentCardNamesTheBorrowerWithoutPrefix() {
     setContent(lending(current = listOf(row("drill", status = RentalStatus.ACTIVE))))
 
+    inRow("drill", C.Tag.my_rentals_row_person).assertTextEquals("Loca")
+  }
+
+  @Test
+  fun blankBorrowerShowsPlaceholderOnCurrentCard() {
+    setContent(lending(current = listOf(row("drill", status = RentalStatus.ACTIVE, person = ""))))
+
     inRow("drill", C.Tag.my_rentals_row_person)
-        .assertTextEquals(context.getString(R.string.my_rentals_borrower, "Loca"))
+        .assertTextEquals(context.getString(R.string.my_rentals_unknown_person))
+  }
+
+  @Test
+  fun acceptedCurrentCardShowsThePickupDayAndArea() {
+    val accepted =
+        row("drill", status = RentalStatus.ACCEPTED, location = "Renens")
+            .copy(startDate = LocalDate.of(2026, 10, 22))
+    setContent(lending(current = listOf(accepted)))
+
+    inRow("drill", C.Tag.my_rentals_row_line)
+        .assertTextEquals("Pickup ${formatDay(LocalDate.of(2026, 10, 22))} · Renens")
+    inRow("drill", C.Tag.my_rentals_row_status)
+        .assertTextEquals(context.getString(R.string.rental_status_accepted))
+  }
+
+  @Test
+  fun activeCurrentCardShowsTheReturnDayAndArea() {
+    val active =
+        row(
+            "drill",
+            status = RentalStatus.ACTIVE,
+            location = "EPFL",
+            returnDate = LocalDate.of(2026, 10, 9),
+            isPickupArea = false,
+        )
+    setContent(lending(current = listOf(active)))
+
+    inRow("drill", C.Tag.my_rentals_row_line)
+        .assertTextEquals("Return by ${formatDay(LocalDate.of(2026, 10, 9))} · EPFL")
+  }
+
+  @Test
+  fun overdueCurrentCardShowsTheReturnDayAndArea() {
+    val overdue =
+        row(
+            "drill",
+            status = RentalStatus.OVERDUE,
+            location = "EPFL",
+            returnDate = LocalDate.of(2026, 10, 9),
+            isPickupArea = false,
+        )
+    setContent(lending(current = listOf(overdue)))
+
+    inRow("drill", C.Tag.my_rentals_row_line)
+        .assertTextEquals("Return by ${formatDay(LocalDate.of(2026, 10, 9))} · EPFL")
+  }
+
+  @Test
+  fun currentCardDateInAnotherYearShowsTheYear() {
+    val nextYear = LocalDate.of(2027, 1, 5)
+    val active = row("drill", status = RentalStatus.ACTIVE, location = "", returnDate = nextYear)
+    setContent(lending(current = listOf(active)))
+
+    inRow("drill", C.Tag.my_rentals_row_line)
+        .assertTextEquals("Return by ${formatDay(nextYear, withYear = true)}")
+  }
+
+  @Test
+  fun problemCurrentCardShowsOnlyTheArea() {
+    var state by mutableStateOf(lending())
+    composeTestRule.setContent {
+      MyRentalsContent(
+          uiState = state,
+          onTabSelected = {},
+          onRentalClick = {},
+          onRetry = {},
+          today = TODAY,
+      )
+    }
+
+    listOf(RentalStatus.DISPUTED, RentalStatus.FROZEN, RentalStatus.LOST).forEach { status ->
+      state = lending(current = listOf(row("drill", status = status, location = "EPFL")))
+      composeTestRule.waitForIdle()
+      inRow("drill", C.Tag.my_rentals_row_line).assertTextEquals("EPFL")
+    }
+  }
+
+  @Test
+  fun finishedCurrentCardsHaveNoLine() {
+    var state by mutableStateOf(lending())
+    composeTestRule.setContent {
+      MyRentalsContent(
+          uiState = state,
+          onTabSelected = {},
+          onRentalClick = {},
+          onRetry = {},
+          today = TODAY,
+      )
+    }
+
+    listOf(
+            RentalStatus.RETURNED,
+            RentalStatus.CLOSED,
+            RentalStatus.DECLINED,
+            RentalStatus.CANCELLED,
+        )
+        .forEach { status ->
+          state = lending(current = listOf(row("drill", status = status)))
+          composeTestRule.waitForIdle()
+          inRow("drill", C.Tag.my_rentals_row_line).assertDoesNotExist()
+          inRow("drill", C.Tag.my_rentals_row_status)
+              .assertTextEquals(context.getString(status.labelRes))
+        }
+  }
+
+  @Test
+  fun blankAreaLeavesOutTheAreaAndAnEmptyLineIsNotShown() {
+    val active = row("drill", status = RentalStatus.ACTIVE, location = "", isPickupArea = false)
+    val disputed = row("bike", status = RentalStatus.DISPUTED, location = "")
+    setContent(lending(current = listOf(active, disputed)))
+
+    inRow("drill", C.Tag.my_rentals_row_line)
+        .assertTextEquals("Return by ${formatDay(LocalDate.of(2026, 10, 22))}")
+    inRow("bike", C.Tag.my_rentals_row_line).assertDoesNotExist()
+  }
+
+  @Test
+  fun tappingACurrentCardOpensTheRental() {
+    val opened = mutableListOf<String>()
+    setContent(
+        lending(current = listOf(row("drill", status = RentalStatus.ACTIVE))),
+        onRentalClick = { opened += it },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "drill").performClick()
+
+    assertEquals(listOf("drill"), opened)
+  }
+
+  @Test
+  fun borrowingTabIsUnchanged() {
+    setContent(MyRentalsUiState(borrowing = listOf(row("tent")), isLoading = false))
+
+    inRow("tent", C.Tag.my_rentals_row_status)
+        .assertTextEquals(context.getString(R.string.rental_status_requested))
+    inRow("tent", C.Tag.my_rentals_row_person)
+        .assertTextEquals(context.getString(R.string.my_rentals_lender, "Loca"))
+    inRow("tent", C.Tag.my_rentals_row_line).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent").assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_review_request_button).assertDoesNotExist()
   }
 
   @Test

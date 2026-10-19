@@ -176,12 +176,7 @@ fun MyRentalsContent(
                 SectionHeader(R.string.my_rentals_section_current, C.Tag.my_rentals_section_current)
               }
               items(uiState.lendingCurrent, key = { it.rentalId }) { row ->
-                RentalRowCard(
-                    row = row,
-                    tab = uiState.selectedTab,
-                    today = today,
-                    onClick = { onRentalClick(row.rentalId) },
-                )
+                CurrentCard(row = row, today = today, onClick = { onRentalClick(row.rentalId) })
               }
             }
           }
@@ -222,42 +217,16 @@ private fun RequestCard(
         modifier = Modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Row {
-        ListingPhoto(
-            url = row.listingPhotoUrl.ifBlank { null },
-            contentDescription = null,
-            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
-        )
-        Column(
-            modifier = Modifier.weight(1f).padding(start = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-          Row {
-            Text(
-                text = row.itemTitle,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).testTag(C.Tag.my_rentals_row_title),
-            )
-            StatusBadge(row.status, isNewRequest = true)
-          }
-          val person =
-              row.otherPersonName.ifBlank { stringResource(R.string.my_rentals_unknown_person) }
-          Text(
-              text =
-                  stringResource(
-                      R.string.my_rentals_person_and_dates,
-                      person,
-                      formatDayRange(row.startDate, row.returnDate, today),
-                  ),
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.testTag(C.Tag.my_rentals_row_person),
-          )
-        }
-      }
+      RentalCardTop(
+          row = row,
+          isNewRequest = true,
+          personLine =
+              stringResource(
+                  R.string.my_rentals_person_and_dates,
+                  row.personOrPlaceholder(),
+                  formatDayRange(row.startDate, row.returnDate, today),
+              ),
+      )
       Text(
           text = stringResource(R.string.my_rentals_reserved, row.totalPrice),
           style = MaterialTheme.typography.bodyMedium,
@@ -273,6 +242,118 @@ private fun RequestCard(
     }
   }
 }
+
+/**
+ * Any other rental the user lends (Figma frame 10): the listing photo, the title and the status
+ * badge, the borrower, and a line saying what comes next (see [currentLine]). Tapping it calls
+ * [onClick].
+ */
+@Composable
+private fun CurrentCard(row: RentalRow, today: LocalDate, onClick: () -> Unit) {
+  OutlinedCard(
+      onClick = onClick,
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_row_ + row.rentalId),
+  ) {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      RentalCardTop(row = row, isNewRequest = false, personLine = row.personOrPlaceholder())
+      row.currentLine(today)?.let {
+        Text(
+            text = it,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(C.Tag.my_rentals_row_line),
+        )
+      }
+    }
+  }
+}
+
+/**
+ * The top of a Lending card: the listing photo (a grey box when there is none), the title with the
+ * status badge ("New request" with [isNewRequest]), and [personLine] under them.
+ */
+@Composable
+private fun RentalCardTop(row: RentalRow, isNewRequest: Boolean, personLine: String) {
+  Row {
+    ListingPhoto(
+        url = row.listingPhotoUrl.ifBlank { null },
+        contentDescription = null,
+        modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
+    )
+    Column(
+        modifier = Modifier.weight(1f).padding(start = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+      Row {
+        Text(
+            text = row.itemTitle,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).testTag(C.Tag.my_rentals_row_title),
+        )
+        StatusBadge(row.status, isNewRequest = isNewRequest)
+      }
+      Text(
+          text = personLine,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.testTag(C.Tag.my_rentals_row_person),
+      )
+    }
+  }
+}
+
+/** The other person's name, or the placeholder when it is missing. */
+@Composable
+private fun RentalRow.personOrPlaceholder(): String = otherPersonName.ifBlank {
+  stringResource(R.string.my_rentals_unknown_person)
+}
+
+/**
+ * What comes next for a lent rental: "Pickup 22 Oct · area" once accepted, "Return by 9 Oct · area"
+ * while active or overdue, the drop-off area alone while disputed, frozen or lost, and null once it
+ * is over. "· area" is left out when the area is blank, and the line is null when nothing is left.
+ */
+@Composable
+private fun RentalRow.currentLine(today: LocalDate): String? {
+  val date =
+      when (status) {
+        RentalStatus.ACCEPTED ->
+            stringResource(
+                R.string.my_rentals_pickup_on,
+                formatDay(startDate, withYear = startDate.year != today.year),
+            )
+        RentalStatus.ACTIVE,
+        RentalStatus.OVERDUE ->
+            stringResource(
+                R.string.my_rentals_return_by,
+                formatDay(returnDate, withYear = returnDate.year != today.year),
+            )
+        else -> null
+      }
+  // location is the pickup area while accepted and the drop-off area once picked up.
+  val area = location.takeIf { status in STATUSES_WITH_AREA && it.isNotBlank() }
+  return when {
+    date != null && area != null -> stringResource(R.string.my_rentals_date_and_area, date, area)
+    else -> date ?: area
+  }
+}
+
+/** Statuses whose Current card names the area where the item is handed over. */
+private val STATUSES_WITH_AREA =
+    setOf(
+        RentalStatus.ACCEPTED,
+        RentalStatus.ACTIVE,
+        RentalStatus.OVERDUE,
+        RentalStatus.DISPUTED,
+        RentalStatus.FROZEN,
+        RentalStatus.LOST,
+    )
 
 /** One rental: the item, the other person, the return date, the location and the status badge. */
 @Composable

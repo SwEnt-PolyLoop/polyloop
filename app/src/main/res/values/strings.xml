@@ -81,6 +81,9 @@
     <string name="my_rentals_person_and_dates">%1$s · %2$s</string>
     <string name="my_rentals_reserved">%1$d PP reserved · waiting for your answer</string>
     <string name="my_rentals_review_request">Review request</string>
+    <string name="my_rentals_pickup_on">Pickup %1$s</string>
+    <!-- What comes next, then where, e.g. "Return by 9 Oct · EPFL" -->
+    <string name="my_rentals_date_and_area">%1$s · %2$s</string>
     <string name="rental_status_requested">Requested</string>
     <string name="rental_status_accepted">Accepted</string>
     <string name="rental_status_active">Active</string>

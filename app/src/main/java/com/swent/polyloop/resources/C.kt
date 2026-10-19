@@ -191,6 +191,7 @@ object C {
     const val my_rentals_row_location = "my_rentals_row_location"
     const val my_rentals_row_status = "my_rentals_row_status"
     const val my_rentals_row_reserved = "my_rentals_row_reserved"
+    const val my_rentals_row_line = "my_rentals_row_line"
     const val my_rentals_section_requests = "my_rentals_section_requests"
     const val my_rentals_section_current = "my_rentals_section_current"
     // Prefix: each request card on Lending is tagged my_rentals_request_ + rental id
