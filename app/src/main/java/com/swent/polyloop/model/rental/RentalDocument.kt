@@ -16,6 +16,7 @@ internal object RentalFields {
   const val COLLECTION = "rentals"
   const val LISTING_ID = "listingId"
   const val LISTING_TITLE = "listingTitle"
+  const val LISTING_PHOTO_URL = "listingPhotoUrl"
   const val OWNER_ID = "ownerId"
   const val OWNER_NAME = "ownerName"
   const val BORROWER_ID = "borrowerId"
@@ -52,6 +53,7 @@ internal fun rentalRequestDocument(
   return mapOf(
       RentalFields.LISTING_ID to listing.id,
       RentalFields.LISTING_TITLE to listing.title,
+      RentalFields.LISTING_PHOTO_URL to listing.photoUrls.first(),
       RentalFields.OWNER_ID to listing.ownerId,
       RentalFields.OWNER_NAME to ownerName.trim(),
       RentalFields.BORROWER_ID to borrower.uid,
@@ -75,7 +77,7 @@ internal fun rentalRequestDocument(
 /**
  * Builds a [Rental] from a Firestore document, or returns null if a field it cannot do without
  * (ids, dates, status, prices, `createdAt`) is missing or has the wrong type. Copied names, title,
- * areas, addresses and the last message read as "" when missing, and `lastMessageAt` as
+ * photo, areas, addresses and the last message read as "" when missing, and `lastMessageAt` as
  * `createdAt`.
  */
 internal fun rentalFromDocument(id: String, data: Map<String, Any?>): Rental? {
@@ -84,6 +86,7 @@ internal fun rentalFromDocument(id: String, data: Map<String, Any?>): Rental? {
       id = id,
       listingId = data[RentalFields.LISTING_ID] as? String ?: return null,
       listingTitle = data.stringOrEmpty(RentalFields.LISTING_TITLE),
+      listingPhotoUrl = data.stringOrEmpty(RentalFields.LISTING_PHOTO_URL),
       ownerId = data[RentalFields.OWNER_ID] as? String ?: return null,
       ownerName = data.stringOrEmpty(RentalFields.OWNER_NAME),
       borrowerId = data[RentalFields.BORROWER_ID] as? String ?: return null,

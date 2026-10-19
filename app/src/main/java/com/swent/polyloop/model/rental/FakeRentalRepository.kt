@@ -56,6 +56,7 @@ class FakeRentalRepository(
             id = newId(),
             listingId = listing.id,
             listingTitle = listing.title,
+            listingPhotoUrl = listing.photoUrls.first(),
             ownerId = listing.ownerId,
             ownerName = ownerName.trim(),
             borrowerId = borrower.uid,

@@ -25,6 +25,7 @@ class RentalDocumentTest {
       mapOf(
           RentalFields.LISTING_ID to "listing-1",
           RentalFields.LISTING_TITLE to "Camping tent",
+          RentalFields.LISTING_PHOTO_URL to "https://example.com/tent.jpg",
           RentalFields.OWNER_ID to "owner",
           RentalFields.OWNER_NAME to "Vida",
           RentalFields.BORROWER_ID to "borrower",
@@ -49,6 +50,7 @@ class RentalDocumentTest {
           id = "rental-1",
           listingId = "listing-1",
           listingTitle = "Camping tent",
+          listingPhotoUrl = "https://example.com/tent.jpg",
           ownerId = "owner",
           ownerName = "Vida",
           borrowerId = "borrower",
@@ -79,6 +81,7 @@ class RentalDocumentTest {
     val optional =
         listOf(
             RentalFields.LISTING_TITLE,
+            RentalFields.LISTING_PHOTO_URL,
             RentalFields.OWNER_NAME,
             RentalFields.BORROWER_NAME,
             RentalFields.PICKUP_AREA,
@@ -94,6 +97,7 @@ class RentalDocumentTest {
     assertEquals(
         expectedRental.copy(
             listingTitle = "",
+            listingPhotoUrl = "",
             ownerName = "",
             borrowerName = "",
             pickupArea = "",
@@ -180,6 +184,7 @@ class RentalDocumentTest {
 
     assertEquals("listing-1", document[RentalFields.LISTING_ID])
     assertEquals("Camping tent", document[RentalFields.LISTING_TITLE])
+    assertEquals("https://example.com/0.jpg", document[RentalFields.LISTING_PHOTO_URL])
     assertEquals("owner", document[RentalFields.OWNER_ID])
     assertEquals("Vida", document[RentalFields.OWNER_NAME])
     assertEquals("borrower", document[RentalFields.BORROWER_ID])

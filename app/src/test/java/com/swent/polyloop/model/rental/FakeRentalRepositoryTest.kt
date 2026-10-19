@@ -57,6 +57,7 @@ class FakeRentalRepositoryTest {
     assertEquals(RentalStatus.REQUESTED, rental.status)
     assertEquals("listing-1", rental.listingId)
     assertEquals("Camping tent", rental.listingTitle)
+    assertEquals("https://example.com/0.jpg", rental.listingPhotoUrl)
     assertEquals("owner", rental.ownerId)
     assertEquals("Vida", rental.ownerName)
     assertEquals("borrower", rental.borrowerId)
