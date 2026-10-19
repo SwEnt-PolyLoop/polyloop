@@ -159,6 +159,7 @@ class AuthScreenTest {
   fun weakSignUpPasswordShowsEveryBrokenRuleAndDisablesSignUp() {
     tap(C.Tag.auth_signup_tab)
     type(C.Tag.auth_password_field, "abc")
+    assertErrorText(C.Tag.auth_password_rules_header, R.string.auth_password_rules_header)
     assertPasswordErrors(
         R.string.auth_password_rule_min_length,
         R.string.auth_password_rule_uppercase,
@@ -181,12 +182,14 @@ class AuthScreenTest {
 
     type(C.Tag.auth_password_field, "123!")
     assertPasswordErrors()
+    composeTestRule.onNodeWithTag(C.Tag.auth_password_rules_header).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).assertIsEnabled()
   }
 
   @Test
   fun loginDoesNotCheckPasswordRules() {
     type(C.Tag.auth_password_field, "abc")
+    composeTestRule.onNodeWithTag(C.Tag.auth_password_rules_header).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.auth_password_error).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertIsEnabled()
   }

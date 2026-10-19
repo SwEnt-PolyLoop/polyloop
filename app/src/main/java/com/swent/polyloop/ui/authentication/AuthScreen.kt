@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -173,6 +174,13 @@ fun AuthScreen(
         isPassword = true,
         testTag = C.Tag.auth_password_field,
         errorTestTag = C.Tag.auth_password_error,
+        errorHeader =
+            if (isSignUp && state.password.isNotEmpty()) {
+              stringResource(R.string.auth_password_rules_header)
+            } else {
+              null
+            },
+        errorHeaderTestTag = C.Tag.auth_password_rules_header,
     )
 
     Spacer(Modifier.height(20.dp))
@@ -382,6 +390,9 @@ private fun RowScope.Tab(
  * @param errorTestTag semantic test tag of each validation message for UI tests.
  * @param keyboardType keyboard layout requested for the field.
  * @param isPassword whether to obscure the entered value.
+ * @param errorHeader line shown above the messages, which then become bullet points; null shows
+ *   them as plain lines.
+ * @param errorHeaderTestTag semantic test tag of [errorHeader] for UI tests.
  */
 @Composable
 private fun AuthTextField(
@@ -394,6 +405,8 @@ private fun AuthTextField(
     errorTestTag: String,
     keyboardType: KeyboardType = KeyboardType.Text,
     isPassword: Boolean = false,
+    errorHeader: String? = null,
+    errorHeaderTestTag: String = "",
 ) {
   val colors = MaterialTheme.colorScheme
 
@@ -445,13 +458,37 @@ private fun AuthTextField(
   Column(
       modifier = Modifier.heightIn(min = 20.dp),
   ) {
-    errorTexts.forEach { errorText ->
+    // A bullet list keeps its lines tight; the theme's default line height spreads them out.
+    val lineHeight = if (errorHeader != null) 16.sp else TextUnit.Unspecified
+    if (errorHeader != null && errorTexts.isNotEmpty()) {
       Text(
-          text = errorText,
+          text = errorHeader,
           color = colors.error,
           fontSize = 13.sp,
-          modifier = Modifier.testTag(errorTestTag),
+          lineHeight = lineHeight,
+          modifier = Modifier.testTag(errorHeaderTestTag),
       )
+    }
+    errorTexts.forEach { errorText ->
+      Row {
+        // Under a header, each message is a bullet; wrapped lines stay aligned with its text.
+        if (errorHeader != null) {
+          Text(
+              text = stringResource(R.string.auth_password_rule_bullet),
+              color = colors.error,
+              fontSize = 13.sp,
+              lineHeight = lineHeight,
+              modifier = Modifier.padding(start = 4.dp, end = 6.dp),
+          )
+        }
+        Text(
+            text = errorText,
+            color = colors.error,
+            fontSize = 13.sp,
+            lineHeight = lineHeight,
+            modifier = Modifier.testTag(errorTestTag),
+        )
+      }
     }
   }
 }
