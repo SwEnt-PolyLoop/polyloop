@@ -53,6 +53,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.auth.PasswordRule
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
@@ -88,8 +89,9 @@ fun AuthScreen(
   /*
    * Field validation is driven by the flags exposed by AuthUiState.
    *
-   * Name and password errors are shown after the user attempts to submit.
+   * Name and empty-password errors are shown after the user attempts to submit.
    * Email errors are shown as soon as the typed address doesn't match, or after submission.
+   * When signing up, one error per broken password rule is shown as soon as a password is typed.
    */
   val showEmailError = (state.email.isNotEmpty() || state.hasAttemptedSubmit) && !state.isEmailValid
 
@@ -107,11 +109,11 @@ fun AuthScreen(
         null
       }
 
-  val passwordError =
-      if (state.hasAttemptedSubmit && state.isPasswordBlank) {
-        R.string.auth_password_required
-      } else {
-        null
+  val passwordErrors =
+      when {
+        isSignUp && state.password.isNotEmpty() -> state.failedPasswordRules.map { it.messageRes() }
+        state.hasAttemptedSubmit && state.isPasswordBlank -> listOf(R.string.auth_password_required)
+        else -> emptyList()
       }
 
   Column(
@@ -140,7 +142,7 @@ fun AuthScreen(
           value = state.name,
           placeholder = stringResource(R.string.auth_name_placeholder),
           onValueChange = viewModel::onNameChange,
-          errorText = nameError?.let { stringResource(it) },
+          errorTexts = listOfNotNull(nameError?.let { stringResource(it) }),
           testTag = C.Tag.auth_name_field,
           errorTestTag = C.Tag.auth_name_error,
       )
@@ -153,7 +155,7 @@ fun AuthScreen(
         value = state.email,
         placeholder = stringResource(R.string.auth_email_placeholder),
         onValueChange = viewModel::onEmailChange,
-        errorText = emailError?.let { stringResource(it) },
+        errorTexts = listOfNotNull(emailError?.let { stringResource(it) }),
         keyboardType = KeyboardType.Email,
         testTag = C.Tag.auth_email_field,
         errorTestTag = C.Tag.auth_email_error,
@@ -166,7 +168,7 @@ fun AuthScreen(
         value = state.password,
         placeholder = stringResource(R.string.auth_password_placeholder),
         onValueChange = viewModel::onPasswordChange,
-        errorText = passwordError?.let { stringResource(it) },
+        errorTexts = passwordErrors.map { stringResource(it) },
         keyboardType = KeyboardType.Password,
         isPassword = true,
         testTag = C.Tag.auth_password_field,
@@ -178,7 +180,7 @@ fun AuthScreen(
     AuthButton(
         text = stringResource(if (isSignUp) R.string.auth_signup else R.string.auth_login),
         onClick = viewModel::submit,
-        enabled = !state.isLoading,
+        enabled = !state.isLoading && (!isSignUp || state.isPasswordStrong),
         testTag = if (isSignUp) C.Tag.auth_signup_button else C.Tag.auth_login_button,
     )
 
@@ -228,11 +230,11 @@ private fun NameStep(
         value = state.name,
         placeholder = stringResource(R.string.auth_name_placeholder),
         onValueChange = onNameChange,
-        errorText =
+        errorTexts =
             if (state.hasAttemptedSubmit && state.isNameBlank) {
-              stringResource(R.string.auth_name_required)
+              listOf(stringResource(R.string.auth_name_required))
             } else {
-              null
+              emptyList()
             },
         testTag = C.Tag.auth_name_field,
         errorTestTag = C.Tag.auth_name_error,
@@ -367,7 +369,7 @@ private fun RowScope.Tab(
 }
 
 /**
- * Renders a labeled text field, its optional validation message, and a stable error-message slot.
+ * Renders a labeled text field, its validation messages, and a stable error-message slot.
  *
  * Password values are obscured when [isPassword] is true.
  *
@@ -375,9 +377,9 @@ private fun RowScope.Tab(
  * @param value current field value.
  * @param placeholder hint shown while the field is empty.
  * @param onValueChange called when the user edits the value.
- * @param errorText validation message, or null when the field has no visible error.
+ * @param errorTexts validation messages, one per line; empty when the field has no visible error.
  * @param testTag semantic test tag for UI tests.
- * @param errorTestTag semantic test tag of the validation message for UI tests.
+ * @param errorTestTag semantic test tag of each validation message for UI tests.
  * @param keyboardType keyboard layout requested for the field.
  * @param isPassword whether to obscure the entered value.
  */
@@ -387,7 +389,7 @@ private fun AuthTextField(
     value: String,
     placeholder: String,
     onValueChange: (String) -> Unit,
-    errorText: String?,
+    errorTexts: List<String>,
     testTag: String,
     errorTestTag: String,
     keyboardType: KeyboardType = KeyboardType.Text,
@@ -415,7 +417,7 @@ private fun AuthTextField(
       },
       singleLine = true,
       shape = RoundedCornerShape(14.dp),
-      isError = errorText != null,
+      isError = errorTexts.isNotEmpty(),
       visualTransformation =
           if (isPassword) {
             PasswordVisualTransformation()
@@ -439,11 +441,11 @@ private fun AuthTextField(
       modifier = Modifier.fillMaxWidth().height(62.dp).testTag(testTag),
   )
 
-  // Keep a stable height so the form does not jump when an error appears.
+  // Keep a minimum height so the form does not jump when one error appears; several errors grow it.
   Column(
-      modifier = Modifier.height(20.dp),
+      modifier = Modifier.heightIn(min = 20.dp),
   ) {
-    if (errorText != null) {
+    errorTexts.forEach { errorText ->
       Text(
           text = errorText,
           color = colors.error,
@@ -578,6 +580,17 @@ internal fun AuthError.messageRes(): Int =
       AuthError.VERIFICATION_EMAIL_NOT_SENT -> R.string.auth_error_verification_email_not_sent
       AuthError.NAME_NOT_SAVED -> R.string.auth_error_name_not_saved
       AuthError.PROFILE_NOT_CREATED -> R.string.auth_error_profile_not_created
+    }
+
+/** Converts a broken sign-up password rule into the string resource of its error message. */
+@StringRes
+internal fun PasswordRule.messageRes(): Int =
+    when (this) {
+      PasswordRule.MIN_LENGTH -> R.string.auth_password_rule_min_length
+      PasswordRule.UPPERCASE -> R.string.auth_password_rule_uppercase
+      PasswordRule.LOWERCASE -> R.string.auth_password_rule_lowercase
+      PasswordRule.DIGIT -> R.string.auth_password_rule_digit
+      PasswordRule.SPECIAL -> R.string.auth_password_rule_special
     }
 
 /** Preview of the login form backed by an in-memory authentication repository. */

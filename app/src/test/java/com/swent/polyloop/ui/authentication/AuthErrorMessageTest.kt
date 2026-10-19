@@ -4,6 +4,7 @@ package com.swent.polyloop.ui.authentication
 
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
+import com.swent.polyloop.model.auth.PasswordRule
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -29,5 +30,19 @@ class AuthErrorMessageTest {
         )
 
     assertEquals(expected, AuthError.entries.associateWith { it.messageRes() })
+  }
+
+  @Test
+  fun everyPasswordRuleMapsToItsMessage() {
+    val expected =
+        mapOf(
+            PasswordRule.MIN_LENGTH to R.string.auth_password_rule_min_length,
+            PasswordRule.UPPERCASE to R.string.auth_password_rule_uppercase,
+            PasswordRule.LOWERCASE to R.string.auth_password_rule_lowercase,
+            PasswordRule.DIGIT to R.string.auth_password_rule_digit,
+            PasswordRule.SPECIAL to R.string.auth_password_rule_special,
+        )
+
+    assertEquals(expected, PasswordRule.entries.associateWith { it.messageRes() })
   }
 }
