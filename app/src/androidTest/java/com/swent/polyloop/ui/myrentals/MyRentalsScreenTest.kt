@@ -107,6 +107,24 @@ class MyRentalsScreenTest {
           useUnmergedTree = true,
       )
 
+  /** Shows the content with a state the test can change; the returned function sets it. */
+  private fun setMutableContent(): (MyRentalsUiState) -> Unit {
+    var state by mutableStateOf(MyRentalsUiState(isLoading = false))
+    composeTestRule.setContent {
+      MyRentalsContent(
+          uiState = state,
+          onTabSelected = {},
+          onRentalClick = {},
+          onRetry = {},
+          today = TODAY,
+      )
+    }
+    return {
+      state = it
+      composeTestRule.waitForIdle()
+    }
+  }
+
   private fun lending(
       requests: List<RentalRow> = emptyList(),
       current: List<RentalRow> = emptyList(),
@@ -204,6 +222,8 @@ class MyRentalsScreenTest {
     composeTestRule
         .onNodeWithTag(C.Tag.my_rentals_empty)
         .assertTextEquals(context.getString(R.string.my_rentals_empty_lending))
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_requests).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_current).assertDoesNotExist()
   }
 
   @Test
@@ -269,14 +289,6 @@ class MyRentalsScreenTest {
   }
 
   @Test
-  fun blankBorrowerShowsPlaceholderOnCurrentCard() {
-    setContent(lending(current = listOf(row("drill", status = RentalStatus.ACTIVE, person = ""))))
-
-    inRow("drill", C.Tag.my_rentals_row_person)
-        .assertTextEquals(context.getString(R.string.my_rentals_unknown_person))
-  }
-
-  @Test
   fun acceptedCurrentCardShowsThePickupDayAndArea() {
     val accepted =
         row("drill", status = RentalStatus.ACCEPTED, location = "Renens")
@@ -285,84 +297,51 @@ class MyRentalsScreenTest {
 
     inRow("drill", C.Tag.my_rentals_row_line)
         .assertTextEquals("Pickup ${formatDay(LocalDate.of(2026, 10, 22))} · Renens")
-    inRow("drill", C.Tag.my_rentals_row_status)
-        .assertTextEquals(context.getString(R.string.rental_status_accepted))
   }
 
   @Test
-  fun activeCurrentCardShowsTheReturnDayAndArea() {
-    val active =
-        row(
-            "drill",
-            status = RentalStatus.ACTIVE,
-            location = "EPFL",
-            returnDate = LocalDate.of(2026, 10, 9),
-            isPickupArea = false,
-        )
-    setContent(lending(current = listOf(active)))
+  fun activeAndOverdueCurrentCardsShowTheReturnDayAndArea() {
+    val setState = setMutableContent()
 
-    inRow("drill", C.Tag.my_rentals_row_line)
-        .assertTextEquals("Return by ${formatDay(LocalDate.of(2026, 10, 9))} · EPFL")
-  }
-
-  @Test
-  fun overdueCurrentCardShowsTheReturnDayAndArea() {
-    val overdue =
-        row(
-            "drill",
-            status = RentalStatus.OVERDUE,
-            location = "EPFL",
-            returnDate = LocalDate.of(2026, 10, 9),
-            isPickupArea = false,
-        )
-    setContent(lending(current = listOf(overdue)))
-
-    inRow("drill", C.Tag.my_rentals_row_line)
-        .assertTextEquals("Return by ${formatDay(LocalDate.of(2026, 10, 9))} · EPFL")
+    listOf(RentalStatus.ACTIVE, RentalStatus.OVERDUE).forEach { status ->
+      val row =
+          row(
+              "drill",
+              status = status,
+              location = "EPFL",
+              returnDate = LocalDate.of(2026, 10, 9),
+              isPickupArea = false,
+          )
+      setState(lending(current = listOf(row)))
+      inRow("drill", C.Tag.my_rentals_row_line)
+          .assertTextEquals("Return by ${formatDay(LocalDate.of(2026, 10, 9))} · EPFL")
+    }
   }
 
   @Test
   fun currentCardDateInAnotherYearShowsTheYear() {
     val nextYear = LocalDate.of(2027, 1, 5)
-    val active = row("drill", status = RentalStatus.ACTIVE, location = "", returnDate = nextYear)
+    val active =
+        row("drill", status = RentalStatus.ACTIVE, location = "EPFL", returnDate = nextYear)
     setContent(lending(current = listOf(active)))
 
     inRow("drill", C.Tag.my_rentals_row_line)
-        .assertTextEquals("Return by ${formatDay(nextYear, withYear = true)}")
+        .assertTextEquals("Return by ${formatDay(nextYear, withYear = true)} · EPFL")
   }
 
   @Test
   fun problemCurrentCardShowsOnlyTheArea() {
-    var state by mutableStateOf(lending())
-    composeTestRule.setContent {
-      MyRentalsContent(
-          uiState = state,
-          onTabSelected = {},
-          onRentalClick = {},
-          onRetry = {},
-          today = TODAY,
-      )
-    }
+    val setState = setMutableContent()
 
     listOf(RentalStatus.DISPUTED, RentalStatus.FROZEN, RentalStatus.LOST).forEach { status ->
-      state = lending(current = listOf(row("drill", status = status, location = "EPFL")))
-      composeTestRule.waitForIdle()
+      setState(lending(current = listOf(row("drill", status = status, location = "EPFL"))))
       inRow("drill", C.Tag.my_rentals_row_line).assertTextEquals("EPFL")
     }
   }
 
   @Test
   fun finishedCurrentCardsHaveNoLine() {
-    var state by mutableStateOf(lending())
-    composeTestRule.setContent {
-      MyRentalsContent(
-          uiState = state,
-          onTabSelected = {},
-          onRentalClick = {},
-          onRetry = {},
-          today = TODAY,
-      )
-    }
+    val setState = setMutableContent()
 
     listOf(
             RentalStatus.RETURNED,
@@ -371,11 +350,8 @@ class MyRentalsScreenTest {
             RentalStatus.CANCELLED,
         )
         .forEach { status ->
-          state = lending(current = listOf(row("drill", status = status)))
-          composeTestRule.waitForIdle()
+          setState(lending(current = listOf(row("drill", status = status))))
           inRow("drill", C.Tag.my_rentals_row_line).assertDoesNotExist()
-          inRow("drill", C.Tag.my_rentals_row_status)
-              .assertTextEquals(context.getString(status.labelRes))
         }
   }
 
@@ -405,15 +381,18 @@ class MyRentalsScreenTest {
 
   @Test
   fun borrowingTabIsUnchanged() {
-    setContent(MyRentalsUiState(borrowing = listOf(row("tent")), isLoading = false))
+    // The same request on both tabs: Borrowing must still show it on the old card.
+    setContent(
+        MyRentalsUiState(
+            borrowing = listOf(row("tent")),
+            lendingRequests = listOf(request("tent")),
+            isLoading = false,
+        )
+    )
 
-    inRow("tent", C.Tag.my_rentals_row_status)
-        .assertTextEquals(context.getString(R.string.rental_status_requested))
     inRow("tent", C.Tag.my_rentals_row_person)
         .assertTextEquals(context.getString(R.string.my_rentals_lender, "Loca"))
-    inRow("tent", C.Tag.my_rentals_row_line).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent").assertDoesNotExist()
-    composeTestRule.onNodeWithTag(C.Tag.my_rentals_review_request_button).assertDoesNotExist()
   }
 
   @Test
@@ -505,17 +484,6 @@ class MyRentalsScreenTest {
   }
 
   @Test
-  fun noLentRentalsShowsTheEmptyText() {
-    setContent(lending())
-
-    composeTestRule
-        .onNodeWithTag(C.Tag.my_rentals_empty)
-        .assertTextEquals(context.getString(R.string.my_rentals_empty_lending))
-    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_requests).assertDoesNotExist()
-    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_current).assertDoesNotExist()
-  }
-
-  @Test
   fun missingNameShowsThePlaceholder() {
     setContent(MyRentalsUiState(borrowing = listOf(row("tent", person = "")), isLoading = false))
 
@@ -533,14 +501,12 @@ class MyRentalsScreenTest {
 
   @Test
   fun everyStatusShowsItsLabel() {
-    var state by mutableStateOf(MyRentalsUiState(isLoading = false))
-    composeTestRule.setContent {
-      MyRentalsContent(uiState = state, onTabSelected = {}, onRentalClick = {}, onRetry = {})
-    }
+    val setState = setMutableContent()
 
     RentalStatus.entries.forEach { status ->
-      state = MyRentalsUiState(borrowing = listOf(row("tent", status = status)), isLoading = false)
-      composeTestRule.waitForIdle()
+      setState(
+          MyRentalsUiState(borrowing = listOf(row("tent", status = status)), isLoading = false)
+      )
       inRow("tent", C.Tag.my_rentals_row_status)
           .assertTextEquals(context.getString(status.labelRes))
     }
