@@ -5,7 +5,10 @@ package com.swent.polyloop.model.auth
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** Each test breaks at most one rule of an otherwise valid password, [VALID]. */
+/**
+ * Checks each rule on its own: every password below breaks at most one rule, except the empty one,
+ * which breaks them all.
+ */
 class PasswordRuleTest {
 
   private fun assertFails(password: String, vararg rules: PasswordRule) {

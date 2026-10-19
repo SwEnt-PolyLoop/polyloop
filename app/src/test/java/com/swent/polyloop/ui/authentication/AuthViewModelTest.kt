@@ -60,7 +60,10 @@ class AuthViewModelTest {
     viewModel.onPasswordChange("secret")
   }
 
-  /** Logging in keeps a weak password, which only signing up rejects. */
+  /**
+   * Fills a valid sign-up form. Its password follows every rule, unlike the one of [fillLogIn],
+   * which only logging in accepts.
+   */
   private fun fillSignUp() {
     viewModel.switchMode(AuthMode.SIGN_UP)
     viewModel.onNameChange("John")

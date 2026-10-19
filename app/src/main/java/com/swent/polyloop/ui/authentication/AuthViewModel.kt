@@ -77,6 +77,7 @@ data class AuthUiState(
   val failedPasswordRules: List<PasswordRule>
     get() = PasswordRule.failedRules(password)
 
+  /** True when the password follows every [PasswordRule]; only signing up requires it. */
   val isPasswordStrong: Boolean
     get() = failedPasswordRules.isEmpty()
 

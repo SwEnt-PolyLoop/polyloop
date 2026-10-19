@@ -92,7 +92,8 @@ fun AuthScreen(
    *
    * Name and empty-password errors are shown after the user attempts to submit.
    * Email errors are shown as soon as the typed address doesn't match, or after submission.
-   * When signing up, one error per broken password rule is shown as soon as a password is typed.
+   * When signing up, the broken password rules are listed as bullets under a header as soon as a
+   * password is typed, and the Sign up button stays disabled until every rule is met.
    */
   val showEmailError = (state.email.isNotEmpty() || state.hasAttemptedSubmit) && !state.isEmailValid
 
@@ -377,7 +378,8 @@ private fun RowScope.Tab(
 }
 
 /**
- * Renders a labeled text field, its validation messages, and a stable error-message slot.
+ * Renders a labeled text field and its validation messages, in an error slot with a minimum height
+ * so the form does not jump when one message appears.
  *
  * Password values are obscured when [isPassword] is true.
  *
@@ -390,8 +392,8 @@ private fun RowScope.Tab(
  * @param errorTestTag semantic test tag of each validation message for UI tests.
  * @param keyboardType keyboard layout requested for the field.
  * @param isPassword whether to obscure the entered value.
- * @param errorHeader line shown above the messages, which then become bullet points; null shows
- *   them as plain lines.
+ * @param errorHeader line shown above the messages, which then become tightly spaced bullet points;
+ *   null shows them as plain lines. Not shown when there is no message.
  * @param errorHeaderTestTag semantic test tag of [errorHeader] for UI tests.
  */
 @Composable
