@@ -9,6 +9,7 @@ import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.auth.PasswordRule
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import kotlin.coroutines.cancellation.CancellationException
@@ -59,10 +60,12 @@ class AuthViewModelTest {
     viewModel.onPasswordChange("secret")
   }
 
+  /** Logging in keeps a weak password, which only signing up rejects. */
   private fun fillSignUp() {
     viewModel.switchMode(AuthMode.SIGN_UP)
     viewModel.onNameChange("John")
     fillLogIn()
+    viewModel.onPasswordChange("Secret12!")
   }
 
   /** Moves the virtual clock forward, running what was due, e.g. the resend countdown. */
@@ -112,11 +115,35 @@ class AuthViewModelTest {
 
   @Test
   fun signUpAlsoNeedsName() {
-    viewModel.switchMode(AuthMode.SIGN_UP)
-    fillLogIn()
+    fillSignUp()
+    viewModel.onNameChange(" ")
     assertFalse(state.canSubmit)
 
     viewModel.onNameChange("John")
+    assertTrue(state.canSubmit)
+  }
+
+  @Test
+  fun signUpNeedsAPasswordFollowingEveryRule() {
+    fillSignUp()
+    viewModel.onPasswordChange("secret")
+    assertEquals(
+        listOf(
+            PasswordRule.MIN_LENGTH,
+            PasswordRule.UPPERCASE,
+            PasswordRule.DIGIT,
+            PasswordRule.SPECIAL,
+        ),
+        state.failedPasswordRules,
+    )
+    assertFalse(state.isPasswordStrong)
+    assertFalse(state.canSubmit)
+
+    viewModel.submit()
+    assertTrue(repository.calls.isEmpty())
+
+    viewModel.onPasswordChange("Secret12!")
+    assertTrue(state.isPasswordStrong)
     assertTrue(state.canSubmit)
   }
 
@@ -248,7 +275,7 @@ class AuthViewModelTest {
 
     viewModel.submit()
 
-    assertEquals(listOf("signUp(John, john@epfl.ch, secret)"), repository.calls)
+    assertEquals(listOf("signUp(John, john@epfl.ch, Secret12!)"), repository.calls)
     assertTrue(state.isAwaitingVerification)
     assertFalse(state.isSignedIn)
     assertNull(state.error)
@@ -323,7 +350,7 @@ class AuthViewModelTest {
 
     viewModel.resendVerificationEmail()
 
-    assertEquals("resendVerificationEmail(john@epfl.ch, secret)", repository.calls.last())
+    assertEquals("resendVerificationEmail(john@epfl.ch, Secret12!)", repository.calls.last())
     assertTrue(state.isVerificationEmailResent)
     assertNull(state.error)
   }
@@ -363,7 +390,7 @@ class AuthViewModelTest {
 
     viewModel.confirmVerified()
 
-    assertEquals("signIn(john@epfl.ch, secret)", repository.calls.last())
+    assertEquals("signIn(john@epfl.ch, Secret12!)", repository.calls.last())
     assertTrue(state.isSignedIn)
     assertFalse(state.isAwaitingVerification)
   }
