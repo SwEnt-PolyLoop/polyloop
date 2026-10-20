@@ -101,6 +101,8 @@ object C {
     const val date_picker_balance = "date_picker_balance"
     const val date_picker_balance_error = "date_picker_balance_error"
     const val date_picker_confirm_button = "date_picker_confirm_button"
+    const val date_picker_sending = "date_picker_sending"
+    const val date_picker_send_error = "date_picker_send_error"
 
     fun datePickerDay(date: LocalDate) = "date_picker_day_$date"
 

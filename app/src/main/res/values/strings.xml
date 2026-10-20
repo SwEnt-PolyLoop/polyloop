@@ -146,6 +146,7 @@
     <string name="date_picker_not_enough_balance">Not enough balance for these dates. Recharge in Wallet.</string>
     <string name="date_picker_send_request">Send request</string>
     <string name="date_picker_confirm_dates">Confirm dates</string>
+    <string name="date_picker_send_error_fallback">Could not send the request. Try again.</string>
 
     <!-- Top-bar menu -->
     <string name="menu_browse">Browse</string>
