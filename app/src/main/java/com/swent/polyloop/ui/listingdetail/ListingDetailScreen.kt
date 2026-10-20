@@ -101,8 +101,8 @@ fun ListingDetailScreen(
 /**
  * Stateless Listing detail content: a loading indicator, an error with a Retry button, a not-found
  * message or the loaded listing, depending on [uiState]. While the date picker is open, its sheet
- * is shown over the loaded listing, with [today] as the current date. When a request has been
- * sent, the sheet closes and [onRequestSent] is called with the new rental's id.
+ * is shown over the loaded listing, with [today] as the current date. When a request has been sent,
+ * the sheet closes and [onRequestSent] is called with the new rental's id.
  */
 @Composable
 fun ListingDetailContent(
