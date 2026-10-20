@@ -25,11 +25,14 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.utils.FakePhotoServerRule
 import com.swent.polyloop.utils.FakePhotos
@@ -501,7 +504,14 @@ class ListingDetailScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = ListingDetailViewModel("tent", repository)
+    val viewModel =
+        ListingDetailViewModel(
+            "tent",
+            repository,
+            FakeRentalRepository(),
+            FakeAuthRepository(),
+            FakeProfileRepository(),
+        )
     var clickedOwnerId: String? = null
     composeTestRule.setContent {
       ListingDetailScreen(viewModel = viewModel, onLenderClick = { clickedOwnerId = it })

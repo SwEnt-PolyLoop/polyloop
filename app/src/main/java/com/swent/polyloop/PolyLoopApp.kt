@@ -162,6 +162,9 @@ fun PolyLoopApp(
                     ListingDetailViewModel.Factory(
                         listingId = entry.stringArg(Screen.ARG_LISTING_ID),
                         listingRepository = RepositoryProvider.listingRepository,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                        profileRepository = RepositoryProvider.profileRepository,
                     )
             )
         ListingDetailScreen(
