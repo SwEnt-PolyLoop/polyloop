@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,29 +73,36 @@ internal const val FAKE_LENDER_REVIEW_COUNT = 12
 private const val STAR_COUNT = 5
 
 /**
- * The Listing detail screen, showing the listing loaded by [viewModel]. The app's top bar is drawn
- * by the navigation scaffold, not here.
+ * The Listing detail screen, showing the listing loaded by [viewModel]. Once a request is sent,
+ * [onRequestSent] opens the new rental's chat. The app's top bar is drawn by the navigation
+ * scaffold, not here.
  */
 @Composable
 fun ListingDetailScreen(
     viewModel: ListingDetailViewModel,
     onLenderClick: (ownerId: String) -> Unit,
+    onRequestSent: (rentalId: String) -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   ListingDetailContent(
       uiState = uiState,
       onRequestDates = viewModel::openDatePicker,
-      onConfirmDates = viewModel::selectDates,
+      onConfirmDates = viewModel::sendRequest,
       onDismissDatePicker = viewModel::dismissDatePicker,
       onLenderClick = onLenderClick,
       onRetry = viewModel::retry,
+      onRequestSent = { rentalId ->
+        onRequestSent(rentalId)
+        viewModel.onRequestSentHandled()
+      },
   )
 }
 
 /**
  * Stateless Listing detail content: a loading indicator, an error with a Retry button, a not-found
  * message or the loaded listing, depending on [uiState]. While the date picker is open, its sheet
- * is shown over the loaded listing, with [today] as the current date.
+ * is shown over the loaded listing, with [today] as the current date. When a request has been
+ * sent, the sheet closes and [onRequestSent] is called with the new rental's id.
  */
 @Composable
 fun ListingDetailContent(
@@ -106,7 +114,9 @@ fun ListingDetailContent(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
+    onRequestSent: (rentalId: String) -> Unit = {},
 ) {
+  LaunchedEffect(uiState.sentRentalId) { uiState.sentRentalId?.let(onRequestSent) }
   val listing = uiState.listing
   Column(
       modifier =
@@ -136,10 +146,11 @@ fun ListingDetailContent(
       else -> {
         ListingDetailLoaded(
             listing = listing,
+            showRequestButton = !uiState.isOwnListing,
             onRequestDates = onRequestDates,
             onLenderClick = { onLenderClick(listing.ownerId) },
         )
-        if (uiState.isDatePickerOpen) {
+        if (uiState.isDatePickerOpen && uiState.sentRentalId == null) {
           PolyLoopDateRangePicker(
               window = listing.availableFrom..listing.availableTo,
               disabledDates = emptySet(), // booked days come with #87
@@ -151,6 +162,8 @@ fun ListingDetailContent(
               onConfirm = onConfirmDates,
               onDismiss = onDismissDatePicker,
               today = today,
+              isSending = uiState.isSending,
+              errorMsg = uiState.sendError,
           )
         }
       }
@@ -180,11 +193,13 @@ private fun ListingDetailError(errorMsg: String, onRetry: () -> Unit) {
 
 /**
  * The loaded listing for a borrower: photos, title, price, description, the lender, the suggested
- * deposit and availability, the pickup area, and a pinned "Request dates" button.
+ * deposit and availability, the pickup area, and a pinned "Request dates" button unless
+ * [showRequestButton] is false (the user's own listing).
  */
 @Composable
 private fun ListingDetailLoaded(
     listing: Listing,
+    showRequestButton: Boolean,
     onRequestDates: () -> Unit,
     onLenderClick: () -> Unit,
 ) {
@@ -216,7 +231,7 @@ private fun ListingDetailLoaded(
       InfoCard(listing = listing)
       PickupArea()
     }
-    RequestBar(onRequestDates = onRequestDates)
+    if (showRequestButton) RequestBar(onRequestDates = onRequestDates)
   }
 }
 

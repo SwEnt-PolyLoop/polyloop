@@ -514,7 +514,11 @@ class ListingDetailScreenTest {
         )
     var clickedOwnerId: String? = null
     composeTestRule.setContent {
-      ListingDetailScreen(viewModel = viewModel, onLenderClick = { clickedOwnerId = it })
+      ListingDetailScreen(
+          viewModel = viewModel,
+          onLenderClick = { clickedOwnerId = it },
+          onRequestSent = {},
+      )
     }
 
     waitForTag(C.Tag.listing_detail_error)
@@ -524,5 +528,53 @@ class ListingDetailScreenTest {
     waitForTag(C.Tag.listing_detail_title)
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo().performClick()
     assertEquals("owner", clickedOwnerId)
+  }
+
+  @Test
+  fun ownListingHasNoRequestButton() {
+    setContent(uiState = ListingDetailUiState(listing = listing, isOwnListing = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_title).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun sentRentalIdCallsOnRequestSentOnce() {
+    val sent = mutableListOf<String>()
+    composeTestRule.setContent {
+      ListingDetailContent(
+          uiState =
+              ListingDetailUiState(listing = listing, isDatePickerOpen = true, sentRentalId = "r1"),
+          onRequestDates = {},
+          onConfirmDates = { _, _ -> },
+          onDismissDatePicker = {},
+          onLenderClick = {},
+          onRetry = {},
+          today = today,
+          onRequestSent = { sent += it },
+      )
+    }
+    composeTestRule.waitForIdle()
+
+    assertEquals(listOf("r1"), sent)
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertDoesNotExist()
+  }
+
+  @Test
+  fun sendErrorIsShownInTheOpenPicker() {
+    setContent(
+        uiState =
+            ListingDetailUiState(
+                listing = listing,
+                isDatePickerOpen = true,
+                sendError = "Network down",
+            )
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_send_error)
+        .performScrollTo()
+        .assertTextEquals("Network down")
   }
 }

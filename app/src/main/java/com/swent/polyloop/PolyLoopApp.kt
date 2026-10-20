@@ -172,6 +172,7 @@ fun PolyLoopApp(
             onLenderClick = { ownerId ->
               navController.navigate(Screen.UserProfile.createRoute(ownerId))
             },
+            onRequestSent = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
         )
       }
       composable(Screen.EditListing.route, stringArgument(Screen.ARG_LISTING_ID)) { entry ->
