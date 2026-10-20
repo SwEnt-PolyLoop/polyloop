@@ -216,4 +216,18 @@ class RentalDocumentTest {
     assertTrue(document[RentalFields.CREATED_AT] is FieldValue)
     assertSame(document[RentalFields.CREATED_AT], document[RentalFields.LAST_MESSAGE_AT])
   }
+
+  @Test
+  fun requestDocumentStoresAnEmptyPhotoUrlWhenTheListingHasNoPhotos() {
+    val document =
+        rentalRequestDocument(
+            listing.copy(photoUrls = emptyList()),
+            "Vida",
+            borrower,
+            LocalDate.of(2026, 10, 20),
+            LocalDate.of(2026, 10, 22),
+        )
+
+    assertEquals("", document[RentalFields.LISTING_PHOTO_URL])
+  }
 }

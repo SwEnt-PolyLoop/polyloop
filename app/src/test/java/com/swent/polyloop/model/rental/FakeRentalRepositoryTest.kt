@@ -195,4 +195,13 @@ class FakeRentalRepositoryTest {
 
     assertEquals(5, rental.totalPrice)
   }
+
+  @Test
+  fun requestRentalGivesAnEmptyPhotoUrlWhenTheListingHasNoPhotos() = runTest {
+    val noPhotos = listing.copy(photoUrls = emptyList())
+
+    val rental = repository().requestRental(noPhotos, "Vida", borrower, start, end).getOrThrow()
+
+    assertEquals("", rental.listingPhotoUrl)
+  }
 }

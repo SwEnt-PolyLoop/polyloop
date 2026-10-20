@@ -53,7 +53,7 @@ internal fun rentalRequestDocument(
   return mapOf(
       RentalFields.LISTING_ID to listing.id,
       RentalFields.LISTING_TITLE to listing.title,
-      RentalFields.LISTING_PHOTO_URL to listing.photoUrls.first(),
+      RentalFields.LISTING_PHOTO_URL to listing.photoUrls.firstOrNull().orEmpty(),
       RentalFields.OWNER_ID to listing.ownerId,
       RentalFields.OWNER_NAME to ownerName.trim(),
       RentalFields.BORROWER_ID to borrower.uid,
