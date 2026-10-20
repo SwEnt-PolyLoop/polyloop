@@ -163,11 +163,7 @@ fun MyRentalsContent(
                 )
               }
               items(uiState.lendingRequests, key = { it.rentalId }) { row ->
-                RequestCard(
-                    row = row,
-                    onClick = { onRentalClick(row.rentalId) },
-                    onReviewRequest = { onReviewRequest(row.rentalId) },
-                )
+                RequestCard(row = row, onReviewRequest = { onReviewRequest(row.rentalId) })
               }
             }
             if (uiState.lendingCurrent.isNotEmpty()) {
@@ -199,13 +195,12 @@ private fun SectionHeader(@StringRes textRes: Int, testTag: String) {
 /**
  * A pending request on one of the user's listings (Figma frame 10): the listing photo, the title
  * and a "New request" badge, the borrower and the dates, the reserved price, and a "Review request"
- * button calling [onReviewRequest]. Tapping the rest of the card calls [onClick].
+ * button calling [onReviewRequest]. Only the button reacts: the card itself is not clickable.
  */
 @Composable
-private fun RequestCard(row: RentalRow, onClick: () -> Unit, onReviewRequest: () -> Unit) {
+private fun RequestCard(row: RentalRow, onReviewRequest: () -> Unit) {
   val (from, to) = formatRangeEnds(row.startDate, row.returnDate)
   OutlinedCard(
-      onClick = onClick,
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_request_ + row.rentalId),
   ) {
     Column(

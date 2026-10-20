@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.myrentals
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
@@ -431,13 +432,21 @@ class MyRentalsScreenTest {
   }
 
   @Test
-  fun tappingARequestCardOpensTheRental() {
+  fun requestCardIsNotClickable() {
     val opened = mutableListOf<String>()
-    setContent(lending(requests = listOf(request("tent"))), onRentalClick = { opened += it })
+    val reviewed = mutableListOf<String>()
+    setContent(
+        lending(requests = listOf(request("tent"))),
+        onRentalClick = { opened += it },
+        onReviewRequest = { reviewed += it },
+    )
 
-    composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent").performClick()
+    val card = composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent")
+    card.assertHasNoClickAction()
+    card.performClick()
 
-    assertEquals(listOf("tent"), opened)
+    assertEquals(emptyList<String>(), opened)
+    assertEquals(emptyList<String>(), reviewed)
   }
 
   @Test
