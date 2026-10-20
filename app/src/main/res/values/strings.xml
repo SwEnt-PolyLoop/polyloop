@@ -79,6 +79,7 @@
     <string name="my_rentals_badge_new_request">New request</string>
     <!-- The borrower's name, then the rental's dates, e.g. "Loca · 15 – 17 Oct" -->
     <string name="my_rentals_person_and_dates">%1$s · %2$s</string>
+    <string name="my_rentals_date_range">%1$s – %2$s</string>
     <string name="my_rentals_reserved">%1$d PP reserved · waiting for your answer</string>
     <string name="my_rentals_review_request">Review request</string>
     <string name="my_rentals_pickup_on">Pickup %1$s</string>

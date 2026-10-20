@@ -24,7 +24,7 @@ import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.formatDay
-import com.swent.polyloop.ui.components.formatDayRange
+import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import java.time.Instant
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
@@ -39,6 +39,12 @@ class MyRentalsScreenTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+  /** The dates of [request] as its card writes them. */
+  private val requestDates =
+      formatRangeEnds(LocalDate.of(2026, 10, 15), LocalDate.of(2026, 10, 17)).let { (from, to) ->
+        context.getString(R.string.my_rentals_date_range, from, to)
+      }
 
   private fun row(
       id: String,
@@ -400,7 +406,7 @@ class MyRentalsScreenTest {
     setContent(lending(requests = listOf(request("tent"))))
 
     inRequest("tent", C.Tag.my_rentals_row_title).assertTextEquals("Camping tent")
-    inRequest("tent", C.Tag.my_rentals_row_person).assertTextEquals("Loca · $TENT_DATES")
+    inRequest("tent", C.Tag.my_rentals_row_person).assertTextEquals("Loca · $requestDates")
     inRequest("tent", C.Tag.my_rentals_row_status)
         .assertTextEquals(context.getString(R.string.my_rentals_badge_new_request))
     inRequest("tent", C.Tag.my_rentals_row_reserved)
@@ -439,7 +445,7 @@ class MyRentalsScreenTest {
     setContent(lending(requests = listOf(request("tent", person = ""))))
 
     val unknown = context.getString(R.string.my_rentals_unknown_person)
-    inRequest("tent", C.Tag.my_rentals_row_person).assertTextEquals("$unknown · $TENT_DATES")
+    inRequest("tent", C.Tag.my_rentals_row_person).assertTextEquals("$unknown · $requestDates")
   }
 
   @Test
@@ -586,6 +592,5 @@ class MyRentalsScreenTest {
 
   private companion object {
     val TODAY: LocalDate = LocalDate.of(2026, 10, 14)
-    val TENT_DATES = formatDayRange(LocalDate.of(2026, 10, 15), LocalDate.of(2026, 10, 17), TODAY)
   }
 }

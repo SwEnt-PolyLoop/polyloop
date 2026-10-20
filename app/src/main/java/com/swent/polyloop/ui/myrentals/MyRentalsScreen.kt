@@ -45,7 +45,7 @@ import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
 import com.swent.polyloop.ui.components.formatDay
-import com.swent.polyloop.ui.components.formatDayRange
+import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
 
@@ -165,7 +165,6 @@ fun MyRentalsContent(
               items(uiState.lendingRequests, key = { it.rentalId }) { row ->
                 RequestCard(
                     row = row,
-                    today = today,
                     onClick = { onRentalClick(row.rentalId) },
                     onReviewRequest = { onReviewRequest(row.rentalId) },
                 )
@@ -203,12 +202,8 @@ private fun SectionHeader(@StringRes textRes: Int, testTag: String) {
  * button calling [onReviewRequest]. Tapping the rest of the card calls [onClick].
  */
 @Composable
-private fun RequestCard(
-    row: RentalRow,
-    today: LocalDate,
-    onClick: () -> Unit,
-    onReviewRequest: () -> Unit,
-) {
+private fun RequestCard(row: RentalRow, onClick: () -> Unit, onReviewRequest: () -> Unit) {
+  val (from, to) = formatRangeEnds(row.startDate, row.returnDate)
   OutlinedCard(
       onClick = onClick,
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_request_ + row.rentalId),
@@ -224,7 +219,7 @@ private fun RequestCard(
               stringResource(
                   R.string.my_rentals_person_and_dates,
                   row.personOrPlaceholder(),
-                  formatDayRange(row.startDate, row.returnDate, today),
+                  stringResource(R.string.my_rentals_date_range, from, to),
               ),
       )
       Text(
