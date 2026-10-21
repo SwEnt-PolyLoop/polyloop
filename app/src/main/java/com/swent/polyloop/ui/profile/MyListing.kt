@@ -31,10 +31,8 @@ data class MyListing(val listing: Listing, val rentalState: ListingRentalState)
  * listings, and finished or refused ones, are ignored.
  */
 fun rentalStateOf(listingId: String, rentals: List<Rental>): ListingRentalState =
-    rentals
-        .filter { it.listingId == listingId }
-        .mapNotNull { stateOf(it.status) }
-        .maxOrNull() ?: ListingRentalState.AVAILABLE
+    rentals.filter { it.listingId == listingId }.mapNotNull { stateOf(it.status) }.maxOrNull()
+        ?: ListingRentalState.AVAILABLE
 
 private fun stateOf(status: RentalStatus): ListingRentalState? =
     when (status) {
