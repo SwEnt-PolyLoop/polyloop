@@ -116,6 +116,37 @@ class ProfileScreenTest {
   }
 
   @Test
+  fun listingsShowTheirCountAndWhereEachStands() {
+    setContent(
+        ownProfile.copy(
+            listings =
+                listOf(
+                    MyListing(tent, ListingRentalState.ON_LOAN),
+                    MyListing(listing("bike"), ListingRentalState.REQUESTED),
+                )
+        )
+    )
+
+    // The clickable row merges its texts, so the pill is found in the unmerged tree.
+    fun pillOf(id: String) =
+        composeTestRule.onNodeWithTag(C.Tag.profile_listing_status_ + id, useUnmergedTree = true)
+
+    node(C.Tag.profile_listings_count).assertTextEquals("2")
+    pillOf("tent").assertTextEquals(context.getString(R.string.profile_listing_status_on_loan))
+    pillOf("bike").assertTextEquals(context.getString(R.string.profile_listing_status_requested))
+  }
+
+  @Test
+  fun loadingListingsShowsASpinnerUnderTheProfile() {
+    setContent(ownProfile.copy(listings = emptyList(), listingsLoading = true))
+
+    node(C.Tag.profile_name).assertIsDisplayed()
+    node(C.Tag.profile_listings_loading).assertIsDisplayed()
+    node(C.Tag.profile_listings_count).assertDoesNotExist()
+    node(C.Tag.profile_listings_empty).assertDoesNotExist()
+  }
+
+  @Test
   fun tappingAListingOpensIt() {
     setContent(ownProfile)
 
