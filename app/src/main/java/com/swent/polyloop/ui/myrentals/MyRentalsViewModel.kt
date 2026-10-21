@@ -163,7 +163,7 @@ class MyRentalsViewModel(
     }
   }
 
-  private companion object {
+  internal companion object {
     /** Statuses in which the item has not been picked up yet: the pickup area is what matters. */
     val BEFORE_PICKUP =
         setOf(

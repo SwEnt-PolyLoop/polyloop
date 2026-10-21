@@ -329,6 +329,14 @@ class MyRentalsViewModelTest {
   }
 
   @Test
+  fun attentionOrderHasEveryStatusButRequested() {
+    assertEquals(
+        RentalStatus.entries.toSet() - RentalStatus.REQUESTED,
+        MyRentalsViewModel.ATTENTION_ORDER.toSet(),
+    )
+  }
+
+  @Test
   fun acceptedRentalIsInCurrentNotRequests() {
     rentals = FakeRentalRepository(listOf(lent.copy(status = RentalStatus.ACCEPTED)))
 

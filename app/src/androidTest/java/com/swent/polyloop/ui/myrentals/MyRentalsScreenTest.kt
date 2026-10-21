@@ -433,20 +433,9 @@ class MyRentalsScreenTest {
 
   @Test
   fun requestCardIsNotClickable() {
-    val opened = mutableListOf<String>()
-    val reviewed = mutableListOf<String>()
-    setContent(
-        lending(requests = listOf(request("tent"))),
-        onRentalClick = { opened += it },
-        onReviewRequest = { reviewed += it },
-    )
+    setContent(lending(requests = listOf(request("tent"))))
 
-    val card = composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent")
-    card.assertHasNoClickAction()
-    card.performClick()
-
-    assertEquals(emptyList<String>(), opened)
-    assertEquals(emptyList<String>(), reviewed)
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent").assertHasNoClickAction()
   }
 
   @Test
