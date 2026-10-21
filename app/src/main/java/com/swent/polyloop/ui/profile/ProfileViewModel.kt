@@ -73,6 +73,12 @@ class ProfileViewModel(
   /** Loads the profile again, e.g. after an error. */
   fun retry() = load()
 
+  /** Loads the own listings again, e.g. after an error; the profile stays as it is. */
+  fun retryListings() {
+    val uid = authRepository.getCurrentUser()?.uid ?: return
+    if (_uiState.value.isOwnProfile) loadListings(uid)
+  }
+
   /** Signs the user out. Only on their own profile; ignored on someone else's. */
   fun signOut() {
     if (!_uiState.value.isOwnProfile) return
