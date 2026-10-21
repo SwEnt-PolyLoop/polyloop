@@ -93,7 +93,7 @@ fun AuthScreen(
    * Name and empty-password errors are shown after the user attempts to submit.
    * Email errors are shown as soon as the typed address doesn't match, or after submission.
    * When signing up, the broken password rules are listed as bullets under a header as soon as a
-   * password is typed, and the Sign up button stays disabled until every rule is met.
+   * password is typed.
    */
   val showEmailError = (state.email.isNotEmpty() || state.hasAttemptedSubmit) && !state.isEmailValid
 
@@ -189,7 +189,7 @@ fun AuthScreen(
     AuthButton(
         text = stringResource(if (isSignUp) R.string.auth_signup else R.string.auth_login),
         onClick = viewModel::submit,
-        enabled = !state.isLoading && (!isSignUp || state.isPasswordStrong),
+        enabled = !state.isLoading,
         testTag = if (isSignUp) C.Tag.auth_signup_button else C.Tag.auth_login_button,
     )
 

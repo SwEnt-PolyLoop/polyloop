@@ -87,10 +87,10 @@ class AuthScreenTest {
   }
 
   @Test
-  fun signUpTabShowsNameAndDisabledSignUpButton() {
+  fun signUpTabShowsNameAndSignUpButton() {
     tap(C.Tag.auth_signup_tab)
     composeTestRule.onNodeWithTag(C.Tag.auth_name_field).assertExists()
-    composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).assertIsEnabled()
     composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertDoesNotExist()
   }
 
@@ -146,17 +146,16 @@ class AuthScreenTest {
   }
 
   @Test
-  fun signUpWithOnlyAStrongPasswordShowsNameAndEmailValidation() {
+  fun emptySignUpShowsThreeValidationMessages() {
     tap(C.Tag.auth_signup_tab)
-    type(C.Tag.auth_password_field, VALID_PASSWORD)
     tap(C.Tag.auth_signup_button)
     assertErrorText(C.Tag.auth_name_error, R.string.auth_name_required)
     assertErrorText(C.Tag.auth_email_error, R.string.auth_email_required)
-    composeTestRule.onNodeWithTag(C.Tag.auth_password_error).assertDoesNotExist()
+    assertErrorText(C.Tag.auth_password_error, R.string.auth_password_required)
   }
 
   @Test
-  fun weakSignUpPasswordShowsEveryBrokenRuleAndDisablesSignUp() {
+  fun weakSignUpPasswordShowsEveryBrokenRule() {
     tap(C.Tag.auth_signup_tab)
     type(C.Tag.auth_password_field, "abc")
     assertErrorText(C.Tag.auth_password_rules_header, R.string.auth_password_rules_header)
@@ -166,7 +165,6 @@ class AuthScreenTest {
         R.string.auth_password_rule_digit,
         R.string.auth_password_rule_special,
     )
-    composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).assertIsNotEnabled()
   }
 
   @Test
@@ -183,7 +181,6 @@ class AuthScreenTest {
     type(C.Tag.auth_password_field, "123!")
     assertPasswordErrors()
     composeTestRule.onNodeWithTag(C.Tag.auth_password_rules_header).assertDoesNotExist()
-    composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).assertIsEnabled()
   }
 
   @Test
@@ -191,7 +188,6 @@ class AuthScreenTest {
     type(C.Tag.auth_password_field, "abc")
     composeTestRule.onNodeWithTag(C.Tag.auth_password_rules_header).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.auth_password_error).assertDoesNotExist()
-    composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertIsEnabled()
   }
 
   @Test

@@ -22,7 +22,7 @@ Only users with a verified EPFL email get past this screen. ViewModel: AuthViewM
 
 - Email and password fields, with a switch between “Sign up” and “Log in”.
 - Only @epfl.ch addresses are accepted. A regex check shows an inline error as soon as the address doesn't match.
-- When signing up, the password must have at least 8 characters, one uppercase letter, one lowercase letter, one number and one special character (anything that is not a letter or a digit). As soon as the password is typed, a “Your password needs:” list appears under the field, with one bullet per broken rule; each bullet disappears once its rule is met, and the list disappears with the last one. “Sign up” stays disabled until every rule is met. Logging in does not check these rules.
+- When signing up, the password must have at least 8 characters, one uppercase letter, one lowercase letter, one number and one special character (anything that is not a letter or a digit). As soon as the password is typed, a “Your password needs:” list appears under the field, with one bullet per broken rule; each bullet disappears once its rule is met, and the list disappears with the last one. Pressing “Sign up” does not create the account until every rule is met. Logging in does not check these rules.
 - A name field when signing up. The photo is added later in Profile.
 - After sign-up, or when logging in with an EPFL email that isn't verified yet, a “Check your inbox” state with a “Resend email” button, an “I've verified” button that refreshes the account, and a way back to the form to fix a mistyped email. A non-EPFL email gets an error on the form and never reaches this state.
 - “Resend email” is disabled for 60 seconds after each email sent, with a countdown.
