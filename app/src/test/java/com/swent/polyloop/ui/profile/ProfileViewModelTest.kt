@@ -106,6 +106,24 @@ class ProfileViewModelTest {
   }
 
   @Test
+  fun listingStateFollowsItsRentalsLive() = runTest {
+    val vm = viewModel()
+
+    rentals.requestRental(
+        listing = myTent,
+        ownerName = "John",
+        borrower = AuthUser(uid = "jane", email = "jane@epfl.ch", name = "Jane"),
+        startDate = LocalDate.of(2026, 10, 10),
+        endDate = LocalDate.of(2026, 10, 12),
+    )
+
+    assertEquals(
+        listOf(ListingRentalState.REQUESTED, ListingRentalState.AVAILABLE),
+        vm.uiState.value.listings.map { it.rentalState },
+    )
+  }
+
+  @Test
   fun myOwnIdIsTheOwnProfileToo() {
     // e.g. when tapping on myself on Listing detail
     assertTrue(viewModel(userId = "me").uiState.value.isOwnProfile)
