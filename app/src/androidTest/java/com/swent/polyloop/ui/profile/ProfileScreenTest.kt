@@ -77,7 +77,7 @@ class ProfileScreenTest {
       ProfileUiState(
           isOwnProfile = true,
           profile = john,
-          listings = listOf(tent),
+          listings = listOf(MyListing(tent, ListingRentalState.AVAILABLE)),
           isLoading = false,
       )
 
@@ -117,7 +117,11 @@ class ProfileScreenTest {
 
   @Test
   fun listingsShowTheirStatusInPlaceOfADistance() {
-    setContent(ownProfile.copy(listings = listOf(tent, draft)))
+    setContent(
+        ownProfile.copy(
+            listings = listOf(tent, draft).map { MyListing(it, ListingRentalState.AVAILABLE) }
+        )
+    )
 
     fun locationOf(id: String) =
         // The clickable card merges its texts, so the location is found in the unmerged tree.

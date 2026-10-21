@@ -101,7 +101,7 @@ fun ProfileContent(
           ProfileLoaded(
               profile = profile,
               isOwnProfile = uiState.isOwnProfile,
-              listings = uiState.listings,
+              listings = uiState.listings.map { it.listing },
               onListingClick = onListingClick,
               onSignOut = onSignOut,
           )
