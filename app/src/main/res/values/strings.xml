@@ -60,8 +60,6 @@
     <string name="profile_listing_status_booked">Booked</string>
     <string name="profile_listing_status_on_loan">On loan</string>
     <string name="profile_listing_status_overdue">Overdue</string>
-    <string name="profile_listing_published">Published</string>
-    <string name="profile_listing_draft">Draft</string>
     <string name="profile_sign_out">Sign out</string>
     <string name="profile_error_fallback">Could not load the profile</string>
     <string name="profile_retry">Retry</string>

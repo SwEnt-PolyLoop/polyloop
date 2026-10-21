@@ -5,8 +5,6 @@ package com.swent.polyloop.ui.profile
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.hasAnyAncestor
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -54,7 +52,7 @@ class ProfileScreenTest {
           reviewCount = 2,
       )
 
-  private fun listing(id: String, status: ListingStatus = ListingStatus.PUBLISHED) =
+  private fun listing(id: String) =
       Listing(
           id = id,
           ownerId = "me",
@@ -66,12 +64,11 @@ class ProfileScreenTest {
           itemValue = 100,
           availableFrom = LocalDate.of(2026, 10, 1),
           availableTo = LocalDate.of(2026, 10, 31),
-          status = status,
+          status = ListingStatus.PUBLISHED,
           pickupArea = "Ecublens",
       )
 
   private val tent = listing("tent")
-  private val draft = listing("draft", ListingStatus.DRAFT)
 
   private val ownProfile =
       ProfileUiState(
@@ -79,11 +76,13 @@ class ProfileScreenTest {
           profile = john,
           listings = listOf(MyListing(tent, ListingRentalState.AVAILABLE)),
           isLoading = false,
+          listingsLoading = false,
       )
 
   private var openedListing: String? = null
   private var signOutClicks = 0
   private var retryClicks = 0
+  private var retryListingsClicks = 0
 
   private fun setContent(state: ProfileUiState) {
     composeTestRule.setContent {
@@ -93,6 +92,7 @@ class ProfileScreenTest {
             onListingClick = { openedListing = it },
             onSignOut = { signOutClicks++ },
             onRetry = { retryClicks++ },
+            onRetryListings = { retryListingsClicks++ },
         )
       }
     }
@@ -111,40 +111,15 @@ class ProfileScreenTest {
     node(C.Tag.profile_rating)
         .assertTextEquals(context.resources.getQuantityString(R.plurals.profile_rating, 2, 4.5, 2))
     node(C.Tag.profile_listings_title).assertIsDisplayed()
-    node(C.Tag.listing_card_ + "tent").assertIsDisplayed()
+    node(C.Tag.profile_listing_ + "tent").assertIsDisplayed()
     node(C.Tag.profile_sign_out_button).performScrollTo().assertIsDisplayed()
-  }
-
-  @Test
-  fun listingsShowTheirStatusInPlaceOfADistance() {
-    setContent(
-        ownProfile.copy(
-            listings = listOf(tent, draft).map { MyListing(it, ListingRentalState.AVAILABLE) }
-        )
-    )
-
-    fun locationOf(id: String) =
-        // The clickable card merges its texts, so the location is found in the unmerged tree.
-        composeTestRule.onNode(
-            hasTestTag(C.Tag.listing_card_location) and
-                hasAnyAncestor(hasTestTag(C.Tag.listing_card_ + id)),
-            useUnmergedTree = true,
-        )
-
-    val published = context.getString(R.string.profile_listing_published)
-    val draftLabel = context.getString(R.string.profile_listing_draft)
-    locationOf("tent")
-        .assertTextEquals(context.getString(R.string.listing_card_location, published, "Ecublens"))
-    locationOf("draft")
-        .performScrollTo()
-        .assertTextEquals(context.getString(R.string.listing_card_location, draftLabel, "Ecublens"))
   }
 
   @Test
   fun tappingAListingOpensIt() {
     setContent(ownProfile)
 
-    node(C.Tag.listing_card_ + "tent").performClick()
+    node(C.Tag.profile_listing_ + "tent").performClick()
 
     assertEquals("tent", openedListing)
   }
