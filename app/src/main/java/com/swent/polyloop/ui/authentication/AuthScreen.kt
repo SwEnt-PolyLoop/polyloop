@@ -170,7 +170,8 @@ fun AuthScreen(
         value = state.password,
         placeholder = stringResource(R.string.auth_password_placeholder),
         onValueChange = viewModel::onPasswordChange,
-        errorTexts = passwordErrors.map { stringResource(it) },
+        // Only the minimum length message uses the argument; the others ignore it.
+        errorTexts = passwordErrors.map { stringResource(it, PasswordRule.MIN_LENGTH_CHARS) },
         keyboardType = KeyboardType.Password,
         isPassword = true,
         testTag = C.Tag.auth_password_field,

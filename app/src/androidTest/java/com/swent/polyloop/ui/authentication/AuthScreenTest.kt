@@ -25,6 +25,7 @@ import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.auth.PasswordRule
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
@@ -304,7 +305,7 @@ class AuthScreenTest {
         composeTestRule.onAllNodesWithTag(C.Tag.auth_password_error).fetchSemanticsNodes().map {
           it.config[SemanticsProperties.Text].joinToString()
         }
-    assertEquals(messageRes.map { context.getString(it) }, shown)
+    assertEquals(messageRes.map { context.getString(it, PasswordRule.MIN_LENGTH_CHARS) }, shown)
   }
 
   private fun fillLogin() {
