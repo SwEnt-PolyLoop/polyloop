@@ -41,7 +41,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Screen | ViewModel | Repositories it uses |
 | --- | --- | --- |
 | Sign-up / login | AuthViewModel | Auth; Profile (creates the profile on the first verified sign-in) |
-| Profile & reviews | ProfileViewModel | Profile; Listing ("My listings"); Auth ("Sign out") |
+| Profile & reviews | ProfileViewModel | Profile; Listing ("My listings"); Rental (where each listing stands); Auth ("Sign out") |
 | Wallet | WalletViewModel | Wallet |
 | Chat list | ChatListViewModel | Chat (the item and the other person are copied on each rental, see "Firestore schema") |
 | Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
