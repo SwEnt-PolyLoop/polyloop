@@ -146,6 +146,15 @@ object C {
     const val profile_rating = "profile_rating"
     const val profile_listings_title = "profile_listings_title"
     const val profile_listings_empty = "profile_listings_empty"
+    const val profile_listings_card = "profile_listings_card"
+    const val profile_listings_count = "profile_listings_count"
+    const val profile_listings_loading = "profile_listings_loading"
+    const val profile_listings_error = "profile_listings_error"
+    const val profile_listings_retry_button = "profile_listings_retry_button"
+    // Prefixes: each row is tagged profile_listing_ + listing.id, its pill
+    // profile_listing_status_ + listing.id
+    const val profile_listing_ = "profile_listing_"
+    const val profile_listing_status_ = "profile_listing_status_"
     const val profile_sign_out_button = "profile_sign_out_button"
     const val profile_loading = "profile_loading"
     const val profile_error = "profile_error"
