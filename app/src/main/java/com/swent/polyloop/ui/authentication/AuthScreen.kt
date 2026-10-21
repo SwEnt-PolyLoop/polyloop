@@ -113,7 +113,7 @@ fun AuthScreen(
 
   val passwordErrors =
       when {
-        isSignUp && state.password.isNotEmpty() -> state.failedPasswordRules.map { it.messageRes() }
+        state.showPasswordRules -> state.failedPasswordRules.map { it.messageRes() }
         state.hasAttemptedSubmit && state.isPasswordBlank -> listOf(R.string.auth_password_required)
         else -> emptyList()
       }
@@ -176,7 +176,7 @@ fun AuthScreen(
         testTag = C.Tag.auth_password_field,
         errorTestTag = C.Tag.auth_password_error,
         errorHeader =
-            if (isSignUp && state.password.isNotEmpty()) {
+            if (state.showPasswordRules) {
               stringResource(R.string.auth_password_rules_header)
             } else {
               null

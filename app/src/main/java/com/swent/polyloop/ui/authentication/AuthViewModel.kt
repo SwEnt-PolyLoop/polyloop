@@ -81,6 +81,10 @@ data class AuthUiState(
   val isPasswordStrong: Boolean
     get() = failedPasswordRules.isEmpty()
 
+  /** True when the screen lists the broken password rules: signing up with a typed password. */
+  val showPasswordRules: Boolean
+    get() = mode == AuthMode.SIGN_UP && password.isNotEmpty()
+
   /**
    * True when the main button can be pressed: valid fields and nothing already running. Signing up
    * also needs a name and a password that follows every [PasswordRule].

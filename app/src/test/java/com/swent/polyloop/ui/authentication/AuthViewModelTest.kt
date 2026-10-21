@@ -127,6 +127,18 @@ class AuthViewModelTest {
   }
 
   @Test
+  fun passwordRulesShowOnlyWhenSigningUpWithATypedPassword() {
+    viewModel.onPasswordChange("abc")
+    assertFalse(state.showPasswordRules)
+
+    viewModel.switchMode(AuthMode.SIGN_UP)
+    assertTrue(state.showPasswordRules)
+
+    viewModel.onPasswordChange("")
+    assertFalse(state.showPasswordRules)
+  }
+
+  @Test
   fun signUpNeedsAPasswordFollowingEveryRule() {
     fillSignUp()
     viewModel.onPasswordChange("secret")
