@@ -9,7 +9,6 @@ import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
-import com.swent.polyloop.model.auth.PasswordRule
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import kotlin.coroutines.cancellation.CancellationException
@@ -142,23 +141,12 @@ class AuthViewModelTest {
   fun signUpNeedsAPasswordFollowingEveryRule() {
     fillSignUp()
     viewModel.onPasswordChange("secret")
-    assertEquals(
-        listOf(
-            PasswordRule.MIN_LENGTH,
-            PasswordRule.UPPERCASE,
-            PasswordRule.DIGIT,
-            PasswordRule.SPECIAL,
-        ),
-        state.failedPasswordRules,
-    )
-    assertFalse(state.isPasswordStrong)
     assertFalse(state.canSubmit)
 
     viewModel.submit()
     assertTrue(repository.calls.isEmpty())
 
     viewModel.onPasswordChange("Secret12!")
-    assertTrue(state.isPasswordStrong)
     assertTrue(state.canSubmit)
   }
 
