@@ -56,4 +56,19 @@ class MyListingTest {
         stateOf(RentalStatus.REQUESTED, RentalStatus.ACCEPTED),
     )
   }
+
+  @Test
+  fun finishedOrRefusedRentalsLeaveTheListingAvailable() {
+    assertEquals(
+        ListingRentalState.AVAILABLE,
+        stateOf(RentalStatus.CLOSED, RentalStatus.CANCELLED, RentalStatus.DECLINED),
+    )
+  }
+
+  @Test
+  fun rentalsOfOtherListingsAreIgnored() {
+    val rentals = listOf(rental(RentalStatus.ACTIVE, listingId = "bike"))
+
+    assertEquals(ListingRentalState.AVAILABLE, rentalStateOf("tent", rentals))
+  }
 }
