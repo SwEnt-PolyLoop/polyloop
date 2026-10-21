@@ -10,6 +10,7 @@ import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
+import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
@@ -60,6 +61,7 @@ class ProfileViewModelTest {
 
   private lateinit var profiles: FakeProfileRepository
   private lateinit var listings: FakeListingRepository
+  private lateinit var rentals: FakeRentalRepository
   private lateinit var auth: FakeAuthRepository
 
   @Before
@@ -67,6 +69,7 @@ class ProfileViewModelTest {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     profiles = FakeProfileRepository(listOf(me, jane))
     listings = FakeListingRepository(listings = listOf(myTent, myDraft, janesBike))
+    rentals = FakeRentalRepository()
     auth =
         FakeAuthRepository(
             signedInUser = AuthUser(uid = "me", email = "john@epfl.ch", name = "John")
@@ -78,7 +81,8 @@ class ProfileViewModelTest {
     Dispatchers.resetMain()
   }
 
-  private fun viewModel(userId: String? = null) = ProfileViewModel(userId, profiles, listings, auth)
+  private fun viewModel(userId: String? = null) =
+      ProfileViewModel(userId, profiles, listings, rentals, auth)
 
   // ---------- own profile ----------
 
@@ -229,7 +233,7 @@ class ProfileViewModelTest {
   @Test
   fun factoryCreatesTheViewModel() {
     val created =
-        ProfileViewModel.Factory("jane", profiles, listings, auth)
+        ProfileViewModel.Factory("jane", profiles, listings, rentals, auth)
             .create(ProfileViewModel::class.java)
 
     assertEquals(jane, created.uiState.value.profile)
@@ -240,7 +244,7 @@ class ProfileViewModelTest {
     class Other : ViewModel()
 
     assertThrows(IllegalArgumentException::class.java) {
-      ProfileViewModel.Factory(null, profiles, listings, auth).create(Other::class.java)
+      ProfileViewModel.Factory(null, profiles, listings, rentals, auth).create(Other::class.java)
     }
   }
 }

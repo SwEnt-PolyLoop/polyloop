@@ -24,6 +24,7 @@ import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
+import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import com.swent.polyloop.utils.FakePhotoServerRule
@@ -253,7 +254,14 @@ class ProfileScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = ProfileViewModel(null, FakeProfileRepository(listOf(john)), listings, auth)
+    val viewModel =
+        ProfileViewModel(
+            null,
+            FakeProfileRepository(listOf(john)),
+            listings,
+            FakeRentalRepository(),
+            auth,
+        )
     composeTestRule.setContent {
       PolyLoopTheme {
         ProfileScreen(

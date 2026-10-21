@@ -227,6 +227,7 @@ private fun ProfileRoute(
                   userId = userId,
                   profileRepository = RepositoryProvider.profileRepository,
                   listingRepository = RepositoryProvider.listingRepository,
+                  rentalRepository = RepositoryProvider.rentalRepository,
                   authRepository = RepositoryProvider.authRepository,
               )
       )

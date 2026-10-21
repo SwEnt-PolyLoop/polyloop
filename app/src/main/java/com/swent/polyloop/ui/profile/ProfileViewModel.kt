@@ -10,6 +10,7 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
+import com.swent.polyloop.model.rental.RentalRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +52,7 @@ class ProfileViewModel(
     private val userId: String?,
     private val profileRepository: ProfileRepository,
     private val listingRepository: ListingRepository,
+    private val rentalRepository: RentalRepository,
     private val authRepository: AuthRepository,
 ) : ViewModel() {
 
@@ -124,6 +126,7 @@ class ProfileViewModel(
       private val userId: String?,
       private val profileRepository: ProfileRepository,
       private val listingRepository: ListingRepository,
+      private val rentalRepository: RentalRepository,
       private val authRepository: AuthRepository,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -131,7 +134,14 @@ class ProfileViewModel(
         "Unknown ViewModel class: ${modelClass.name}"
       }
       @Suppress("UNCHECKED_CAST")
-      return ProfileViewModel(userId, profileRepository, listingRepository, authRepository) as T
+      return ProfileViewModel(
+          userId,
+          profileRepository,
+          listingRepository,
+          rentalRepository,
+          authRepository,
+      )
+          as T
     }
   }
 }
