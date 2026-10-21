@@ -199,6 +199,38 @@ class ProfileViewModelTest {
   }
 
   @Test
+  fun retryListingsLoadsTheListingsAgain() {
+    listings.failure = IllegalStateException("No connection")
+    val vm = viewModel()
+
+    listings.failure = null
+    vm.retryListings()
+
+    assertNull(vm.uiState.value.listingsError)
+    assertEquals(2, vm.uiState.value.listings.size)
+  }
+
+  @Test
+  fun rentalsErrorShowsAListingsError() {
+    rentals.failure = IllegalStateException("No connection")
+
+    val state = viewModel().uiState.value
+
+    assertEquals("No connection", state.listingsError)
+    assertEquals(me, state.profile)
+  }
+
+  @Test
+  fun otherProfileNeverLoadsListings() {
+    val vm = viewModel(userId = "jane")
+
+    vm.retryListings()
+
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertTrue(vm.uiState.value.listings.isEmpty())
+  }
+
+  @Test
   fun errorWithoutMessageGivesABlankError() {
     profiles.failure = IllegalStateException()
 
