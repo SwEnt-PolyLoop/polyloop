@@ -46,7 +46,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -111,12 +110,14 @@ fun AuthScreen(
         null
       }
 
-  val passwordErrors =
-      when {
-        state.showPasswordRules -> state.failedPasswordRules.map { it.messageRes() }
-        state.hasAttemptedSubmit && state.isPasswordBlank -> listOf(R.string.auth_password_required)
-        else -> emptyList()
+  val passwordError =
+      if (state.hasAttemptedSubmit && state.isPasswordBlank) {
+        R.string.auth_password_required
+      } else {
+        null
       }
+
+  val brokenPasswordRules = if (state.showPasswordRules) state.failedPasswordRules else emptyList()
 
   Column(
       modifier =
@@ -144,7 +145,7 @@ fun AuthScreen(
           value = state.name,
           placeholder = stringResource(R.string.auth_name_placeholder),
           onValueChange = viewModel::onNameChange,
-          errorTexts = listOfNotNull(nameError?.let { stringResource(it) }),
+          errorText = nameError?.let { stringResource(it) },
           testTag = C.Tag.auth_name_field,
           errorTestTag = C.Tag.auth_name_error,
       )
@@ -157,7 +158,7 @@ fun AuthScreen(
         value = state.email,
         placeholder = stringResource(R.string.auth_email_placeholder),
         onValueChange = viewModel::onEmailChange,
-        errorTexts = listOfNotNull(emailError?.let { stringResource(it) }),
+        errorText = emailError?.let { stringResource(it) },
         keyboardType = KeyboardType.Email,
         testTag = C.Tag.auth_email_field,
         errorTestTag = C.Tag.auth_email_error,
@@ -170,19 +171,17 @@ fun AuthScreen(
         value = state.password,
         placeholder = stringResource(R.string.auth_password_placeholder),
         onValueChange = viewModel::onPasswordChange,
-        // Only the minimum length message uses the argument; the others ignore it.
-        errorTexts = passwordErrors.map { stringResource(it, PasswordRule.MIN_LENGTH_CHARS) },
+        errorText = passwordError?.let { stringResource(it) },
         keyboardType = KeyboardType.Password,
         isPassword = true,
         testTag = C.Tag.auth_password_field,
         errorTestTag = C.Tag.auth_password_error,
-        errorHeader =
-            if (state.showPasswordRules) {
-              stringResource(R.string.auth_password_rules_header)
+        errorContent =
+            if (brokenPasswordRules.isNotEmpty()) {
+              { PasswordRuleList(brokenPasswordRules) }
             } else {
               null
             },
-        errorHeaderTestTag = C.Tag.auth_password_rules_header,
     )
 
     Spacer(Modifier.height(20.dp))
@@ -240,11 +239,11 @@ private fun NameStep(
         value = state.name,
         placeholder = stringResource(R.string.auth_name_placeholder),
         onValueChange = onNameChange,
-        errorTexts =
+        errorText =
             if (state.hasAttemptedSubmit && state.isNameBlank) {
-              listOf(stringResource(R.string.auth_name_required))
+              stringResource(R.string.auth_name_required)
             } else {
-              emptyList()
+              null
             },
         testTag = C.Tag.auth_name_field,
         errorTestTag = C.Tag.auth_name_error,
@@ -388,14 +387,13 @@ private fun RowScope.Tab(
  * @param value current field value.
  * @param placeholder hint shown while the field is empty.
  * @param onValueChange called when the user edits the value.
- * @param errorTexts validation messages, one per line; empty when the field has no visible error.
+ * @param errorText validation message, or null when the field has no visible error.
  * @param testTag semantic test tag for UI tests.
- * @param errorTestTag semantic test tag of each validation message for UI tests.
+ * @param errorTestTag semantic test tag of the validation message for UI tests.
  * @param keyboardType keyboard layout requested for the field.
  * @param isPassword whether to obscure the entered value.
- * @param errorHeader line shown above the messages, which then become tightly spaced bullet points;
- *   null shows them as plain lines. Not shown when there is no message.
- * @param errorHeaderTestTag semantic test tag of [errorHeader] for UI tests.
+ * @param errorContent error shown instead of [errorText], such as a list of messages; null when
+ *   there is none.
  */
 @Composable
 private fun AuthTextField(
@@ -403,13 +401,12 @@ private fun AuthTextField(
     value: String,
     placeholder: String,
     onValueChange: (String) -> Unit,
-    errorTexts: List<String>,
+    errorText: String?,
     testTag: String,
     errorTestTag: String,
     keyboardType: KeyboardType = KeyboardType.Text,
     isPassword: Boolean = false,
-    errorHeader: String? = null,
-    errorHeaderTestTag: String = "",
+    errorContent: (@Composable () -> Unit)? = null,
 ) {
   val colors = MaterialTheme.colorScheme
 
@@ -433,7 +430,7 @@ private fun AuthTextField(
       },
       singleLine = true,
       shape = RoundedCornerShape(14.dp),
-      isError = errorTexts.isNotEmpty(),
+      isError = errorText != null || errorContent != null,
       visualTransformation =
           if (isPassword) {
             PasswordVisualTransformation()
@@ -461,37 +458,55 @@ private fun AuthTextField(
   Column(
       modifier = Modifier.heightIn(min = 20.dp),
   ) {
-    // A bullet list keeps its lines tight; the theme's default line height spreads them out.
-    val lineHeight = if (errorHeader != null) 16.sp else TextUnit.Unspecified
-    if (errorHeader != null && errorTexts.isNotEmpty()) {
+    if (errorContent != null) {
+      errorContent()
+    } else if (errorText != null) {
       Text(
-          text = errorHeader,
+          text = errorText,
           color = colors.error,
           fontSize = 13.sp,
-          lineHeight = lineHeight,
-          modifier = Modifier.testTag(errorHeaderTestTag),
+          modifier = Modifier.testTag(errorTestTag),
       )
     }
-    errorTexts.forEach { errorText ->
-      Row {
-        // Under a header, each message is a bullet; wrapped lines stay aligned with its text.
-        if (errorHeader != null) {
-          Text(
-              text = stringResource(R.string.auth_password_rule_bullet),
-              color = colors.error,
-              fontSize = 13.sp,
-              lineHeight = lineHeight,
-              modifier = Modifier.padding(start = 4.dp, end = 6.dp),
-          )
-        }
-        Text(
-            text = errorText,
-            color = colors.error,
-            fontSize = 13.sp,
-            lineHeight = lineHeight,
-            modifier = Modifier.testTag(errorTestTag),
-        )
-      }
+  }
+}
+
+/**
+ * Lists the sign-up password rules still broken, as bullet points under a header.
+ *
+ * @param rules the broken rules, in display order; not empty.
+ */
+@Composable
+private fun PasswordRuleList(rules: List<PasswordRule>) {
+  val color = MaterialTheme.colorScheme.error
+  // A bullet list keeps its lines tight; the theme's default line height spreads them out.
+  val lineHeight = 16.sp
+
+  Text(
+      text = stringResource(R.string.auth_password_rules_header),
+      color = color,
+      fontSize = 13.sp,
+      lineHeight = lineHeight,
+      modifier = Modifier.testTag(C.Tag.auth_password_rules_header),
+  )
+  rules.forEach { rule ->
+    // Wrapped lines stay aligned with the text of their bullet.
+    Row {
+      Text(
+          text = stringResource(R.string.auth_password_rule_bullet),
+          color = color,
+          fontSize = 13.sp,
+          lineHeight = lineHeight,
+          modifier = Modifier.padding(start = 4.dp, end = 6.dp),
+      )
+      Text(
+          // Only the minimum length message uses the argument; the others ignore it.
+          text = stringResource(rule.messageRes(), PasswordRule.MIN_LENGTH_CHARS),
+          color = color,
+          fontSize = 13.sp,
+          lineHeight = lineHeight,
+          modifier = Modifier.testTag(C.Tag.auth_password_rule),
+      )
     }
   }
 }

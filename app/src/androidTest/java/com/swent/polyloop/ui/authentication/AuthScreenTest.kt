@@ -302,7 +302,7 @@ class AuthScreenTest {
   /** Checks the password messages shown, in order; none when [messageRes] is empty. */
   private fun assertPasswordErrors(vararg messageRes: Int) {
     val shown =
-        composeTestRule.onAllNodesWithTag(C.Tag.auth_password_error).fetchSemanticsNodes().map {
+        composeTestRule.onAllNodesWithTag(C.Tag.auth_password_rule).fetchSemanticsNodes().map {
           it.config[SemanticsProperties.Text].joinToString()
         }
     assertEquals(messageRes.map { context.getString(it, PasswordRule.MIN_LENGTH_CHARS) }, shown)
