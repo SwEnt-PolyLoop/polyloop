@@ -92,8 +92,15 @@ class ProfileViewModelTest {
 
     assertTrue(state.isOwnProfile)
     assertEquals(me, state.profile)
-    assertEquals(listOf(myTent, myDraft), state.listings)
+    assertEquals(
+        listOf(
+            MyListing(myTent, ListingRentalState.AVAILABLE),
+            MyListing(myDraft, ListingRentalState.AVAILABLE),
+        ),
+        state.listings,
+    )
     assertFalse(state.isLoading)
+    assertFalse(state.listingsLoading)
     assertFalse(state.profileNotFound)
     assertNull(state.errorMsg)
   }
@@ -151,17 +158,18 @@ class ProfileViewModelTest {
   // ---------- loading and errors ----------
 
   @Test
-  fun staysLoadingUntilProfileAndListingsArrive() {
+  fun profileShowsWhileTheListingsStillLoad() {
     val gate = CompletableDeferred<Unit>()
     listings.gate = gate
 
     val vm = viewModel()
-    assertTrue(vm.uiState.value.isLoading)
-    assertNull(vm.uiState.value.profile)
-
-    gate.complete(Unit)
     assertFalse(vm.uiState.value.isLoading)
     assertEquals(me, vm.uiState.value.profile)
+    assertTrue(vm.uiState.value.listingsLoading)
+
+    gate.complete(Unit)
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertEquals(2, vm.uiState.value.listings.size)
   }
 
   @Test
@@ -179,13 +187,15 @@ class ProfileViewModelTest {
   }
 
   @Test
-  fun listingsErrorShowsTheError() {
+  fun listingsErrorKeepsTheProfile() {
     listings.failure = IllegalStateException("No connection")
 
     val state = viewModel().uiState.value
 
-    assertEquals("No connection", state.errorMsg)
-    assertFalse(state.isLoading)
+    assertEquals("No connection", state.listingsError)
+    assertFalse(state.listingsLoading)
+    assertNull(state.errorMsg)
+    assertEquals(me, state.profile)
   }
 
   @Test
