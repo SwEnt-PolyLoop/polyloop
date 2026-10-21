@@ -147,6 +147,26 @@ class ProfileScreenTest {
   }
 
   @Test
+  fun listingsErrorShowsTheMessageUnderTheProfileAndRetries() {
+    setContent(ownProfile.copy(listings = emptyList(), listingsError = "No connection"))
+
+    node(C.Tag.profile_name).assertIsDisplayed()
+    node(C.Tag.profile_listings_error).assertTextEquals("No connection")
+    node(C.Tag.profile_listings_retry_button).performClick()
+
+    assertEquals(1, retryListingsClicks)
+    assertEquals(0, retryClicks)
+  }
+
+  @Test
+  fun blankListingsErrorShowsAGenericMessage() {
+    setContent(ownProfile.copy(listings = emptyList(), listingsError = ""))
+
+    node(C.Tag.profile_listings_error)
+        .assertTextEquals(context.getString(R.string.profile_listings_error_fallback))
+  }
+
+  @Test
   fun tappingAListingOpensIt() {
     setContent(ownProfile)
 
