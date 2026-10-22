@@ -42,7 +42,7 @@ data class ProfileUiState(
     val isLoading: Boolean = true,
     val profileNotFound: Boolean = false,
     val errorMsg: String? = null,
-    val listingsLoading: Boolean = true,
+    val listingsLoading: Boolean = false,
     val listingsError: String? = null,
     val isSignedOut: Boolean = false,
 )
@@ -101,8 +101,6 @@ class ProfileViewModel(
           isLoading = true,
           profileNotFound = false,
           errorMsg = null,
-          listingsLoading = isOwnProfile,
-          listingsError = null,
       )
     }
     if (uid == null) {
