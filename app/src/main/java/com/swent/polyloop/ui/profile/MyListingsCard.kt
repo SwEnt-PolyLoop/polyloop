@@ -29,6 +29,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
+import com.swent.polyloop.ui.components.PriceText
 import com.swent.polyloop.ui.myrentals.badgeColors
 
 /**
@@ -132,11 +133,7 @@ private fun MyListingRow(myListing: MyListing, onClick: () -> Unit) {
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
       )
-      Text(
-          text = stringResource(R.string.profile_listing_price, listing.pricePerDay),
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
+      PriceText(pricePerDay = listing.pricePerDay, style = MaterialTheme.typography.bodyMedium)
     }
     StatusPill(state = myListing.rentalState, listingId = listing.id)
   }
@@ -151,13 +148,13 @@ private fun StatusPill(state: ListingRentalState, listingId: String) {
   val label =
       when (state) {
         ListingRentalState.AVAILABLE -> R.string.profile_listing_status_available
-        ListingRentalState.REQUESTED -> R.string.profile_listing_status_requested
+        ListingRentalState.REQUESTED -> R.string.rental_status_requested
         ListingRentalState.BOOKED -> R.string.profile_listing_status_booked
         ListingRentalState.ON_LOAN -> R.string.profile_listing_status_on_loan
-        ListingRentalState.OVERDUE -> R.string.profile_listing_status_overdue
-        ListingRentalState.DISPUTED -> R.string.profile_listing_status_disputed
-        ListingRentalState.FROZEN -> R.string.profile_listing_status_frozen
-        ListingRentalState.LOST -> R.string.profile_listing_status_lost
+        ListingRentalState.OVERDUE -> R.string.rental_status_overdue
+        ListingRentalState.DISPUTED -> R.string.rental_status_disputed
+        ListingRentalState.FROZEN -> R.string.rental_status_frozen
+        ListingRentalState.LOST -> R.string.rental_status_lost
       }
   val (background, text) = (state.rentalStatus ?: RentalStatus.CLOSED).badgeColors()
   Text(

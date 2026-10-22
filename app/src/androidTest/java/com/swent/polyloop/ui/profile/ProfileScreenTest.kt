@@ -133,7 +133,7 @@ class ProfileScreenTest {
 
     node(C.Tag.profile_listings_count).assertTextEquals("2")
     pillOf("tent").assertTextEquals(context.getString(R.string.profile_listing_status_on_loan))
-    pillOf("bike").assertTextEquals(context.getString(R.string.profile_listing_status_requested))
+    pillOf("bike").assertTextEquals(context.getString(R.string.rental_status_requested))
   }
 
   @Test
