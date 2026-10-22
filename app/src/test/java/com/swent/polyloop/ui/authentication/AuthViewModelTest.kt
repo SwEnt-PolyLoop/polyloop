@@ -9,6 +9,7 @@ import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.auth.PasswordRule
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import kotlin.coroutines.cancellation.CancellationException
@@ -59,14 +60,11 @@ class AuthViewModelTest {
     viewModel.onPasswordChange("secret")
   }
 
-  /**
-   * Fills a valid sign-up form. Its password follows every rule, unlike the one of [fillLogIn],
-   * which only logging in accepts.
-   */
+  /** Fills a valid sign-up form, with a password that follows every rule. */
   private fun fillSignUp() {
     viewModel.switchMode(AuthMode.SIGN_UP)
     viewModel.onNameChange("John")
-    fillLogIn()
+    viewModel.onEmailChange("john@epfl.ch")
     viewModel.onPasswordChange("Secret12!")
   }
 
@@ -128,13 +126,21 @@ class AuthViewModelTest {
   @Test
   fun passwordRulesShowOnlyWhenSigningUpWithATypedPassword() {
     viewModel.onPasswordChange("abc")
-    assertFalse(state.showPasswordRules)
+    assertEquals(emptyList<PasswordRule>(), state.shownPasswordRules)
 
     viewModel.switchMode(AuthMode.SIGN_UP)
-    assertTrue(state.showPasswordRules)
+    assertEquals(
+        listOf(
+            PasswordRule.MIN_LENGTH,
+            PasswordRule.UPPERCASE,
+            PasswordRule.DIGIT,
+            PasswordRule.SPECIAL,
+        ),
+        state.shownPasswordRules,
+    )
 
     viewModel.onPasswordChange("")
-    assertFalse(state.showPasswordRules)
+    assertEquals(emptyList<PasswordRule>(), state.shownPasswordRules)
   }
 
   @Test

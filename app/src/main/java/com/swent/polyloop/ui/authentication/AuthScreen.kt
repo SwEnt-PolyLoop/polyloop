@@ -117,8 +117,6 @@ fun AuthScreen(
         null
       }
 
-  val brokenPasswordRules = if (state.showPasswordRules) state.failedPasswordRules else emptyList()
-
   Column(
       modifier =
           Modifier.fillMaxSize()
@@ -177,8 +175,8 @@ fun AuthScreen(
         testTag = C.Tag.auth_password_field,
         errorTestTag = C.Tag.auth_password_error,
         errorContent =
-            if (brokenPasswordRules.isNotEmpty()) {
-              { PasswordRuleList(brokenPasswordRules) }
+            if (state.shownPasswordRules.isNotEmpty()) {
+              { PasswordRuleList(state.shownPasswordRules) }
             } else {
               null
             },
