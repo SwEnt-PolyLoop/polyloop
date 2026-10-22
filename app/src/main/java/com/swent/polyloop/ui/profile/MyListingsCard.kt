@@ -43,13 +43,13 @@ import com.swent.polyloop.ui.theme.Stone
  * The "My listings" card of the own profile: the title with the number of listings, then a spinner
  * while they load, the error with "Retry", an empty text, or one row per listing.
  *
- * @param errorMsg non-null when the listings could not be loaded; blank shows a generic text.
+ * @param hasError true when the listings could not be loaded; the card then shows a generic text.
  */
 @Composable
 fun MyListingsCard(
     listings: List<MyListing>,
     isLoading: Boolean,
-    errorMsg: String?,
+    hasError: Boolean,
     onListingClick: (listingId: String) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -66,7 +66,7 @@ fun MyListingsCard(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f).testTag(C.Tag.profile_listings_title),
         )
-        if (!isLoading && errorMsg == null) {
+        if (!isLoading && !hasError) {
           Text(
               text = listings.size.toString(),
               style = MaterialTheme.typography.bodyMedium,
@@ -83,7 +83,7 @@ fun MyListingsCard(
                         .size(24.dp)
                         .testTag(C.Tag.profile_listings_loading)
             )
-        errorMsg != null -> ListingsError(errorMsg = errorMsg, onRetry = onRetry)
+        hasError -> ListingsError(onRetry = onRetry)
         listings.isEmpty() ->
             Text(
                 text = stringResource(R.string.profile_no_listings),
@@ -98,10 +98,10 @@ fun MyListingsCard(
 }
 
 @Composable
-private fun ListingsError(errorMsg: String, onRetry: () -> Unit) {
+private fun ListingsError(onRetry: () -> Unit) {
   Row(verticalAlignment = Alignment.CenterVertically) {
     Text(
-        text = errorMsg.ifBlank { stringResource(R.string.profile_listings_error_fallback) },
+        text = stringResource(R.string.profile_listings_error),
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.weight(1f).testTag(C.Tag.profile_listings_error),
     )

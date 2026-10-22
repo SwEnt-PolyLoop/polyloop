@@ -210,7 +210,7 @@ class ProfileViewModelTest {
 
     val state = viewModel().uiState.value
 
-    assertEquals("No connection", state.listingsError)
+    assertTrue(state.listingsError)
     assertFalse(state.listingsLoading)
     assertNull(state.errorMsg)
     assertEquals(me, state.profile)
@@ -224,7 +224,7 @@ class ProfileViewModelTest {
     listings.failure = null
     vm.retryListings()
 
-    assertNull(vm.uiState.value.listingsError)
+    assertFalse(vm.uiState.value.listingsError)
     assertEquals(2, vm.uiState.value.listings.size)
   }
 
@@ -234,7 +234,7 @@ class ProfileViewModelTest {
 
     val state = viewModel().uiState.value
 
-    assertEquals("No connection", state.listingsError)
+    assertTrue(state.listingsError)
     assertEquals(me, state.profile)
   }
 

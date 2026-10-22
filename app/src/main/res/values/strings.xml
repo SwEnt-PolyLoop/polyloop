@@ -53,7 +53,7 @@
     <string name="profile_no_reviews">No reviews yet</string>
     <string name="profile_my_listings">My listings</string>
     <string name="profile_no_listings">You haven\'t listed anything yet</string>
-    <string name="profile_listings_error_fallback">Could not load your listings</string>
+    <string name="profile_listings_error">Could not load your listings</string>
     <string name="profile_listing_price">%1$d PP / day</string>
     <string name="profile_listing_status_available">Available</string>
     <string name="profile_listing_status_requested">Requested</string>

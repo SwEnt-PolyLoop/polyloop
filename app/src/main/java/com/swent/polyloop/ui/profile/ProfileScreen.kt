@@ -148,7 +148,7 @@ private fun ProfileLoaded(
         MyListingsCard(
             listings = uiState.listings,
             isLoading = uiState.listingsLoading,
-            errorMsg = uiState.listingsError,
+            hasError = uiState.listingsError,
             onListingClick = onListingClick,
             onRetry = onRetryListings,
             modifier = Modifier.padding(top = 12.dp),
