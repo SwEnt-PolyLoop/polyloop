@@ -17,6 +17,7 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,7 +85,10 @@ fun MyListingsCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.testTag(C.Tag.profile_listings_empty),
             )
-        else -> listings.forEach { MyListingRow(it, onClick = { onListingClick(it.listing.id) }) }
+        else ->
+            listings.forEach {
+              key(it.listing.id) { MyListingRow(it, onClick = { onListingClick(it.listing.id) }) }
+            }
       }
     }
   }
