@@ -157,6 +157,22 @@ class AuthViewModelTest {
   }
 
   @Test
+  fun signUpDropsTypedEmojis() {
+    viewModel.switchMode(AuthMode.SIGN_UP)
+    viewModel.onPasswordChange("Secret12!😀")
+    assertEquals("Secret12!", state.password)
+  }
+
+  @Test
+  fun logInKeepsEmojisUntilSwitchingToSignUp() {
+    viewModel.onPasswordChange("abc😀")
+    assertEquals("abc😀", state.password)
+
+    viewModel.switchMode(AuthMode.SIGN_UP)
+    assertEquals("abc", state.password)
+  }
+
+  @Test
   fun submitWithInvalidFieldsOnlyMarksTheAttempt() {
     viewModel.onEmailChange("john@gmail.com")
 
