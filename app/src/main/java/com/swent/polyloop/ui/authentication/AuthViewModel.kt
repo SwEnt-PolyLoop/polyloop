@@ -73,9 +73,11 @@ data class AuthUiState(
   val isPasswordBlank: Boolean
     get() = password.isBlank()
 
-  /** The sign-up rules the password breaks, in display order. Logging in ignores them. */
-  val failedPasswordRules: List<PasswordRule>
-    get() = PasswordRule.failedRules(password)
+  /**
+   * The sign-up rules the password breaks, in display order. Logging in ignores them. Computed once
+   * per state, since the rule checks read it several times.
+   */
+  val failedPasswordRules: List<PasswordRule> = PasswordRule.failedRules(password)
 
   /** True when the password follows every [PasswordRule]; only signing up requires it. */
   val isPasswordStrong: Boolean
