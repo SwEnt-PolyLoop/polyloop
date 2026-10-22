@@ -58,6 +58,9 @@ import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
+/** Space above the logo, shared by the form and the name step so the header does not move. */
+private val ScreenTopPadding = 59.dp
+
 /**
  * Displays the login and sign-up forms and forwards user actions to [AuthViewModel].
  *
@@ -123,7 +126,7 @@ fun AuthScreen(
               .background(colors.background)
               .verticalScroll(rememberScrollState())
               .padding(horizontal = 14.dp)
-              .padding(top = 59.dp)
+              .padding(top = ScreenTopPadding)
   ) {
     Header()
 
@@ -217,7 +220,7 @@ private fun NameStep(
               .background(colors.background)
               .verticalScroll(rememberScrollState())
               .padding(horizontal = 14.dp)
-              .padding(top = 64.dp)
+              .padding(top = ScreenTopPadding)
   ) {
     Header()
 
