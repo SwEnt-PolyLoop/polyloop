@@ -50,8 +50,9 @@ data class ProfileUiState(
 
 /**
  * Shows a profile: the signed-in user's own when [userId] is null (or is their id), someone else's
- * otherwise. The profile follows the repository live. The own listings are loaded once, separately,
- * and their rentals are followed live, so the state of each listing updates by itself.
+ * otherwise. The profile follows the repository live. The own listings are loaded separately, again
+ * each time the screen comes back ([refreshListings]), and their rentals are followed live, so the
+ * state of each listing updates by itself.
  */
 class ProfileViewModel(
     private val userId: String?,
@@ -66,6 +67,7 @@ class ProfileViewModel(
 
   private var loadingProfile: Job? = null
   private var loadingListings: Job? = null
+  private var listingsOwner: String? = null
 
   init {
     load()
@@ -74,10 +76,12 @@ class ProfileViewModel(
   /** Loads the profile again, e.g. after an error. */
   fun retry() = load()
 
-  /** Loads the own listings again, e.g. after an error; the profile stays as it is. */
-  fun retryListings() {
-    val uid = authRepository.getCurrentUser()?.uid ?: return
-    if (_uiState.value.isOwnProfile) loadListings(uid)
+  /**
+   * Loads the own listings again, after an error or when the screen comes back (they may have been
+   * edited or deleted meanwhile); the profile stays as it is. Ignored while they are loading.
+   */
+  fun refreshListings() {
+    if (!_uiState.value.listingsLoading) listingsOwner?.let(::loadListings)
   }
 
   /** Signs the user out. Only on their own profile; ignored on someone else's. */
@@ -127,10 +131,14 @@ class ProfileViewModel(
     if (isOwnProfile) loadListings(uid)
   }
 
-  /** Loads the own listings once and follows their rentals live. */
+  /**
+   * Loads the own listings once and follows their rentals live. The spinner shows only when no
+   * listing is shown yet, so a refresh does not hide the card.
+   */
   private fun loadListings(uid: String) {
     loadingListings?.cancel()
-    _uiState.update { it.copy(listingsLoading = true, listingsError = false) }
+    listingsOwner = uid
+    _uiState.update { it.copy(listingsLoading = it.listings.isEmpty(), listingsError = false) }
     val listings = flow { emit(listingRepository.getListingsByOwner(uid).getOrThrow()) }
     loadingListings = viewModelScope.launch {
       combine(listings, rentalRepository.observeRentalsAsLender(uid)) { owned, rentals ->

@@ -217,12 +217,25 @@ class ProfileViewModelTest {
   }
 
   @Test
-  fun retryListingsLoadsTheListingsAgain() {
+  fun refreshListingsShowsListingsChangedMeanwhile() {
+    val vm = viewModel()
+
+    listings.listings = listOf(myTent.copy(title = "Big tent"), janesBike)
+    vm.refreshListings()
+
+    assertEquals(
+        listOf(MyListing(myTent.copy(title = "Big tent"), ListingRentalState.AVAILABLE)),
+        vm.uiState.value.listings,
+    )
+  }
+
+  @Test
+  fun refreshListingsAfterAnErrorLoadsTheListingsAgain() {
     listings.failure = IllegalStateException("No connection")
     val vm = viewModel()
 
     listings.failure = null
-    vm.retryListings()
+    vm.refreshListings()
 
     assertFalse(vm.uiState.value.listingsError)
     assertEquals(2, vm.uiState.value.listings.size)
@@ -242,7 +255,7 @@ class ProfileViewModelTest {
   fun otherProfileNeverLoadsListings() {
     val vm = viewModel(userId = "jane")
 
-    vm.retryListings()
+    vm.refreshListings()
 
     assertFalse(vm.uiState.value.listingsLoading)
     assertTrue(vm.uiState.value.listings.isEmpty())

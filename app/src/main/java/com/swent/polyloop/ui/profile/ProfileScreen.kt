@@ -35,6 +35,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.profile.UserProfile
@@ -54,12 +56,14 @@ fun ProfileScreen(
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   LaunchedEffect(uiState.isSignedOut) { if (uiState.isSignedOut) onSignedOut() }
+  // Back from Listing detail, a listing may have been edited or deleted.
+  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshListings() }
   ProfileContent(
       uiState = uiState,
       onListingClick = onListingClick,
       onSignOut = viewModel::signOut,
       onRetry = viewModel::retry,
-      onRetryListings = viewModel::retryListings,
+      onRetryListings = viewModel::refreshListings,
   )
 }
 
