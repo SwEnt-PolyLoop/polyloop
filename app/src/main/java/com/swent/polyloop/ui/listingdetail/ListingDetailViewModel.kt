@@ -107,10 +107,12 @@ class ListingDetailViewModel(
   /**
    * Sends a request to rent the listing from [start] to [end] (both days included). On success it
    * closes the date picker and sets the new rental's id; on failure the picker stays open with the
-   * error. Ignored on the user's own listing and for the same ranges as [selectDates]. The owner's
-   * name is left blank if their profile is missing or cannot be read.
+   * error. Ignored on the user's own listing and for the same ranges as [selectDates], or while a
+   * request is already being sent. The owner's name is left blank if their profile is missing or
+   * cannot be read.
    */
   fun sendRequest(start: LocalDate, end: LocalDate) {
+    if (_uiState.value.isSending) return
     val listing = validListing(start, end) ?: return
     if (_uiState.value.isOwnListing) return
     val borrower = authRepository.getCurrentUser()

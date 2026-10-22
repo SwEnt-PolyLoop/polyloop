@@ -268,6 +268,19 @@ class ListingDetailViewModelTest {
   }
 
   @Test
+  fun secondTapWhileSendingSendsNothing() {
+    val gate = CompletableDeferred<Unit>()
+    rentalRepository.gate = gate
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+    vm.sendRequest(oct6, oct8)
+    gate.complete(Unit)
+
+    assertEquals(1, rentalRepository.rentals.size)
+  }
+
+  @Test
   fun notSignedInSendsNothing() {
     authRepository.signedInUser = null
     val vm = openPickerOn()
