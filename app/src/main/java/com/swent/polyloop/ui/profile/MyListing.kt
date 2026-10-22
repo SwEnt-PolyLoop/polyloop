@@ -21,6 +21,10 @@ enum class ListingRentalState {
   ON_LOAN,
   /** The item is with a borrower and the return date has passed. */
   OVERDUE,
+  /** A dispute about a rental is open. */
+  DISPUTED,
+  /** A borrower never gave the item back. */
+  LOST,
 }
 
 /** One of the signed-in user's listings, with where it stands right now. */
@@ -40,5 +44,7 @@ private fun stateOf(status: RentalStatus): ListingRentalState? =
       RentalStatus.ACCEPTED -> ListingRentalState.BOOKED
       RentalStatus.ACTIVE -> ListingRentalState.ON_LOAN
       RentalStatus.OVERDUE -> ListingRentalState.OVERDUE
+      RentalStatus.DISPUTED -> ListingRentalState.DISPUTED
+      RentalStatus.LOST -> ListingRentalState.LOST
       else -> null
     }

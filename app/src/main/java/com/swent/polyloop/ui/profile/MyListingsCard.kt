@@ -165,6 +165,9 @@ private fun StatusPill(state: ListingRentalState, listingId: String) {
             Triple(R.string.profile_listing_status_on_loan, LoanGreen, LoanGreenLight)
         ListingRentalState.OVERDUE ->
             Triple(R.string.profile_listing_status_overdue, ErrorRed, BlushRed)
+        ListingRentalState.DISPUTED ->
+            Triple(R.string.profile_listing_status_disputed, ErrorRed, BlushRed)
+        ListingRentalState.LOST -> Triple(R.string.profile_listing_status_lost, ErrorRed, BlushRed)
       }
   Text(
       text = stringResource(label),
