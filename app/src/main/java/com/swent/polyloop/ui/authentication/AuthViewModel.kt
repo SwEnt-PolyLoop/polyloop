@@ -127,23 +127,14 @@ class AuthViewModel(
 
   fun onEmailChange(email: String) = _uiState.update { it.copy(email = email, error = null) }
 
-  /** Emojis typed while signing up are dropped; logging in keeps the password as typed. */
   fun onPasswordChange(password: String) = _uiState.update {
-    it.copy(password = passwordFor(it.mode, password), error = null)
+    it.copy(password = password, error = null)
   }
 
-  /** Switches between the log-in and sign-up forms, keeping what was typed, emojis aside. */
+  /** Switches between the log-in and sign-up forms, keeping what was typed. */
   fun switchMode(mode: AuthMode) = _uiState.update {
-    it.copy(
-        mode = mode,
-        password = passwordFor(mode, it.password),
-        error = null,
-        hasAttemptedSubmit = false,
-    )
+    it.copy(mode = mode, error = null, hasAttemptedSubmit = false)
   }
-
-  private fun passwordFor(mode: AuthMode, password: String): String =
-      if (mode == AuthMode.SIGN_UP) PasswordRule.withoutEmojis(password) else password
 
   /** Logs in or signs up, depending on the mode. Only marks the attempt if a field is invalid. */
   fun submit() {

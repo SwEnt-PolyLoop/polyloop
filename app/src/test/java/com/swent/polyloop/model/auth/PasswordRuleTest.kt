@@ -42,17 +42,6 @@ class PasswordRuleTest {
           PasswordRule.SPECIAL,
       )
 
-  @Test
-  fun withoutEmojisRemovesEveryEmojiPart() {
-    // A plain emoji, two BMP symbols (one in emoji style), a skin tone, a family and a keycap.
-    val password = "A😀b♥c✔️d👍🏽e👨‍👩‍👧1️⃣"
-    assertEquals("Abcde1", PasswordRule.withoutEmojis(password))
-  }
-
-  @Test
-  fun withoutEmojisKeepsLettersDigitsAndKeyboardSymbols() =
-      assertEquals("Éé1! €°©", PasswordRule.withoutEmojis("Éé1! €°©"))
-
   private companion object {
     const val VALID = "Secret12!"
   }
