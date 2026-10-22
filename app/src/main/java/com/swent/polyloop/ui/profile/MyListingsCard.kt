@@ -26,18 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.swent.polyloop.R
+import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
-import com.swent.polyloop.ui.theme.BlushRed
-import com.swent.polyloop.ui.theme.BookedBlue
-import com.swent.polyloop.ui.theme.BookedBlueLight
-import com.swent.polyloop.ui.theme.ErrorRed
-import com.swent.polyloop.ui.theme.LoanGreen
-import com.swent.polyloop.ui.theme.LoanGreenLight
-import com.swent.polyloop.ui.theme.RequestAmber
-import com.swent.polyloop.ui.theme.RequestAmberLight
-import com.swent.polyloop.ui.theme.Sand
-import com.swent.polyloop.ui.theme.Stone
+import com.swent.polyloop.ui.myrentals.badgeColors
 
 /**
  * The "My listings" card of the own profile: the title with the number of listings, then a spinner
@@ -150,27 +142,24 @@ private fun MyListingRow(myListing: MyListing, onClick: () -> Unit) {
   }
 }
 
-/** Where a listing stands, as a small coloured label. */
+/**
+ * Where a listing stands, as a small coloured label, in the colours of My rentals; "Available"
+ * looks like a finished rental.
+ */
 @Composable
 private fun StatusPill(state: ListingRentalState, listingId: String) {
-  val (label, text, background) =
+  val label =
       when (state) {
-        ListingRentalState.AVAILABLE ->
-            Triple(R.string.profile_listing_status_available, Stone, Sand)
-        ListingRentalState.REQUESTED ->
-            Triple(R.string.profile_listing_status_requested, RequestAmber, RequestAmberLight)
-        ListingRentalState.BOOKED ->
-            Triple(R.string.profile_listing_status_booked, BookedBlue, BookedBlueLight)
-        ListingRentalState.ON_LOAN ->
-            Triple(R.string.profile_listing_status_on_loan, LoanGreen, LoanGreenLight)
-        ListingRentalState.OVERDUE ->
-            Triple(R.string.profile_listing_status_overdue, ErrorRed, BlushRed)
-        ListingRentalState.DISPUTED ->
-            Triple(R.string.profile_listing_status_disputed, ErrorRed, BlushRed)
-        ListingRentalState.FROZEN ->
-            Triple(R.string.profile_listing_status_frozen, ErrorRed, BlushRed)
-        ListingRentalState.LOST -> Triple(R.string.profile_listing_status_lost, ErrorRed, BlushRed)
+        ListingRentalState.AVAILABLE -> R.string.profile_listing_status_available
+        ListingRentalState.REQUESTED -> R.string.profile_listing_status_requested
+        ListingRentalState.BOOKED -> R.string.profile_listing_status_booked
+        ListingRentalState.ON_LOAN -> R.string.profile_listing_status_on_loan
+        ListingRentalState.OVERDUE -> R.string.profile_listing_status_overdue
+        ListingRentalState.DISPUTED -> R.string.profile_listing_status_disputed
+        ListingRentalState.FROZEN -> R.string.profile_listing_status_frozen
+        ListingRentalState.LOST -> R.string.profile_listing_status_lost
       }
+  val (background, text) = (state.rentalStatus ?: RentalStatus.CLOSED).badgeColors()
   Text(
       text = stringResource(label),
       style = MaterialTheme.typography.labelMedium,

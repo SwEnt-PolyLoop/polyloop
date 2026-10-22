@@ -290,7 +290,7 @@ internal val RentalStatus.labelRes: Int
 
 /** Badge colours: waiting, in progress, a problem, or finished. */
 @Composable
-private fun RentalStatus.badgeColors(): Pair<Color, Color> {
+internal fun RentalStatus.badgeColors(): Pair<Color, Color> {
   val colors = MaterialTheme.colorScheme
   return when (this) {
     RentalStatus.REQUESTED -> colors.secondaryContainer to colors.onSecondaryContainer

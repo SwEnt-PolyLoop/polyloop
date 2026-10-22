@@ -9,24 +9,26 @@ import com.swent.polyloop.model.rental.RentalStatus
 /**
  * Where one of the user's listings stands right now, from its rentals. Declared from the least to
  * the most important: when several rentals apply, the most important one wins.
+ *
+ * @property rentalStatus the rental status that gives this state; null for [AVAILABLE].
  */
-enum class ListingRentalState {
+enum class ListingRentalState(val rentalStatus: RentalStatus?) {
   /** No rental waiting, booked or under way. */
-  AVAILABLE,
+  AVAILABLE(null),
   /** A request waits for the lender's answer. */
-  REQUESTED,
+  REQUESTED(RentalStatus.REQUESTED),
   /** A request was accepted; the item has not been handed over yet. */
-  BOOKED,
+  BOOKED(RentalStatus.ACCEPTED),
   /** The item is with a borrower. */
-  ON_LOAN,
+  ON_LOAN(RentalStatus.ACTIVE),
   /** The item is with a borrower and the return date has passed. */
-  OVERDUE,
+  OVERDUE(RentalStatus.OVERDUE),
   /** A dispute about a rental is open. */
-  DISPUTED,
+  DISPUTED(RentalStatus.DISPUTED),
   /** A dispute went to court: the deposit is frozen until an admin applies the ruling. */
-  FROZEN,
+  FROZEN(RentalStatus.FROZEN),
   /** A borrower never gave the item back. */
-  LOST,
+  LOST(RentalStatus.LOST),
 }
 
 /** One of the signed-in user's listings, with where it stands right now. */
@@ -37,17 +39,9 @@ data class MyListing(val listing: Listing, val rentalState: ListingRentalState)
  * listings, and finished or refused ones, are ignored.
  */
 fun rentalStateOf(listingId: String, rentals: List<Rental>): ListingRentalState =
-    rentals.filter { it.listingId == listingId }.mapNotNull { stateOf(it.status) }.maxOrNull()
-        ?: ListingRentalState.AVAILABLE
-
-private fun stateOf(status: RentalStatus): ListingRentalState? =
-    when (status) {
-      RentalStatus.REQUESTED -> ListingRentalState.REQUESTED
-      RentalStatus.ACCEPTED -> ListingRentalState.BOOKED
-      RentalStatus.ACTIVE -> ListingRentalState.ON_LOAN
-      RentalStatus.OVERDUE -> ListingRentalState.OVERDUE
-      RentalStatus.DISPUTED -> ListingRentalState.DISPUTED
-      RentalStatus.FROZEN -> ListingRentalState.FROZEN
-      RentalStatus.LOST -> ListingRentalState.LOST
-      else -> null
-    }
+    rentals
+        .filter { it.listingId == listingId }
+        .mapNotNull { rental ->
+          ListingRentalState.entries.find { it.rentalStatus == rental.status }
+        }
+        .maxOrNull() ?: ListingRentalState.AVAILABLE
