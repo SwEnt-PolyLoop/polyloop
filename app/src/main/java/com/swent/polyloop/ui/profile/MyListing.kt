@@ -23,6 +23,8 @@ enum class ListingRentalState {
   OVERDUE,
   /** A dispute about a rental is open. */
   DISPUTED,
+  /** A dispute went to court: the deposit is frozen until an admin applies the ruling. */
+  FROZEN,
   /** A borrower never gave the item back. */
   LOST,
 }
@@ -45,6 +47,7 @@ private fun stateOf(status: RentalStatus): ListingRentalState? =
       RentalStatus.ACTIVE -> ListingRentalState.ON_LOAN
       RentalStatus.OVERDUE -> ListingRentalState.OVERDUE
       RentalStatus.DISPUTED -> ListingRentalState.DISPUTED
+      RentalStatus.FROZEN -> ListingRentalState.FROZEN
       RentalStatus.LOST -> ListingRentalState.LOST
       else -> null
     }

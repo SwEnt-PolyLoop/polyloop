@@ -167,6 +167,8 @@ private fun StatusPill(state: ListingRentalState, listingId: String) {
             Triple(R.string.profile_listing_status_overdue, ErrorRed, BlushRed)
         ListingRentalState.DISPUTED ->
             Triple(R.string.profile_listing_status_disputed, ErrorRed, BlushRed)
+        ListingRentalState.FROZEN ->
+            Triple(R.string.profile_listing_status_frozen, ErrorRed, BlushRed)
         ListingRentalState.LOST -> Triple(R.string.profile_listing_status_lost, ErrorRed, BlushRed)
       }
   Text(

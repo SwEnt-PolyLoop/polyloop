@@ -34,10 +34,18 @@ class MyListingTest {
       rentalStateOf("tent", statuses.map { rental(it) })
 
   @Test
-  fun lostWinsOverAnOpenDisputeAndALateReturn() {
+  fun lostWinsOverDisputesAndALateReturn() {
     assertEquals(
         ListingRentalState.LOST,
-        stateOf(RentalStatus.DISPUTED, RentalStatus.LOST, RentalStatus.OVERDUE),
+        stateOf(RentalStatus.FROZEN, RentalStatus.LOST, RentalStatus.OVERDUE),
+    )
+  }
+
+  @Test
+  fun aFrozenDisputeWinsOverAnOpenOne() {
+    assertEquals(
+        ListingRentalState.FROZEN,
+        stateOf(RentalStatus.DISPUTED, RentalStatus.FROZEN),
     )
   }
 
