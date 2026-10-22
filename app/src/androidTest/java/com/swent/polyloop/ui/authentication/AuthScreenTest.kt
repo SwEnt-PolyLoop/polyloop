@@ -305,7 +305,14 @@ class AuthScreenTest {
         composeTestRule.onAllNodesWithTag(C.Tag.auth_password_rule).fetchSemanticsNodes().map {
           it.config[SemanticsProperties.Text].joinToString()
         }
-    assertEquals(messageRes.map { context.getString(it, PasswordRule.MIN_LENGTH_CHARS) }, shown)
+    val expected = messageRes.map {
+      if (it == R.string.auth_password_rule_min_length) {
+        context.getString(it, PasswordRule.MIN_LENGTH_CHARS)
+      } else {
+        context.getString(it)
+      }
+    }
+    assertEquals(expected, shown)
   }
 
   private fun fillLogin() {
