@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -86,6 +87,8 @@ sealed interface DateRangePickerMode {
  * A bottom sheet to pick a date range inside [window]. In [DateRangePickerMode.Request] mode the
  * [disabledDates] are booked, the day after each booked stretch is a buffer day, and one free day
  * must follow the picked range. The sheet opens empty every time; [onConfirm] does not close it.
+ * While [isSending] the main button is disabled and shows a progress indicator. A non-null
+ * [errorMsg] is shown above the main button, or a generic text when it is blank.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,6 +100,8 @@ fun PolyLoopDateRangePicker(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
+    isSending: Boolean = false,
+    errorMsg: String? = null,
 ) {
   ModalBottomSheet(
       onDismissRequest = onDismiss,
@@ -109,6 +114,8 @@ fun PolyLoopDateRangePicker(
         mode = mode,
         onConfirm = onConfirm,
         today = today,
+        isSending = isSending,
+        errorMsg = errorMsg,
     )
   }
 }
@@ -121,6 +128,8 @@ internal fun DateRangePickerBody(
     mode: DateRangePickerMode,
     onConfirm: (start: LocalDate, end: LocalDate) -> Unit,
     today: LocalDate,
+    isSending: Boolean = false,
+    errorMsg: String? = null,
 ) {
   // Availability mode has no booked days, hence no buffer days either.
   val booked = if (mode is DateRangePickerMode.Request) disabledDates else emptySet()
@@ -142,10 +151,12 @@ internal fun DateRangePickerBody(
       },
       onConfirm = onConfirm,
       today = today,
+      isSending = isSending,
+      errorMsg = errorMsg,
   )
 }
 
-/** Stateless sheet content: header, month grid, legend, summary and main button. */
+/** Stateless sheet content: header, month grid, legend, summary, send error and main button. */
 @Composable
 internal fun DateRangePickerContent(
     window: ClosedRange<LocalDate>,
@@ -156,6 +167,8 @@ internal fun DateRangePickerContent(
     onConfirm: (start: LocalDate, end: LocalDate) -> Unit,
     today: LocalDate,
     modifier: Modifier = Modifier,
+    isSending: Boolean = false,
+    errorMsg: String? = null,
 ) {
   val firstMonth = YearMonth.from(window.start)
   val lastMonth = YearMonth.from(window.endInclusive)
@@ -203,7 +216,20 @@ internal fun DateRangePickerContent(
         )
       }
     }
-    ConfirmButton(mode = mode, selection = selection, onConfirm = onConfirm)
+    if (errorMsg != null) {
+      Text(
+          text = errorMsg.ifBlank { stringResource(R.string.date_picker_send_error_fallback) },
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.error,
+          modifier = Modifier.testTag(C.Tag.date_picker_send_error),
+      )
+    }
+    ConfirmButton(
+        mode = mode,
+        selection = selection,
+        isSending = isSending,
+        onConfirm = onConfirm,
+    )
   }
 }
 
@@ -454,12 +480,14 @@ private fun SummaryRow(label: String, value: String, valueTag: String, boldValue
 
 /**
  * "Send request" or "Confirm dates", enabled once a full range is picked, and in request mode only
- * if the balance covers its total.
+ * if the balance covers its total. Disabled while [isSending], with a progress indicator in place
+ * of its icon.
  */
 @Composable
 private fun ConfirmButton(
     mode: DateRangePickerMode,
     selection: DateRangeSelection,
+    isSending: Boolean,
     onConfirm: (start: LocalDate, end: LocalDate) -> Unit,
 ) {
   Button(
@@ -469,18 +497,26 @@ private fun ConfirmButton(
         if (start != null && end != null) onConfirm(start, end)
       },
       enabled =
-          selection.isComplete &&
+          !isSending &&
+              selection.isComplete &&
               !(mode is DateRangePickerMode.Request &&
                   selection.exceedsBalance(mode.pricePerDay, mode.balance)),
       shape = MaterialTheme.shapes.medium,
       modifier = Modifier.fillMaxWidth().height(48.dp).testTag(C.Tag.date_picker_confirm_button),
   ) {
     if (mode is DateRangePickerMode.Request) {
-      Icon(
-          Icons.AutoMirrored.Filled.Send,
-          contentDescription = null,
-          modifier = Modifier.size(ButtonDefaults.IconSize),
-      )
+      if (isSending) {
+        CircularProgressIndicator(
+            strokeWidth = 2.dp,
+            modifier = Modifier.size(ButtonDefaults.IconSize).testTag(C.Tag.date_picker_sending),
+        )
+      } else {
+        Icon(
+            Icons.AutoMirrored.Filled.Send,
+            contentDescription = null,
+            modifier = Modifier.size(ButtonDefaults.IconSize),
+        )
+      }
       Spacer(Modifier.width(ButtonDefaults.IconSpacing))
       Text(stringResource(R.string.date_picker_send_request))
     } else {
