@@ -53,9 +53,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.auth.PasswordRule
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
+
+/** Space above the logo, shared by the form and the name step so the header does not move. */
+private val ScreenTopPadding = 59.dp
 
 /**
  * Displays the login and sign-up forms and forwards user actions to [AuthViewModel].
@@ -88,8 +92,10 @@ fun AuthScreen(
   /*
    * Field validation is driven by the flags exposed by AuthUiState.
    *
-   * Name and password errors are shown after the user attempts to submit.
+   * Name and empty-password errors are shown after the user attempts to submit.
    * Email errors are shown as soon as the typed address doesn't match, or after submission.
+   * When signing up, the broken password rules are listed as bullets under a header as soon as a
+   * password is typed.
    */
   val showEmailError = (state.email.isNotEmpty() || state.hasAttemptedSubmit) && !state.isEmailValid
 
@@ -120,7 +126,7 @@ fun AuthScreen(
               .background(colors.background)
               .verticalScroll(rememberScrollState())
               .padding(horizontal = 14.dp)
-              .padding(top = 64.dp)
+              .padding(top = ScreenTopPadding)
   ) {
     Header()
 
@@ -145,7 +151,7 @@ fun AuthScreen(
           errorTestTag = C.Tag.auth_name_error,
       )
 
-      Spacer(Modifier.height(16.dp))
+      Spacer(Modifier.height(4.dp))
     }
 
     AuthTextField(
@@ -159,7 +165,7 @@ fun AuthScreen(
         errorTestTag = C.Tag.auth_email_error,
     )
 
-    Spacer(Modifier.height(16.dp))
+    Spacer(Modifier.height(4.dp))
 
     AuthTextField(
         label = stringResource(R.string.auth_password_label),
@@ -171,6 +177,12 @@ fun AuthScreen(
         isPassword = true,
         testTag = C.Tag.auth_password_field,
         errorTestTag = C.Tag.auth_password_error,
+        errorContent =
+            if (state.shownPasswordRules.isNotEmpty()) {
+              { PasswordRuleList(state.shownPasswordRules) }
+            } else {
+              null
+            },
     )
 
     Spacer(Modifier.height(20.dp))
@@ -208,7 +220,7 @@ private fun NameStep(
               .background(colors.background)
               .verticalScroll(rememberScrollState())
               .padding(horizontal = 14.dp)
-              .padding(top = 64.dp)
+              .padding(top = ScreenTopPadding)
   ) {
     Header()
 
@@ -367,7 +379,8 @@ private fun RowScope.Tab(
 }
 
 /**
- * Renders a labeled text field, its optional validation message, and a stable error-message slot.
+ * Renders a labeled text field and its validation messages, in an error slot with a minimum height
+ * so the form does not jump when one message appears.
  *
  * Password values are obscured when [isPassword] is true.
  *
@@ -380,6 +393,8 @@ private fun RowScope.Tab(
  * @param errorTestTag semantic test tag of the validation message for UI tests.
  * @param keyboardType keyboard layout requested for the field.
  * @param isPassword whether to obscure the entered value.
+ * @param errorContent error shown instead of [errorText], such as a list of messages; null when
+ *   there is none.
  */
 @Composable
 private fun AuthTextField(
@@ -392,6 +407,7 @@ private fun AuthTextField(
     errorTestTag: String,
     keyboardType: KeyboardType = KeyboardType.Text,
     isPassword: Boolean = false,
+    errorContent: (@Composable () -> Unit)? = null,
 ) {
   val colors = MaterialTheme.colorScheme
 
@@ -415,7 +431,7 @@ private fun AuthTextField(
       },
       singleLine = true,
       shape = RoundedCornerShape(14.dp),
-      isError = errorText != null,
+      isError = errorText != null || errorContent != null,
       visualTransformation =
           if (isPassword) {
             PasswordVisualTransformation()
@@ -439,16 +455,57 @@ private fun AuthTextField(
       modifier = Modifier.fillMaxWidth().height(62.dp).testTag(testTag),
   )
 
-  // Keep a stable height so the form does not jump when an error appears.
+  // Keep a minimum height so the form does not jump when one error appears; several errors grow it.
   Column(
-      modifier = Modifier.height(20.dp),
+      modifier = Modifier.heightIn(min = 20.dp),
   ) {
-    if (errorText != null) {
+    if (errorContent != null) {
+      errorContent()
+    } else if (errorText != null) {
       Text(
           text = errorText,
           color = colors.error,
           fontSize = 13.sp,
           modifier = Modifier.testTag(errorTestTag),
+      )
+    }
+  }
+}
+
+/**
+ * Lists the sign-up password rules still broken, as bullet points under a header.
+ *
+ * @param rules the broken rules, in display order; not empty.
+ */
+@Composable
+private fun PasswordRuleList(rules: List<PasswordRule>) {
+  val color = MaterialTheme.colorScheme.error
+  // A bullet list keeps its lines tight; the theme's default line height spreads them out.
+  val lineHeight = 16.sp
+
+  Text(
+      text = stringResource(R.string.auth_password_rules_header),
+      color = color,
+      fontSize = 13.sp,
+      lineHeight = lineHeight,
+      modifier = Modifier.testTag(C.Tag.auth_password_rules_header),
+  )
+  rules.forEach { rule ->
+    // Wrapped lines stay aligned with the text of their bullet.
+    Row {
+      Text(
+          text = stringResource(R.string.auth_password_rule_bullet),
+          color = color,
+          fontSize = 13.sp,
+          lineHeight = lineHeight,
+          modifier = Modifier.padding(start = 4.dp, end = 6.dp),
+      )
+      Text(
+          text = rule.message(),
+          color = color,
+          fontSize = 13.sp,
+          lineHeight = lineHeight,
+          modifier = Modifier.testTag(C.Tag.auth_password_rule),
       )
     }
   }
@@ -578,6 +635,28 @@ internal fun AuthError.messageRes(): Int =
       AuthError.VERIFICATION_EMAIL_NOT_SENT -> R.string.auth_error_verification_email_not_sent
       AuthError.NAME_NOT_SAVED -> R.string.auth_error_name_not_saved
       AuthError.PROFILE_NOT_CREATED -> R.string.auth_error_profile_not_created
+    }
+
+/** Converts a broken sign-up password rule into the string resource of its error message. */
+@StringRes
+internal fun PasswordRule.messageRes(): Int =
+    when (this) {
+      PasswordRule.MIN_LENGTH -> R.string.auth_password_rule_min_length
+      PasswordRule.UPPERCASE -> R.string.auth_password_rule_uppercase
+      PasswordRule.LOWERCASE -> R.string.auth_password_rule_lowercase
+      PasswordRule.DIGIT -> R.string.auth_password_rule_digit
+      PasswordRule.SPECIAL -> R.string.auth_password_rule_special
+    }
+
+/**
+ * The error message of a broken sign-up password rule; only the minimum length takes an argument.
+ */
+@Composable
+private fun PasswordRule.message(): String =
+    if (this == PasswordRule.MIN_LENGTH) {
+      stringResource(messageRes(), PasswordRule.MIN_LENGTH_CHARS)
+    } else {
+      stringResource(messageRes())
     }
 
 /** Preview of the login form backed by an in-memory authentication repository. */

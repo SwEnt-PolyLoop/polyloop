@@ -12,6 +12,7 @@ import com.swent.polyloop.model.auth.AuthRepositoryFirebase
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.EpflEmail
+import com.swent.polyloop.model.auth.PasswordRule
 import com.swent.polyloop.model.profile.ProfileRepository
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Job
@@ -72,10 +73,31 @@ data class AuthUiState(
   val isPasswordBlank: Boolean
     get() = password.isBlank()
 
-  /** True when the main button can be pressed: valid fields and nothing already running. */
+  /**
+   * The sign-up rules the password breaks, in display order. Logging in ignores them. Computed once
+   * per state, since the rule checks read it several times.
+   */
+  val failedPasswordRules: List<PasswordRule> = PasswordRule.failedRules(password)
+
+  /** True when the password follows every [PasswordRule]; only signing up requires it. */
+  val isPasswordStrong: Boolean
+    get() = failedPasswordRules.isEmpty()
+
+  /** The broken rules the screen lists: only when signing up with a typed password. */
+  val shownPasswordRules: List<PasswordRule>
+    get() =
+        if (mode == AuthMode.SIGN_UP && password.isNotEmpty()) failedPasswordRules else emptyList()
+
+  /**
+   * True when the main button can be pressed: valid fields and nothing already running. Signing up
+   * also needs a name and a password that follows every [PasswordRule].
+   */
   val canSubmit: Boolean
     get() =
-        !isLoading && isEmailValid && !isPasswordBlank && (mode == AuthMode.LOG_IN || !isNameBlank)
+        !isLoading &&
+            isEmailValid &&
+            !isPasswordBlank &&
+            (mode == AuthMode.LOG_IN || (!isNameBlank && isPasswordStrong))
 
   /** Seconds left before "Resend email" can be pressed for the current [email], 0 if none. */
   val resendSecondsLeft: Int

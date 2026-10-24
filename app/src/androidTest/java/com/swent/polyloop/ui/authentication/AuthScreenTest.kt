@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -24,6 +25,7 @@ import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.auth.PasswordRule
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
@@ -154,6 +156,42 @@ class AuthScreenTest {
   }
 
   @Test
+  fun weakSignUpPasswordShowsEveryBrokenRule() {
+    tap(C.Tag.auth_signup_tab)
+    type(C.Tag.auth_password_field, "abc")
+    assertErrorText(C.Tag.auth_password_rules_header, R.string.auth_password_rules_header)
+    assertPasswordErrors(
+        R.string.auth_password_rule_min_length,
+        R.string.auth_password_rule_uppercase,
+        R.string.auth_password_rule_digit,
+        R.string.auth_password_rule_special,
+    )
+  }
+
+  @Test
+  fun fixingAPasswordRuleRemovesOnlyItsMessage() {
+    tap(C.Tag.auth_signup_tab)
+    type(C.Tag.auth_password_field, "abc")
+    type(C.Tag.auth_password_field, "D")
+    assertPasswordErrors(
+        R.string.auth_password_rule_min_length,
+        R.string.auth_password_rule_digit,
+        R.string.auth_password_rule_special,
+    )
+
+    type(C.Tag.auth_password_field, "123!")
+    assertPasswordErrors()
+    composeTestRule.onNodeWithTag(C.Tag.auth_password_rules_header).assertDoesNotExist()
+  }
+
+  @Test
+  fun loginDoesNotCheckPasswordRules() {
+    type(C.Tag.auth_password_field, "abc")
+    composeTestRule.onNodeWithTag(C.Tag.auth_password_rules_header).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.auth_password_error).assertDoesNotExist()
+  }
+
+  @Test
   fun successfulLoginSignsIn() {
     fillLogin()
     tap(C.Tag.auth_login_button)
@@ -261,6 +299,22 @@ class AuthScreenTest {
     composeTestRule.onNodeWithTag(tag).assertTextEquals(context.getString(messageRes))
   }
 
+  /** Checks the password messages shown, in order; none when [messageRes] is empty. */
+  private fun assertPasswordErrors(vararg messageRes: Int) {
+    val shown =
+        composeTestRule.onAllNodesWithTag(C.Tag.auth_password_rule).fetchSemanticsNodes().map {
+          it.config[SemanticsProperties.Text].joinToString()
+        }
+    val expected = messageRes.map {
+      if (it == R.string.auth_password_rule_min_length) {
+        context.getString(it, PasswordRule.MIN_LENGTH_CHARS)
+      } else {
+        context.getString(it)
+      }
+    }
+    assertEquals(expected, shown)
+  }
+
   private fun fillLogin() {
     type(C.Tag.auth_email_field, VALID_EMAIL)
     type(C.Tag.auth_password_field, VALID_PASSWORD)
@@ -291,6 +345,6 @@ class AuthScreenTest {
   private companion object {
     const val VALID_NAME = "John"
     const val VALID_EMAIL = "john@epfl.ch"
-    const val VALID_PASSWORD = "secret123"
+    const val VALID_PASSWORD = "Secret123!"
   }
 }
