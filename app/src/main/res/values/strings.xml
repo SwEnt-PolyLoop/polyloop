@@ -179,7 +179,7 @@
     <string name="auth_password_required">Please enter your password.</string>
     <string name="auth_password_rules_header">Your password needs:</string>
     <string name="auth_password_rule_bullet" translatable="false">•</string>
-    <string name="auth_password_rule_min_length">At least %1$d characters</string>
+    <string name="auth_password_rule_min_length">At least 8 characters</string>
     <string name="auth_password_rule_uppercase">At least one uppercase letter</string>
     <string name="auth_password_rule_lowercase">At least one lowercase letter</string>
     <string name="auth_password_rule_digit">At least one number</string>

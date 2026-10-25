@@ -501,7 +501,7 @@ private fun PasswordRuleList(rules: List<PasswordRule>) {
           modifier = Modifier.padding(start = 4.dp, end = 6.dp),
       )
       Text(
-          text = rule.message(),
+          text = stringResource(rule.messageRes()),
           color = color,
           fontSize = 13.sp,
           lineHeight = lineHeight,
@@ -646,17 +646,6 @@ internal fun PasswordRule.messageRes(): Int =
       PasswordRule.LOWERCASE -> R.string.auth_password_rule_lowercase
       PasswordRule.DIGIT -> R.string.auth_password_rule_digit
       PasswordRule.SPECIAL -> R.string.auth_password_rule_special
-    }
-
-/**
- * The error message of a broken sign-up password rule; only the minimum length takes an argument.
- */
-@Composable
-private fun PasswordRule.message(): String =
-    if (this == PasswordRule.MIN_LENGTH) {
-      stringResource(messageRes(), PasswordRule.MIN_LENGTH_CHARS)
-    } else {
-      stringResource(messageRes())
     }
 
 /** Preview of the login form backed by an in-memory authentication repository. */
