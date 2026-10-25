@@ -118,11 +118,12 @@ class ListingDetailViewModel(
   /**
    * Sends a request to rent the listing from [start] to [end] (both days included). It first reads
    * the listing's booked ranges from the server: if the range is no longer free, nothing is sent,
-   * [ListingDetailUiState.datesTaken] is set and the newly booked days are disabled. On success it
-   * closes the date picker and sets the new rental's id; on failure the picker stays open with the
-   * error. Ignored on the user's own listing and for the same ranges as [selectDates], or while a
-   * request is already being sent. The owner's name is left blank if their profile is missing or
-   * cannot be read.
+   * [ListingDetailUiState.datesTaken] is set and the newly booked days are disabled; if the listing
+   * was deleted or is no longer published, the picker closes and the listing shows as not found. On
+   * success it closes the date picker and sets the new rental's id; on failure the picker stays
+   * open with the error. Ignored on the user's own listing and for the same ranges as
+   * [selectDates], or while a request is already being sent. The owner's name is left blank if
+   * their profile is missing or cannot be read.
    */
   fun sendRequest(start: LocalDate, end: LocalDate) {
     if (_uiState.value.isSending) return
@@ -140,6 +141,17 @@ class ListingDetailViewModel(
             _uiState.update { it.copy(isSending = false, sendError = e.message ?: "") }
             return@launch
           }
+      if (ranges == null) {
+        _uiState.update {
+          it.copy(
+              isSending = false,
+              isDatePickerOpen = false,
+              listing = null,
+              listingNotFound = true,
+          )
+        }
+        return@launch
+      }
       val disabledDates = bookedDays(ranges)
       if (!isRequestable(start, end, listing.window, disabledDates, today())) {
         _uiState.update {

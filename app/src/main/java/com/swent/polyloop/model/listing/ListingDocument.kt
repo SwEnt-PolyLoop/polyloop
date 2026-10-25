@@ -92,6 +92,15 @@ internal fun listingFromDocument(id: String, data: Map<String, Any?>): Listing? 
 }
 
 /**
+ * The booked ranges in a listing document's [data], or null if the listing is not published. Only
+ * the status and the ranges are read, so another malformed field does not hide the bookings.
+ */
+internal fun publishedBookedRangesOrNull(data: Map<String, Any>): List<BookedRange>? =
+    bookedRangesOrEmpty(data[ListingFields.BOOKED_RANGES]).takeIf {
+      data[ListingFields.STATUS] == ListingStatus.PUBLISHED.name
+    }
+
+/**
  * The booked ranges stored in [value], a list of `{start, end}` maps. A range with a missing or
  * malformed date, or ending before it starts, is skipped so that one bad entry does not hide the
  * whole listing.

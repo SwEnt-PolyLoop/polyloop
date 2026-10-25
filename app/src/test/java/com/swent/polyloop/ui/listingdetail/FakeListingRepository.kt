@@ -40,10 +40,12 @@ class FakeListingRepository(
     return failure?.let { Result.failure(it) } ?: Result.success(listings.find { it.id == id })
   }
 
-  override suspend fun getBookedRanges(id: String): Result<List<BookedRange>> {
+  override suspend fun getBookedRanges(id: String): Result<List<BookedRange>?> {
     gate?.await()
     return failure?.let { Result.failure(it) }
-        ?: Result.success(listings.find { it.id == id }?.bookedRanges.orEmpty())
+        ?: Result.success(
+            listings.find { it.id == id && it.status == ListingStatus.PUBLISHED }?.bookedRanges
+        )
   }
 
   // The addresses of each created listing, by listing id.
