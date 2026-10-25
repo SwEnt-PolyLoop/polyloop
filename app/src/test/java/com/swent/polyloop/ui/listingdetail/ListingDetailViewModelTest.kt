@@ -291,13 +291,15 @@ class ListingDetailViewModelTest {
   }
 
   @Test
-  fun notSignedInSendsNothing() {
+  fun notSignedInSendsNothingAndShowsTheGenericError() {
     authRepository.signedInUser = null
     val vm = openPickerOn()
+    vm.sendRequest(oct6.minusDays(1), oct8) // refused first: shows the dates-taken message
 
     vm.sendRequest(oct6, oct8)
 
     assertEquals("", vm.uiState.value.sendError)
+    assertFalse(vm.uiState.value.datesTaken)
     assertTrue(rentalRepository.rentals.isEmpty())
   }
 
@@ -372,14 +374,34 @@ class ListingDetailViewModelTest {
   }
 
   @Test
-  fun failedBookedRangesReadSendsNothingAndShowsTheError() {
+  fun datesTakenThenNewDaysPickedSendsTheRequest() {
     val vm = openPickerOn()
-    repository.failure = IllegalStateException("Network down")
+    repository.listings =
+        listOf(listing.copy(ownerId = "owner", bookedRanges = listOf(BookedRange(oct6, oct6))))
+    vm.sendRequest(oct6, oct8)
+
+    vm.clearSendError()
+    assertFalse(vm.uiState.value.datesTaken)
+    vm.sendRequest(oct10, oct11)
+
+    val state = vm.uiState.value
+    assertEquals(1, rentalRepository.rentals.size)
+    assertEquals(oct10, rentalRepository.rentals.single().startDate)
+    assertEquals(rentalRepository.rentals.single().id, state.sentRentalId)
+    assertFalse(state.datesTaken)
+    assertNull(state.sendError)
+  }
+
+  @Test
+  fun failedBookedRangesReadSendsNothingAndShowsTheGenericError() {
+    val vm = openPickerOn()
+    repository.failure =
+        IllegalStateException("Failed to get document because the client is offline")
 
     vm.sendRequest(oct6, oct8)
 
     assertTrue(rentalRepository.rentals.isEmpty())
-    assertEquals("Network down", vm.uiState.value.sendError)
+    assertEquals("", vm.uiState.value.sendError)
     assertFalse(vm.uiState.value.isSending)
   }
 

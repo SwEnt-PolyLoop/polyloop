@@ -87,9 +87,10 @@ sealed interface DateRangePickerMode {
  * A bottom sheet to pick a date range inside [window]. In [DateRangePickerMode.Request] mode the
  * [disabledDates] are booked, the day after each booked stretch is a buffer day, and one free day
  * must follow the picked range. The sheet opens empty every time, and its selection is cleared when
- * [disabledDates] or [today] change while it is open; [onConfirm] does not close it. While
- * [isSending] the main button is disabled and shows a progress indicator. A non-null [errorMsg] is
- * shown above the main button, or a generic text when it is blank.
+ * [today] changes while it is open, and in Request mode when [disabledDates] change too;
+ * [onConfirm] does not close it. [onDayPicked] is called on every tap on a day. While [isSending]
+ * the main button is disabled and shows a progress indicator. A non-null [errorMsg] is shown above
+ * the main button, or a generic text when it is blank.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,6 +104,7 @@ fun PolyLoopDateRangePicker(
     today: LocalDate = LocalDate.now(),
     isSending: Boolean = false,
     errorMsg: String? = null,
+    onDayPicked: () -> Unit = {},
 ) {
   ModalBottomSheet(
       onDismissRequest = onDismiss,
@@ -117,6 +119,7 @@ fun PolyLoopDateRangePicker(
         today = today,
         isSending = isSending,
         errorMsg = errorMsg,
+        onDayPicked = onDayPicked,
     )
   }
 }
@@ -124,7 +127,8 @@ fun PolyLoopDateRangePicker(
 /**
  * The sheet's content holding the current selection, which starts empty and is cleared when the
  * booked days change (e.g. dates booked by someone else while the user was picking) or when [today]
- * changes (e.g. the picked start day passed at midnight).
+ * changes (e.g. the picked start day passed at midnight). [onDayPicked] is called on every tap on a
+ * day.
  */
 @Composable
 internal fun DateRangePickerBody(
@@ -135,6 +139,7 @@ internal fun DateRangePickerBody(
     today: LocalDate,
     isSending: Boolean = false,
     errorMsg: String? = null,
+    onDayPicked: () -> Unit = {},
 ) {
   // Availability mode has no booked days, hence no buffer days either.
   val booked = if (mode is DateRangePickerMode.Request) disabledDates else emptySet()
@@ -153,6 +158,7 @@ internal fun DateRangePickerBody(
                 today = today,
                 requireBufferDay = mode is DateRangePickerMode.Request,
             )
+        onDayPicked()
       },
       onConfirm = onConfirm,
       today = today,

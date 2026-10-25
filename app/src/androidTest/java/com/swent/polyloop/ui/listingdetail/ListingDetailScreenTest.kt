@@ -597,10 +597,31 @@ class ListingDetailScreenTest {
 
     composeTestRule
         .onNodeWithTag(C.Tag.datePickerDay(oct(10)))
-        .assertContentDescriptionEquals("10, booked")
+        .assertContentDescriptionEquals(context.getString(R.string.date_picker_day_booked, 10))
     composeTestRule
         .onNodeWithTag(C.Tag.date_picker_send_error)
         .performScrollTo()
-        .assertTextEquals("These dates are no longer available. Pick other dates.")
+        .assertTextEquals(context.getString(R.string.listing_detail_dates_taken))
+  }
+
+  @Test
+  fun tappingADayCallsOnDayPicked() {
+    var dayPicks = 0
+    composeTestRule.setContent {
+      ListingDetailContent(
+          uiState = ListingDetailUiState(listing = listing, isDatePickerOpen = true),
+          onRequestDates = {},
+          onConfirmDates = { _, _ -> },
+          onDismissDatePicker = {},
+          onLenderClick = {},
+          onRetry = {},
+          today = today,
+          onDayPicked = { dayPicks++ },
+      )
+    }
+
+    tapDays(oct(12))
+
+    assertEquals(1, dayPicks)
   }
 }

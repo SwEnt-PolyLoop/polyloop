@@ -91,6 +91,7 @@ fun ListingDetailScreen(
       onDismissDatePicker = viewModel::dismissDatePicker,
       onLenderClick = onLenderClick,
       onRetry = viewModel::retry,
+      onDayPicked = viewModel::clearSendError,
       onRequestSent = { rentalId ->
         onRequestSent(rentalId)
         viewModel.onRequestSentHandled()
@@ -101,8 +102,9 @@ fun ListingDetailScreen(
 /**
  * Stateless Listing detail content: a loading indicator, an error with a Retry button, a not-found
  * message or the loaded listing, depending on [uiState]. While the date picker is open, its sheet
- * is shown over the loaded listing, with [today] as the current date. When a request has been sent,
- * the sheet closes and [onRequestSent] is called with the new rental's id.
+ * is shown over the loaded listing, with [today] as the current date, and [onDayPicked] is called
+ * on each tap on a day. When a request has been sent, the sheet closes and [onRequestSent] is
+ * called with the new rental's id.
  */
 @Composable
 fun ListingDetailContent(
@@ -114,6 +116,7 @@ fun ListingDetailContent(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
+    onDayPicked: () -> Unit = {},
     onRequestSent: (rentalId: String) -> Unit = {},
 ) {
   LaunchedEffect(uiState.sentRentalId) { uiState.sentRentalId?.let(onRequestSent) }
@@ -166,6 +169,7 @@ fun ListingDetailContent(
               errorMsg =
                   if (uiState.datesTaken) stringResource(R.string.listing_detail_dates_taken)
                   else uiState.sendError,
+              onDayPicked = onDayPicked,
           )
         }
       }

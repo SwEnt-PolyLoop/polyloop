@@ -119,12 +119,13 @@ class ListingDetailViewModel(
    * Sends a request to rent the listing from [start] to [end] (both days included). It first reads
    * the listing's booked ranges from the server: if the range is no longer free, nothing is sent,
    * [ListingDetailUiState.datesTaken] is set and the newly booked days are disabled; if the listing
-   * was deleted or is no longer published, the picker closes and the listing shows as not found. On
-   * success it closes the date picker and sets the new rental's id; on failure the picker stays
-   * open with the error. A range that can no longer be picked (see [selectDates]), e.g. because its
-   * start day has passed, also sets [ListingDetailUiState.datesTaken] without reading anything.
-   * Ignored until the listing is loaded, on the user's own listing, or while a request is already
-   * being sent. The owner's name is left blank if their profile is missing or cannot be read.
+   * was deleted or is no longer published, the picker closes and the listing shows as not found; if
+   * they cannot be read, the picker stays open with a blank error (the generic text). On success it
+   * closes the date picker and sets the new rental's id; on failure the picker stays open with the
+   * error. A range that can no longer be picked (see [selectDates]), e.g. because its start day has
+   * passed, also sets [ListingDetailUiState.datesTaken] without reading anything. Ignored until the
+   * listing is loaded, on the user's own listing, or while a request is already being sent. The
+   * owner's name is left blank if their profile is missing or cannot be read.
    */
   fun sendRequest(start: LocalDate, end: LocalDate) {
     val state = _uiState.value
@@ -136,14 +137,15 @@ class ListingDetailViewModel(
     }
     val borrower = authRepository.getCurrentUser()
     if (borrower == null) {
-      _uiState.update { it.copy(sendError = "") }
+      _uiState.update { it.copy(sendError = "", datesTaken = false) }
       return
     }
     _uiState.update { it.copy(isSending = true, sendError = null, datesTaken = false) }
     viewModelScope.launch {
       val ranges =
-          listingRepository.getBookedRanges(listingId).getOrElse { e ->
-            _uiState.update { it.copy(isSending = false, sendError = e.message ?: "") }
+          listingRepository.getBookedRanges(listingId).getOrElse {
+            // Firestore's message (e.g. offline) is not for users: show the generic text.
+            _uiState.update { it.copy(isSending = false, sendError = "") }
             return@launch
           }
       if (ranges == null) {
@@ -176,6 +178,11 @@ class ListingDetailViewModel(
             _uiState.update { it.copy(isSending = false, sendError = e.message ?: "") }
           }
     }
+  }
+
+  /** Clears the send error and the dates-taken message, e.g. once the user taps a new day. */
+  fun clearSendError() {
+    _uiState.update { it.copy(sendError = null, datesTaken = false) }
   }
 
   /** Clears the sent rental's id once the screen has opened its chat. */
