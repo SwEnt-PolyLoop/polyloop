@@ -153,7 +153,7 @@ fun ListingDetailContent(
         if (uiState.isDatePickerOpen && uiState.sentRentalId == null) {
           PolyLoopDateRangePicker(
               window = listing.availableFrom..listing.availableTo,
-              disabledDates = emptySet(), // booked days come with #87
+              disabledDates = uiState.disabledDates,
               mode =
                   DateRangePickerMode.Request(
                       pricePerDay = listing.pricePerDay,
@@ -163,7 +163,9 @@ fun ListingDetailContent(
               onDismiss = onDismissDatePicker,
               today = today,
               isSending = uiState.isSending,
-              errorMsg = uiState.sendError,
+              errorMsg =
+                  if (uiState.datesTaken) stringResource(R.string.listing_detail_dates_taken)
+                  else uiState.sendError,
           )
         }
       }
