@@ -295,6 +295,7 @@ class ListingDetailViewModelTest {
     authRepository.signedInUser = null
     val vm = openPickerOn()
     vm.sendRequest(oct6.minusDays(1), oct8) // refused first: shows the dates-taken message
+    assertTrue(vm.uiState.value.datesTaken)
 
     vm.sendRequest(oct6, oct8)
 
@@ -390,6 +391,18 @@ class ListingDetailViewModelTest {
     assertEquals(rentalRepository.rentals.single().id, state.sentRentalId)
     assertFalse(state.datesTaken)
     assertNull(state.sendError)
+  }
+
+  @Test
+  fun clearSendErrorClearsAFailedSend() {
+    rentalRepository.failure = IllegalStateException("Network down")
+    val vm = openPickerOn()
+    vm.sendRequest(oct6, oct8)
+    assertEquals("Network down", vm.uiState.value.sendError)
+
+    vm.clearSendError()
+
+    assertNull(vm.uiState.value.sendError)
   }
 
   @Test
