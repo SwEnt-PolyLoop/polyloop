@@ -138,7 +138,7 @@ Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoi
 | Path | Fields | Notes |
 | --- | --- | --- |
 | `users/{uid}` | `name`, `email`, `photoUrl`, `averageRating`, `reviewCount` | Missing fields read as `""` or 0. |
-| `listings/{listingId}` | `ownerId`, `title`, `description`, `category`, `photoUrls`, `pricePerDay`, `itemValue`, `availableFrom`, `availableTo`, `status`, `pickupArea`, `dropOffArea`, `bookedRanges` | Public. `bookedRanges` is a list of `{start, end}` (`YYYY-MM-DD`, both days booked, the 1-day buffer not included); missing reads as an empty list. |
+| `listings/{listingId}` | `ownerId`, `title`, `description`, `category`, `photoUrls`, `pricePerDay`, `itemValue`, `availableFrom`, `availableTo`, `status`, `pickupArea`, `dropOffArea`, `bookedRanges` | Public. `bookedRanges` is a list of `{start, end}` (`YYYY-MM-DD`, both days booked, the 1-day buffer not included); missing reads as an empty list. It holds accepted rentals only: a pending request blocks no day. Only Cloud Functions write it; the app never does, so it stays empty until the Function that accepts rentals exists. |
 | `listings/{listingId}/private/addresses` | `pickup`, `dropOff` | Exact addresses, readable only by the owner. |
 | `rentals/{rentalId}` | `listingId`, `listingTitle`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. |
 | `rentals/{rentalId}/messages/{messageId}` | `senderId`, `text`, `sentAt`, `type` (`USER` or `SYSTEM`) | One conversation per rental. |
@@ -149,7 +149,7 @@ Rentals:
 - My rentals queries `borrowerId` or `ownerId` only and sorts newest first in the app (a user has few rentals), so it needs no index.
 - `lastMessageAt` is set to the same server timestamp as `createdAt` when the rental is created: the chat list sorts by it, and leaves out a rental that lacks it.
 - `pickupAddress` and `returnAddress` stay empty until the lender accepts; the borrower cannot read the listing's exact addresses before that.
-- **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants.
+- **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants. Until then, the dates are checked against `bookedRanges` only in the app (Listing detail reads them again from the server just before sending), so a client that skips this check is not stopped.
 
 Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, so the Storage rules can check the owner. Photos added before this rule live in `listing_images/` and keep working through their download URLs.
 
