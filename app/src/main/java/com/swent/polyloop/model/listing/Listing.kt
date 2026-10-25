@@ -18,7 +18,7 @@ data class Listing(
     val status: ListingStatus,
     val pickupArea: String = "", // public, set by a Cloud Function when the listing is saved
     val dropOffArea: String = "", // public, set by a Cloud Function when the listing is saved
-    // Accepted rentals, written only by Cloud Functions; the buffer day after each is not included
+    // Accepted rentals, written only by Cloud Functions; the buffer days are not included
     val bookedRanges: List<BookedRange> = emptyList(),
 ) {
   fun canPublish(addresses: ListingAddresses): Boolean =

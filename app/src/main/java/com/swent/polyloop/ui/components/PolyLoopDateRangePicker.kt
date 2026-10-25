@@ -85,12 +85,12 @@ sealed interface DateRangePickerMode {
 
 /**
  * A bottom sheet to pick a date range inside [window]. In [DateRangePickerMode.Request] mode the
- * [disabledDates] are booked, the day after each booked stretch is a buffer day, and one free day
- * must follow the picked range. The sheet opens empty every time, and its selection is cleared when
- * [today] changes while it is open, and in Request mode when [disabledDates] change too;
- * [onConfirm] does not close it. [onDayPicked] is called on every tap on a day. While [isSending]
- * the main button is disabled and shows a progress indicator. A non-null [errorMsg] is shown above
- * the main button, or a generic text when it is blank.
+ * [disabledDates] are booked, the days right before and after each booked stretch are buffer days,
+ * and one free day must follow the picked range. The sheet opens empty every time, and its
+ * selection is cleared when [today] changes while it is open, and in Request mode when
+ * [disabledDates] change too; [onConfirm] does not close it. [onDayPicked] is called on every tap
+ * on a day. While [isSending] the main button is disabled and shows a progress indicator. A
+ * non-null [errorMsg] is shown above the main button, or a generic text when it is blank.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
