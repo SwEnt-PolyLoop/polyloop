@@ -11,6 +11,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.Source
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -235,6 +236,38 @@ class ListingRepositoryFirestoreTest {
         listOf(BookedRange(LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 8))),
         result.getOrThrow()?.bookedRanges,
     )
+  }
+
+  @Test
+  fun getBookedRangesReadsTheServerNotTheCache() = runTest {
+    val ranges = listOf(range("2026-10-06", "2026-10-08"))
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns
+        Tasks.forResult(document("listing1", validData + (ListingFields.BOOKED_RANGES to ranges)))
+
+    val result = repository.getBookedRanges("listing1")
+
+    assertEquals(
+        listOf(BookedRange(LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 8))),
+        result.getOrThrow(),
+    )
+  }
+
+  @Test
+  fun getBookedRangesReturnsFailureOnFirestoreError() = runTest {
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns Tasks.forException(firestoreError)
+
+    assertSame(firestoreError, repository.getBookedRanges("listing1").exceptionOrNull())
+  }
+
+  @Test
+  fun getBookedRangesIsEmptyForMissingListingOrInvalidId() = runTest {
+    every { collection.document("missing") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns Tasks.forResult(document("missing", null))
+
+    assertTrue(repository.getBookedRanges("missing").getOrThrow().isEmpty())
+    assertTrue(repository.getBookedRanges("listings/listing1").getOrThrow().isEmpty())
   }
 
   @Test

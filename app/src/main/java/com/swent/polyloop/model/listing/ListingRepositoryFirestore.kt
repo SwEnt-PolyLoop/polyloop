@@ -6,6 +6,7 @@ import android.net.Uri
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseException
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.storageMetadata
@@ -46,6 +47,16 @@ class ListingRepositoryFirestore(
     return try {
       val doc = db.collection(ListingFields.COLLECTION).document(id).get().await()
       Result.success(doc.data?.let { listingFromDocument(id, it) })
+    } catch (e: FirebaseException) {
+      Result.failure(e)
+    }
+  }
+
+  override suspend fun getBookedRanges(id: String): Result<List<BookedRange>> {
+    if (id.isBlank() || id.contains('/')) return Result.success(emptyList())
+    return try {
+      val doc = db.collection(ListingFields.COLLECTION).document(id).get(Source.SERVER).await()
+      Result.success(doc.data?.let { listingFromDocument(id, it) }?.bookedRanges.orEmpty())
     } catch (e: FirebaseException) {
       Result.failure(e)
     }

@@ -20,6 +20,14 @@ interface ListingRepository {
   suspend fun getListing(id: String): Result<Listing?>
 
   /**
+   * The booked ranges of the listing with this [id], as the server has them now (not from the
+   * cache), to check a request just before sending it. Empty if there is no such listing. Fails
+   * with the cause if they cannot be read, e.g. offline.
+   */
+  suspend fun getBookedRanges(id: String): Result<List<BookedRange>> =
+      getListing(id).map { it?.bookedRanges.orEmpty() }
+
+  /**
    * Uploads [photos] in order, then saves [listing] with their URLs and its exact [addresses], and
    * returns the new listing's id. The listing's id and photoUrls are ignored; its ownerId and
    * status are saved as given.
