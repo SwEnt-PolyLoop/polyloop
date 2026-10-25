@@ -156,11 +156,11 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 ## Security rules
 
 `firestore.rules` and `storage.rules` are listed in `firebase.json`, so the emulators enforce them; `FirestoreRulesTest` and `StorageRulesTest` (in `androidTest/.../rules/`) check them. Every read and write needs a verified `@epfl.ch` account. Beyond the notes in the schema above:
-- A listing must pass the same checks as `Listing.canPublish` (3 to 10 photos, prices from 1 to 99,999 PP, `availableFrom` before `availableTo`, a known category and status). Clients never write `bookedRanges` (a Cloud Function will, on acceptance) and never change `ownerId`.
+- A listing must pass the same checks as `Listing.canPublish` (3 to 10 photo URLs, all strings, prices from 1 to 99,999 PP, `availableFrom` before `availableTo`, a known category and status). Clients never write `bookedRanges` (a Cloud Function will, on acceptance) and never change `ownerId`. A listing cannot be created at an id whose `private/addresses` is left over from a deleted listing.
 - A rental request must match its listing, which must be `PUBLISHED`: same owner, title, price per day and areas, dates inside the availability window, and `totalPrice` equal to the price per day × the number of days.
 - Profiles: a user creates and edits only their own, with their own email; `averageRating` and `reviewCount` are left to Cloud Functions.
 - Storage: listing photos must be images under 100 MB (a placeholder until the camera sets the photo size). They are uploaded before the listing document exists, so a folder whose listing does not exist yet is open to any verified user; once it exists, only the owner may change it. These rules read Firestore, so the first deploy asks to let Storage read Firestore.
-- Not enforced yet: locking a listing's edit and delete while a rental of it is accepted or active.
+- Not enforced yet: locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; Storage writes to folders with no listing (any verified user, so made-up and deleted ids too); a limit on the requests one borrower sends for a listing (left to `requestRental`).
 
 ## Not decided yet — ask before implementing
 
