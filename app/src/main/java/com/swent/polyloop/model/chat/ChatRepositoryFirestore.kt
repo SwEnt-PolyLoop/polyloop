@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -30,10 +31,22 @@ class ChatRepositoryFirestore(
 
   override fun observeConversations(uid: String): Flow<List<Conversation>> {
     if (!isValidId(uid)) return flowOf(emptyList())
+    // Sorted here, not by Firestore: filtering on one field and sorting on another would need a
+    // composite index in the console. A user has few rentals, so sorting them here is cheap.
     return db.collection(ChatFields.RENTALS)
         .whereArrayContains(ChatFields.PARTICIPANTS, uid)
-        .orderBy(ChatFields.LAST_MESSAGE_AT, Query.Direction.DESCENDING)
         .observe(::conversationFromDocument)
+        .map { conversations -> conversations.sortedByDescending { it.lastMessageAt } }
+  }
+
+  override suspend fun getConversation(rentalId: String): Result<Conversation?> {
+    if (!isValidId(rentalId)) return Result.success(null)
+    return try {
+      val snapshot = rental(rentalId).get().await()
+      Result.success(snapshot.data?.let { conversationFromDocument(rentalId, it) })
+    } catch (e: FirebaseException) {
+      Result.failure(e)
+    }
   }
 
   override fun observeMessages(rentalId: String): Flow<List<Message>> {

@@ -22,6 +22,7 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.myrentals.labelRes
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -180,6 +181,8 @@ class ChatListScreenTest {
                 "Hi",
                 now,
                 RentalStatus.ACCEPTED,
+                LocalDate.of(2026, 10, 20),
+                LocalDate.of(2026, 10, 22),
             )
         )
     val auth =

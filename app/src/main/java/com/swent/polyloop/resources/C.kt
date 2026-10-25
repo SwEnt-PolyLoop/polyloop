@@ -101,6 +101,8 @@ object C {
     const val date_picker_balance = "date_picker_balance"
     const val date_picker_balance_error = "date_picker_balance_error"
     const val date_picker_confirm_button = "date_picker_confirm_button"
+    const val date_picker_sending = "date_picker_sending"
+    const val date_picker_send_error = "date_picker_send_error"
 
     fun datePickerDay(date: LocalDate) = "date_picker_day_$date"
 
@@ -149,6 +151,24 @@ object C {
     const val profile_error = "profile_error"
     const val profile_retry_button = "profile_retry_button"
     const val profile_not_found = "profile_not_found"
+
+    const val chat_screen = "chat_screen"
+    const val chat_header_name = "chat_header_name"
+    const val chat_header_dates = "chat_header_dates"
+    const val chat_header_item = "chat_header_item"
+    const val chat_rental_details = "chat_rental_details"
+    const val chat_loading = "chat_loading"
+    const val chat_error = "chat_error"
+    const val chat_retry_button = "chat_retry_button"
+    const val chat_empty = "chat_empty"
+    const val chat_messages = "chat_messages"
+    // Prefix: each message is tagged chat_message_ + message id
+    const val chat_message_ = "chat_message_"
+    const val chat_message_text = "chat_message_text"
+    const val chat_message_time = "chat_message_time"
+    const val chat_input = "chat_input"
+    const val chat_send_button = "chat_send_button"
+    const val chat_send_failed = "chat_send_failed"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"

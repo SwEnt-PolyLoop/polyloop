@@ -46,7 +46,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Chat list | ChatListViewModel | Chat (the item and the other person are copied on each rental, see "Firestore schema") |
 | Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
 | Browse | BrowseViewModel | Listing; Location (distance and map position) |
-| Listing detail | ListingDetailViewModel | Listing; Rental (booked days, sending the request); Profile (the owner's name and rating) |
+| Listing detail | ListingDetailViewModel | Listing; Rental (booked days, sending the request); Profile (the owner's name and rating); Auth (the borrower sending the request) |
 | Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active) |
 | My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
@@ -145,9 +145,9 @@ Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoi
 
 Rentals:
 - The listing title, both names and the public areas are copied when the rental is created, so My rentals and the chat list need no other read. A missing owner name is stored as `""`; screens show a translated placeholder.
-- `participants` is `[ownerId, borrowerId]`; the chat list queries it with `array-contains`, sorted by `lastMessageAt`, which needs a composite index.
+- `participants` is `[ownerId, borrowerId]`; the chat list queries it with `array-contains` only and sorts by `lastMessageAt` in the app, so it needs no composite index.
 - My rentals queries `borrowerId` or `ownerId` only and sorts newest first in the app (a user has few rentals), so it needs no index.
-- `lastMessageAt` is set to the same server timestamp as `createdAt` when the rental is created: a sorted query leaves out every document that lacks the sorted field.
+- `lastMessageAt` is set to the same server timestamp as `createdAt` when the rental is created: the chat list sorts by it, and leaves out a rental that lacks it.
 - `pickupAddress` and `returnAddress` stay empty until the lender accepts; the borrower cannot read the listing's exact addresses before that.
 - **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants.
 
