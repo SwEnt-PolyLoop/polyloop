@@ -4,16 +4,16 @@ package com.swent.polyloop.model.profile
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.google.firebase.firestore.firestore
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -31,40 +31,46 @@ class ProfileRepositoryFirestoreEmulatorTest {
   // switch it to the emulator.
   private val repository = ProfileRepositoryFirestore()
 
+  // A new signed-in user for each test, so documents left by earlier runs never get in the way.
+  // The rules let a user write only their own profile.
+  private val email = "profile-${UUID.randomUUID()}@epfl.ch"
+  private lateinit var uid: String
+
   @Before
   fun setUp() {
     FirebaseEmulator.connect()
+    uid = runBlocking { FirebaseEmulator.signUpVerified(email) }
   }
 
-  /** A new user id for each test, so documents left by earlier runs never get in the way. */
-  private fun uniqueUid() = "test-${UUID.randomUUID()}"
+  @After
+  fun tearDown() {
+    Firebase.auth.signOut()
+  }
 
   /** Writes a profile document as it is, like the seeded profiles, bypassing the repository. */
-  private suspend fun writeRawProfile(uid: String, fields: Map<String, Any>) {
-    Firebase.firestore.collection("users").document(uid).set(fields).await()
+  private fun writeRawProfile(uid: String, fields: Map<String, Any>) {
+    FirebaseEmulator.createDocumentAsAdmin("users/$uid", fields)
   }
 
   @Test
   fun getProfileReadsAProfileCreatedOnSignIn() {
     runBlocking {
-      val uid = uniqueUid()
-      repository.createProfileIfMissing(uid, "john@epfl.ch", "John")
+      repository.createProfileIfMissing(uid, email, "John").getOrThrow()
 
       val profile = repository.getProfile(uid).getOrThrow()
 
-      assertEquals(UserProfile(uid = uid, name = "John", email = "john@epfl.ch"), profile)
+      assertEquals(UserProfile(uid = uid, name = "John", email = email), profile)
     }
   }
 
   @Test
   fun getProfileReturnsNullWhenThereIsNoProfile() {
-    runBlocking { assertNull(repository.getProfile(uniqueUid()).getOrThrow()) }
+    runBlocking { assertNull(repository.getProfile("test-${UUID.randomUUID()}").getOrThrow()) }
   }
 
   @Test
   fun getProfileKeepsAProfileWithoutRatingFields() {
     runBlocking {
-      val uid = uniqueUid()
       writeRawProfile(uid, mapOf("name" to "Vida", "photoUrl" to "https://example.com/vida.jpg"))
 
       val profile = repository.getProfile(uid).getOrThrow()
@@ -76,21 +82,15 @@ class ProfileRepositoryFirestoreEmulatorTest {
   @Test
   fun updateProfileChangesNameAndPhotoAndKeepsTheRest() {
     runBlocking {
-      val uid = uniqueUid()
       writeRawProfile(
           uid,
-          mapOf(
-              "name" to "John",
-              "email" to "john@epfl.ch",
-              "averageRating" to 4.5,
-              "reviewCount" to 2,
-          ),
+          mapOf("name" to "John", "email" to email, "averageRating" to 4.5, "reviewCount" to 2),
       )
 
       repository.updateProfile(uid, "Johnny", "https://example.com/john.jpg").getOrThrow()
 
       assertEquals(
-          UserProfile(uid, "Johnny", "john@epfl.ch", "https://example.com/john.jpg", 4.5, 2),
+          UserProfile(uid, "Johnny", email, "https://example.com/john.jpg", 4.5, 2),
           repository.getProfile(uid).getOrThrow(),
       )
     }
@@ -99,12 +99,11 @@ class ProfileRepositoryFirestoreEmulatorTest {
   @Test
   fun updateProfileFailsWhenThereIsNoProfile() {
     runBlocking {
-      val uid = uniqueUid()
-
       val error = repository.updateProfile(uid, "John", "").exceptionOrNull()
 
+      // PERMISSION_DENIED rather than NOT_FOUND: the rules refuse an update with no profile.
       assertEquals(
-          FirebaseFirestoreException.Code.NOT_FOUND,
+          FirebaseFirestoreException.Code.PERMISSION_DENIED,
           (error as FirebaseFirestoreException).code,
       )
       assertNull(repository.getProfile(uid).getOrThrow())
@@ -114,8 +113,7 @@ class ProfileRepositoryFirestoreEmulatorTest {
   @Test
   fun observeProfileEmitsTheProfileAgainAfterAnUpdate() {
     runBlocking {
-      val uid = uniqueUid()
-      writeRawProfile(uid, mapOf("name" to "John", "email" to "john@epfl.ch"))
+      writeRawProfile(uid, mapOf("name" to "John", "email" to email))
       val emitted = mutableListOf<UserProfile?>()
       val firstReceived = CompletableDeferred<Unit>()
 

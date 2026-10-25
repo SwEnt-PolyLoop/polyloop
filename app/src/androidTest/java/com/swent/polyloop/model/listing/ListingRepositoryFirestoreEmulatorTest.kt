@@ -36,23 +36,25 @@ class ListingRepositoryFirestoreEmulatorTest {
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
-  // A new owner for each test, so listings left by earlier runs never get in the way.
-  private val ownerId = "test-${UUID.randomUUID()}"
+  // A new owner for each test, so listings left by earlier runs never get in the way. The signed-in
+  // user: the rules let only them create their listings.
+  private lateinit var ownerId: String
 
-  private val listing =
-      Listing(
-          id = "",
-          ownerId = ownerId,
-          title = "Camping tent, 2 people",
-          description = "Light 2-person tent, used three times.",
-          category = ListingCategory.SPORTS_OUTDOOR,
-          photoUrls = emptyList(),
-          pricePerDay = 15,
-          itemValue = 180,
-          availableFrom = LocalDate.of(2026, 10, 6),
-          availableTo = LocalDate.of(2026, 10, 20),
-          status = ListingStatus.PUBLISHED,
-      )
+  private val listing
+    get() =
+        Listing(
+            id = "",
+            ownerId = ownerId,
+            title = "Camping tent, 2 people",
+            description = "Light 2-person tent, used three times.",
+            category = ListingCategory.SPORTS_OUTDOOR,
+            photoUrls = emptyList(),
+            pricePerDay = 15,
+            itemValue = 180,
+            availableFrom = LocalDate.of(2026, 10, 6),
+            availableTo = LocalDate.of(2026, 10, 20),
+            status = ListingStatus.PUBLISHED,
+        )
 
   private val addresses =
       ListingAddresses(
@@ -65,8 +67,8 @@ class ListingRepositoryFirestoreEmulatorTest {
   @Before
   fun setUp() {
     FirebaseEmulator.connect()
-    // Storage only accepts uploads from a verified @epfl.ch user.
-    runBlocking { signInVerified() }
+    // The rules only accept writes from a verified @epfl.ch user.
+    ownerId = runBlocking { FirebaseEmulator.signUpVerified() }
   }
 
   @After
@@ -81,16 +83,6 @@ class ListingRepositoryFirestoreEmulatorTest {
       }
     }
     Firebase.auth.signOut()
-  }
-
-  private suspend fun signInVerified() {
-    val email = "test-${UUID.randomUUID()}@epfl.ch"
-    val user = Firebase.auth.createUserWithEmailAndPassword(email, PASSWORD).await().user!!
-    user.sendEmailVerification().await()
-    FirebaseEmulator.verifyEmail(email)
-    // Refresh the ID token so Storage sees email_verified = true.
-    user.reload().await()
-    user.getIdToken(true).await()
   }
 
   /** [count] small files in the app's cache, as the camera would leave them. */
@@ -177,9 +169,5 @@ class ListingRepositoryFirestoreEmulatorTest {
       assertTrue(result.isFailure)
       assertEquals(0, listingCountForOwner())
     }
-  }
-
-  private companion object {
-    const val PASSWORD = "password123"
   }
 }
