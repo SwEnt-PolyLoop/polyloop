@@ -262,12 +262,34 @@ class ListingRepositoryFirestoreTest {
   }
 
   @Test
-  fun getBookedRangesIsEmptyForMissingListingOrInvalidId() = runTest {
+  fun getBookedRangesIsNullForMissingListingOrInvalidId() = runTest {
     every { collection.document("missing") } returns documentRef
     every { documentRef.get(Source.SERVER) } returns Tasks.forResult(document("missing", null))
 
-    assertTrue(repository.getBookedRanges("missing").getOrThrow().isEmpty())
-    assertTrue(repository.getBookedRanges("listings/listing1").getOrThrow().isEmpty())
+    assertNull(repository.getBookedRanges("missing").getOrThrow())
+    assertNull(repository.getBookedRanges("listings/listing1").getOrThrow())
+  }
+
+  @Test
+  fun getBookedRangesIsNullForDraftListing() = runTest {
+    val draft = validData + (ListingFields.STATUS to "DRAFT")
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns Tasks.forResult(document("listing1", draft))
+
+    assertNull(repository.getBookedRanges("listing1").getOrThrow())
+  }
+
+  @Test
+  fun getBookedRangesIgnoresOtherMalformedFields() = runTest {
+    val ranges = listOf(range("2026-10-06", "2026-10-08"))
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns
+        Tasks.forResult(document("listing1", brokenData + (ListingFields.BOOKED_RANGES to ranges)))
+
+    assertEquals(
+        listOf(BookedRange(LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 8))),
+        repository.getBookedRanges("listing1").getOrThrow(),
+    )
   }
 
   @Test
