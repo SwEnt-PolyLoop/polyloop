@@ -11,6 +11,8 @@ import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.rental.RentalRepository
+import com.swent.polyloop.ui.components.bookedDays
+import com.swent.polyloop.ui.components.isRequestable
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +25,9 @@ import kotlinx.coroutines.launch
  * [errorMsg] is non-null when loading failed; it is blank when the failure carried no message, and
  * the screen then shows a generic text. [isOwnListing] is true when the signed-in user owns the
  * listing. [sendError] is non-null when sending the request failed, blank in the same way, and
- * [sentRentalId] holds the new rental's id until the screen has opened its chat.
+ * [sentRentalId] holds the new rental's id until the screen has opened its chat. [disabledDates]
+ * are the days booked by accepted rentals, and [datesTaken] is true when the picked dates were
+ * booked by someone else while the borrower was choosing them.
  */
 data class ListingDetailUiState(
     val listing: Listing? = null,
@@ -37,15 +41,21 @@ data class ListingDetailUiState(
     val isSending: Boolean = false,
     val sendError: String? = null,
     val sentRentalId: String? = null,
+    val disabledDates: Set<LocalDate> = emptySet(),
+    val datesTaken: Boolean = false,
 )
 
-/** Shows one published listing, holds the dates the borrower picks and sends the request. */
+/**
+ * Shows one published listing, holds the dates the borrower picks and sends the request. [today]
+ * gives the phone's date, the same one the date picker uses.
+ */
 class ListingDetailViewModel(
     private val listingId: String,
     private val listingRepository: ListingRepository,
     private val rentalRepository: RentalRepository,
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
+    private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(ListingDetailUiState())
@@ -72,6 +82,7 @@ class ListingDetailViewModel(
                   listing = published,
                   listingNotFound = published == null,
                   isOwnListing = uid != null && published?.ownerId == uid,
+                  disabledDates = bookedDays(published?.bookedRanges.orEmpty()),
               )
             }
           }
@@ -86,7 +97,7 @@ class ListingDetailViewModel(
    */
   fun openDatePicker() {
     if (_uiState.value.listing == null) return
-    _uiState.update { it.copy(isDatePickerOpen = true, sendError = null) }
+    _uiState.update { it.copy(isDatePickerOpen = true, sendError = null, datesTaken = false) }
   }
 
   /** Closes the date picker and keeps any previous selection. */
@@ -96,8 +107,8 @@ class ListingDetailViewModel(
 
   /**
    * Selects the range [start]..[end] (both days included) and closes the date picker. Ignored if
-   * the listing is not loaded, [end] is before [start], or the range leaves the availability
-   * window.
+   * the listing is not loaded or the range could not be picked in the date picker (see
+   * [isRequestable]).
    */
   fun selectDates(start: LocalDate, end: LocalDate) {
     validListing(start, end) ?: return
@@ -105,7 +116,9 @@ class ListingDetailViewModel(
   }
 
   /**
-   * Sends a request to rent the listing from [start] to [end] (both days included). On success it
+   * Sends a request to rent the listing from [start] to [end] (both days included). It first reads
+   * the listing's booked ranges from the server: if the range is no longer free, nothing is sent,
+   * [ListingDetailUiState.datesTaken] is set and the newly booked days are disabled. On success it
    * closes the date picker and sets the new rental's id; on failure the picker stays open with the
    * error. Ignored on the user's own listing and for the same ranges as [selectDates], or while a
    * request is already being sent. The owner's name is left blank if their profile is missing or
@@ -120,8 +133,20 @@ class ListingDetailViewModel(
       _uiState.update { it.copy(sendError = "") }
       return
     }
-    _uiState.update { it.copy(isSending = true, sendError = null) }
+    _uiState.update { it.copy(isSending = true, sendError = null, datesTaken = false) }
     viewModelScope.launch {
+      val ranges =
+          listingRepository.getBookedRanges(listingId).getOrElse { e ->
+            _uiState.update { it.copy(isSending = false, sendError = e.message ?: "") }
+            return@launch
+          }
+      val disabledDates = bookedDays(ranges)
+      if (!isRequestable(start, end, listing.window, disabledDates, today())) {
+        _uiState.update {
+          it.copy(isSending = false, datesTaken = true, disabledDates = disabledDates)
+        }
+        return@launch
+      }
       val ownerName = profileRepository.getProfile(listing.ownerId).getOrNull()?.name ?: ""
       rentalRepository
           .requestRental(listing, ownerName, borrower, start, end)
@@ -142,17 +167,20 @@ class ListingDetailViewModel(
   }
 
   /**
-   * The loaded listing if [start]..[end] can be requested, or null if the listing is not loaded,
-   * [end] is before [start], or the range leaves the availability window.
+   * The loaded listing if [start]..[end] can be requested, or null if the listing is not loaded or
+   * the range could not be picked in the date picker, given the days booked so far (see
+   * [isRequestable]).
    */
   private fun validListing(start: LocalDate, end: LocalDate): Listing? {
-    val listing = _uiState.value.listing ?: return null
-    val valid =
-        !end.isBefore(start) &&
-            !start.isBefore(listing.availableFrom) &&
-            !end.isAfter(listing.availableTo)
-    return listing.takeIf { valid }
+    val state = _uiState.value
+    val listing = state.listing ?: return null
+    return listing.takeIf {
+      isRequestable(start, end, listing.window, state.disabledDates, today())
+    }
   }
+
+  private val Listing.window: ClosedRange<LocalDate>
+    get() = availableFrom..availableTo
 
   /** Clears the selected dates. */
   fun clearDates() {
@@ -166,6 +194,7 @@ class ListingDetailViewModel(
       private val rentalRepository: RentalRepository,
       private val authRepository: AuthRepository,
       private val profileRepository: ProfileRepository,
+      private val today: () -> LocalDate = LocalDate::now,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass.isAssignableFrom(ListingDetailViewModel::class.java)) {
@@ -178,6 +207,7 @@ class ListingDetailViewModel(
           rentalRepository,
           authRepository,
           profileRepository,
+          today,
       )
           as T
     }
