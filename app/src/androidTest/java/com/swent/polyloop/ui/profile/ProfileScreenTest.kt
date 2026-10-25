@@ -76,7 +76,6 @@ class ProfileScreenTest {
           profile = john,
           listings = listOf(MyListing(tent, ListingRentalState.AVAILABLE)),
           isLoading = false,
-          listingsLoading = false,
       )
 
   private var openedListing: String? = null
@@ -182,6 +181,7 @@ class ProfileScreenTest {
     setContent(ownProfile.copy(listings = emptyList()))
 
     node(C.Tag.profile_listings_empty).assertIsDisplayed()
+    node(C.Tag.profile_listings_count).assertDoesNotExist()
   }
 
   // ---------- someone else's profile ----------

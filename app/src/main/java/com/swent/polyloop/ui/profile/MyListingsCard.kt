@@ -60,7 +60,7 @@ fun MyListingsCard(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f).testTag(C.Tag.profile_listings_title),
         )
-        if (!isLoading && !hasError) {
+        if (!isLoading && !hasError && listings.isNotEmpty()) {
           Text(
               text = listings.size.toString(),
               style = MaterialTheme.typography.bodyMedium,
