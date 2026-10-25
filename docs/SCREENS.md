@@ -82,7 +82,7 @@ Listing detail is where a borrower decides and sends a request. ViewModel: Listi
 - Photo carousel, title, description, price per day, and the suggested deposit (the item's value), all in PolyPoints. The final deposit is negotiated in chat; the lender enters it when accepting.
 - The owner's name and rating, linking to their profile.
 - A small map of the pickup area, placed by geocoding the typed address. The exact address only appears on Rental detail after acceptance.
-- The lender's availability window, and a “Request” button that opens a date picker limited to that window. Booked days (accepted rentals only; a pending request blocks no day), plus a 1-day buffer after each booking, are greyed out. The total is the price per day times the number of days. Disabled offline.
+- The lender's availability window, and a “Request” button that opens a date picker limited to that window. Booked days (accepted rentals only; a pending request blocks no day), plus a 1-day buffer before and after each booking, are greyed out. The total is the price per day times the number of days. Disabled offline.
 - When the request is sent, the booked days are read again from the server. If the dates were booked meanwhile, nothing is sent: the picker greys out the new booked days and shows “These dates are no longer available”, until the user taps a new day. If the listing was deleted or unpublished meanwhile, the picker closes and the listing shows as not found.
 - Sending a request reserves the rental price from the borrower's balance; if the balance is too low, the request does not go through.
 - On your own listing: “Edit” and “Delete” instead of “Request”, locked while a rental is accepted or active.
