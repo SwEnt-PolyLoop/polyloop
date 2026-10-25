@@ -35,6 +35,9 @@ import kotlinx.coroutines.launch
  * @property listingsLoading true while the own listings load; false on someone else's profile.
  * @property listingsError true when the own listings cannot be loaded; the profile still shows, and
  *   the card shows a generic text whatever the cause.
+ * @property listingsStale true when the last refresh of the own listings failed, so [listings] are
+ *   the ones read before, even when that read found none; false while they load, on
+ *   [listingsError], and before a first read succeeded, as there is then nothing read before.
  * @property isSignedOut true once the user signed out; the app then goes back to sign-in.
  */
 data class ProfileUiState(
@@ -46,6 +49,7 @@ data class ProfileUiState(
     val errorMsg: String? = null,
     val listingsLoading: Boolean = false,
     val listingsError: Boolean = false,
+    val listingsStale: Boolean = false,
     val isSignedOut: Boolean = false,
 )
 
@@ -155,28 +159,43 @@ class ProfileViewModel(
   /**
    * Loads the own listings, again at each [listingsRefresh], and follows their rentals live. Called
    * for the first load and after an error only, so the spinner always shows: a retry never shows
-   * the old listings as if they were current. A refresh that fails (e.g. offline) keeps the
-   * listings already shown, and their rentals stay followed.
+   * the old listings as if they were current. A refresh that fails (e.g. a network error) keeps the
+   * listings already shown, marked as stale until a refresh succeeds (even when there are none, so
+   * the user knows why a new listing is missing), and their rentals stay followed.
    */
   private fun loadListings(uid: String) {
     loadingListings?.cancel()
     listingsOwner = uid
-    _uiState.update { it.copy(listingsLoading = true, listingsError = false) }
+    _uiState.update {
+      it.copy(listingsLoading = true, listingsError = false, listingsStale = false)
+    }
     var shown: List<Listing>? = null
+    // Each read gives the listings to show, and whether they are the old ones kept after a failure.
     val listings = listingsRefresh.map {
       listingRepository
           .getListingsByOwner(uid)
-          .getOrElse { e -> shown ?: throw e }
-          .also { shown = it }
+          .fold(
+              onSuccess = { read -> read.also { shown = it } to false },
+              onFailure = { e -> (shown ?: throw e) to true },
+          )
     }
     loadingListings = viewModelScope.launch {
-      combine(listings, rentalRepository.observeRentalsAsLender(uid)) { owned, rentals ->
-            owned.map { MyListing(it, rentalStateOf(it.id, rentals)) }
+      combine(listings, rentalRepository.observeRentalsAsLender(uid)) { (owned, stale), rentals ->
+            owned.map { MyListing(it, rentalStateOf(it.id, rentals)) } to stale
           }
-          .catch { _uiState.update { it.copy(listingsLoading = false, listingsError = true) } }
-          .collect { mine ->
+          .catch {
             _uiState.update {
-              it.copy(listings = mine, listingsLoading = false, listingsError = false)
+              it.copy(listingsLoading = false, listingsError = true, listingsStale = false)
+            }
+          }
+          .collect { (mine, stale) ->
+            _uiState.update {
+              it.copy(
+                  listings = mine,
+                  listingsLoading = false,
+                  listingsError = false,
+                  listingsStale = stale,
+              )
             }
           }
     }
