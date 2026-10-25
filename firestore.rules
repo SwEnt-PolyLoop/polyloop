@@ -42,6 +42,19 @@ service cloud.firestore {
       return value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
     }
 
+    // True if every item of a list of 3 to 10 items is a string. Rules cannot loop, so each index is
+    // checked; an index past the end is skipped.
+    function areStrings(list) {
+      return list[0] is string && list[1] is string && list[2] is string
+          && (list.size() <= 3 || list[3] is string)
+          && (list.size() <= 4 || list[4] is string)
+          && (list.size() <= 5 || list[5] is string)
+          && (list.size() <= 6 || list[6] is string)
+          && (list.size() <= 7 || list[7] is string)
+          && (list.size() <= 8 || list[8] is string)
+          && (list.size() <= 9 || list[9] is string);
+    }
+
     // Midnight UTC of a YYYY-MM-DD string, in milliseconds.
     function dateMillis(date) {
       return timestamp.date(int(date[0:4]), int(date[5:7]), int(date[8:10])).toMillis();
@@ -99,6 +112,7 @@ service cloud.firestore {
             && listing.photoUrls is list
             && listing.photoUrls.size() >= 3
             && listing.photoUrls.size() <= 10
+            && areStrings(listing.photoUrls)
             && listing.pricePerDay is int
             && listing.pricePerDay >= 1
             && listing.pricePerDay <= 99999

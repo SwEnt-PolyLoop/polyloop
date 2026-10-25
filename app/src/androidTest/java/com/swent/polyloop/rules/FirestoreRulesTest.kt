@@ -279,11 +279,19 @@ class FirestoreRulesTest {
         assertDenied { listingRef(valid.id).set(document + ("category" to "WEAPONS")).await() }
         assertDenied { listingRef(valid.id).set(document + ("status" to "SOLD")).await() }
         assertDenied { listingRef(valid.id).set(document + ("unknownField" to 1)).await() }
+        // Photo URLs that are not strings, first and last of 10.
+        listOf(listOf<Any>(1, "b", "c"), List<Any>(9) { "url$it" } + 10).forEach { photoUrls ->
+          assertDenied { listingRef(valid.id).set(document + ("photoUrls" to photoUrls)).await() }
+        }
         assertDenied {
           listingRef(valid.id)
               .set(document + ("bookedRanges" to listOf(mapOf("start" to "a", "end" to "b"))))
               .await()
         }
+        // The most photos, all strings, is accepted.
+        listingRef(valid.id)
+            .set(document + ("photoUrls" to List(Listing.MAX_PHOTOS) { "url$it" }))
+            .await()
       }
 
   @Test
