@@ -153,6 +153,7 @@ private fun ProfileLoaded(
             listings = uiState.listings,
             isLoading = uiState.listingsLoading,
             hasError = uiState.listingsError,
+            isStale = uiState.listingsStale,
             onListingClick = onListingClick,
             onRetry = onRetryListings,
             modifier = Modifier.padding(top = 12.dp),

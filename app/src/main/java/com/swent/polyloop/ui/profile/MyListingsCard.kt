@@ -37,15 +37,19 @@ import com.swent.polyloop.ui.components.badgeColors
 
 /**
  * The "My listings" card of the own profile: the title with the number of listings, then a spinner
- * while they load, the error with "Retry", an empty text, or one row per listing.
+ * while they load, the error with "Retry", an empty text, or one row per listing; after a failed
+ * refresh, a note under the empty text or the rows says they are the ones loaded before.
  *
  * @param hasError true when the listings could not be loaded; the card then shows a generic text.
+ * @param isStale true when the last refresh failed; a note under the listings, or under the empty
+ *   text, then says they are the ones loaded before.
  */
 @Composable
 fun MyListingsCard(
     listings: List<MyListing>,
     isLoading: Boolean,
     hasError: Boolean,
+    isStale: Boolean,
     onListingClick: (listingId: String) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -91,6 +95,14 @@ fun MyListingsCard(
             listings.forEach {
               key(it.listing.id) { MyListingRow(it, onClick = { onListingClick(it.listing.id) }) }
             }
+      }
+      if (isStale) {
+        Text(
+            text = stringResource(R.string.profile_listings_stale),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(C.Tag.profile_listings_stale),
+        )
       }
     }
   }
