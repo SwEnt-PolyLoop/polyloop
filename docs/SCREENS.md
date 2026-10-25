@@ -92,6 +92,7 @@ This form puts an item up for rent, or changes an existing listing. ViewModel: C
 
 - A photo row with an “Add photo” button that opens the in-app camera, after asking for the camera permission. If the user refuses, a message explains that photos are taken in the app and how to allow the camera in Settings; there is no gallery or system-camera fallback. Each listing needs 3 to 10 photos (taken with the in-app camera only), which can be removed and reordered. The hint showing how many photos are missing is marked as an error once the user presses “Publish” with fewer than 3.
 - Fields: title, description, category, price per day, item value (the suggested deposit), the availability window (the dates the lender is willing to lend), and the pickup and drop-off addresses, typed as text.
+- **In-app camera.** Full screen, over the form: a live preview, a shutter button, a close button and the count “n / 10”. It stays open after each photo so several can be taken in a row, and closes with the close button, the Back button, or by itself at 10 photos. If the camera cannot start or a photo cannot be saved, a short message is shown and the camera stays open.
 - The typed addresses are turned into map coordinates by geocoding.
 - “Publish” when creating, “Save” when editing. Uploads need a connection.
 - Editing is locked while a rental of the item is accepted or active.

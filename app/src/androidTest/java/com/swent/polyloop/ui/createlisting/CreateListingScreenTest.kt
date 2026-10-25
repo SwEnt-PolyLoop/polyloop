@@ -72,6 +72,8 @@ class CreateListingScreenTest {
           onDismissDatePicker = {},
           onAddPhoto = {},
           onRemovePhoto = {},
+          onPhotoTaken = {},
+          onCloseCamera = {},
           onPublish = { publishClicks++ },
       )
     }
@@ -167,6 +169,8 @@ class CreateListingScreenTest {
           onDismissDatePicker = {},
           onAddPhoto = {},
           onRemovePhoto = {},
+          onPhotoTaken = {},
+          onCloseCamera = {},
           onPublish = {},
       )
     }
@@ -320,6 +324,8 @@ class CreateListingScreenTest {
           onDismissDatePicker = viewModel::dismissDatePicker,
           onAddPhoto = {},
           onRemovePhoto = {},
+          onPhotoTaken = {},
+          onCloseCamera = {},
           onPublish = {},
           today = today,
       )
