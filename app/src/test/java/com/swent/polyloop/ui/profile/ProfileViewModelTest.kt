@@ -11,11 +11,15 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.Rental
+import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -230,14 +234,45 @@ class ProfileViewModelTest {
   }
 
   @Test
-  fun refreshListingsAfterAnErrorLoadsTheListingsAgain() {
+  fun refreshListingsKeepsFollowingTheSameRentals() {
+    var subscriptions = 0
+    val counted =
+        object : RentalRepository by rentals {
+          override fun observeRentalsAsLender(uid: String): Flow<List<Rental>> =
+              rentals.observeRentalsAsLender(uid).onStart { subscriptions++ }
+        }
+    val vm = ProfileViewModel(null, profiles, listings, counted, auth)
+
+    vm.refreshListings()
+
+    assertEquals(1, subscriptions)
+  }
+
+  @Test
+  fun refreshListingsKeepsTheShownListingsWithoutASpinner() {
+    val vm = viewModel()
+
+    listings.gate = CompletableDeferred()
+    vm.refreshListings()
+
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertEquals(2, vm.uiState.value.listings.size)
+  }
+
+  @Test
+  fun retryAfterAnErrorShowsTheSpinnerThenTheListings() {
     listings.failure = IllegalStateException("No connection")
     val vm = viewModel()
 
     listings.failure = null
+    val gate = CompletableDeferred<Unit>()
+    listings.gate = gate
     vm.refreshListings()
-
+    assertTrue(vm.uiState.value.listingsLoading)
     assertFalse(vm.uiState.value.listingsError)
+
+    gate.complete(Unit)
+    assertFalse(vm.uiState.value.listingsLoading)
     assertEquals(2, vm.uiState.value.listings.size)
   }
 
