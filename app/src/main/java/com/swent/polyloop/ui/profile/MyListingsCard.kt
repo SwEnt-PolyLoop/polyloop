@@ -31,7 +31,7 @@ import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
 import com.swent.polyloop.ui.components.PriceText
-import com.swent.polyloop.ui.myrentals.badgeColors
+import com.swent.polyloop.ui.components.badgeColors
 
 /**
  * The "My listings" card of the own profile: the title with the number of listings, then a spinner
