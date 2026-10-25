@@ -260,6 +260,27 @@ class ProfileViewModelTest {
   }
 
   @Test
+  fun refreshThatFailsKeepsTheListingsAndTheirLivePills() = runTest {
+    val vm = viewModel()
+
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    rentals.requestRental(
+        listing = myTent,
+        ownerName = "John",
+        borrower = AuthUser(uid = "jane", email = "jane@epfl.ch", name = "Jane"),
+        startDate = LocalDate.of(2026, 10, 10),
+        endDate = LocalDate.of(2026, 10, 12),
+    )
+
+    assertFalse(vm.uiState.value.listingsError)
+    assertEquals(
+        listOf(ListingRentalState.REQUESTED, ListingRentalState.AVAILABLE),
+        vm.uiState.value.listings.map { it.rentalState },
+    )
+  }
+
+  @Test
   fun retryAfterAnErrorShowsTheSpinnerThenTheListings() {
     listings.failure = IllegalStateException("No connection")
     val vm = viewModel()

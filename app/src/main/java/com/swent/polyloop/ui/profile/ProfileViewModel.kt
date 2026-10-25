@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
@@ -141,13 +142,20 @@ class ProfileViewModel(
   /**
    * Loads the own listings, again at each [listingsRefresh], and follows their rentals live. Called
    * for the first load and after an error only, so the spinner always shows: a retry never shows
-   * the old listings as if they were current.
+   * the old listings as if they were current. A refresh that fails (e.g. offline) keeps the
+   * listings already shown, and their rentals stay followed.
    */
   private fun loadListings(uid: String) {
     loadingListings?.cancel()
     listingsOwner = uid
     _uiState.update { it.copy(listingsLoading = true, listingsError = false) }
-    val listings = listingsRefresh.map { listingRepository.getListingsByOwner(uid).getOrThrow() }
+    var shown: List<Listing>? = null
+    val listings = listingsRefresh.map {
+      listingRepository
+          .getListingsByOwner(uid)
+          .getOrElse { e -> shown ?: throw e }
+          .also { shown = it }
+    }
     loadingListings = viewModelScope.launch {
       combine(listings, rentalRepository.observeRentalsAsLender(uid)) { owned, rentals ->
             owned.map { MyListing(it, rentalStateOf(it.id, rentals)) }
