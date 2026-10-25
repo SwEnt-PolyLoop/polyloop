@@ -24,8 +24,7 @@ interface ListingRepository {
    * cache), to check a request just before sending it. Empty if there is no such listing. Fails
    * with the cause if they cannot be read, e.g. offline.
    */
-  suspend fun getBookedRanges(id: String): Result<List<BookedRange>> =
-      getListing(id).map { it?.bookedRanges.orEmpty() }
+  suspend fun getBookedRanges(id: String): Result<List<BookedRange>>
 
   /**
    * Uploads [photos] in order, then saves [listing] with their URLs and its exact [addresses], and

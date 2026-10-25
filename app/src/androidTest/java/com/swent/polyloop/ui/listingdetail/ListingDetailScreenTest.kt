@@ -26,6 +26,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
@@ -497,6 +498,9 @@ class ListingDetailScreenTest {
           override suspend fun getListing(id: String): Result<Listing?> =
               if (calls++ == 0) Result.failure(IllegalStateException("Network down"))
               else Result.success(listing.takeIf { it.id == id })
+
+          override suspend fun getBookedRanges(id: String) =
+              Result.success(emptyList<BookedRange>())
 
           override suspend fun createListing(
               listing: Listing,
