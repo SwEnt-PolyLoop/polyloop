@@ -101,6 +101,7 @@ fun ProfileContent(
           )
       else ->
           ProfileLoaded(
+              profile = profile,
               uiState = uiState,
               onListingClick = onListingClick,
               onSignOut = onSignOut,
@@ -130,17 +131,16 @@ private fun ProfileError(errorMsg: String, onRetry: () -> Unit) {
 }
 
 /**
- * The header, then, on the own profile only, the "My listings" card and "Sign out". [uiState] has a
- * profile: the caller shows another state otherwise.
+ * The header of [profile], then, on the own profile only, the "My listings" card and "Sign out".
  */
 @Composable
 private fun ProfileLoaded(
+    profile: UserProfile,
     uiState: ProfileUiState,
     onListingClick: (listingId: String) -> Unit,
     onSignOut: () -> Unit,
     onRetryListings: () -> Unit,
 ) {
-  val profile = uiState.profile ?: return
   LazyColumn(
       modifier = Modifier.fillMaxSize(),
       contentPadding = PaddingValues(16.dp),
