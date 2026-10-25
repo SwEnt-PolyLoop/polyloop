@@ -20,6 +20,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -226,6 +227,8 @@ class ProfileViewModelTest {
 
     assertTrue(state.listingsError)
     assertFalse(state.listingsLoading)
+    // Nothing was read before, so there are no old listings to show.
+    assertFalse(state.listingsStale)
     assertNull(state.errorMsg)
     assertEquals(me, state.profile)
   }
@@ -270,7 +273,7 @@ class ProfileViewModelTest {
   }
 
   @Test
-  fun refreshThatFailsKeepsTheListingsAndTheirLivePills() = runTest {
+  fun refreshThatFailsKeepsTheListingsAsStaleWithTheirLivePills() = runTest {
     val vm = viewModel()
 
     listings.failure = IllegalStateException("No connection")
@@ -284,10 +287,73 @@ class ProfileViewModelTest {
     )
 
     assertFalse(vm.uiState.value.listingsError)
+    assertTrue(vm.uiState.value.listingsStale)
     assertEquals(
         listOf(ListingRentalState.REQUESTED, ListingRentalState.AVAILABLE),
         vm.uiState.value.listings.map { it.rentalState },
     )
+  }
+
+  @Test
+  fun refreshThatSucceedsAfterAFailureIsNoLongerStale() {
+    val vm = viewModel()
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    assertTrue(vm.uiState.value.listingsStale)
+
+    listings.failure = null
+    vm.refreshListings()
+
+    assertFalse(vm.uiState.value.listingsStale)
+  }
+
+  @Test
+  fun retryWhileStaleLoadsTheListingsWithoutTheStaleNote() {
+    val vm = viewModel()
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    assertTrue(vm.uiState.value.listingsStale)
+
+    listings.failure = null
+    listings.gate = CompletableDeferred()
+    vm.retry()
+
+    assertTrue(vm.uiState.value.listingsLoading)
+    assertFalse(vm.uiState.value.listingsStale)
+  }
+
+  @Test
+  fun refreshThatFailsWithNoListingShownIsStillStale() {
+    listings.listings = listOf(janesBike)
+    val vm = viewModel()
+
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+
+    assertTrue(vm.uiState.value.listings.isEmpty())
+    assertFalse(vm.uiState.value.listingsError)
+    assertTrue(vm.uiState.value.listingsStale)
+  }
+
+  @Test
+  fun rentalsFailingWhileStaleShowTheErrorWithoutTheStaleNote() {
+    val rentalsFailure = CompletableDeferred<Nothing>()
+    val failing =
+        object : RentalRepository by rentals {
+          override fun observeRentalsAsLender(uid: String): Flow<List<Rental>> = flow {
+            emit(emptyList())
+            rentalsFailure.await()
+          }
+        }
+    val vm = ProfileViewModel(null, profiles, listings, failing, auth)
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    assertTrue(vm.uiState.value.listingsStale)
+
+    rentalsFailure.completeExceptionally(IllegalStateException("No connection"))
+
+    assertTrue(vm.uiState.value.listingsError)
+    assertFalse(vm.uiState.value.listingsStale)
   }
 
   @Test
