@@ -3,18 +3,27 @@
 package com.swent.polyloop.ui.profile
 
 import android.net.Uri
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
@@ -263,25 +272,11 @@ class ProfileScreenTest {
             user = null
           }
         }
-    val listings =
-        object : ListingRepository {
-          override suspend fun getAllListings() = Result.success(emptyList<Listing>())
-
-          override suspend fun getListing(id: String) = Result.success<Listing?>(null)
-
-          override suspend fun getListingsByOwner(ownerId: String) = Result.success(listOf(tent))
-
-          override suspend fun createListing(
-              listing: Listing,
-              addresses: ListingAddresses,
-              photos: List<Uri>,
-          ): Result<String> = error("Not used in this test")
-        }
     val viewModel =
         ProfileViewModel(
             null,
             FakeProfileRepository(listOf(john)),
-            listings,
+            ownListings(),
             FakeRentalRepository(),
             auth,
         )
@@ -301,4 +296,65 @@ class ProfileScreenTest {
     assertTrue(signedOut)
     assertEquals(null, auth.getCurrentUser())
   }
+
+  @Test
+  fun comingBackToTheScreenLoadsTheListingsAgain() {
+    var reads = 0
+    val owner =
+        object : LifecycleOwner {
+          override val lifecycle = LifecycleRegistry(this)
+        }
+    composeTestRule.runOnUiThread { owner.lifecycle.currentState = Lifecycle.State.RESUMED }
+    val viewModel =
+        ProfileViewModel(
+            null,
+            FakeProfileRepository(listOf(john)),
+            ownListings(onRead = { reads++ }),
+            FakeRentalRepository(),
+            FakeAuthRepository(
+                signedInUser = AuthUser(uid = "me", email = "john@epfl.ch", name = "John")
+            ),
+        )
+    var shown by mutableStateOf(true)
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+        PolyLoopTheme { if (shown) ProfileScreen(viewModel, onListingClick = {}, onSignedOut = {}) }
+      }
+    }
+    composeTestRule.runOnIdle { assertEquals(1, reads) }
+
+    // Like Navigation opening Listing detail: the screen leaves the composition, then comes back.
+    composeTestRule.runOnUiThread {
+      owner.lifecycle.currentState = Lifecycle.State.CREATED
+      shown = false
+    }
+    composeTestRule.waitForIdle()
+    composeTestRule.runOnUiThread {
+      owner.lifecycle.currentState = Lifecycle.State.RESUMED
+      shown = true
+    }
+
+    composeTestRule.runOnIdle { assertEquals(2, reads) }
+  }
+
+  /**
+   * A listing repository holding only [tent], calling [onRead] at each read of the own listings.
+   */
+  private fun ownListings(onRead: () -> Unit = {}) =
+      object : ListingRepository {
+        override suspend fun getAllListings() = Result.success(emptyList<Listing>())
+
+        override suspend fun getListing(id: String) = Result.success<Listing?>(null)
+
+        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+          onRead()
+          return Result.success(listOf(tent))
+        }
+
+        override suspend fun createListing(
+            listing: Listing,
+            addresses: ListingAddresses,
+            photos: List<Uri>,
+        ): Result<String> = error("Not used in these tests")
+      }
 }
