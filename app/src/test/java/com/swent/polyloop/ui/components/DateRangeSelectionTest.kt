@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.components
 
+import com.swent.polyloop.model.listing.BookedRange
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
@@ -195,5 +196,53 @@ class DateRangeSelectionTest {
     val window = oct(6)..oct(7)
     assertNull(firstSelectableDay(window, setOf(oct(6), oct(7)), today))
     assertEquals(YearMonth.of(2026, 10), initialMonth(window, setOf(oct(6), oct(7)), today))
+  }
+
+  @Test
+  fun bookedDaysListsEveryDayOfEachRange() {
+    val ranges = listOf(BookedRange(oct(1), oct(3)), BookedRange(oct(8), oct(8)))
+    assertEquals(setOf(oct(1), oct(2), oct(3), oct(8)), bookedDays(ranges))
+    assertEquals(emptySet<LocalDate>(), bookedDays(emptyList()))
+  }
+
+  // The issue's example: window 1–10, a rental books 1–3, so 4 is the buffer day.
+  private fun requestable(start: Int, end: Int, today: LocalDate = this.today) =
+      isRequestable(
+          oct(start),
+          oct(end),
+          window,
+          bookedDays(listOf(BookedRange(oct(1), oct(3)))),
+          today,
+      )
+
+  @Test
+  fun rangeClearOfBookingsAndLeavingAFreeDayIsRequestable() {
+    assertTrue(requestable(5, 9))
+    assertTrue(requestable(5, 5))
+  }
+
+  @Test
+  fun rangeOverlappingABookingOrStartingOnItsBufferDayIsNotRequestable() {
+    assertFalse(requestable(1, 4))
+    assertFalse(requestable(3, 5))
+    assertFalse(requestable(4, 6))
+  }
+
+  @Test
+  fun rangeEndingOnTheLastDayOfTheWindowIsNotRequestable() {
+    assertFalse(requestable(5, 10))
+  }
+
+  @Test
+  fun rangeEndingRightBeforeABookingIsNotRequestable() {
+    // 6–8 is booked, so a range ending on 5 leaves no free day after it.
+    assertFalse(isRequestable(oct(2), oct(5), window, booked, today))
+    assertTrue(isRequestable(oct(2), oct(4), window, booked, today))
+  }
+
+  @Test
+  fun rangeEndingBeforeItStartsOrStartingInThePastIsNotRequestable() {
+    assertFalse(requestable(8, 6))
+    assertFalse(requestable(5, 7, today = oct(6)))
   }
 }
