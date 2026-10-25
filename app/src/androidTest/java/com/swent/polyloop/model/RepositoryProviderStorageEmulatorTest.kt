@@ -47,13 +47,8 @@ class RepositoryProviderStorageEmulatorTest {
   /** Signs in a new user at [domain], marking the email as verified if [verified] is true. */
   private suspend fun signIn(verified: Boolean, domain: String = "epfl.ch") {
     val email = "test-${UUID.randomUUID()}@$domain"
-    val user = Firebase.auth.createUserWithEmailAndPassword(email, PASSWORD).await().user!!
-    if (!verified) return
-    user.sendEmailVerification().await()
-    FirebaseEmulator.verifyEmail(email)
-    // Refresh the ID token so Storage sees email_verified = true.
-    user.reload().await()
-    user.getIdToken(true).await()
+    if (verified) FirebaseEmulator.signUpVerified(email, PASSWORD)
+    else Firebase.auth.createUserWithEmailAndPassword(email, PASSWORD).await()
   }
 
   @Test
