@@ -61,7 +61,7 @@ class ProfileScreenTest {
           reviewCount = 2,
       )
 
-  private fun listing(id: String) =
+  private fun listing(id: String, status: ListingStatus = ListingStatus.PUBLISHED) =
       Listing(
           id = id,
           ownerId = "me",
@@ -73,7 +73,7 @@ class ProfileScreenTest {
           itemValue = 100,
           availableFrom = LocalDate.of(2026, 10, 1),
           availableTo = LocalDate.of(2026, 10, 31),
-          status = ListingStatus.PUBLISHED,
+          status = status,
           pickupArea = "Ecublens",
       )
 
@@ -146,7 +146,7 @@ class ProfileScreenTest {
 
   @Test
   fun draftShowsItsLabelInsteadOfAvailableButARentalUnderWayWins() {
-    fun draft(id: String) = listing(id).copy(status = ListingStatus.DRAFT)
+    fun draft(id: String) = listing(id, ListingStatus.DRAFT)
     setContent(
         ownProfile.copy(
             listings =
@@ -188,6 +188,23 @@ class ProfileScreenTest {
 
     assertEquals(1, retryListingsClicks)
     assertEquals(0, retryClicks)
+  }
+
+  @Test
+  fun staleListingsStayShownWithANoteUnderThem() {
+    setContent(ownProfile.copy(listingsStale = true))
+
+    node(C.Tag.profile_listing_ + "tent").assertIsDisplayed()
+    node(C.Tag.profile_listings_stale)
+        .assertTextEquals(context.getString(R.string.profile_listings_stale))
+  }
+
+  @Test
+  fun staleWithNoListingShowsTheNoteUnderTheEmptyText() {
+    setContent(ownProfile.copy(listings = emptyList(), listingsStale = true))
+
+    node(C.Tag.profile_listings_empty).assertIsDisplayed()
+    node(C.Tag.profile_listings_stale).assertIsDisplayed()
   }
 
   @Test
