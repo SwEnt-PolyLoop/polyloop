@@ -120,7 +120,10 @@ fun PolyLoopDateRangePicker(
   }
 }
 
-/** The sheet's content holding the current selection, which starts empty. */
+/**
+ * The sheet's content holding the current selection, which starts empty and is cleared when the
+ * booked days change (e.g. dates booked by someone else while the user was picking).
+ */
 @Composable
 internal fun DateRangePickerBody(
     window: ClosedRange<LocalDate>,
@@ -133,7 +136,7 @@ internal fun DateRangePickerBody(
 ) {
   // Availability mode has no booked days, hence no buffer days either.
   val booked = if (mode is DateRangePickerMode.Request) disabledDates else emptySet()
-  var selection by remember { mutableStateOf(DateRangeSelection()) }
+  var selection by remember(booked) { mutableStateOf(DateRangeSelection()) }
   DateRangePickerContent(
       window = window,
       disabledDates = booked,
