@@ -227,6 +227,8 @@ class EndToEndTest {
     // The first verified log-in created the profile, with the name typed at sign-up.
     composeTestRule.onNodeWithTag(C.Tag.top_bar_profile_button).performClick()
     waitForText(C.Tag.profile_name, NAME)
+    // The listings load separately from the profile, so they can still be loading here.
+    waitForTag(C.Tag.profile_listings_empty)
     composeTestRule
         .onNodeWithTag(C.Tag.profile_listings_empty)
         .performScrollTo()
