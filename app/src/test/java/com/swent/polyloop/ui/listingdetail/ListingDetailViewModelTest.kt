@@ -361,5 +361,36 @@ class ListingDetailViewModelTest {
     assertTrue(rentalRepository.rentals.isEmpty())
   }
 
+  @Test
+  fun datesBookedMeanwhileAreNotSentAndBecomeDisabled() {
+    val vm = openPickerOn()
+    repository.listings =
+        listOf(listing.copy(ownerId = "owner", bookedRanges = listOf(BookedRange(oct6, oct6))))
+
+    vm.sendRequest(oct6, oct8)
+
+    val state = vm.uiState.value
+    assertTrue(rentalRepository.rentals.isEmpty())
+    assertTrue(state.datesTaken)
+    assertEquals(setOf(oct6), state.disabledDates)
+    assertTrue(state.isDatePickerOpen)
+    assertFalse(state.isSending)
+
+    vm.openDatePicker()
+    assertFalse(vm.uiState.value.datesTaken)
+  }
+
+  @Test
+  fun failedBookedRangesReadSendsNothingAndShowsTheError() {
+    val vm = openPickerOn()
+    repository.failure = IllegalStateException("Network down")
+
+    vm.sendRequest(oct6, oct8)
+
+    assertTrue(rentalRepository.rentals.isEmpty())
+    assertEquals("Network down", vm.uiState.value.sendError)
+    assertFalse(vm.uiState.value.isSending)
+  }
+
   private class OtherViewModel : ViewModel()
 }
