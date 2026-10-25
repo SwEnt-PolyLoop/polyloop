@@ -109,8 +109,10 @@ class ProfileViewModel(
     // Stop listening first: once signed out, the profile and rentals can no longer be read.
     loadingProfile?.cancel()
     loadingListings?.cancel()
+    // So that a later refresh (resume or "Retry") reads nothing.
+    listingsOwner = null
     authRepository.signOut()
-    _uiState.update { it.copy(isSignedOut = true) }
+    _uiState.update { it.copy(isSignedOut = true, listingsLoading = false) }
   }
 
   private fun load() {

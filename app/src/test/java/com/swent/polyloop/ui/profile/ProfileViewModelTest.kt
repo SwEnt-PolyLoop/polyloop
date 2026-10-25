@@ -383,6 +383,27 @@ class ProfileViewModelTest {
   }
 
   @Test
+  fun refreshListingsAfterSigningOutReadsNothing() {
+    var reads = 0
+    val vm = ProfileViewModel(null, profiles, countingListings { reads++ }, rentals, auth)
+
+    vm.signOut()
+    vm.refreshListings()
+
+    assertEquals(1, reads)
+  }
+
+  @Test
+  fun signingOutWhileTheListingsLoadStopsTheSpinner() {
+    listings.gate = CompletableDeferred()
+    val vm = viewModel()
+
+    vm.signOut()
+
+    assertFalse(vm.uiState.value.listingsLoading)
+  }
+
+  @Test
   fun signOutIsIgnoredOnSomeoneElsesProfile() {
     val vm = viewModel(userId = "jane")
 
