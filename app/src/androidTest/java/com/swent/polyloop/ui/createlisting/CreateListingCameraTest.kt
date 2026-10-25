@@ -3,11 +3,14 @@
 package com.swent.polyloop.ui.createlisting
 
 import android.Manifest
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -20,6 +23,7 @@ import androidx.test.rule.GrantPermissionRule
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.resources.C
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -157,5 +161,81 @@ class CreateListingCameraTest {
     composeTestRule.waitForIdle()
     assertFalse(viewModel.uiState.value.isCameraOpen)
     node(C.Tag.create_listing_camera).assertDoesNotExist()
+  }
+
+  /** A fake capture that records the file and lets the test decide when and how it ends. */
+  private class FakeCapture {
+    var file: File? = null
+    var onSaved: () -> Unit = {}
+    var onError: () -> Unit = {}
+
+    fun capture(file: File, onSaved: () -> Unit, onError: () -> Unit) {
+      this.file = file
+      this.onSaved = onSaved
+      this.onError = onError
+    }
+  }
+
+  private fun setCameraContent(
+      fake: FakeCapture,
+      photoCount: Int = 0,
+      onPhotoTaken: (String) -> Unit = {},
+      onClose: () -> Unit = {},
+  ) {
+    composeTestRule.setContent {
+      PolyLoopCameraContent(
+          photoCount = photoCount,
+          onPhotoTaken = onPhotoTaken,
+          onClose = onClose,
+          preview = { _, modifier -> Box(modifier) },
+          capture = fake::capture,
+      )
+    }
+  }
+
+  @Test
+  fun shutterTakesAPhotoInTheListingPhotosFolder() {
+    val fake = FakeCapture()
+    val taken = mutableListOf<String>()
+    setCameraContent(fake, onPhotoTaken = { taken.add(it) })
+
+    node(C.Tag.create_listing_camera_shutter).performClick()
+    composeTestRule.runOnIdle { fake.onSaved() }
+
+    composeTestRule.waitForIdle()
+    assertEquals(1, taken.size)
+    assertEquals("file://${fake.file!!.absolutePath}", taken[0])
+    assertEquals(LISTING_PHOTOS_DIR, fake.file!!.parentFile!!.name)
+  }
+
+  @Test
+  fun shutterIsDisabledWhileAPhotoIsBeingSaved() {
+    val fake = FakeCapture()
+    setCameraContent(fake)
+    node(C.Tag.create_listing_camera_shutter).assertIsEnabled()
+
+    node(C.Tag.create_listing_camera_shutter).performClick()
+
+    node(C.Tag.create_listing_camera_shutter).assertIsNotEnabled()
+    composeTestRule.runOnIdle { fake.onSaved() }
+    node(C.Tag.create_listing_camera_shutter).assertIsEnabled()
+  }
+
+  @Test
+  fun failedCaptureShowsTheErrorAndKeepsTheCameraOpen() {
+    val fake = FakeCapture()
+    var closed = false
+    val taken = mutableListOf<String>()
+    setCameraContent(fake, onPhotoTaken = { taken.add(it) }, onClose = { closed = true })
+    node(C.Tag.create_listing_camera_error).assertDoesNotExist()
+
+    node(C.Tag.create_listing_camera_shutter).performClick()
+    composeTestRule.runOnIdle { fake.onError() }
+
+    node(C.Tag.create_listing_camera_error).assertIsDisplayed()
+    node(C.Tag.create_listing_camera).assertIsDisplayed()
+    node(C.Tag.create_listing_camera_shutter).assertIsEnabled()
+    assertFalse(closed)
+    assertTrue(taken.isEmpty())
   }
 }

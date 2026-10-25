@@ -38,7 +38,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -47,6 +46,7 @@ import androidx.compose.ui.tooling.preview.Preview as ComposePreview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.resources.C
@@ -74,17 +74,42 @@ fun PolyLoopCamera(
 ) {
   val context = LocalContext.current
   val imageCapture = remember { ImageCapture.Builder().build() }
+  PolyLoopCameraContent(
+      photoCount = photoCount,
+      onPhotoTaken = onPhotoTaken,
+      onClose = onClose,
+      modifier = modifier,
+      preview = { onBindError, previewModifier ->
+        CameraPreview(imageCapture, onBindError, previewModifier)
+      },
+      capture = { file, onSaved, onError ->
+        capturePhoto(context, imageCapture, file, onSaved, onError)
+      },
+  )
+}
+
+/**
+ * The state and shutter flow of [PolyLoopCamera], without CameraX: [preview] shows the live image
+ * and calls its `onBindError` when the camera cannot start, and [capture] saves a shot into the
+ * given file then calls `onSaved` or `onError`. Tests pass fakes for both.
+ */
+@Composable
+internal fun PolyLoopCameraContent(
+    photoCount: Int,
+    onPhotoTaken: (uri: String) -> Unit,
+    onClose: () -> Unit,
+    preview: @Composable (onBindError: () -> Unit, modifier: Modifier) -> Unit,
+    capture: (file: File, onSaved: () -> Unit, onError: () -> Unit) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  val context = LocalContext.current
   var isCapturing by remember { mutableStateOf(false) }
   var hasError by remember { mutableStateOf(false) }
 
   LaunchedEffect(photoCount) { if (shouldCloseCamera(photoCount)) onClose() }
 
   Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
-    CameraPreview(
-        imageCapture = imageCapture,
-        onBindError = { hasError = true },
-        modifier = Modifier.fillMaxSize(),
-    )
+    preview({ hasError = true }, Modifier.fillMaxSize())
     CameraOverlay(
         photoCount = photoCount,
         canTakePhoto = canTakePhoto(photoCount, isCapturing),
@@ -92,14 +117,14 @@ fun PolyLoopCamera(
         onShutter = {
           isCapturing = true
           hasError = false
-          capturePhoto(
-              context = context,
-              imageCapture = imageCapture,
-              onSaved = {
+          val file = newPhotoFile(File(context.filesDir, LISTING_PHOTOS_DIR))
+          capture(
+              file,
+              {
                 isCapturing = false
-                onPhotoTaken(it)
+                onPhotoTaken(Uri.fromFile(file).toString())
               },
-              onError = {
+              {
                 isCapturing = false
                 hasError = true
               },
@@ -211,20 +236,19 @@ private fun CameraPreview(
   AndroidView(factory = { previewView }, modifier = modifier)
 }
 
-/** Saves a shot as a new JPEG in `filesDir/listing_photos/` and reports its file Uri. */
+/** Saves a shot into [file] with CameraX and reports the result. */
 private fun capturePhoto(
     context: Context,
     imageCapture: ImageCapture,
-    onSaved: (uri: String) -> Unit,
+    file: File,
+    onSaved: () -> Unit,
     onError: () -> Unit,
 ) {
-  val file = newPhotoFile(File(context.filesDir, LISTING_PHOTOS_DIR))
   imageCapture.takePicture(
       ImageCapture.OutputFileOptions.Builder(file).build(),
       ContextCompat.getMainExecutor(context),
       object : ImageCapture.OnImageSavedCallback {
-        override fun onImageSaved(output: ImageCapture.OutputFileResults) =
-            onSaved(Uri.fromFile(file).toString())
+        override fun onImageSaved(output: ImageCapture.OutputFileResults) = onSaved()
 
         override fun onError(exception: ImageCaptureException) = onError()
       },
