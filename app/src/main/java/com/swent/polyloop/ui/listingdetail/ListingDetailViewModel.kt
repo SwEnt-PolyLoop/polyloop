@@ -26,8 +26,8 @@ import kotlinx.coroutines.launch
  * the screen then shows a generic text. [isOwnListing] is true when the signed-in user owns the
  * listing. [sendError] is non-null when sending the request failed, blank in the same way, and
  * [sentRentalId] holds the new rental's id until the screen has opened its chat. [disabledDates]
- * are the days booked by accepted rentals, and [datesTaken] is true when the picked dates were
- * booked by someone else while the borrower was choosing them.
+ * are the days booked by accepted rentals, and [datesTaken] is true when the picked dates are no
+ * longer available (booked by someone else, or their start day passed) when the request is sent.
  */
 data class ListingDetailUiState(
     val listing: Listing? = null,
@@ -121,14 +121,19 @@ class ListingDetailViewModel(
    * [ListingDetailUiState.datesTaken] is set and the newly booked days are disabled; if the listing
    * was deleted or is no longer published, the picker closes and the listing shows as not found. On
    * success it closes the date picker and sets the new rental's id; on failure the picker stays
-   * open with the error. Ignored on the user's own listing and for the same ranges as
-   * [selectDates], or while a request is already being sent. The owner's name is left blank if
-   * their profile is missing or cannot be read.
+   * open with the error. A range that can no longer be picked (see [selectDates]), e.g. because its
+   * start day has passed, also sets [ListingDetailUiState.datesTaken] without reading anything.
+   * Ignored until the listing is loaded, on the user's own listing, or while a request is already
+   * being sent. The owner's name is left blank if their profile is missing or cannot be read.
    */
   fun sendRequest(start: LocalDate, end: LocalDate) {
-    if (_uiState.value.isSending) return
-    val listing = validListing(start, end) ?: return
-    if (_uiState.value.isOwnListing) return
+    val state = _uiState.value
+    if (state.isSending || state.listing == null || state.isOwnListing) return
+    val listing = validListing(start, end)
+    if (listing == null) {
+      _uiState.update { it.copy(datesTaken = true) }
+      return
+    }
     val borrower = authRepository.getCurrentUser()
     if (borrower == null) {
       _uiState.update { it.copy(sendError = "") }
