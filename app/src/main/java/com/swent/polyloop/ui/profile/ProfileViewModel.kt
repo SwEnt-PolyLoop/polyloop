@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -68,6 +68,7 @@ class ProfileViewModel(
   private var loadingProfile: Job? = null
   private var loadingListings: Job? = null
   private var listingsOwner: String? = null
+  private val listingsRefresh = MutableStateFlow(0)
 
   init {
     load()
@@ -78,10 +79,16 @@ class ProfileViewModel(
 
   /**
    * Loads the own listings again, after an error or when the screen comes back (they may have been
-   * edited or deleted meanwhile); the profile stays as it is. Ignored while they are loading.
+   * edited or deleted meanwhile); the profile stays as it is. Ignored while they are loading. The
+   * rentals stay followed, so only the listings are read again, without showing the spinner.
    */
   fun refreshListings() {
-    if (!_uiState.value.listingsLoading) listingsOwner?.let(::loadListings)
+    val uid = listingsOwner ?: return
+    when {
+      _uiState.value.listingsLoading -> Unit
+      loadingListings?.isActive == true -> listingsRefresh.update { it + 1 }
+      else -> loadListings(uid)
+    }
   }
 
   /** Signs the user out. Only on their own profile; ignored on someone else's. */
@@ -132,14 +139,15 @@ class ProfileViewModel(
   }
 
   /**
-   * Loads the own listings once and follows their rentals live. The spinner shows only when no
-   * listing is shown yet, so a refresh does not hide the card.
+   * Loads the own listings, again at each [listingsRefresh], and follows their rentals live. Called
+   * for the first load and after an error only, so the spinner always shows: a retry never shows
+   * the old listings as if they were current.
    */
   private fun loadListings(uid: String) {
     loadingListings?.cancel()
     listingsOwner = uid
-    _uiState.update { it.copy(listingsLoading = it.listings.isEmpty(), listingsError = false) }
-    val listings = flow { emit(listingRepository.getListingsByOwner(uid).getOrThrow()) }
+    _uiState.update { it.copy(listingsLoading = true, listingsError = false) }
+    val listings = listingsRefresh.map { listingRepository.getListingsByOwner(uid).getOrThrow() }
     loadingListings = viewModelScope.launch {
       combine(listings, rentalRepository.observeRentalsAsLender(uid)) { owned, rentals ->
             owned.map { MyListing(it, rentalStateOf(it.id, rentals)) }
