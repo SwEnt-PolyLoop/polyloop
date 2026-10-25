@@ -57,7 +57,7 @@ fun ProfileScreen(
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   LaunchedEffect(uiState.isSignedOut) { if (uiState.isSignedOut) onSignedOut() }
   // Back from Listing detail, a listing may have been edited or deleted.
-  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshListings() }
+  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onScreenResumed() }
   ProfileContent(
       uiState = uiState,
       onListingClick = onListingClick,

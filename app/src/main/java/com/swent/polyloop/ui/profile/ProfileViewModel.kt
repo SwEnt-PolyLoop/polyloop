@@ -52,7 +52,7 @@ data class ProfileUiState(
 /**
  * Shows a profile: the signed-in user's own when [userId] is null (or is their id), someone else's
  * otherwise. The profile follows the repository live. The own listings are loaded separately, again
- * each time the screen comes back ([refreshListings]), and their rentals are followed live, so the
+ * each time the screen comes back ([onScreenResumed]), and their rentals are followed live, so the
  * state of each listing updates by itself.
  */
 class ProfileViewModel(
@@ -70,6 +70,7 @@ class ProfileViewModel(
   private var loadingListings: Job? = null
   private var listingsOwner: String? = null
   private val listingsRefresh = MutableStateFlow(0)
+  private var screenShown = false
 
   init {
     load()
@@ -90,6 +91,16 @@ class ProfileViewModel(
       loadingListings?.isActive == true -> listingsRefresh.update { it + 1 }
       else -> loadListings(uid)
     }
+  }
+
+  /**
+   * Called each time the screen is resumed. The first time comes right after the listings were
+   * loaded, so only coming back (e.g. from Listing detail, where a listing may have been edited or
+   * deleted) loads them again. Kept here because the screen leaves the composition while another
+   * screen is shown, and would forget it.
+   */
+  fun onScreenResumed() {
+    if (screenShown) refreshListings() else screenShown = true
   }
 
   /** Signs the user out. Only on their own profile; ignored on someone else's. */

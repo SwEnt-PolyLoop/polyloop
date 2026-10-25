@@ -7,6 +7,7 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
@@ -87,6 +88,15 @@ class ProfileViewModelTest {
 
   private fun viewModel(userId: String? = null) =
       ProfileViewModel(userId, profiles, listings, rentals, auth)
+
+  /** [listings], calling [onRead] at each read of the own listings. */
+  private fun countingListings(onRead: () -> Unit) =
+      object : ListingRepository by listings {
+        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+          onRead()
+          return listings.getListingsByOwner(ownerId)
+        }
+      }
 
   // ---------- own profile ----------
 
@@ -281,6 +291,18 @@ class ProfileViewModelTest {
   }
 
   @Test
+  fun onlyComingBackToTheScreenReadsTheListingsAgain() {
+    var reads = 0
+    val vm = ProfileViewModel(null, profiles, countingListings { reads++ }, rentals, auth)
+
+    vm.onScreenResumed()
+    assertEquals(1, reads)
+
+    vm.onScreenResumed()
+    assertEquals(2, reads)
+  }
+
+  @Test
   fun retryAfterAnErrorShowsTheSpinnerThenTheListings() {
     listings.failure = IllegalStateException("No connection")
     val vm = viewModel()
@@ -295,6 +317,19 @@ class ProfileViewModelTest {
     gate.complete(Unit)
     assertFalse(vm.uiState.value.listingsLoading)
     assertEquals(2, vm.uiState.value.listings.size)
+  }
+
+  @Test
+  fun refreshListingsWhileTheyLoadIsIgnored() {
+    var reads = 0
+    val gate = CompletableDeferred<Unit>()
+    listings.gate = gate
+    val vm = ProfileViewModel(null, profiles, countingListings { reads++ }, rentals, auth)
+
+    vm.refreshListings()
+    gate.complete(Unit)
+
+    assertEquals(1, reads)
   }
 
   @Test
