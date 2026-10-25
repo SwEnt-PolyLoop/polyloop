@@ -348,15 +348,6 @@ class ListingDetailViewModelTest {
 
     vm.sendRequest(oct8, oct10) // crosses a booked day
     vm.sendRequest(oct8, listing.availableTo) // leaves no free day after it
-    ListingDetailViewModel(
-            listing.id,
-            repository,
-            rentalRepository,
-            authRepository,
-            profileRepository,
-            today = { oct8 },
-        )
-        .sendRequest(oct6, oct8) // starts in the past
 
     assertTrue(rentalRepository.rentals.isEmpty())
   }
@@ -422,10 +413,13 @@ class ListingDetailViewModelTest {
             )
             .also { it.openDatePicker() }
     now = now.plusDays(1)
+    // Any read would now fail and show a send error.
+    repository.failure = IllegalStateException("Network down")
 
     vm.sendRequest(oct6, oct8)
 
     assertTrue(rentalRepository.rentals.isEmpty())
+    assertNull(vm.uiState.value.sendError)
     assertTrue(vm.uiState.value.datesTaken)
     assertTrue(vm.uiState.value.isDatePickerOpen)
   }

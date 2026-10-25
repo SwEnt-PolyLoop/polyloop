@@ -262,6 +262,14 @@ class ListingRepositoryFirestoreTest {
   }
 
   @Test
+  fun getBookedRangesReturnsFailureWhenFirebaseCancelsTheRead() = runTest {
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns Tasks.forCanceled()
+
+    assertTrue(repository.getBookedRanges("listing1").isFailure)
+  }
+
+  @Test
   fun getBookedRangesIsNullForMissingListingOrInvalidId() = runTest {
     every { collection.document("missing") } returns documentRef
     every { documentRef.get(Source.SERVER) } returns Tasks.forResult(document("missing", null))

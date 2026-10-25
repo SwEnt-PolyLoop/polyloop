@@ -270,6 +270,28 @@ class PolyLoopDateRangePickerTest {
   }
 
   @Test
+  fun aNewDayClearsTheSelection() {
+    var now by mutableStateOf(today)
+    composeTestRule.setContent {
+      DateRangePickerBody(
+          window = window,
+          disabledDates = booked,
+          mode = requestMode,
+          onConfirm = { _, _ -> },
+          today = now,
+      )
+    }
+    tap(oct(15), oct(18))
+    node(C.Tag.date_picker_confirm_button).assertIsEnabled()
+
+    now = today.plusDays(1)
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onAllNodes(isSelected()).assertCountEquals(0)
+    node(C.Tag.date_picker_confirm_button).assertIsNotEnabled()
+  }
+
+  @Test
   fun dismissCallsOnDismiss() {
     var dismissed = 0
     composeTestRule.setContent {
