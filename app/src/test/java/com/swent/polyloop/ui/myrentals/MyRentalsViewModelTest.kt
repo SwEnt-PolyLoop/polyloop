@@ -108,6 +108,7 @@ class MyRentalsViewModelTest {
             status = RentalStatus.REQUESTED,
             isPickupArea = true,
             showReturnDate = true,
+            totalPrice = 15,
         ),
         row,
     )
@@ -260,11 +261,110 @@ class MyRentalsViewModelTest {
   }
 
   @Test
-  fun incomingRequestsComeFirstInLending() {
-    val newerActive = rental("bike", "me", "loca", RentalStatus.ACTIVE, createdAt.plusSeconds(60))
-    rentals = FakeRentalRepository(listOf(lent, newerActive))
+  fun onlyPendingRequestsGoToRequests() {
+    rentals =
+        FakeRentalRepository(
+            RentalStatus.entries.map { rental(it.name, "me", "loca", status = it) }
+        )
+
+    val state = viewModel().uiState.value
+
+    assertEquals(listOf("REQUESTED"), state.lendingRequests.map { it.rentalId })
+    assertEquals(
+        RentalStatus.entries.filter { it != RentalStatus.REQUESTED }.toSet(),
+        state.lendingCurrent.map { it.status }.toSet(),
+    )
+    assertEquals(RentalStatus.entries.size - 1, state.lendingCurrent.size)
+  }
+
+  @Test
+  fun requestsOnOtherPeoplesListingsAreNotShown() {
+    rentals = FakeRentalRepository(listOf(borrowed, someoneElses))
+
+    val state = viewModel().uiState.value
+
+    assertTrue(state.lendingRequests.isEmpty())
+    assertTrue(state.lendingCurrent.isEmpty())
+  }
+
+  @Test
+  fun currentIsOrderedByAttentionThenNewest() {
+    val order =
+        listOf(
+            RentalStatus.OVERDUE,
+            RentalStatus.DISPUTED,
+            RentalStatus.FROZEN,
+            RentalStatus.LOST,
+            RentalStatus.ACTIVE,
+            RentalStatus.ACCEPTED,
+            RentalStatus.RETURNED,
+            RentalStatus.CLOSED,
+            RentalStatus.DECLINED,
+            RentalStatus.CANCELLED,
+        )
+    // Created in reverse order of attention, so newest first alone would give the wrong order.
+    val byStatus = order.mapIndexed { i, status ->
+      rental(status.name, "me", "loca", status, createdAt.plusSeconds(i * 60L))
+    }
+    val newerActive =
+        rental("ACTIVE-new", "me", "loca", RentalStatus.ACTIVE, createdAt.plusSeconds(3_600))
+    rentals = FakeRentalRepository(byStatus + newerActive)
+
+    assertEquals(
+        listOf(
+            "OVERDUE",
+            "DISPUTED",
+            "FROZEN",
+            "LOST",
+            "ACTIVE-new",
+            "ACTIVE",
+            "ACCEPTED",
+            "RETURNED",
+            "CLOSED",
+            "DECLINED",
+            "CANCELLED",
+        ),
+        viewModel().uiState.value.lendingCurrent.map { it.rentalId },
+    )
+  }
+
+  @Test
+  fun attentionOrderHasEveryStatusButRequested() {
+    assertEquals(
+        RentalStatus.entries.toSet() - RentalStatus.REQUESTED,
+        MyRentalsViewModel.ATTENTION_ORDER.toSet(),
+    )
+  }
+
+  @Test
+  fun acceptedRentalIsInCurrentNotRequests() {
+    rentals = FakeRentalRepository(listOf(lent.copy(status = RentalStatus.ACCEPTED)))
+
+    val state = viewModel().uiState.value
+
+    assertTrue(state.lendingRequests.isEmpty())
+    assertEquals(listOf("drill"), state.lendingCurrent.map { it.rentalId })
+  }
+
+  @Test
+  fun lendingIsTheRequestsThenTheCurrentRentals() {
+    val active = rental("bike", "me", "loca", RentalStatus.ACTIVE, createdAt.plusSeconds(60))
+    rentals = FakeRentalRepository(listOf(lent, active))
 
     assertEquals(listOf("drill", "bike"), viewModel().uiState.value.lending.map { it.rentalId })
+  }
+
+  @Test
+  fun rowCarriesTotalPriceAndPhoto() {
+    rentals =
+        FakeRentalRepository(
+            listOf(lent.copy(totalPrice = 45, listingPhotoUrl = "https://example.com/drill.jpg"))
+        )
+
+    val row = viewModel().uiState.value.lendingRequests.single()
+
+    assertEquals(45, row.totalPrice)
+    assertEquals("https://example.com/drill.jpg", row.listingPhotoUrl)
   }
 
   @Test
