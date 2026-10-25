@@ -2,7 +2,6 @@
 
 package com.swent.polyloop.ui.components
 
-import com.swent.polyloop.model.listing.BookedRange
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
@@ -51,14 +50,6 @@ internal enum class DayKind {
   /** Part of the user's picked dates. */
   SELECTED,
 }
-
-/** Every day of [ranges], both ends included: the days the picker shows as booked. */
-fun bookedDays(ranges: List<BookedRange>): Set<LocalDate> =
-    ranges
-        .flatMap { range ->
-          generateSequence(range.start) { it.plusDays(1) }.takeWhile { it <= range.end }.toList()
-        }
-        .toSet()
 
 /** The day right after each booked stretch, unless that day is booked too. */
 fun bufferDays(disabledDates: Set<LocalDate>): Set<LocalDate> =

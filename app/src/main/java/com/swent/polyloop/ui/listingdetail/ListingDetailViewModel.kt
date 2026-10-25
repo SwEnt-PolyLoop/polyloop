@@ -9,9 +9,9 @@ import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.listing.bookedDays
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.rental.RentalRepository
-import com.swent.polyloop.ui.components.bookedDays
 import com.swent.polyloop.ui.components.isRequestable
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow

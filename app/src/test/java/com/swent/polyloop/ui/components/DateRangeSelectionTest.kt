@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.components
 
 import com.swent.polyloop.model.listing.BookedRange
+import com.swent.polyloop.model.listing.bookedDays
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
@@ -196,13 +197,6 @@ class DateRangeSelectionTest {
     val window = oct(6)..oct(7)
     assertNull(firstSelectableDay(window, setOf(oct(6), oct(7)), today))
     assertEquals(YearMonth.of(2026, 10), initialMonth(window, setOf(oct(6), oct(7)), today))
-  }
-
-  @Test
-  fun bookedDaysListsEveryDayOfEachRange() {
-    val ranges = listOf(BookedRange(oct(1), oct(3)), BookedRange(oct(8), oct(8)))
-    assertEquals(setOf(oct(1), oct(2), oct(3), oct(8)), bookedDays(ranges))
-    assertEquals(emptySet<LocalDate>(), bookedDays(emptyList()))
   }
 
   // The issue's example: window 1–10, a rental books 1–3, so 4 is the buffer day.

@@ -60,5 +60,13 @@ enum class ListingCategory(val label: String) {
 /** The days taken by one accepted rental, from [start] to [end], both days included. */
 data class BookedRange(val start: LocalDate, val end: LocalDate)
 
+/** Every day of [ranges], both ends included: the days the picker shows as booked. */
+fun bookedDays(ranges: List<BookedRange>): Set<LocalDate> =
+    ranges
+        .flatMap { range ->
+          generateSequence(range.start) { it.plusDays(1) }.takeWhile { it <= range.end }.toList()
+        }
+        .toSet()
+
 /** Exact addresses, kept out of the public listing document. */
 data class ListingAddresses(val pickup: String, val dropOff: String)

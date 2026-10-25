@@ -3,6 +3,7 @@
 package com.swent.polyloop.model.listing
 
 import java.time.LocalDate
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -126,4 +127,12 @@ class ListingTest {
   @Test
   fun noPhotosCannotBePublished() =
       assertFalse(valid.copy(photoUrls = emptyList()).canPublish(addresses))
+
+  @Test
+  fun bookedDaysListsEveryDayOfEachRange() {
+    fun oct(day: Int) = LocalDate.of(2026, 10, day)
+    val ranges = listOf(BookedRange(oct(1), oct(3)), BookedRange(oct(8), oct(8)))
+    assertEquals(setOf(oct(1), oct(2), oct(3), oct(8)), bookedDays(ranges))
+    assertEquals(emptySet<LocalDate>(), bookedDays(emptyList()))
+  }
 }
