@@ -71,10 +71,13 @@ service cloud.firestore {
     match /listings/{listingId} {
       allow read: if isVerifiedEpfl();
 
-      // bookedRanges is written by Cloud Functions only, when a request is accepted.
+      // bookedRanges is written by Cloud Functions only, when a request is accepted. A deleted
+      // listing's id was public, so it cannot be created again while its addresses are left over:
+      // the new owner could read them.
       allow create: if isVerifiedEpfl()
           && request.resource.data.ownerId == request.auth.uid
           && !request.resource.data.keys().hasAny(['bookedRanges'])
+          && !exists(/databases/$(database)/documents/listings/$(listingId)/private/addresses)
           && isValidListing(request.resource.data);
 
       allow update: if isUser(resource.data.ownerId)

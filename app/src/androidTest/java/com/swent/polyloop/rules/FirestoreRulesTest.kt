@@ -230,6 +230,23 @@ class FirestoreRulesTest {
       }
 
   @Test
+  fun deletedListingWhoseAddressesAreLeftCannotBeCreatedAgain() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val listing = listing(owner.uid)
+        // The listing was deleted without its addresses: only they are left.
+        FirebaseEmulator.createDocumentAsAdmin(
+            "listings/${listing.id}/private/addresses",
+            mapOf("pickup" to "Route 1", "dropOff" to "Avenue 2"),
+        )
+        val other = newAccount()
+
+        val claimed = listing.copy(ownerId = other.uid)
+        assertDenied { listingRef(listing.id).set(listingToDocument(claimed)).await() }
+        assertDenied { addressesRef(listing.id).get(Source.SERVER).await() }
+      }
+
+  @Test
   fun listingCannotBeCreatedForSomeoneElse() =
       runBlocking<Unit> {
         val other = newAccount()
