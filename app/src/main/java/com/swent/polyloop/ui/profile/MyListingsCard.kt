@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.swent.polyloop.R
+import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
@@ -139,8 +141,31 @@ private fun MyListingRow(myListing: MyListing, onClick: () -> Unit) {
       )
       PriceText(pricePerDay = listing.pricePerDay, style = MaterialTheme.typography.bodyMedium)
     }
-    StatusPill(state = myListing.rentalState, listingId = listing.id)
+    // A rental still under way matters more than the draft, but "Available" would be wrong.
+    if (
+        listing.status == ListingStatus.DRAFT &&
+            myListing.rentalState == ListingRentalState.AVAILABLE
+    ) {
+      DraftPill(listingId = listing.id)
+    } else {
+      StatusPill(state = myListing.rentalState, listingId = listing.id)
+    }
   }
+}
+
+/** Marks a listing its owner unpublished: plain, without a colour, as it is out of Browse. */
+@Composable
+private fun DraftPill(listingId: String) {
+  Text(
+      text = stringResource(R.string.profile_listing_status_draft),
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier =
+          Modifier.background(MaterialTheme.colorScheme.surface, CircleShape)
+              .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+              .padding(horizontal = 10.dp, vertical = 4.dp)
+              .testTag(C.Tag.profile_listing_draft_ + listingId),
+  )
 }
 
 /**

@@ -145,6 +145,29 @@ class ProfileScreenTest {
   }
 
   @Test
+  fun draftShowsItsLabelInsteadOfAvailableButARentalUnderWayWins() {
+    fun draft(id: String) = listing(id).copy(status = ListingStatus.DRAFT)
+    setContent(
+        ownProfile.copy(
+            listings =
+                listOf(
+                    MyListing(draft("tent"), ListingRentalState.AVAILABLE),
+                    MyListing(draft("bike"), ListingRentalState.ON_LOAN),
+                )
+        )
+    )
+
+    fun tagged(tag: String) = composeTestRule.onNodeWithTag(tag, useUnmergedTree = true)
+
+    tagged(C.Tag.profile_listing_draft_ + "tent")
+        .assertTextEquals(context.getString(R.string.profile_listing_status_draft))
+    tagged(C.Tag.profile_listing_status_ + "tent").assertDoesNotExist()
+    tagged(C.Tag.profile_listing_draft_ + "bike").assertDoesNotExist()
+    tagged(C.Tag.profile_listing_status_ + "bike")
+        .assertTextEquals(context.getString(R.string.profile_listing_status_on_loan))
+  }
+
+  @Test
   fun loadingListingsShowsASpinnerUnderTheProfile() {
     setContent(ownProfile.copy(listings = emptyList(), listingsLoading = true))
 
