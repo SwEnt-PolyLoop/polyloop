@@ -577,4 +577,26 @@ class ListingDetailScreenTest {
         .performScrollTo()
         .assertTextEquals("Network down")
   }
+
+  @Test
+  fun pickerShowsBookedDaysAndTheDatesTakenMessage() {
+    setContent(
+        uiState =
+            ListingDetailUiState(
+                listing = listing,
+                isDatePickerOpen = true,
+                disabledDates = setOf(oct(10)),
+                datesTaken = true,
+                sendError = "Network down",
+            )
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.datePickerDay(oct(10)))
+        .assertContentDescriptionEquals("10, booked")
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_send_error)
+        .performScrollTo()
+        .assertTextEquals("These dates are no longer available. Pick other dates.")
+  }
 }
