@@ -16,7 +16,7 @@ class CreateListingViewModelTest {
   private val state: CreateListingUiState
     get() = viewModel.uiState.value
 
-  private fun addPhotos(count: Int) = repeat(count) { viewModel.onPhotoAdded("photo$it") }
+  private fun addPhotos(count: Int) = repeat(count) { viewModel.onPhotoTaken("photo$it") }
 
   @Test
   fun startsEmpty() {
@@ -59,22 +59,62 @@ class CreateListingViewModelTest {
   }
 
   @Test
-  fun onPhotoAddedAppendsInOrder() {
-    viewModel.onPhotoAdded("first")
-    viewModel.onPhotoAdded("second")
+  fun onPhotoTakenAppendsInOrder() {
+    viewModel.onPhotoTaken("first")
+    viewModel.onPhotoTaken("second")
 
     assertEquals(CreateListingUiState(photos = listOf("first", "second")), state)
   }
 
   @Test
-  fun onPhotoAddedIsIgnoredAtMaxPhotos() {
+  fun onPhotoTakenIsIgnoredAtMaxPhotos() {
     addPhotos(Listing.MAX_PHOTOS)
     val full = state
 
-    viewModel.onPhotoAdded("one too many")
+    viewModel.onPhotoTaken("one too many")
 
     assertEquals(Listing.MAX_PHOTOS, state.photos.size)
     assertEquals(full, state)
+  }
+
+  @Test
+  fun openCameraOpensTheCameraAndNothingElse() {
+    assertChangeGives(CreateListingUiState(isCameraOpen = true)) { openCamera() }
+  }
+
+  @Test
+  fun closeCameraClosesTheCameraAndKeepsThePhotos() {
+    addPhotos(2)
+    viewModel.openCamera()
+
+    viewModel.closeCamera()
+
+    assertEquals(CreateListingUiState(photos = listOf("photo0", "photo1")), state)
+  }
+
+  @Test
+  fun onPhotoTakenKeepsTheCameraOpenForTheNextPhoto() {
+    viewModel.openCamera()
+
+    viewModel.onPhotoTaken("first")
+    viewModel.onPhotoTaken("second")
+
+    assertEquals(
+        CreateListingUiState(photos = listOf("first", "second"), isCameraOpen = true),
+        state,
+    )
+  }
+
+  @Test
+  fun onPhotoTakenAtMaxPhotosKeepsTheCameraOpenAndTheSamePhotos() {
+    viewModel.openCamera()
+    addPhotos(Listing.MAX_PHOTOS)
+    val full = state
+
+    viewModel.onPhotoTaken("one too many")
+
+    assertEquals(full, state)
+    assertTrue(state.isCameraOpen)
   }
 
   @Test

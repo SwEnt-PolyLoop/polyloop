@@ -2,6 +2,12 @@
 
 package com.swent.polyloop.ui.createlisting
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -37,6 +43,7 @@ class CreateListingPhotosTest {
           photos = uiState.photos,
           canAddPhoto = uiState.canAddPhoto,
           missingPhotos = uiState.missingPhotos,
+          showError = uiState.hasAttemptedPublish && !uiState.hasValidPhotoCount,
           onAddPhoto = { addPhotoClicks++ },
           onRemovePhoto = { removedIndexes += it },
       )
@@ -102,6 +109,48 @@ class CreateListingPhotosTest {
     setContent(CreateListingUiState(photos = photos(Listing.MIN_PHOTOS)))
 
     node(C.Tag.create_listing_photos_hint).assertDoesNotExist()
+  }
+
+  @Test
+  fun photoHintIsMarkedAsErrorAfterPublishWithTooFewPhotos() {
+    setContent(CreateListingUiState(photos = photos(1), hasAttemptedPublish = true))
+
+    node(C.Tag.create_listing_photos_hint)
+        .assertIsDisplayed()
+        .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Error))
+  }
+
+  @Test
+  fun photoHintIsNotMarkedAsErrorBeforePublish() {
+    setContent(CreateListingUiState(photos = photos(1)))
+
+    node(C.Tag.create_listing_photos_hint)
+        .assertIsDisplayed()
+        .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Error))
+  }
+
+  @Test
+  fun photoHintIsHiddenAfterPublishWithEnoughPhotos() {
+    setContent(
+        CreateListingUiState(photos = photos(Listing.MIN_PHOTOS), hasAttemptedPublish = true)
+    )
+
+    node(C.Tag.create_listing_photos_hint).assertDoesNotExist()
+  }
+
+  @Test
+  fun cameraPermissionMessageShowsOnlyWhenRefused() {
+    var granted by mutableStateOf<Boolean?>(false)
+    composeTestRule.setContent { CameraPermissionMessage(granted) }
+
+    node(C.Tag.create_listing_camera_permission_message)
+        .assertTextEquals(context.getString(R.string.create_listing_camera_permission_denied))
+
+    granted = true
+    node(C.Tag.create_listing_camera_permission_message).assertDoesNotExist()
+
+    granted = null
+    node(C.Tag.create_listing_camera_permission_message).assertDoesNotExist()
   }
 
   @Test

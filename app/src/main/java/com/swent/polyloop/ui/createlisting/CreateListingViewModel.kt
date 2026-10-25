@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.update
  *   errors of empty fields from then on.
  * @property isPublishing true while the listing is being published; "Publish" is disabled then.
  * @property isDatePickerOpen true while the date picker for the availability window is shown.
+ * @property isCameraOpen true while the in-app camera is shown; it stays open between photos so
+ *   several can be taken in a row.
  */
 data class CreateListingUiState(
     val title: String = "",
@@ -40,6 +42,7 @@ data class CreateListingUiState(
     val hasAttemptedPublish: Boolean = false,
     val isPublishing: Boolean = false,
     val isDatePickerOpen: Boolean = false,
+    val isCameraOpen: Boolean = false,
 ) {
   val isTitleBlank: Boolean
     get() = title.isBlank()
@@ -59,6 +62,10 @@ data class CreateListingUiState(
   /** How many photos are still needed to reach [Listing.MIN_PHOTOS], 0 if there are enough. */
   val missingPhotos: Int
     get() = (Listing.MIN_PHOTOS - photos.size).coerceAtLeast(0)
+
+  /** True when the photo count is from [Listing.MIN_PHOTOS] to [Listing.MAX_PHOTOS]. */
+  val hasValidPhotoCount: Boolean
+    get() = photos.size in Listing.MIN_PHOTOS..Listing.MAX_PHOTOS
 
   val canAddPhoto: Boolean
     get() = photos.size < Listing.MAX_PHOTOS
@@ -82,7 +89,7 @@ data class CreateListingUiState(
             !isTitleBlank &&
             !isDescriptionBlank &&
             !isCategoryMissing &&
-            photos.size in Listing.MIN_PHOTOS..Listing.MAX_PHOTOS &&
+            hasValidPhotoCount &&
             isPricePerDayValid &&
             isItemValueValid &&
             isAvailabilityValid &&
@@ -129,8 +136,17 @@ class CreateListingViewModel : ViewModel() {
     it.copy(availableFrom = start, availableTo = end, isDatePickerOpen = false)
   }
 
-  /** Appends the photo at [uri]. Ignored once there are [Listing.MAX_PHOTOS] photos. */
-  fun onPhotoAdded(uri: String) = _uiState.update {
+  /** Opens the in-app camera. */
+  fun openCamera() = _uiState.update { it.copy(isCameraOpen = true) }
+
+  /** Closes the in-app camera and keeps the photos already taken. */
+  fun closeCamera() = _uiState.update { it.copy(isCameraOpen = false) }
+
+  /**
+   * Appends the photo taken at [uri] and keeps the camera open. Ignored once there are
+   * [Listing.MAX_PHOTOS] photos.
+   */
+  fun onPhotoTaken(uri: String) = _uiState.update {
     if (it.canAddPhoto) it.copy(photos = it.photos + uri) else it
   }
 

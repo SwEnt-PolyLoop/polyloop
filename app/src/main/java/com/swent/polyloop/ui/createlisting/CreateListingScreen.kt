@@ -2,6 +2,9 @@
 
 package com.swent.polyloop.ui.createlisting
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +18,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -40,6 +46,12 @@ fun CreateListingScreen(
     modifier: Modifier = Modifier,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  var cameraPermissionGranted by rememberSaveable { mutableStateOf<Boolean?>(null) }
+  val cameraPermissionLauncher =
+      rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        cameraPermissionGranted = granted
+        if (granted) viewModel.openCamera()
+      }
   CreateListingContent(
       uiState = uiState,
       onTitleChange = viewModel::onTitleChange,
@@ -52,11 +64,11 @@ fun CreateListingScreen(
       onPickDates = viewModel::openDatePicker,
       onConfirmDates = viewModel::selectDates,
       onDismissDatePicker = viewModel::dismissDatePicker,
-      // The in-app camera comes with #111.
-      onAddPhoto = {},
+      onAddPhoto = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
       onRemovePhoto = viewModel::onRemovePhoto,
       onPublish = viewModel::onPublish,
       modifier = modifier,
+      cameraPermissionGranted = cameraPermissionGranted,
   )
 }
 
@@ -68,7 +80,8 @@ fun CreateListingScreen(
  * [CreateListingUiState.hasAttemptedPublish] is true, while a price or item value that is not a
  * whole number from 1 to Listing.MAX_AMOUNT, and dates in the wrong order or on the same day, show
  * theirs right away. While the date picker is open, its sheet is shown over the form, with [today]
- * as the current date.
+ * as the current date. [cameraPermissionGranted] is the answer to the last camera permission
+ * request, null if it was never asked; a refusal shows how to allow the camera.
  */
 @Composable
 fun CreateListingContent(
@@ -88,6 +101,7 @@ fun CreateListingContent(
     onPublish: () -> Unit,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
+    cameraPermissionGranted: Boolean? = null,
 ) {
   val attempted = uiState.hasAttemptedPublish
   val addressPlaceholder = stringResource(R.string.create_listing_address_placeholder)
@@ -120,9 +134,11 @@ fun CreateListingContent(
           photos = uiState.photos,
           canAddPhoto = uiState.canAddPhoto,
           missingPhotos = uiState.missingPhotos,
+          showError = attempted && !uiState.hasValidPhotoCount,
           onAddPhoto = onAddPhoto,
           onRemovePhoto = onRemovePhoto,
       )
+      CameraPermissionMessage(cameraPermissionGranted)
       LabelledField(
           label = titleLabel,
           errorRes =
