@@ -18,6 +18,8 @@ data class Listing(
     val status: ListingStatus,
     val pickupArea: String = "", // public, set by a Cloud Function when the listing is saved
     val dropOffArea: String = "", // public, set by a Cloud Function when the listing is saved
+    // Accepted rentals, written only by Cloud Functions; the buffer day after each is not included
+    val bookedRanges: List<BookedRange> = emptyList(),
 ) {
   fun canPublish(addresses: ListingAddresses): Boolean =
       title.isNotBlank() &&
@@ -54,6 +56,9 @@ enum class ListingCategory(val label: String) {
   MUSIC("Music"),
   OTHER("Other"),
 }
+
+/** The days taken by one accepted rental, from [start] to [end], both days included. */
+data class BookedRange(val start: LocalDate, val end: LocalDate)
 
 /** Exact addresses, kept out of the public listing document. */
 data class ListingAddresses(val pickup: String, val dropOff: String)
