@@ -392,5 +392,43 @@ class ListingDetailViewModelTest {
     assertFalse(vm.uiState.value.isSending)
   }
 
+  @Test
+  fun listingDeletedMeanwhileShowsNotFound() {
+    val vm = openPickerOn()
+    repository.listings = emptyList()
+
+    vm.sendRequest(oct6, oct8)
+
+    val state = vm.uiState.value
+    assertTrue(rentalRepository.rentals.isEmpty())
+    assertTrue(state.listingNotFound)
+    assertNull(state.listing)
+    assertFalse(state.isDatePickerOpen)
+    assertFalse(state.isSending)
+  }
+
+  @Test
+  fun startDayPassedWhilePickingShowsDatesTaken() {
+    repository.listings = listOf(listing.copy(ownerId = "owner"))
+    var now = oct6
+    val vm =
+        ListingDetailViewModel(
+                listing.id,
+                repository,
+                rentalRepository,
+                authRepository,
+                profileRepository,
+                today = { now },
+            )
+            .also { it.openDatePicker() }
+    now = now.plusDays(1)
+
+    vm.sendRequest(oct6, oct8)
+
+    assertTrue(rentalRepository.rentals.isEmpty())
+    assertTrue(vm.uiState.value.datesTaken)
+    assertTrue(vm.uiState.value.isDatePickerOpen)
+  }
+
   private class OtherViewModel : ViewModel()
 }
