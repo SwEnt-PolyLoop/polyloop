@@ -175,10 +175,10 @@ service cloud.firestore {
           && request.resource.data.lastMessageAt == request.time;
 
       function isValidNewRental(rental) {
-        let fields = ['listingId', 'listingTitle', 'ownerId', 'ownerName', 'borrowerId',
-            'borrowerName', 'participants', 'startDate', 'endDate', 'status', 'pricePerDay',
-            'totalPrice', 'pickupArea', 'dropOffArea', 'pickupAddress', 'returnAddress',
-            'createdAt', 'lastMessage', 'lastMessageAt'];
+        let fields = ['listingId', 'listingTitle', 'listingPhotoUrl', 'ownerId', 'ownerName',
+            'borrowerId', 'borrowerName', 'participants', 'startDate', 'endDate', 'status',
+            'pricePerDay', 'totalPrice', 'pickupArea', 'dropOffArea', 'pickupAddress',
+            'returnAddress', 'createdAt', 'lastMessage', 'lastMessageAt'];
         let listing = get(listingPath(rental.listingId)).data;
         return rental.keys().hasOnly(fields)
             && rental.keys().hasAll(fields)
@@ -192,6 +192,9 @@ service cloud.firestore {
             && listing.status == 'PUBLISHED'
             // The copies of the listing match it.
             && rental.listingTitle == listing.title
+            // The first photo, or "" for a listing from before the photo rules that has none.
+            && rental.listingPhotoUrl == (listing.get('photoUrls', []).size() > 0
+                ? listing.photoUrls[0] : '')
             && rental.pricePerDay == listing.pricePerDay
             && rental.pickupArea == listing.get('pickupArea', '')
             && rental.dropOffArea == listing.get('dropOffArea', '')

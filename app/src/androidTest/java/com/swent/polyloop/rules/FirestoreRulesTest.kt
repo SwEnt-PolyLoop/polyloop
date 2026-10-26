@@ -362,6 +362,7 @@ class FirestoreRulesTest {
                 "totalPrice" to 10, // 3 days Ã— 5 PP is 15
                 "pricePerDay" to 1,
                 "listingTitle" to "Something else",
+                "listingPhotoUrl" to "https://example.com/other.jpg",
                 "pickupArea" to "Geneva",
                 "pickupAddress" to "Route 1",
                 "ownerId" to borrower.uid,
@@ -377,6 +378,25 @@ class FirestoreRulesTest {
           assertDenied { db.collection("rentals").document().set(valid + change).await() }
         }
         assertDenied { db.collection("rentals").document().set(valid + ("deposit" to 50)).await() }
+      }
+
+  @Test
+  fun requestForAListingWithoutPhotosCopiesAnEmptyPhoto() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        // A listing from before the photo rules, which has none.
+        val listing = listing(owner.uid).copy(photoUrls = emptyList())
+        FirebaseEmulator.createDocumentAsAdmin("listings/${listing.id}", listingToDocument(listing))
+        val borrower = newAccount()
+        val valid = request(listing, borrower)
+
+        assertDenied {
+          db.collection("rentals")
+              .document()
+              .set(valid + ("listingPhotoUrl" to "https://example.com/0.jpg"))
+              .await()
+        }
+        db.collection("rentals").document().set(valid).await()
       }
 
   @Test
