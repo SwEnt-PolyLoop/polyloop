@@ -81,6 +81,7 @@ object C {
     const val create_listing_availability_field = "create_listing_availability_field"
     const val create_listing_publish_button = "create_listing_publish_button"
     const val create_listing_publishing = "create_listing_publishing"
+    const val create_listing_publish_error = "create_listing_publish_error"
     const val create_listing_screen = "create_listing_screen"
     const val create_listing_category_error = "create_listing_category_error"
     const val create_listing_description_field = "create_listing_description_field"

@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -45,6 +46,7 @@ private const val DESCRIPTION_MIN_LINES = 3
 @Composable
 fun CreateListingScreen(
     viewModel: CreateListingViewModel,
+    onListingPublished: (listingId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -73,6 +75,10 @@ fun CreateListingScreen(
       onPublish = viewModel::onPublish,
       modifier = modifier,
       cameraPermissionGranted = cameraPermissionGranted,
+      onListingPublished = { id ->
+        onListingPublished(id)
+        viewModel.onPublishedHandled()
+      },
   )
 }
 
@@ -110,7 +116,9 @@ fun CreateListingContent(
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
     cameraPermissionGranted: Boolean? = null,
+    onListingPublished: (listingId: String) -> Unit = {},
 ) {
+  LaunchedEffect(uiState.publishedListingId) { uiState.publishedListingId?.let(onListingPublished) }
   val attempted = uiState.hasAttemptedPublish
   val addressPlaceholder = stringResource(R.string.create_listing_address_placeholder)
   val pp = stringResource(R.string.create_listing_pp_suffix)
@@ -304,6 +312,16 @@ fun CreateListingContent(
             placeholder = addressPlaceholder,
         )
       }
+    }
+    uiState.publishError?.let { error ->
+      Text(
+          text = error.ifBlank { stringResource(R.string.create_listing_publish_error) },
+          color = MaterialTheme.colorScheme.error,
+          style = MaterialTheme.typography.bodyMedium,
+          modifier =
+              Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                  .testTag(C.Tag.create_listing_publish_error),
+      )
     }
     PublishBar(isPublishing = uiState.isPublishing, onPublish = onPublish)
     if (uiState.isDatePickerOpen) {

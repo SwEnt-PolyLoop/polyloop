@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.createlisting
 
+import android.net.Uri
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,8 +21,12 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
+import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import java.time.LocalDate
@@ -282,6 +287,99 @@ class CreateListingScreenTest {
   }
 
   @Test
+  fun publishErrorShowsItsMessage() {
+    setContent(filled.copy(publishError = "No connection"))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.create_listing_publish_error)
+        .assertIsDisplayed()
+        .assertTextEquals("No connection")
+  }
+
+  @Test
+  fun blankPublishErrorShowsTheGenericMessage() {
+    setContent(filled.copy(publishError = ""))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.create_listing_publish_error)
+        .assertTextEquals(context.getString(R.string.create_listing_publish_error))
+  }
+
+  @Test
+  fun noPublishErrorShowsNoMessage() {
+    setContent(filled)
+
+    composeTestRule.onNodeWithTag(C.Tag.create_listing_publish_error).assertDoesNotExist()
+  }
+
+  @Test
+  fun publishedListingIdCallsOnListingPublishedWithIt() {
+    var opened: String? = null
+    composeTestRule.setContent {
+      CreateListingContent(
+          uiState = filled.copy(publishedListingId = "new-listing"),
+          onTitleChange = {},
+          onDescriptionChange = {},
+          onCategoryChange = {},
+          onPricePerDayChange = {},
+          onItemValueChange = {},
+          onPickupAddressChange = {},
+          onDropOffAddressChange = {},
+          onPickDates = {},
+          onConfirmDates = { _, _ -> },
+          onDismissDatePicker = {},
+          onAddPhoto = {},
+          onRemovePhoto = {},
+          onPhotoTaken = {},
+          onCloseCamera = {},
+          onPublish = {},
+          onListingPublished = { opened = it },
+      )
+    }
+
+    composeTestRule.waitForIdle()
+
+    assertEquals("new-listing", opened)
+  }
+
+  @Test
+  fun screenOpensThePublishedListingAndClearsItsId() {
+    val repository =
+        object : ListingRepository by UnusedListingRepository() {
+          override suspend fun createListing(
+              listing: Listing,
+              addresses: ListingAddresses,
+              photos: List<Uri>,
+          ): Result<String> = Result.success("new-listing")
+        }
+    val auth = FakeAuthRepository(signedInUser = AuthUser("me", "me@epfl.ch", "Me"))
+    val viewModel = CreateListingViewModel(repository, auth)
+    var opened: String? = null
+    composeTestRule.setContent {
+      CreateListingScreen(viewModel = viewModel, onListingPublished = { opened = it })
+    }
+
+    composeTestRule.runOnUiThread {
+      viewModel.onTitleChange("Tent")
+      viewModel.onDescriptionChange("Light tent.")
+      viewModel.onCategoryChange(ListingCategory.SPORTS_OUTDOOR)
+      viewModel.onPricePerDayChange("15")
+      viewModel.onItemValueChange("180")
+      viewModel.selectDates(LocalDate.now().plusDays(1), LocalDate.now().plusDays(15))
+      viewModel.onPickupAddressChange("Route Cantonale 1, Ecublens")
+      viewModel.onDropOffAddressChange("Avenue Piccard 2, Lausanne")
+      repeat(Listing.MIN_PHOTOS) { viewModel.onPhotoTaken("file:///photo$it.jpg") }
+      viewModel.onPublish()
+    }
+    composeTestRule.waitUntil(timeoutMillis = 5_000) { opened != null }
+
+    assertEquals("new-listing", opened)
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      viewModel.uiState.value.publishedListingId == null
+    }
+  }
+
+  @Test
   fun publishButtonStaysVisibleAfterScrollingToBottom() {
     setContent(filled)
 
@@ -292,8 +390,10 @@ class CreateListingScreenTest {
 
   @Test
   fun screenSendsTypingAndPublishToTheViewModel() {
-    val viewModel = CreateListingViewModel()
-    composeTestRule.setContent { CreateListingScreen(viewModel = viewModel) }
+    val viewModel = CreateListingViewModel(UnusedListingRepository(), FakeAuthRepository())
+    composeTestRule.setContent {
+      CreateListingScreen(viewModel = viewModel, onListingPublished = {})
+    }
 
     composeTestRule.onNodeWithTag(C.Tag.create_listing_title_field).performTextReplacement("Tent")
     composeTestRule.onNodeWithTag(C.Tag.create_listing_publish_button).performClick()
@@ -307,7 +407,7 @@ class CreateListingScreenTest {
     val today = LocalDate.of(2026, 10, 1)
     val from = today.plusDays(2)
     val to = today.plusDays(5)
-    val viewModel = CreateListingViewModel()
+    val viewModel = CreateListingViewModel(UnusedListingRepository(), FakeAuthRepository())
     composeTestRule.setContent {
       val uiState by viewModel.uiState.collectAsState()
       CreateListingContent(

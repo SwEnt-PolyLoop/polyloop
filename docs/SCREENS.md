@@ -96,6 +96,7 @@ This form puts an item up for rent, or changes an existing listing. ViewModel: C
 - **In-app camera.** Full screen, over the form: a live preview, a shutter button, a close button and the count “n / 10”. It stays open after each photo so several can be taken in a row, and closes with the close button, the Back button, or by itself at 10 photos. If the camera cannot start or a photo cannot be saved, a short message is shown and the camera stays open.
 - The typed addresses are turned into map coordinates by geocoding.
 - “Publish” when creating, “Save” when editing. Uploads need a connection.
+- Pressing “Publish” with every field valid uploads the photos, saves the listing as published (title and description trimmed) and opens the new listing's detail, replacing the form in the navigation history so Back cannot publish it twice. While it runs the button is disabled and shows a spinner; if it fails, the error is shown above the button and the form keeps its content.
 - Editing is locked while a rental of the item is accepted or active.
 
 ## My rentals
