@@ -102,7 +102,7 @@ My rentals is the user's overview of everything they borrow and lend, and it wor
 
 - Two tabs: “Borrowing” and “Lending”.
 - Each row shows the item, the other person, a status label, the return deadline, and the meeting point as text.
-- Incoming requests appear at the top of “Lending”. Tapping any row opens Rental detail.
+- Incoming requests appear at the top of “Lending”; on a request, only its “Review request” button reacts. Tapping any other row opens Rental detail.
 - Offline: the whole list, deadlines and meeting points stay available from cache.
 - The items the user has put up for rent are listed in Profile, not here.
 
