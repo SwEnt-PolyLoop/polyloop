@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.storage.StorageException
+import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -25,8 +26,10 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class RepositoryProviderStorageEmulatorTest {
 
-  private val path = "test/${UUID.randomUUID()}.txt"
+  // A listing photo: storage.rules only accept images, in a listing's folder.
+  private val path = "listings/${UUID.randomUUID()}/0.jpg"
   private val bytes = "Hello PolyLoop".toByteArray()
+  private val jpeg = storageMetadata { contentType = "image/jpeg" }
 
   @Before
   fun setUp() {
@@ -44,13 +47,8 @@ class RepositoryProviderStorageEmulatorTest {
   /** Signs in a new user at [domain], marking the email as verified if [verified] is true. */
   private suspend fun signIn(verified: Boolean, domain: String = "epfl.ch") {
     val email = "test-${UUID.randomUUID()}@$domain"
-    val user = Firebase.auth.createUserWithEmailAndPassword(email, PASSWORD).await().user!!
-    if (!verified) return
-    user.sendEmailVerification().await()
-    FirebaseEmulator.verifyEmail(email)
-    // Refresh the ID token so Storage sees email_verified = true.
-    user.reload().await()
-    user.getIdToken(true).await()
+    if (verified) FirebaseEmulator.signUpVerified(email, PASSWORD)
+    else Firebase.auth.createUserWithEmailAndPassword(email, PASSWORD).await()
   }
 
   @Test
@@ -59,7 +57,7 @@ class RepositoryProviderStorageEmulatorTest {
       signIn(verified = true)
       val ref = RepositoryProvider.storage.reference.child(path)
 
-      ref.putBytes(bytes).await()
+      ref.putBytes(bytes, jpeg).await()
       val downloaded = ref.getBytes(MAX_BYTES).await()
 
       assertArrayEquals(bytes, downloaded)
@@ -86,7 +84,7 @@ class RepositoryProviderStorageEmulatorTest {
 
   private suspend fun assertUploadIsRefused() {
     try {
-      RepositoryProvider.storage.reference.child(path).putBytes(bytes).await()
+      RepositoryProvider.storage.reference.child(path).putBytes(bytes, jpeg).await()
       fail("The upload should have been refused")
     } catch (e: StorageException) {
       assertEquals(StorageException.ERROR_NOT_AUTHORIZED, e.errorCode)

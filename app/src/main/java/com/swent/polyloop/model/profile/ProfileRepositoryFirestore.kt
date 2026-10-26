@@ -82,7 +82,8 @@ class ProfileRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fi
   override suspend fun updateProfile(uid: String, name: String, photoUrl: String): Result<Unit> {
     if (!isValidId(uid)) return invalidId(uid)
     return withFirebaseErrors {
-      // update() fails with NOT_FOUND when the profile does not exist, so this never creates one.
+      // update() fails when the profile does not exist (PERMISSION_DENIED under the Security Rules,
+      // NOT_FOUND without them), so this never creates one.
       val written = confirmWrite {
         profileDocument(uid)
             .update(

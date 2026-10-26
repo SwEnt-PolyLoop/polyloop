@@ -5,11 +5,13 @@ package com.swent.polyloop.model.rental
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.listing.listingToDocument
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.time.LocalDate
 import java.util.UUID
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -38,30 +41,45 @@ class RentalRepositoryFirestoreEmulatorTest {
   private val start = LocalDate.of(2026, 10, 20)
   private val end = LocalDate.of(2026, 10, 22)
 
-  // New user ids for each test, so rentals left by earlier runs never get in the way.
-  private val ownerId = "owner-${UUID.randomUUID()}"
-  private val borrower = AuthUser(uid = "borrower-${UUID.randomUUID()}", "loca@epfl.ch", "Loca")
-
-  private val listing =
-      Listing(
-          id = "listing-${UUID.randomUUID()}",
-          ownerId = ownerId,
-          title = "Camping tent",
-          description = "Light 2-person tent.",
-          category = ListingCategory.SPORTS_OUTDOOR,
-          photoUrls = List(3) { "https://example.com/$it.jpg" },
-          pricePerDay = 5,
-          itemValue = 120,
-          availableFrom = LocalDate.of(2026, 10, 1),
-          availableTo = LocalDate.of(2026, 12, 31),
-          status = ListingStatus.PUBLISHED,
-          pickupArea = "Ecublens",
-          dropOffArea = "Renens",
-      )
+  // New accounts for each test, so rentals left by earlier runs never get in the way. The borrower
+  // is signed in after setUp: the rules let only them send their requests.
+  private val ownerEmail = "owner-${UUID.randomUUID()}@epfl.ch"
+  private lateinit var ownerId: String
+  private lateinit var borrower: AuthUser
+  private lateinit var listing: Listing
 
   @Before
   fun setUp() {
     FirebaseEmulator.connect()
+    runBlocking {
+      ownerId = FirebaseEmulator.signUpVerified(ownerEmail, PASSWORD)
+      val borrowerEmail = "borrower-${UUID.randomUUID()}@epfl.ch"
+      val borrowerId = FirebaseEmulator.signUpVerified(borrowerEmail, PASSWORD)
+      borrower = AuthUser(borrowerId, borrowerEmail, "Loca")
+    }
+    listing =
+        Listing(
+            id = "listing-${UUID.randomUUID()}",
+            ownerId = ownerId,
+            title = "Camping tent",
+            description = "Light 2-person tent.",
+            category = ListingCategory.SPORTS_OUTDOOR,
+            photoUrls = List(3) { "https://example.com/$it.jpg" },
+            pricePerDay = 5,
+            itemValue = 120,
+            availableFrom = LocalDate.of(2026, 10, 1),
+            availableTo = LocalDate.of(2026, 12, 31),
+            status = ListingStatus.PUBLISHED,
+            pickupArea = "Ecublens",
+            dropOffArea = "Renens",
+        )
+    // The rules check each request against its listing, which only the owner may write.
+    FirebaseEmulator.createDocumentAsAdmin("listings/${listing.id}", listingToDocument(listing))
+  }
+
+  @After
+  fun tearDown() {
+    Firebase.auth.signOut()
   }
 
   @Test
@@ -100,6 +118,8 @@ class RentalRepositoryFirestoreEmulatorTest {
           withTimeout(TIMEOUT_MS) {
             repository.observeRentalsAsBorrower(borrower.uid).first { it.size == 2 }
           }
+      // The rules let each side query only its own rentals.
+      Firebase.auth.signInWithEmailAndPassword(ownerEmail, PASSWORD).await()
       val lent =
           withTimeout(TIMEOUT_MS) {
             repository.observeRentalsAsLender(ownerId).first { it.size == 2 }
@@ -117,11 +137,10 @@ class RentalRepositoryFirestoreEmulatorTest {
   @Test
   fun observeSkipsMalformedRentals() {
     runBlocking {
-      Firebase.firestore
-          .collection("rentals")
-          .document("broken-${UUID.randomUUID()}")
-          .set(mapOf("borrowerId" to borrower.uid, "status" to "UNKNOWN"))
-          .await()
+      FirebaseEmulator.createDocumentAsAdmin(
+          "rentals/broken-${UUID.randomUUID()}",
+          mapOf("borrowerId" to borrower.uid, "status" to "UNKNOWN"),
+      )
       val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
 
       val borrowed =
@@ -139,6 +158,7 @@ class RentalRepositoryFirestoreEmulatorTest {
   }
 
   private companion object {
+    const val PASSWORD = "password123"
     const val TIMEOUT_MS = 10_000L
   }
 }

@@ -4,12 +4,15 @@ package com.swent.polyloop.utils
 
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.storage
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.Instant
+import java.util.UUID
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
@@ -62,6 +65,23 @@ object FirebaseEmulator {
             }
             .getString("oobCode")
     Firebase.auth.applyActionCode(code).await()
+  }
+
+  /**
+   * Creates an account for [email], verifies its email and leaves it signed in, with an ID token
+   * that already says the email is verified, as the Security Rules require. Returns its uid.
+   */
+  suspend fun signUpVerified(
+      email: String = "test-${UUID.randomUUID()}@epfl.ch",
+      password: String = "password123",
+  ): String {
+    val user = Firebase.auth.createUserWithEmailAndPassword(email, password).await().user!!
+    user.sendEmailVerification().await()
+    verifyEmail(email)
+    // Refresh the ID token so the Security Rules see email_verified = true.
+    user.reload().await()
+    user.getIdToken(true).await()
+    return user.uid
   }
 
   /**
@@ -127,6 +147,13 @@ object FirebaseEmulator {
         is Boolean -> JSONObject().put("booleanValue", value)
         is Int,
         is Long -> JSONObject().put("integerValue", value.toString())
+        is Double -> JSONObject().put("doubleValue", value)
+        is Timestamp ->
+            JSONObject()
+                .put(
+                    "timestampValue",
+                    Instant.ofEpochSecond(value.seconds, value.nanoseconds.toLong()).toString(),
+                )
         is List<*> ->
             JSONObject()
                 .put("arrayValue", JSONObject().put("values", JSONArray(value.map(::toValue))))
