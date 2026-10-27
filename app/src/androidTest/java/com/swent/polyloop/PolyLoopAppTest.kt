@@ -6,6 +6,9 @@ import android.net.Uri
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -437,6 +440,63 @@ class PolyLoopAppTest {
     composeTestRule
         .onNodeWithTag(C.Tag.topBarMenuItem(Screen.AdminCourtRuling.route))
         .assertDoesNotExist()
+  }
+
+  @Test
+  fun menuOpensTheDrawerWithTheSignedInUsersHeader() {
+    setAppSignedIn()
+
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.drawer_name).assertTextEquals("Me")
+  }
+
+  @Test
+  fun drawerHighlightsTheCurrentScreen() {
+    setAppSignedIn()
+    openFromMenu(Screen.Wallet)
+
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(Screen.Wallet.route)).assertIsSelected()
+    composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(Screen.Browse.route)).assertIsNotSelected()
+  }
+
+  @Test
+  fun tappingADrawerItemClosesTheDrawer() {
+    setAppSignedIn()
+
+    openFromMenu(Screen.Wallet)
+
+    assertCurrentScreen(Screen.Wallet)
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsNotDisplayed()
+  }
+
+  @Test
+  fun backClosesTheDrawerAndStaysOnTheScreen() {
+    setAppSignedIn()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsDisplayed()
+
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsNotDisplayed()
+    assertCurrentScreen(Screen.Browse)
+  }
+
+  @Test
+  fun drawerHeaderFollowsTheUserWhoSignsIn() {
+    signInResult = AuthResult.Success(me)
+    setApp()
+    // Started signed out; Firebase knows the user once they log in.
+    currentUser = me
+
+    logIn()
+    waitForTag(C.Tag.browse_screen)
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.drawer_name).assertTextEquals("Me")
   }
 
   @Test

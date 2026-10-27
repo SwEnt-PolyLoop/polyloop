@@ -164,16 +164,18 @@
     <string name="date_picker_confirm_dates">Confirm dates</string>
     <string name="date_picker_send_error_fallback">Could not send the request. Try again.</string>
 
-    <!-- Top-bar menu -->
+    <!-- Top bar and navigation drawer -->
     <string name="menu_browse">Browse</string>
     <string name="menu_create_listing">Create listing</string>
     <string name="menu_my_rentals">My rentals</string>
-    <string name="menu_chat_list">Chat list</string>
+    <string name="menu_chat_list">Chats</string>
     <string name="menu_wallet">Wallet</string>
     <string name="menu_profile">Profile</string>
-    <string name="menu_admin_court_ruling">Admin court ruling</string>
+    <string name="menu_admin_court_ruling">Court rulings</string>
     <string name="top_bar_menu">Menu</string>
     <string name="top_bar_profile">Profile</string>
+    <string name="drawer_admin_badge">Admin</string>
+    <string name="drawer_footer">Screens tied to one listing or rental open from inside the app.</string>
 
     <!-- Authentication -->
     <!-- The wordmark is split so each half can have its own color. -->

@@ -180,7 +180,16 @@ object C {
     const val top_bar_menu_button = "top_bar_menu_button"
     const val top_bar_profile_button = "top_bar_profile_button"
 
+    // Each destination's item in the navigation drawer opened by the menu button
     fun topBarMenuItem(route: String) = "top_bar_menu_item_$route"
+
+    const val drawer = "drawer"
+    const val drawer_avatar_initial = "drawer_avatar_initial"
+    const val drawer_avatar_photo = "drawer_avatar_photo"
+    const val drawer_name = "drawer_name"
+    const val drawer_rating = "drawer_rating"
+    const val drawer_admin_badge = "drawer_admin_badge"
+    const val drawer_footer = "drawer_footer"
 
     const val my_rentals_screen = "my_rentals_screen"
     const val my_rentals_title = "my_rentals_title"
