@@ -113,13 +113,15 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase. New Firestore repositories use the shared helpers in `model/firestore/FirestoreHelpers.kt` (reading fields, errors, write timeout, listening to a query) instead of copying them; Listing, Profile and Chat will move to them.
 
+Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `firebase-functions` v2, Jest). `src/index.ts` exports every function and sets the region, `europe-west1`, next to the Firestore database (`eur3`). In `functions/`: `npm ci` installs, `npm run lint` type-checks, `npm test` runs the tests, and `firebase deploy --only functions` deploys (needs the Blaze plan). CI runs the install, lint, build and test steps in its own job.
+
 | Area | Choice |
 | --- | --- |
 | Architecture | MVVM without a domain layer: 13 screen ViewModels, each calling the repositories it needs |
 | UI state | Each ViewModel exposes its screen state as a `StateFlow`, collected with `collectAsStateWithLifecycle()`; user actions are method calls (unidirectional data flow) |
 | Navigation | Single activity, Navigation 2 (`navigation-compose`). Navigation 3 is Google's newer option, not adopted for now |
 | Dependency injection | Manual constructor injection: repositories and ViewModels receive their dependencies in the constructor (ViewModels through a `ViewModelProvider.Factory`), so tests can pass fakes. `RepositoryProvider` creates the shared repository instances |
-| Server logic | Cloud Functions are the only writers of rental status, deposits and balances |
+| Server logic | Cloud Functions (TypeScript, in `functions/`, region `europe-west1`) are the only writers of rental status, deposits and balances |
 | Offline cache | Firestore's built-in offline persistence |
 | Upload queue | WorkManager, for offline photos and QR scans |
 | Camera and QR | CameraX for photos; ML Kit code scanner to scan, ZXing to generate QR codes |
