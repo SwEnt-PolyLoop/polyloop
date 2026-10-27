@@ -29,7 +29,18 @@ class PasswordRuleTest {
 
   @Test fun noSpecialCharacterBreaksSpecial() = assertFails("Secret123", PasswordRule.SPECIAL)
 
-  @Test fun spaceCountsAsSpecialCharacter() = assertFails("Secret 12")
+  @Test
+  fun everyAcceptedSpecialCharacterFollowsSpecial() {
+    // Written out again rather than read from PasswordRule, so a changed list fails the test.
+    "^$*.[]{}()?\"!@#%&/\\,><':;|_~`".forEach { assertFails("Secret12$it") }
+  }
+
+  @Test
+  fun otherSymbolsBreakSpecial() {
+    listOf(" ", "€", "😀", "=", "+", "-", "é").forEach {
+      assertFails("Secret12$it", PasswordRule.SPECIAL)
+    }
+  }
 
   @Test
   fun emptyPasswordBreaksEveryRuleInOrder() =
