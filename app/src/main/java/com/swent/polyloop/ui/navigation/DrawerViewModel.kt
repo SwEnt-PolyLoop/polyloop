@@ -56,8 +56,8 @@ class DrawerViewModel(
     observing = viewModelScope.launch {
       profileRepository
           .observeProfile(uid)
-          // The header keeps what it showed; the next refresh listens again.
-          .catch {}
+          // The header falls back to its placeholders; the next refresh listens again.
+          .catch { emit(null) }
           .collect { profile -> _uiState.value = DrawerUiState(profile) }
     }
   }

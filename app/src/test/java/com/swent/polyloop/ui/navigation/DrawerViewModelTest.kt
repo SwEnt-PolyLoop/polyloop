@@ -112,7 +112,7 @@ class DrawerViewModelTest {
   }
 
   @Test
-  fun errorKeepsAnEmptyHeaderAndRefreshListensAgain() {
+  fun errorShowsPlaceholdersAndRefreshListensAgain() {
     profiles.failure = IllegalStateException("No connection")
     val vm = viewModel()
     assertNull(vm.uiState.value.profile)
