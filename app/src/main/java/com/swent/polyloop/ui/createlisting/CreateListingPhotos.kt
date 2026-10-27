@@ -34,6 +34,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -48,13 +50,15 @@ private val PHOTO_TILE_CORNER = 12.dp
 
 /**
  * The photo row with a remove button on each photo, the "Add photo" tile while more photos fit, and
- * the number of photos still needed to publish.
+ * the number of photos still needed to publish. With [showError] (the user pressed "Publish"
+ * without enough photos), that hint is also marked as an error for accessibility.
  */
 @Composable
 internal fun PhotosCard(
     photos: List<String>,
     canAddPhoto: Boolean,
     missingPhotos: Int,
+    showError: Boolean,
     onAddPhoto: () -> Unit,
     onRemovePhoto: (index: Int) -> Unit,
 ) {
@@ -95,6 +99,12 @@ internal fun PhotosCard(
         }
       }
       if (missingPhotos > 0) {
+        val hint =
+            pluralStringResource(
+                R.plurals.create_listing_missing_photos,
+                missingPhotos,
+                missingPhotos,
+            )
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -106,20 +116,34 @@ internal fun PhotosCard(
               modifier = Modifier.size(16.dp),
           )
           Text(
-              text =
-                  pluralStringResource(
-                      R.plurals.create_listing_missing_photos,
-                      missingPhotos,
-                      missingPhotos,
-                  ),
+              text = hint,
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.error,
-              modifier = Modifier.testTag(C.Tag.create_listing_photos_hint),
+              modifier =
+                  Modifier.testTag(C.Tag.create_listing_photos_hint).semantics {
+                    if (showError) error(hint)
+                  },
           )
         }
       }
     }
   }
+}
+
+/**
+ * Explains, once the user refused the camera permission ([permissionGranted] is false), that photos
+ * are taken in the app and how to allow the camera in Settings. Shows nothing while the permission
+ * was not asked yet (null) or was granted.
+ */
+@Composable
+internal fun CameraPermissionMessage(permissionGranted: Boolean?, modifier: Modifier = Modifier) {
+  if (permissionGranted != false) return
+  Text(
+      text = stringResource(R.string.create_listing_camera_permission_denied),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.error,
+      modifier = modifier.testTag(C.Tag.create_listing_camera_permission_message),
+  )
 }
 
 /** A square photo with a small remove button in its corner. */
@@ -150,7 +174,7 @@ private fun PhotoTile(uri: String, index: Int, onRemove: () -> Unit) {
   }
 }
 
-/** The dashed "Add photo" tile, which will open the in-app camera. */
+/** The dashed "Add photo" tile, which opens the in-app camera. */
 @Composable
 private fun AddPhotoTile(onClick: () -> Unit) {
   val borderColor = MaterialTheme.colorScheme.outline
@@ -198,6 +222,7 @@ private fun PhotosCardPreview() {
         photos = uiState.photos,
         canAddPhoto = uiState.canAddPhoto,
         missingPhotos = uiState.missingPhotos,
+        showError = false,
         onAddPhoto = {},
         onRemovePhoto = {},
     )

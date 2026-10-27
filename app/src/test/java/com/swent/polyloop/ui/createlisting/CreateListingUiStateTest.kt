@@ -97,6 +97,14 @@ class CreateListingUiStateTest {
   }
 
   @Test
+  fun hasValidPhotoCountFromMinToMaxPhotos() {
+    assertFalse(complete.copy(photos = photos(Listing.MIN_PHOTOS - 1)).hasValidPhotoCount)
+    assertTrue(complete.copy(photos = photos(Listing.MIN_PHOTOS)).hasValidPhotoCount)
+    assertTrue(complete.copy(photos = photos(Listing.MAX_PHOTOS)).hasValidPhotoCount)
+    assertFalse(complete.copy(photos = photos(Listing.MAX_PHOTOS + 1)).hasValidPhotoCount)
+  }
+
+  @Test
   fun canAddPhotoUntilMaxPhotos() {
     assertTrue(complete.copy(photos = photos(Listing.MAX_PHOTOS - 1)).canAddPhoto)
     assertFalse(complete.copy(photos = photos(Listing.MAX_PHOTOS)).canAddPhoto)
