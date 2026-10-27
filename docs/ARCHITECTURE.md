@@ -75,6 +75,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 **Accounts**
 - Only @epfl.ch emails, checked with a regex, plus Firebase email verification. Name asked at sign-up; photo added later in Profile.
+- An account must verify its email within 5 minutes of signing up, or it is deleted, so nobody can block an address by signing up with it (someone else's, or a typo). The Cloud Function `deleteExpiredSignUpsEvery5Minutes` checks every 5 minutes, so an expired account is gone 5 to 10 minutes after sign-up. Unverified accounts cannot write to Firestore or Storage, so only the Auth account is deleted.
 - Admins are identified by a Firebase custom claim.
 
 **Money (PolyPoints)**
@@ -129,7 +130,7 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 | Geocoding | Cloud Function, when a listing is saved |
 | "Near me" | Geohash queries with the GeoFire utilities |
 | LLM | Gemini API, called only from Cloud Functions (dispute proposals, court-ruling reading) |
-| Scheduled jobs | Hourly Cloud Function: 30-day escalation, deadline reminders, late fees, lost items, auto-cancelling rentals blocked by a late return |
+| Scheduled jobs | Every 5 minutes: deleting accounts not verified in time (`deleteExpiredSignUpsEvery5Minutes`). Hourly Cloud Function: 30-day escalation, deadline reminders, late fees, lost items, auto-cancelling rentals blocked by a late return |
 | Notifications | FCM |
 | Admins | Firebase custom claim |
 

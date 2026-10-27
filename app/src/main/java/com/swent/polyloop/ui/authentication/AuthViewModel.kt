@@ -137,7 +137,7 @@ class AuthViewModel(
           _uiState.update { it.copy(isVerificationEmailResent = true) }
           startResendCooldown()
         }
-        is AuthResult.Failure -> _uiState.update { it.copy(error = result.error) }
+        is AuthResult.Failure -> _uiState.update { it.copy(error = onCheckInbox(result.error)) }
       }
     }
   }
@@ -171,6 +171,14 @@ class AuthViewModel(
     return true
   }
 
+  /**
+   * The error to show for [error] on "Check your inbox". The email and password there were already
+   * accepted, so "wrong credentials" means the account no longer exists: it was not verified within
+   * [SIGN_UP_EXPIRY_MINUTES] and the server deleted it.
+   */
+  private fun onCheckInbox(error: AuthError): AuthError =
+      if (error == AuthError.WRONG_CREDENTIALS) AuthError.SIGN_UP_EXPIRED else error
+
   /** "Continue" on the "What's your name?" step. Only marks the attempt if the name is blank. */
   fun submitName() {
     _uiState.update { it.copy(hasAttemptedSubmit = true) }
@@ -188,7 +196,8 @@ class AuthViewModel(
         is AuthResult.Failure ->
             _uiState.update {
               it.copy(
-                  error = result.error,
+                  error =
+                      if (it.isAwaitingVerification) onCheckInbox(result.error) else result.error,
                   // Only an EPFL address can wait for its verification email.
                   isAwaitingVerification =
                       it.isAwaitingVerification ||
@@ -338,12 +347,18 @@ class AuthViewModel(
     }
   }
 
-  private companion object {
+  companion object {
+    /**
+     * How long a new account has to verify its email. After that a Cloud Function deletes it
+     * (`functions/src/expiredSignUps.ts`, `SIGN_UP_EXPIRY_MS`); keep both in sync.
+     */
+    const val SIGN_UP_EXPIRY_MINUTES = 5
+
     /** How long "Resend email" stays disabled after a verification email was sent. */
-    const val RESEND_COOLDOWN_SECONDS = 60
+    private const val RESEND_COOLDOWN_SECONDS = 60
 
     /** Sign-up failures that still created the account and sent (or tried to send) the email. */
-    val ACCOUNT_CREATED_ERRORS =
+    private val ACCOUNT_CREATED_ERRORS =
         setOf(AuthError.VERIFICATION_EMAIL_NOT_SENT, AuthError.NAME_NOT_SAVED)
   }
 }
