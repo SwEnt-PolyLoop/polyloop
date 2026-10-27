@@ -9,8 +9,9 @@ PolyLoop has 13 screens, each backed by its own ViewModel, which uses the reposi
 
 Elements shared across screens:
 
-- **Navigation.** Users move between screens through buttons on the screens themselves and through the top-bar menu.
-- **Top bar.** Transparent, with a menu button and a profile button. The menu expands to list every standalone screen: Browse, Create listing, My rentals, Chat list, Wallet, Profile, and Admin court ruling for admins. Screens tied to one listing or rental open from inside the app, not from the menu. Rental screens also show a role pill, “You lend” or “You borrow”.
+- **Navigation.** Users move between screens through buttons on the screens themselves and through the navigation drawer.
+- **Top bar.** Transparent, with a menu button and a profile button. Rental screens also show a role pill, “You lend” or “You borrow”.
+- **Navigation drawer** (Figma frame 03). The menu button opens it; Back, a tap outside or a swipe closes it. A header with the signed-in user's avatar (photo, or their initial), name and rating, then every standalone screen with an icon, the current one highlighted: Browse, Create listing, My rentals, Chats, Wallet, Profile. After a divider, “Court rulings” with an “Admin” badge, for admins only. A footer notes that screens tied to one listing or rental open from inside the app, not from the drawer. Tapping an item opens it and closes the drawer. ViewModel: DrawerViewModel, using ProfileRepository.
 - **Currency.** All prices and deposits are in PolyPoints, PolyLoop's in-app currency, at 1 CHF = 1 PolyPoint. Users recharge on the Wallet screen. Recharging is simulated: no real payment is made.
 - **Offline banner.** Shown at the top of every screen while offline. Actions that need a connection (browsing new listings, recharging, payments, sending messages) stay visible but disabled.
 - **Locations offline.** Map tiles need a connection, so offline screens show meeting points as text (the address).
