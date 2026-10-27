@@ -2,6 +2,8 @@
 
 package com.swent.polyloop.ui.createlisting
 
+import android.util.Size
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import com.swent.polyloop.model.listing.Listing
 import java.io.File
 import java.util.UUID
@@ -12,10 +14,93 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+/** Robolectric because the photo size is an `android.util.Size`. */
+@RunWith(RobolectricTestRunner::class)
 class CameraPhotosTest {
 
   @get:Rule val tempFolder = TemporaryFolder()
+
+  private fun photoIn(dirName: String, fileName: String = "photo.jpg"): File {
+    val dir = File(tempFolder.root, dirName).apply { mkdirs() }
+    return File(dir, fileName).apply { writeText("jpeg") }
+  }
+
+  @Test
+  fun deletePhotoFileDeletesAFileInTheListingPhotosFolder() {
+    val photo = photoIn(LISTING_PHOTOS_DIR)
+
+    deletePhotoFile(photo.toURI().toString())
+
+    assertFalse(photo.exists())
+  }
+
+  @Test
+  fun deletePhotoFileKeepsAFileOutsideTheListingPhotosFolder() {
+    val photo = photoIn("other_folder")
+
+    deletePhotoFile(photo.toURI().toString())
+
+    assertTrue(photo.exists())
+  }
+
+  @Test
+  fun deletePhotoFileKeepsAFileReachedThroughDotDotOutOfTheFolder() {
+    photoIn(LISTING_PHOTOS_DIR)
+    val outside = File(tempFolder.root, "outside.jpg").apply { writeText("jpeg") }
+    val sneaky = "file://${tempFolder.root.absolutePath}/$LISTING_PHOTOS_DIR/../outside.jpg"
+
+    deletePhotoFile(sneaky)
+
+    assertTrue(outside.exists())
+  }
+
+  @Test
+  fun deletePhotoFileIgnoresAMissingFile() {
+    val missing = File(File(tempFolder.root, LISTING_PHOTOS_DIR), "missing.jpg")
+
+    deletePhotoFile(missing.toURI().toString())
+
+    assertFalse(missing.exists())
+  }
+
+  @Test
+  fun deletePhotoFileIgnoresANonFileUri() {
+    val photo = photoIn(LISTING_PHOTOS_DIR)
+
+    deletePhotoFile("content://media/$LISTING_PHOTOS_DIR/${photo.name}")
+    deletePhotoFile("https://example.com/$LISTING_PHOTOS_DIR/${photo.name}")
+    deletePhotoFile(photo.absolutePath)
+
+    assertTrue(photo.exists())
+  }
+
+  @Test
+  fun deletePhotoFileNeverThrowsOnAMalformedUri() {
+    deletePhotoFile("not a uri")
+    deletePhotoFile("")
+    deletePhotoFile("file://")
+  }
+
+  @Test
+  fun photoResolutionSelectorAsksForAbout1080pAndFallsBackToTheClosestSize() {
+    val strategy = photoResolutionSelector().resolutionStrategy
+
+    assertEquals(Size(1920, 1080), strategy?.boundSize)
+    assertEquals(
+        ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER,
+        strategy?.fallbackRule,
+    )
+  }
+
+  @Test
+  fun photoSizeAndQualityConstantsAreTheAgreedValues() {
+    assertEquals(1920, PHOTO_LONG_SIDE_PX)
+    assertEquals(1080, PHOTO_SHORT_SIDE_PX)
+    assertEquals(80, PHOTO_JPEG_QUALITY)
+  }
 
   @Test
   fun newPhotoFileIsAJpegInThePhotosFolder() {

@@ -110,14 +110,24 @@ data class CreateListingUiState(
             !isDropOffAddressBlank
 }
 
-/** Holds the Create listing form while the user fills it in, and publishes the listing. */
+/**
+ * Holds the Create listing form while the user fills it in, and publishes the listing.
+ *
+ * The photo files are deleted through [deletePhoto] when a photo is removed, when the form is
+ * closed without publishing, and after a successful publish; they are kept when publishing fails,
+ * so the user can try again.
+ */
 class CreateListingViewModel(
     private val listingRepository: ListingRepository,
     private val authRepository: AuthRepository,
+    private val deletePhoto: (uri: String) -> Unit = ::deletePhotoFile,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(CreateListingUiState())
   val uiState: StateFlow<CreateListingUiState> = _uiState.asStateFlow()
+
+  /** True once the listing is saved: its photos are already deleted. */
+  private var published = false
 
   fun onTitleChange(title: String) = _uiState.update { it.copy(title = title) }
 
@@ -159,17 +169,19 @@ class CreateListingViewModel(
   fun closeCamera() = _uiState.update { it.copy(isCameraOpen = false) }
 
   /**
-   * Appends the photo taken at [uri] and keeps the camera open. Ignored once there are
-   * [Listing.MAX_PHOTOS] photos.
+   * Appends the photo taken at [uri] and keeps the camera open. Once there are [Listing.MAX_PHOTOS]
+   * photos the photo is not added and its file is deleted.
    */
-  fun onPhotoTaken(uri: String) = _uiState.update {
-    if (it.canAddPhoto) it.copy(photos = it.photos + uri) else it
+  fun onPhotoTaken(uri: String) {
+    if (_uiState.value.canAddPhoto) _uiState.update { it.copy(photos = it.photos + uri) }
+    else deletePhoto(uri)
   }
 
-  /** Removes the photo at [index]. Ignored when there is no photo at that index. */
-  fun onRemovePhoto(index: Int) = _uiState.update {
-    if (index in it.photos.indices) it.copy(photos = it.photos.filterIndexed { i, _ -> i != index })
-    else it
+  /** Removes the photo at [index] and deletes its file. Ignored when there is no photo there. */
+  fun onRemovePhoto(index: Int) {
+    val removed = _uiState.value.photos.getOrNull(index) ?: return
+    _uiState.update { it.copy(photos = it.photos.filterIndexed { i, _ -> i != index }) }
+    deletePhoto(removed)
   }
 
   /**
@@ -208,6 +220,8 @@ class CreateListingViewModel(
       listingRepository
           .createListing(listing, addresses, form.photos.map(Uri::parse))
           .onSuccess { id ->
+            published = true
+            form.photos.forEach(deletePhoto)
             _uiState.update { it.copy(isPublishing = false, publishedListingId = id) }
           }
           .onFailure { _uiState.update { it.copy(isPublishing = false, publishFailed = true) } }
@@ -216,6 +230,11 @@ class CreateListingViewModel(
 
   /** Clears the new listing's id once the screen has opened it. */
   fun onPublishedHandled() = _uiState.update { it.copy(publishedListingId = null) }
+
+  /** The form is closed: deletes the photos still in it, unless the listing was published. */
+  override fun onCleared() {
+    if (!published) _uiState.value.photos.forEach(deletePhoto)
+  }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */
   class Factory(

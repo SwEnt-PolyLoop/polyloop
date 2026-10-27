@@ -2,6 +2,9 @@
 
 package com.swent.polyloop.ui.createlisting
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
@@ -147,6 +150,92 @@ class CreateListingViewModelTest {
     viewModel.onRemovePhoto(3)
 
     assertEquals(before, state)
+  }
+
+  private val deleted = mutableListOf<String>()
+
+  /** A ViewModel that records the deleted photos, held by [store] so the test can clear it. */
+  private fun recordingViewModel(store: ViewModelStore = ViewModelStore()): CreateListingViewModel =
+      ViewModelProvider(
+          store,
+          object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                CreateListingViewModel(
+                    FakeListingRepository(),
+                    FakeAuthRepository(),
+                    deletePhoto = { deleted += it },
+                )
+                    as T
+          },
+      )[CreateListingViewModel::class.java]
+
+  @Test
+  fun onRemovePhotoDeletesTheRemovedFileOnly() {
+    val vm = recordingViewModel()
+    repeat(3) { vm.onPhotoTaken("photo$it") }
+
+    vm.onRemovePhoto(1)
+
+    assertEquals(listOf("photo1"), deleted)
+    assertEquals(listOf("photo0", "photo2"), vm.uiState.value.photos)
+  }
+
+  @Test
+  fun onRemovePhotoOutOfRangeDeletesNothing() {
+    val vm = recordingViewModel()
+    vm.onPhotoTaken("photo0")
+
+    vm.onRemovePhoto(-1)
+    vm.onRemovePhoto(1)
+
+    assertTrue(deleted.isEmpty())
+  }
+
+  @Test
+  fun aPhotoTakenAtMaxPhotosIsDeletedAndNotAdded() {
+    val vm = recordingViewModel()
+    repeat(Listing.MAX_PHOTOS) { vm.onPhotoTaken("photo$it") }
+    assertTrue(deleted.isEmpty())
+
+    vm.onPhotoTaken("the 11th")
+
+    assertEquals(listOf("the 11th"), deleted)
+    assertEquals(Listing.MAX_PHOTOS, vm.uiState.value.photos.size)
+  }
+
+  @Test
+  fun closingTheCameraDeletesNothing() {
+    val vm = recordingViewModel()
+    vm.onPhotoTaken("photo0")
+    vm.openCamera()
+
+    vm.closeCamera()
+
+    assertTrue(deleted.isEmpty())
+  }
+
+  @Test
+  fun clearingTheViewModelDeletesTheRemainingPhotos() {
+    val store = ViewModelStore()
+    val vm = recordingViewModel(store)
+    repeat(3) { vm.onPhotoTaken("photo$it") }
+    vm.onRemovePhoto(0)
+    deleted.clear()
+
+    store.clear()
+
+    assertEquals(listOf("photo1", "photo2"), deleted)
+  }
+
+  @Test
+  fun clearingTheViewModelWithoutPhotosDeletesNothing() {
+    val store = ViewModelStore()
+    recordingViewModel(store)
+
+    store.clear()
+
+    assertTrue(deleted.isEmpty())
   }
 
   @Test

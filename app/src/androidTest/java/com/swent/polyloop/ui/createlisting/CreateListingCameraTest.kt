@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -169,8 +170,11 @@ class CreateListingCameraTest {
     var file: File? = null
     var onSaved: () -> Unit = {}
     var onError: () -> Unit = {}
+    var captures = 0
 
     fun capture(file: File, onSaved: () -> Unit, onError: () -> Unit) {
+      captures++
+      file.writeText("jpeg")
       this.file = file
       this.onSaved = onSaved
       this.onError = onError
@@ -223,6 +227,29 @@ class CreateListingCameraTest {
   }
 
   @Test
+  fun twoTapsBeforeTheNextRecompositionTakeOnlyOnePhoto() {
+    val fake = FakeCapture()
+    val taken = mutableListOf<String>()
+    setCameraContent(fake, onPhotoTaken = { taken.add(it) })
+    val shutterClick =
+        node(C.Tag.create_listing_camera_shutter)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+
+    // Both taps run in one UI-thread block, so the shutter cannot be disabled in between.
+    composeTestRule.runOnUiThread {
+      shutterClick()
+      shutterClick()
+    }
+    composeTestRule.runOnIdle { fake.onSaved() }
+
+    composeTestRule.waitForIdle()
+    assertEquals(1, fake.captures)
+    assertEquals(1, taken.size)
+  }
+
+  @Test
   fun failedCaptureShowsTheErrorAndKeepsTheCameraOpen() {
     val fake = FakeCapture()
     var closed = false
@@ -231,8 +258,10 @@ class CreateListingCameraTest {
     node(C.Tag.create_listing_camera_error).assertDoesNotExist()
 
     node(C.Tag.create_listing_camera_shutter).performClick()
+    assertTrue(fake.file!!.exists())
     composeTestRule.runOnIdle { fake.onError() }
 
+    assertFalse(fake.file!!.exists())
     node(C.Tag.create_listing_camera_error).assertIsDisplayed()
     node(C.Tag.create_listing_camera).assertIsDisplayed()
     node(C.Tag.create_listing_camera_shutter).assertIsEnabled()

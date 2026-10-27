@@ -3,6 +3,8 @@
 package com.swent.polyloop.ui.createlisting
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.ListingAddresses
@@ -43,6 +45,7 @@ class CreateListingViewModelPublishTest {
   private lateinit var listingRepository: FakeListingRepository
   private lateinit var authRepository: FakeAuthRepository
   private lateinit var viewModel: CreateListingViewModel
+  private val deleted = mutableListOf<String>()
 
   private val state: CreateListingUiState
     get() = viewModel.uiState.value
@@ -52,7 +55,7 @@ class CreateListingViewModelPublishTest {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     listingRepository = FakeListingRepository()
     authRepository = FakeAuthRepository(signedInUser = me)
-    viewModel = CreateListingViewModel(listingRepository, authRepository)
+    viewModel = CreateListingViewModel(listingRepository, authRepository, { deleted += it })
   }
 
   @After
@@ -60,16 +63,89 @@ class CreateListingViewModelPublishTest {
     Dispatchers.resetMain()
   }
 
-  private fun fillForm() {
-    viewModel.onTitleChange("  Camping tent  ")
-    viewModel.onDescriptionChange("  Light tent.  ")
-    viewModel.onCategoryChange(ListingCategory.SPORTS_OUTDOOR)
-    viewModel.onPricePerDayChange("15")
-    viewModel.onItemValueChange("180")
-    viewModel.selectDates(from, to)
-    viewModel.onPickupAddressChange("Route Cantonale 1, Ecublens")
-    viewModel.onDropOffAddressChange("Avenue Piccard 2, Lausanne")
-    repeat(3) { viewModel.onPhotoTaken("file:///photo$it.jpg") }
+  private fun fillForm(vm: CreateListingViewModel = viewModel) {
+    vm.onTitleChange("  Camping tent  ")
+    vm.onDescriptionChange("  Light tent.  ")
+    vm.onCategoryChange(ListingCategory.SPORTS_OUTDOOR)
+    vm.onPricePerDayChange("15")
+    vm.onItemValueChange("180")
+    vm.selectDates(from, to)
+    vm.onPickupAddressChange("Route Cantonale 1, Ecublens")
+    vm.onDropOffAddressChange("Avenue Piccard 2, Lausanne")
+    repeat(3) { vm.onPhotoTaken("file:///photo$it.jpg") }
+  }
+
+  private val photos = List(3) { "file:///photo$it.jpg" }
+
+  /** A ViewModel held by [store], so the test can clear it like the navigation does. */
+  private fun storedViewModel(store: ViewModelStore): CreateListingViewModel =
+      ViewModelProvider(
+          store,
+          object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                CreateListingViewModel(listingRepository, authRepository, { deleted += it }) as T
+          },
+      )[CreateListingViewModel::class.java]
+
+  @Test
+  fun publishDeletesThePhotosOnlyAfterTheUploadSucceeded() {
+    fillForm()
+    val gate = CompletableDeferred<Unit>()
+    listingRepository.gate = gate
+
+    viewModel.onPublish()
+    assertTrue(deleted.isEmpty())
+    gate.complete(Unit)
+
+    assertEquals(photos, deleted)
+  }
+
+  @Test
+  fun publishFailureKeepsThePhotosSoTheUserCanRetry() {
+    fillForm()
+    listingRepository.failure = IOException("No connection")
+
+    viewModel.onPublish()
+
+    assertTrue(deleted.isEmpty())
+    assertEquals(photos, state.photos)
+  }
+
+  @Test
+  fun clearingAfterAPublishDeletesNothingMore() {
+    val store = ViewModelStore()
+    val vm = storedViewModel(store)
+    fillForm(vm)
+    vm.onPublish()
+    assertEquals(photos, deleted)
+
+    store.clear()
+
+    assertEquals(photos, deleted)
+  }
+
+  @Test
+  fun clearingAfterAFailedPublishDeletesThePhotos() {
+    val store = ViewModelStore()
+    val vm = storedViewModel(store)
+    fillForm(vm)
+    listingRepository.failure = IOException("No connection")
+    vm.onPublish()
+
+    store.clear()
+
+    assertEquals(photos, deleted)
+  }
+
+  @Test
+  fun clearingWithoutPublishingDeletesThePhotos() {
+    val store = ViewModelStore()
+    fillForm(storedViewModel(store))
+
+    store.clear()
+
+    assertEquals(photos, deleted)
   }
 
   @Test
