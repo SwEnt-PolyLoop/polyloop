@@ -106,6 +106,38 @@ class CheckInboxScreenTest {
   }
 
   @Test
+  fun bodySaysHowLongTheLinkStaysValid() {
+    showScreen()
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.auth_check_inbox_body)
+        .assertTextEquals(
+            context.getString(
+                R.string.auth_check_inbox_body,
+                email,
+                AuthViewModel.SIGN_UP_EXPIRY_MINUTES,
+            )
+        )
+  }
+
+  @Test
+  fun deletedAccountSaysTheSignUpExpired() {
+    showScreen()
+    // The server deleted the account after the time limit: its email and password are refused.
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+
+    composeTestRule.onNodeWithTag(C.Tag.auth_verified_button).performClick()
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.auth_error)
+        .assertTextEquals(context.getString(R.string.auth_error_sign_up_expired))
+    composeTestRule.runOnIdle {
+      assertTrue(viewModel.uiState.value.isAwaitingVerification)
+      assertFalse(viewModel.uiState.value.isSignedIn)
+    }
+  }
+
+  @Test
   fun verifiedAccountWithoutNameGoesBackToTheFormForTheNameStep() {
     showScreen()
 

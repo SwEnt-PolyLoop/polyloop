@@ -578,6 +578,7 @@ internal fun AuthError.messageRes(): Int =
       AuthError.VERIFICATION_EMAIL_NOT_SENT -> R.string.auth_error_verification_email_not_sent
       AuthError.NAME_NOT_SAVED -> R.string.auth_error_name_not_saved
       AuthError.PROFILE_NOT_CREATED -> R.string.auth_error_profile_not_created
+      AuthError.SIGN_UP_EXPIRED -> R.string.auth_error_sign_up_expired
     }
 
 /** Preview of the login form backed by an in-memory authentication repository. */
