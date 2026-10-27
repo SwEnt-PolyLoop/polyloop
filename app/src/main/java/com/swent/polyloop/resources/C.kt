@@ -62,6 +62,12 @@ object C {
 
     const val create_listing_photos_counter = "create_listing_photos_counter"
     const val create_listing_photos_hint = "create_listing_photos_hint"
+    const val create_listing_camera_permission_message = "create_listing_camera_permission_message"
+    const val create_listing_camera = "create_listing_camera"
+    const val create_listing_camera_shutter = "create_listing_camera_shutter"
+    const val create_listing_camera_close = "create_listing_camera_close"
+    const val create_listing_camera_count = "create_listing_camera_count"
+    const val create_listing_camera_error = "create_listing_camera_error"
     // Prefix: each photo is tagged create_listing_photo_ + its index
     const val create_listing_photo_ = "create_listing_photo_"
     // Prefix: each photo's remove button is tagged create_listing_remove_photo_ + its index

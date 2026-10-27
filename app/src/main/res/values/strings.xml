@@ -107,6 +107,11 @@
     <string name="create_listing_photo_description">Photo %1$d</string>
     <string name="create_listing_remove_photo">Remove photo %1$d</string>
     <string name="create_listing_add_photo">Add photo</string>
+    <string name="create_listing_camera_permission_denied">Allow the camera for PolyLoop in your phone\'s app settings to take photos.</string>
+    <string name="create_listing_camera_close">Close camera</string>
+    <string name="create_listing_camera_shutter">Take photo</string>
+    <string name="create_listing_camera_count">%1$d / %2$d</string>
+    <string name="create_listing_camera_error">The camera is not available. Close it and try again.</string>
     <plurals name="create_listing_missing_photos">
         <item quantity="one">Add %d more photo to publish.</item>
         <item quantity="other">Add %d more photos to publish.</item>
