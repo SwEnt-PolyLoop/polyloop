@@ -113,13 +113,15 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase. New Firestore repositories use the shared helpers in `model/firestore/FirestoreHelpers.kt` (reading fields, errors, write timeout, listening to a query) instead of copying them; Listing, Profile and Chat will move to them.
 
+Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `firebase-functions` v2, Jest). `src/index.ts` exports every function and sets the region, `europe-west1`, next to the Firestore database (`eur3`). In `functions/`: `npm ci` installs, `npm run lint` type-checks, `npm test` runs the tests, and `firebase deploy --only functions` deploys (needs the Blaze plan). CI runs the install, lint, build and test steps in its own job.
+
 | Area | Choice |
 | --- | --- |
 | Architecture | MVVM without a domain layer: 13 screen ViewModels, each calling the repositories it needs |
 | UI state | Each ViewModel exposes its screen state as a `StateFlow`, collected with `collectAsStateWithLifecycle()`; user actions are method calls (unidirectional data flow) |
 | Navigation | Single activity, Navigation 2 (`navigation-compose`). Navigation 3 is Google's newer option, not adopted for now |
 | Dependency injection | Manual constructor injection: repositories and ViewModels receive their dependencies in the constructor (ViewModels through a `ViewModelProvider.Factory`), so tests can pass fakes. `RepositoryProvider` creates the shared repository instances |
-| Server logic | Cloud Functions are the only writers of rental status, deposits and balances |
+| Server logic | Cloud Functions (TypeScript, in `functions/`, region `europe-west1`) are the only writers of rental status, deposits and balances |
 | Offline cache | Firestore's built-in offline persistence |
 | Upload queue | WorkManager, for offline photos and QR scans |
 | Camera and QR | CameraX for photos; ML Kit code scanner to scan, ZXing to generate QR codes |
@@ -140,7 +142,7 @@ Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoi
 | `users/{uid}` | `name`, `email`, `photoUrl`, `averageRating`, `reviewCount` | Missing fields read as `""` or 0. |
 | `listings/{listingId}` | `ownerId`, `title`, `description`, `category`, `photoUrls`, `pricePerDay`, `itemValue`, `availableFrom`, `availableTo`, `status`, `pickupArea`, `dropOffArea`, `bookedRanges` | Public. `bookedRanges` is a list of `{start, end}` (`YYYY-MM-DD`, both days booked, the buffer days around it not included); missing reads as an empty list. It holds accepted rentals only: a pending request blocks no day. Each range copies the `startDate` and `endDate` of an accepted rental, which stay in `rentals/{rentalId}` to tell who has the item and when; the copy on the listing is public so that anyone can see which days are free without reading other people's rentals. Only Cloud Functions write it; the app never does, so it stays empty until the Function that accepts rentals exists. |
 | `listings/{listingId}/private/addresses` | `pickup`, `dropOff` | Exact addresses, readable only by the owner. |
-| `rentals/{rentalId}` | `listingId`, `listingTitle`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. |
+| `rentals/{rentalId}` | `listingId`, `listingTitle`, `listingPhotoUrl`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. |
 | `rentals/{rentalId}/messages/{messageId}` | `senderId`, `text`, `sentAt`, `type` (`USER` or `SYSTEM`) | One conversation per rental. |
 
 Rentals:
@@ -152,6 +154,15 @@ Rentals:
 - **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants. Until then, the dates are checked against `bookedRanges` only in the app (Listing detail reads them again from the server just before sending), so a client that skips this check is not stopped.
 
 Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, so the Storage rules can check the owner. Photos added before this rule live in `listing_images/` and keep working through their download URLs.
+
+## Security rules
+
+`firestore.rules` and `storage.rules` are listed in `firebase.json`, so the emulators enforce them; `FirestoreRulesTest` and `StorageRulesTest` (in `androidTest/.../rules/`) check them. Every read and write needs a verified `@epfl.ch` account. Beyond the notes in the schema above:
+- A listing must pass the same checks as `Listing.canPublish` (3 to 10 photo URLs, all strings, prices from 1 to 99,999 PP, `availableFrom` before `availableTo`, a known category and status). Clients never write `bookedRanges` (a Cloud Function will, on acceptance) and never change `ownerId`. A listing cannot be created at an id whose `private/addresses` is left over from a deleted listing.
+- A rental request must match its listing, which must be `PUBLISHED`: same owner, title, first photo (`""` if the listing has none), price per day and areas, dates inside the availability window, and `totalPrice` equal to the price per day × the number of days.
+- Profiles: a user creates and edits only their own, with their own email; `averageRating` and `reviewCount` are left to Cloud Functions.
+- Storage: listing photos must be images under 100 MB (a placeholder until the camera sets the photo size). They are uploaded before the listing document exists, so a folder whose listing does not exist yet is open to any verified user; once it exists, only the owner may change it. These rules read Firestore, so the first deploy asks to let Storage read Firestore.
+- Not enforced yet: locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; Storage writes to folders with no listing (any verified user, so made-up and deleted ids too); a limit on the requests one borrower sends for a listing (left to `requestRental`).
 
 ## Not decided yet — ask before implementing
 

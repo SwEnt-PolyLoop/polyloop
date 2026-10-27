@@ -35,6 +35,9 @@ enum class RentalsTab {
  * @property isPickupArea true while [location] is the pickup area, false once it is the drop-off
  *   area.
  * @property showReturnDate true while the item still has to come back, so [returnDate] matters.
+ * @property totalPrice the rental price in PP, reserved from the borrower while it is requested.
+ * @property listingPhotoUrl the listing's first photo; "" for older rentals, and the screen then
+ *   shows a grey box.
  */
 data class RentalRow(
     val rentalId: String,
@@ -46,21 +49,33 @@ data class RentalRow(
     val status: RentalStatus,
     val isPickupArea: Boolean,
     val showReturnDate: Boolean,
+    val totalPrice: Int = 0,
+    val listingPhotoUrl: String = "",
 )
 
 /**
- * State of the My rentals screen. The lists are newest first, except that incoming requests come
- * first in [lending] (docs/SCREENS.md). On an error the last rows are kept. [errorMsg] is non-null
- * when the rentals cannot be loaded (or nobody is signed in); it is blank when there is no message
- * to show, and the screen then shows a generic text.
+ * State of the My rentals screen. [borrowing] and [lendingRequests] are newest first;
+ * [lendingCurrent] puts what needs attention first (overdue, then disputed, frozen and lost, then
+ * active, accepted, finished, and declined or cancelled last), newest first within each group. On
+ * an error the last rows are kept. [errorMsg] is non-null when the rentals cannot be loaded (or
+ * nobody is signed in); it is blank when there is no message to show, and the screen then shows a
+ * generic text.
+ *
+ * @property lendingRequests the pending requests on the user's own listings.
+ * @property lendingCurrent every other rental the user lends.
  */
 data class MyRentalsUiState(
     val selectedTab: RentalsTab = RentalsTab.BORROWING,
     val borrowing: List<RentalRow> = emptyList(),
-    val lending: List<RentalRow> = emptyList(),
+    val lendingRequests: List<RentalRow> = emptyList(),
+    val lendingCurrent: List<RentalRow> = emptyList(),
     val isLoading: Boolean = true,
     val errorMsg: String? = null,
 ) {
+  /** Everything the user lends: the requests, then the current rentals. */
+  val lending: List<RentalRow>
+    get() = lendingRequests + lendingCurrent
+
   /** The rows of the selected tab. */
   val selectedRows: List<RentalRow>
     get() = if (selectedTab == RentalsTab.BORROWING) borrowing else lending
@@ -96,7 +111,13 @@ class MyRentalsViewModel(
     val uid = authRepository.getCurrentUser()?.uid
     if (uid == null) {
       _uiState.update {
-        it.copy(borrowing = emptyList(), lending = emptyList(), isLoading = false, errorMsg = "")
+        it.copy(
+            borrowing = emptyList(),
+            lendingRequests = emptyList(),
+            lendingCurrent = emptyList(),
+            isLoading = false,
+            errorMsg = "",
+        )
       }
       return
     }
@@ -105,15 +126,21 @@ class MyRentalsViewModel(
               rentalRepository.observeRentalsAsBorrower(uid),
               rentalRepository.observeRentalsAsLender(uid),
           ) { borrowed, lent ->
-            val requestsFirst = lent.sortedBy { it.status != RentalStatus.REQUESTED }
-            borrowed.map { it.toRow(uid) } to requestsFirst.map { it.toRow(uid) }
+            // Both lists come newest first, and sortedBy keeps that order within each group.
+            val (requests, current) = lent.partition { it.status == RentalStatus.REQUESTED }
+            Triple(
+                borrowed.map { it.toRow(uid) },
+                requests.map { it.toRow(uid) },
+                current.sortedBy { ATTENTION_ORDER.indexOf(it.status) }.map { it.toRow(uid) },
+            )
           }
           .catch { e -> _uiState.update { it.copy(isLoading = false, errorMsg = e.message ?: "") } }
-          .collect { (borrowing, lending) ->
+          .collect { (borrowing, requests, current) ->
             _uiState.update {
               it.copy(
                   borrowing = borrowing,
-                  lending = lending,
+                  lendingRequests = requests,
+                  lendingCurrent = current,
                   isLoading = false,
                   errorMsg = null,
               )
@@ -136,7 +163,7 @@ class MyRentalsViewModel(
     }
   }
 
-  private companion object {
+  internal companion object {
     /** Statuses in which the item has not been picked up yet: the pickup area is what matters. */
     val BEFORE_PICKUP =
         setOf(
@@ -155,6 +182,21 @@ class MyRentalsViewModel(
             RentalStatus.OVERDUE,
         )
 
+    /** The order of lent rentals other than requests: what needs the lender's attention first. */
+    val ATTENTION_ORDER =
+        listOf(
+            RentalStatus.OVERDUE,
+            RentalStatus.DISPUTED,
+            RentalStatus.FROZEN,
+            RentalStatus.LOST,
+            RentalStatus.ACTIVE,
+            RentalStatus.ACCEPTED,
+            RentalStatus.RETURNED,
+            RentalStatus.CLOSED,
+            RentalStatus.DECLINED,
+            RentalStatus.CANCELLED,
+        )
+
     fun Rental.toRow(uid: String) =
         RentalRow(
             rentalId = id,
@@ -166,6 +208,8 @@ class MyRentalsViewModel(
             status = status,
             isPickupArea = status in BEFORE_PICKUP,
             showReturnDate = status in AWAITING_RETURN,
+            totalPrice = totalPrice,
+            listingPhotoUrl = listingPhotoUrl,
         )
   }
 }

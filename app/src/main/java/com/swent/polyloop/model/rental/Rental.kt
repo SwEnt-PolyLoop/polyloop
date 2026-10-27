@@ -17,6 +17,7 @@ data class Rental(
     val id: String,
     val listingId: String,
     val listingTitle: String,
+    val listingPhotoUrl: String = "", // the listing's first photo, copied from the listing
     val ownerId: String,
     val ownerName:
         String, // "" when the owner's profile has no name; the screen shows a placeholder

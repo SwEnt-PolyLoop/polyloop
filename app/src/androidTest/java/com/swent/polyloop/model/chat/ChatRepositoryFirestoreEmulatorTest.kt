@@ -36,11 +36,8 @@ class ChatRepositoryFirestoreEmulatorTest {
   fun setUp() {
     FirebaseEmulator.connect()
     repository = ChatRepositoryFirestore()
-    runBlocking {
-      // A new account for each test, so data left by earlier runs never matches its queries.
-      val email = "chat-${UUID.randomUUID()}@epfl.ch"
-      uid = Firebase.auth.createUserWithEmailAndPassword(email, PASSWORD).await().user!!.uid
-    }
+    // A new account for each test, so data left by earlier runs never matches its queries.
+    uid = runBlocking { FirebaseEmulator.signUpVerified("chat-${UUID.randomUUID()}@epfl.ch") }
   }
 
   @After
@@ -48,28 +45,28 @@ class ChatRepositoryFirestoreEmulatorTest {
     Firebase.auth.signOut()
   }
 
-  /** Writes a rental document with the fields the chat reads, as `requestRental` will (#94). */
-  private suspend fun createRental(owner: String, borrower: String, lastMessageAt: Long): String {
+  /**
+   * Writes a rental document with the fields the chat reads, as `requestRental` will (#94). As an
+   * admin: the rules let only the borrower create a rental, and only for an existing listing.
+   */
+  private fun createRental(owner: String, borrower: String, lastMessageAt: Long): String {
     val id = "rental-${UUID.randomUUID()}"
-    Firebase.firestore
-        .collection("rentals")
-        .document(id)
-        .set(
-            mapOf(
-                "listingTitle" to "Camping tent",
-                "ownerId" to owner,
-                "ownerName" to "Ana",
-                "borrowerId" to borrower,
-                "borrowerName" to "Ben",
-                "participants" to listOf(owner, borrower),
-                "lastMessage" to "",
-                "lastMessageAt" to Timestamp(lastMessageAt, 0),
-                "status" to "REQUESTED",
-                "startDate" to "2026-10-20",
-                "endDate" to "2026-10-22",
-            )
-        )
-        .await()
+    FirebaseEmulator.createDocumentAsAdmin(
+        "rentals/$id",
+        mapOf(
+            "listingTitle" to "Camping tent",
+            "ownerId" to owner,
+            "ownerName" to "Ana",
+            "borrowerId" to borrower,
+            "borrowerName" to "Ben",
+            "participants" to listOf(owner, borrower),
+            "lastMessage" to "",
+            "lastMessageAt" to Timestamp(lastMessageAt, 0),
+            "status" to "REQUESTED",
+            "startDate" to "2026-10-20",
+            "endDate" to "2026-10-22",
+        ),
+    )
     return id
   }
 
@@ -116,18 +113,11 @@ class ChatRepositoryFirestoreEmulatorTest {
 
     assertTrue(repository.sendMessage(missing, "Hi").isFailure)
 
-    val messages =
-        Firebase.firestore
-            .collection("rentals")
-            .document(missing)
-            .collection("messages")
-            .get()
-            .await()
-    assertTrue(messages.isEmpty)
+    // The rules hide the messages of a missing rental, so check the batch left no rental either.
+    assertEquals(null, repository.getConversation(missing).getOrThrow())
   }
 
   private companion object {
-    const val PASSWORD = "password123"
     const val TIMEOUT_MS = 10_000L
   }
 
