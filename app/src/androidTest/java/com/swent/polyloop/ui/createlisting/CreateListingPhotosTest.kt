@@ -53,6 +53,8 @@ class CreateListingPhotosTest {
           onDismissDatePicker = {},
           onAddPhoto = { addPhotoClicks++ },
           onRemovePhoto = { removedIndexes += it },
+          onPhotoTaken = {},
+          onCloseCamera = {},
           onPublish = {},
       )
     }

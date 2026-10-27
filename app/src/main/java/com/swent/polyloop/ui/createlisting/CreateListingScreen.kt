@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.ListingCategory
@@ -66,6 +68,8 @@ fun CreateListingScreen(
       onDismissDatePicker = viewModel::dismissDatePicker,
       onAddPhoto = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
       onRemovePhoto = viewModel::onRemovePhoto,
+      onPhotoTaken = viewModel::onPhotoTaken,
+      onCloseCamera = viewModel::closeCamera,
       onPublish = viewModel::onPublish,
       modifier = modifier,
       cameraPermissionGranted = cameraPermissionGranted,
@@ -80,8 +84,10 @@ fun CreateListingScreen(
  * [CreateListingUiState.hasAttemptedPublish] is true, while a price or item value that is not a
  * whole number from 1 to Listing.MAX_AMOUNT, and dates in the wrong order or on the same day, show
  * theirs right away. While the date picker is open, its sheet is shown over the form, with [today]
- * as the current date. [cameraPermissionGranted] is the answer to the last camera permission
- * request, null if it was never asked; a refusal shows how to allow the camera.
+ * as the current date. While the camera is open, [PolyLoopCamera] fills the whole screen in a
+ * full-screen dialog, over the form, the Publish bar and the top bar; Back closes it.
+ * [cameraPermissionGranted] is the answer to the last camera permission request, null if it was
+ * never asked; a refusal shows how to allow the camera.
  */
 @Composable
 fun CreateListingContent(
@@ -98,6 +104,8 @@ fun CreateListingContent(
     onDismissDatePicker: () -> Unit,
     onAddPhoto: () -> Unit,
     onRemovePhoto: (index: Int) -> Unit,
+    onPhotoTaken: (uri: String) -> Unit,
+    onCloseCamera: () -> Unit,
     onPublish: () -> Unit,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
@@ -308,6 +316,21 @@ fun CreateListingContent(
           today = today,
       )
     }
+    if (uiState.isCameraOpen) {
+      // Its own window, so the camera covers the whole screen: the Publish bar and the top bar too.
+      // Back dismisses the dialog, which closes the camera.
+      Dialog(
+          onDismissRequest = onCloseCamera,
+          properties =
+              DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+      ) {
+        PolyLoopCamera(
+            photoCount = uiState.photos.size,
+            onPhotoTaken = onPhotoTaken,
+            onClose = onCloseCamera,
+        )
+      }
+    }
   }
 }
 
@@ -380,6 +403,8 @@ private fun CreateListingContentPreview() {
         onDismissDatePicker = {},
         onAddPhoto = {},
         onRemovePhoto = {},
+        onPhotoTaken = {},
+        onCloseCamera = {},
         onPublish = {},
     )
   }
