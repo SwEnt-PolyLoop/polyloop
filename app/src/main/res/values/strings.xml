@@ -103,7 +103,7 @@
     <string name="create_listing_photo_description">Photo %1$d</string>
     <string name="create_listing_remove_photo">Remove photo %1$d</string>
     <string name="create_listing_add_photo">Add photo</string>
-    <string name="create_listing_camera_permission_denied">Photos are taken in the app, so PolyLoop needs the camera. To allow it, open Settings, then Apps, PolyLoop, Permissions, and turn on Camera. Then tap Add photo again.</string>
+    <string name="create_listing_camera_permission_denied">Allow the camera for PolyLoop in your phone\'s app settings to take photos.</string>
     <plurals name="create_listing_missing_photos">
         <item quantity="one">Add %d more photo to publish.</item>
         <item quantity="other">Add %d more photos to publish.</item>

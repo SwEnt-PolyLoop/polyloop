@@ -36,16 +36,24 @@ class CreateListingPhotosTest {
 
   private fun photos(count: Int) = List(count) { "" }
 
-  /** Shows the photos card as the screen will: its flags come from [CreateListingUiState]. */
+  /** Shows the whole form, so the photos card gets its flags from the real screen code. */
   private fun setContent(uiState: CreateListingUiState) {
     composeTestRule.setContent {
-      PhotosCard(
-          photos = uiState.photos,
-          canAddPhoto = uiState.canAddPhoto,
-          missingPhotos = uiState.missingPhotos,
-          showError = uiState.hasAttemptedPublish && !uiState.hasValidPhotoCount,
+      CreateListingContent(
+          uiState = uiState,
+          onTitleChange = {},
+          onDescriptionChange = {},
+          onCategoryChange = {},
+          onPricePerDayChange = {},
+          onItemValueChange = {},
+          onPickupAddressChange = {},
+          onDropOffAddressChange = {},
+          onPickDates = {},
+          onConfirmDates = { _, _ -> },
+          onDismissDatePicker = {},
           onAddPhoto = { addPhotoClicks++ },
           onRemovePhoto = { removedIndexes += it },
+          onPublish = {},
       )
     }
   }

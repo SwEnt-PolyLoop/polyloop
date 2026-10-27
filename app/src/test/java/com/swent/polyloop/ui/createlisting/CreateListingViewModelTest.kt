@@ -6,6 +6,7 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -80,6 +81,15 @@ class CreateListingViewModelTest {
   @Test
   fun openCameraOpensTheCameraAndNothingElse() {
     assertChangeGives(CreateListingUiState(isCameraOpen = true)) { openCamera() }
+  }
+
+  @Test
+  fun openCameraAtMaxPhotosLeavesTheCameraClosed() {
+    addPhotos(Listing.MAX_PHOTOS)
+
+    viewModel.openCamera()
+
+    assertFalse(state.isCameraOpen)
   }
 
   @Test

@@ -136,8 +136,8 @@ class CreateListingViewModel : ViewModel() {
     it.copy(availableFrom = start, availableTo = end, isDatePickerOpen = false)
   }
 
-  /** Opens the in-app camera. */
-  fun openCamera() = _uiState.update { it.copy(isCameraOpen = true) }
+  /** Opens the in-app camera. Ignored once there are [Listing.MAX_PHOTOS] photos. */
+  fun openCamera() = _uiState.update { if (it.canAddPhoto) it.copy(isCameraOpen = true) else it }
 
   /** Closes the in-app camera and keeps the photos already taken. */
   fun closeCamera() = _uiState.update { it.copy(isCameraOpen = false) }
