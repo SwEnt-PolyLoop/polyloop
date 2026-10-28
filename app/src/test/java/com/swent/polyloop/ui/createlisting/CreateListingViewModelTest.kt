@@ -216,29 +216,6 @@ class CreateListingViewModelTest {
   }
 
   @Test
-  fun clearingTheViewModelDeletesTheRemainingPhotos() {
-    val store = ViewModelStore()
-    val vm = recordingViewModel(store)
-    repeat(3) { vm.onPhotoTaken("photo$it") }
-    vm.onRemovePhoto(0)
-    deleted.clear()
-
-    store.clear()
-
-    assertEquals(listOf("photo1", "photo2"), deleted)
-  }
-
-  @Test
-  fun clearingTheViewModelWithoutPhotosDeletesNothing() {
-    val store = ViewModelStore()
-    recordingViewModel(store)
-
-    store.clear()
-
-    assertTrue(deleted.isEmpty())
-  }
-
-  @Test
   fun onPublishSetsHasAttemptedPublishAndKeepsTheFields() {
     viewModel.onTitleChange("Tent")
     viewModel.onPricePerDayChange("15")

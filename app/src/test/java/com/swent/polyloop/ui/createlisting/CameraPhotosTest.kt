@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.createlisting
 
 import android.util.Size
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import com.swent.polyloop.model.listing.Listing
 import java.io.File
@@ -85,21 +86,56 @@ class CameraPhotosTest {
   }
 
   @Test
-  fun photoResolutionSelectorAsksForAbout1080pAndFallsBackToTheClosestSize() {
-    val strategy = photoResolutionSelector().resolutionStrategy
+  fun photoResolutionSelectorAsks1440x1080In4by3AndFallsBackToTheClosestSize() {
+    val selector = photoResolutionSelector()
 
-    assertEquals(Size(1920, 1080), strategy?.boundSize)
+    assertEquals(Size(1440, 1080), selector.resolutionStrategy?.boundSize)
     assertEquals(
         ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER,
-        strategy?.fallbackRule,
+        selector.resolutionStrategy?.fallbackRule,
+    )
+    assertEquals(
+        AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY,
+        selector.aspectRatioStrategy,
     )
   }
 
   @Test
-  fun photoSizeAndQualityConstantsAreTheAgreedValues() {
-    assertEquals(1920, PHOTO_LONG_SIDE_PX)
-    assertEquals(1080, PHOTO_SHORT_SIDE_PX)
-    assertEquals(80, PHOTO_JPEG_QUALITY)
+  fun newPhotoFileDeletesFilesOlderThanADay() {
+    val dir = tempFolder.newFolder(LISTING_PHOTOS_DIR)
+    val now = 10 * STALE_PHOTO_AGE_MS
+    val old = File(dir, "old.jpg").apply { writeText("jpeg") }
+    old.setLastModified(now - STALE_PHOTO_AGE_MS - 1)
+
+    newPhotoFile(dir, nowMillis = now)
+
+    assertFalse(old.exists())
+  }
+
+  @Test
+  fun newPhotoFileKeepsRecentFiles() {
+    val dir = tempFolder.newFolder(LISTING_PHOTOS_DIR)
+    val now = 10 * STALE_PHOTO_AGE_MS
+    val recent = File(dir, "recent.jpg").apply { writeText("jpeg") }
+    recent.setLastModified(now - STALE_PHOTO_AGE_MS + 60_000)
+
+    newPhotoFile(dir, nowMillis = now)
+
+    assertTrue(recent.exists())
+  }
+
+  @Test
+  fun newPhotoFileIsFineWithAnEmptyFolder() {
+    val dir = tempFolder.newFolder(LISTING_PHOTOS_DIR)
+
+    val file = newPhotoFile(dir)
+
+    assertEquals(dir, file.parentFile)
+  }
+
+  @Test
+  fun deleteStalePhotosIgnoresAMissingFolder() {
+    deleteStalePhotos(File(tempFolder.root, "missing"), nowMillis = 10 * STALE_PHOTO_AGE_MS)
   }
 
   @Test
