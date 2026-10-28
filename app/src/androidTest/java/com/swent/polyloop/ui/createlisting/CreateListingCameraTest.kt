@@ -21,6 +21,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import com.swent.polyloop.R
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.resources.C
 import java.io.File
@@ -44,7 +45,7 @@ class CreateListingCameraTest {
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
-  private val viewModel = CreateListingViewModel()
+  private val viewModel = CreateListingViewModel(UnusedListingRepository(), FakeAuthRepository())
 
   private fun setContent() {
     composeTestRule.setContent {

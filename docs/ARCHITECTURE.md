@@ -47,7 +47,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
 | Browse | BrowseViewModel | Listing; Location (distance and map position) |
 | Listing detail | ListingDetailViewModel | Listing (the item and its booked days); Rental (sending the request); Profile (the owner's name and rating); Auth (the borrower sending the request) |
-| Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active) |
+| Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active); Auth (the owner publishing the listing) |
 | My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |
@@ -75,6 +75,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 **Accounts**
 - Only @epfl.ch emails, checked with a regex, plus Firebase email verification. Name asked at sign-up; photo added later in Profile.
+- An account must verify its email within 5 minutes of signing up, or it is deleted, so nobody can block an address by signing up with it (someone else's, or a typo). The Cloud Function `deleteExpiredSignUpsEvery5Minutes` checks every 5 minutes, so an expired account is gone 5 to 10 minutes after sign-up. Unverified accounts cannot write to Firestore or Storage, so only the Auth account is deleted.
 - Admins are identified by a Firebase custom claim.
 
 **Money (PolyPoints)**
@@ -129,7 +130,7 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 | Geocoding | Cloud Function, when a listing is saved |
 | "Near me" | Geohash queries with the GeoFire utilities |
 | LLM | Gemini API, called only from Cloud Functions (dispute proposals, court-ruling reading) |
-| Scheduled jobs | Hourly Cloud Function: 30-day escalation, deadline reminders, late fees, lost items, auto-cancelling rentals blocked by a late return |
+| Scheduled jobs | Every 5 minutes: deleting accounts not verified in time (`deleteExpiredSignUpsEvery5Minutes`). Hourly Cloud Function: 30-day escalation, deadline reminders, late fees, lost items, auto-cancelling rentals blocked by a late return |
 | Notifications | FCM |
 | Admins | Firebase custom claim |
 
@@ -158,7 +159,7 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 ## Security rules
 
 `firestore.rules` and `storage.rules` are listed in `firebase.json`, so the emulators enforce them; `FirestoreRulesTest` and `StorageRulesTest` (in `androidTest/.../rules/`) check them. Every read and write needs a verified `@epfl.ch` account. Beyond the notes in the schema above:
-- A listing must pass the same checks as `Listing.canPublish` (3 to 10 photo URLs, all strings, prices from 1 to 99,999 PP, `availableFrom` before `availableTo`, a known category and status). Clients never write `bookedRanges` (a Cloud Function will, on acceptance) and never change `ownerId`. A listing cannot be created at an id whose `private/addresses` is left over from a deleted listing.
+- A listing must pass the same checks as `Listing.canPublish` (3 to 10 photo URLs, all strings, prices from 1 to 99,999 PP, `availableFrom` before `availableTo`, a known category and status). Clients never write `bookedRanges` (a Cloud Function will, on acceptance) and never change `ownerId`. They create `pickupArea` and `dropOffArea` empty, never write `pickupPoint` or `dropOffPoint`, and never change any of the four afterwards (`geocodeListingAddresses` does). A listing cannot be created at an id whose `private/addresses` is left over from a deleted listing.
 - A rental request must match its listing, which must be `PUBLISHED`: same owner, title, first photo (`""` if the listing has none), price per day and areas, dates inside the availability window, and `totalPrice` equal to the price per day × the number of days.
 - Profiles: a user creates and edits only their own, with their own email; `averageRating` and `reviewCount` are left to Cloud Functions.
 - Storage: listing photos must be images under 100 MB (a placeholder until the camera sets the photo size). They are uploaded before the listing document exists, so a folder whose listing does not exist yet is open to any verified user; once it exists, only the owner may change it. These rules read Firestore, so the first deploy asks to let Storage read Firestore.

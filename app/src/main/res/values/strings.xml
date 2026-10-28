@@ -118,6 +118,7 @@
     <string name="create_listing_category_placeholder">Choose a category</string>
     <string name="create_listing_availability_placeholder">Choose dates</string>
     <string name="create_listing_publish">Publish</string>
+    <string name="create_listing_publish_error">Could not publish the listing. Please try again.</string>
     <string name="create_listing_headline">New listing</string>
     <string name="create_listing_category_label">Category</string>
     <string name="create_listing_category_required">Please choose a category.</string>
@@ -205,8 +206,10 @@
     <string name="auth_error_verification_email_not_sent">Account created, but the verification email could not be sent.</string>
     <string name="auth_error_name_not_saved">Account created, but your name could not be saved.</string>
     <string name="auth_error_profile_not_created">Your profile could not be created. Please log in again.</string>
+    <string name="auth_error_sign_up_expired">This sign-up expired because the email was not verified in time. Go back to the form and sign up again.</string>
     <string name="auth_check_inbox_title">Check your inbox</string>
-    <string name="auth_check_inbox_body">We sent a verification link to %1$s. Open it, then come back here.</string>
+    <!-- The email, then the minutes after sign-up the account has to be verified, e.g. "… to ana@epfl.ch. Verify your email within 5 minutes of creating your account, …" -->
+    <string name="auth_check_inbox_body">We sent a verification link to %1$s. Verify your email within %2$d minutes of creating your account, then come back here. Resending the email does not give you more time.</string>
     <string name="auth_verified">I\'ve verified</string>
     <string name="auth_resend_email">Resend email</string>
     <string name="auth_resend_email_countdown">Resend email (%1$d s)</string>

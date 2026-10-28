@@ -84,17 +84,21 @@ service cloud.firestore {
     match /listings/{listingId} {
       allow read: if isVerifiedEpfl();
 
-      // bookedRanges is written by Cloud Functions only, when a request is accepted. A deleted
-      // listing's id was public, so it cannot be created again while its addresses are left over:
-      // the new owner could read them.
+      // bookedRanges is written by Cloud Functions only, when a request is accepted, and the areas
+      // and points by geocodeListingAddresses: the app creates the area names empty and never
+      // changes them. A deleted listing's id was public, so it cannot be created again while its
+      // addresses are left over: the new owner could read them.
       allow create: if isVerifiedEpfl()
           && request.resource.data.ownerId == request.auth.uid
-          && !request.resource.data.keys().hasAny(['bookedRanges'])
+          && !request.resource.data.keys().hasAny(['bookedRanges', 'pickupPoint', 'dropOffPoint'])
+          && request.resource.data.get('pickupArea', '') == ''
+          && request.resource.data.get('dropOffArea', '') == ''
           && !exists(/databases/$(database)/documents/listings/$(listingId)/private/addresses)
           && isValidListing(request.resource.data);
 
       allow update: if isUser(resource.data.ownerId)
-          && !changedKeys().hasAny(['ownerId', 'bookedRanges'])
+          && !changedKeys().hasAny(['ownerId', 'bookedRanges', 'pickupArea', 'dropOffArea',
+              'pickupPoint', 'dropOffPoint'])
           && isValidListing(request.resource.data);
 
       allow delete: if isUser(resource.data.ownerId);
@@ -104,7 +108,8 @@ service cloud.firestore {
         let required = ['ownerId', 'title', 'description', 'category', 'photoUrls',
             'pricePerDay', 'itemValue', 'availableFrom', 'availableTo', 'status'];
         return listing.keys().hasAll(required)
-            && listing.keys().hasOnly(required.concat(['pickupArea', 'dropOffArea', 'bookedRanges']))
+            && listing.keys().hasOnly(required.concat(['pickupArea', 'dropOffArea', 'pickupPoint',
+                'dropOffPoint', 'bookedRanges']))
             && isNonBlankString(listing.title)
             && isNonBlankString(listing.description)
             && listing.category in ['ELECTRONICS', 'SPORTS_OUTDOOR', 'BOOKS_COURSE_MATERIAL',

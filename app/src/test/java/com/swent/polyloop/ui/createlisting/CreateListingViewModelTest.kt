@@ -2,8 +2,10 @@
 
 package com.swent.polyloop.ui.createlisting
 
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,7 +14,7 @@ import org.junit.Test
 
 class CreateListingViewModelTest {
 
-  private val viewModel = CreateListingViewModel()
+  private val viewModel = CreateListingViewModel(FakeListingRepository(), FakeAuthRepository())
 
   private val state: CreateListingUiState
     get() = viewModel.uiState.value
@@ -29,7 +31,7 @@ class CreateListingViewModelTest {
       expected: CreateListingUiState,
       change: CreateListingViewModel.() -> Unit,
   ) {
-    val vm = CreateListingViewModel()
+    val vm = CreateListingViewModel(FakeListingRepository(), FakeAuthRepository())
     vm.change()
     assertEquals(expected, vm.uiState.value)
   }
