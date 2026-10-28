@@ -151,6 +151,7 @@ fun CreateListingContent(
           canAddPhoto = uiState.canAddPhoto,
           missingPhotos = uiState.missingPhotos,
           showError = attempted && !uiState.hasValidPhotoCount,
+          isPublishing = uiState.isPublishing,
           onAddPhoto = onAddPhoto,
           onRemovePhoto = onRemovePhoto,
       )

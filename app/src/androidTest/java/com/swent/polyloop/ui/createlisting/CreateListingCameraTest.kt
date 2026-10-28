@@ -8,6 +8,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -16,6 +17,9 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.toSize
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -169,8 +173,11 @@ class CreateListingCameraTest {
     var file: File? = null
     var onSaved: () -> Unit = {}
     var onError: () -> Unit = {}
+    var captures = 0
 
     fun capture(file: File, onSaved: () -> Unit, onError: () -> Unit) {
+      captures++
+      file.writeText("jpeg")
       this.file = file
       this.onSaved = onSaved
       this.onError = onError
@@ -209,6 +216,50 @@ class CreateListingCameraTest {
     assertEquals(LISTING_PHOTOS_DIR, fake.file!!.parentFile!!.name)
   }
 
+  /** Takes one photo with the shutter into [vm]; returns its file, written inside `filesDir`. */
+  private fun takePhotoInto(vm: CreateListingViewModel): File {
+    val fake = FakeCapture()
+    setCameraContent(fake, onPhotoTaken = vm::onPhotoTaken)
+    node(C.Tag.create_listing_camera_shutter).performClick()
+    composeTestRule.runOnIdle { fake.onSaved() }
+    composeTestRule.waitForIdle()
+    val file = fake.file!!
+    assertEquals(File(context.filesDir, LISTING_PHOTOS_DIR), file.parentFile)
+    assertEquals(1, vm.uiState.value.photos.size)
+    assertTrue(file.exists())
+    return file
+  }
+
+  @Test
+  fun removingATakenPhotoDeletesItsFile() {
+    val vm = CreateListingViewModel(UnusedListingRepository(), FakeAuthRepository())
+    val file = takePhotoInto(vm)
+
+    vm.onRemovePhoto(0)
+
+    assertFalse(file.exists())
+    assertTrue(vm.uiState.value.photos.isEmpty())
+  }
+
+  @Test
+  fun clearingTheViewModelWithoutPublishingDeletesTheTakenPhotoFile() {
+    val store = ViewModelStore()
+    val vm =
+        ViewModelProvider(
+            store,
+            object : ViewModelProvider.Factory {
+              @Suppress("UNCHECKED_CAST")
+              override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                  CreateListingViewModel(UnusedListingRepository(), FakeAuthRepository()) as T
+            },
+        )[CreateListingViewModel::class.java]
+    val file = takePhotoInto(vm)
+
+    store.clear()
+
+    assertFalse(file.exists())
+  }
+
   @Test
   fun shutterIsDisabledWhileAPhotoIsBeingSaved() {
     val fake = FakeCapture()
@@ -223,6 +274,29 @@ class CreateListingCameraTest {
   }
 
   @Test
+  fun twoTapsBeforeTheNextRecompositionTakeOnlyOnePhoto() {
+    val fake = FakeCapture()
+    val taken = mutableListOf<String>()
+    setCameraContent(fake, onPhotoTaken = { taken.add(it) })
+    val shutterClick =
+        node(C.Tag.create_listing_camera_shutter)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action!!
+
+    // Both taps run in one UI-thread block, so the shutter cannot be disabled in between.
+    composeTestRule.runOnUiThread {
+      shutterClick()
+      shutterClick()
+    }
+    composeTestRule.runOnIdle { fake.onSaved() }
+
+    composeTestRule.waitForIdle()
+    assertEquals(1, fake.captures)
+    assertEquals(1, taken.size)
+  }
+
+  @Test
   fun failedCaptureShowsTheErrorAndKeepsTheCameraOpen() {
     val fake = FakeCapture()
     var closed = false
@@ -231,8 +305,10 @@ class CreateListingCameraTest {
     node(C.Tag.create_listing_camera_error).assertDoesNotExist()
 
     node(C.Tag.create_listing_camera_shutter).performClick()
+    assertTrue(fake.file!!.exists())
     composeTestRule.runOnIdle { fake.onError() }
 
+    assertFalse(fake.file!!.exists())
     node(C.Tag.create_listing_camera_error).assertIsDisplayed()
     node(C.Tag.create_listing_camera).assertIsDisplayed()
     node(C.Tag.create_listing_camera_shutter).assertIsEnabled()

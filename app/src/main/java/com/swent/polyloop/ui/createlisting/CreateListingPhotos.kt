@@ -51,7 +51,16 @@ private val PHOTO_TILE_CORNER = 12.dp
 /**
  * The photo row with a remove button on each photo, the "Add photo" tile while more photos fit, and
  * the number of photos still needed to publish. With [showError] (the user pressed "Publish"
- * without enough photos), that hint is also marked as an error for accessibility.
+ * without enough photos), that hint is also marked as an error for accessibility. While
+ * [isPublishing] the remove buttons and the "Add photo" tile are disabled.
+ *
+ * @param photos the URIs of the photos taken so far, in display order.
+ * @param canAddPhoto whether another photo still fits, which shows the "Add photo" tile.
+ * @param missingPhotos how many more photos are needed to publish; the hint shows when above 0.
+ * @param showError whether the missing-photos hint is also marked as an error.
+ * @param isPublishing whether a publish is running, which disables the remove buttons and the tile.
+ * @param onAddPhoto called when the user taps the "Add photo" tile.
+ * @param onRemovePhoto called with the index of the photo whose remove button was tapped.
  */
 @Composable
 internal fun PhotosCard(
@@ -59,6 +68,7 @@ internal fun PhotosCard(
     canAddPhoto: Boolean,
     missingPhotos: Int,
     showError: Boolean,
+    isPublishing: Boolean,
     onAddPhoto: () -> Unit,
     onRemovePhoto: (index: Int) -> Unit,
 ) {
@@ -92,10 +102,15 @@ internal fun PhotosCard(
           horizontalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         photos.forEachIndexed { index, uri ->
-          PhotoTile(uri = uri, index = index, onRemove = { onRemovePhoto(index) })
+          PhotoTile(
+              uri = uri,
+              index = index,
+              enabled = !isPublishing,
+              onRemove = { onRemovePhoto(index) },
+          )
         }
         if (canAddPhoto) {
-          AddPhotoTile(onClick = onAddPhoto)
+          AddPhotoTile(enabled = !isPublishing, onClick = onAddPhoto)
         }
       }
       if (missingPhotos > 0) {
@@ -146,9 +161,16 @@ internal fun CameraPermissionMessage(permissionGranted: Boolean?, modifier: Modi
   )
 }
 
-/** A square photo with a small remove button in its corner. */
+/**
+ * A square photo with a small remove button in its corner.
+ *
+ * @param uri the photo to show.
+ * @param index the photo's position in the row, starting at 0; used in descriptions and test tags.
+ * @param enabled whether the remove button reacts to taps.
+ * @param onRemove called when the remove button is tapped.
+ */
 @Composable
-private fun PhotoTile(uri: String, index: Int, onRemove: () -> Unit) {
+private fun PhotoTile(uri: String, index: Int, enabled: Boolean, onRemove: () -> Unit) {
   Box(modifier = Modifier.size(PHOTO_TILE_SIZE).clip(RoundedCornerShape(PHOTO_TILE_CORNER))) {
     ListingPhoto(
         url = uri,
@@ -157,6 +179,7 @@ private fun PhotoTile(uri: String, index: Int, onRemove: () -> Unit) {
     )
     Surface(
         onClick = onRemove,
+        enabled = enabled,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
         modifier =
@@ -174,9 +197,14 @@ private fun PhotoTile(uri: String, index: Int, onRemove: () -> Unit) {
   }
 }
 
-/** The dashed "Add photo" tile, which opens the in-app camera. */
+/**
+ * The dashed "Add photo" tile, which opens the in-app camera.
+ *
+ * @param enabled whether the tile reacts to taps.
+ * @param onClick called when the tile is tapped.
+ */
 @Composable
-private fun AddPhotoTile(onClick: () -> Unit) {
+private fun AddPhotoTile(enabled: Boolean, onClick: () -> Unit) {
   val borderColor = MaterialTheme.colorScheme.outline
   val contentColor = MaterialTheme.colorScheme.primary
   Column(
@@ -195,7 +223,7 @@ private fun AddPhotoTile(onClick: () -> Unit) {
                         ),
                 )
               }
-              .clickable(onClick = onClick)
+              .clickable(enabled = enabled, onClick = onClick)
               .testTag(C.Tag.create_listing_add_photo),
       verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
       horizontalAlignment = Alignment.CenterHorizontally,
@@ -223,6 +251,7 @@ private fun PhotosCardPreview() {
         canAddPhoto = uiState.canAddPhoto,
         missingPhotos = uiState.missingPhotos,
         showError = false,
+        isPublishing = false,
         onAddPhoto = {},
         onRemovePhoto = {},
     )
