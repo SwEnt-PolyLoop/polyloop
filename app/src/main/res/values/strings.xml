@@ -43,6 +43,7 @@
     <string name="listing_detail_error_fallback">Could not load the listing</string>
     <string name="listing_detail_retry">Retry</string>
     <string name="listing_detail_not_found">This listing is no longer available.</string>
+    <string name="listing_detail_dates_taken">These dates are no longer available. Pick other dates.</string>
 
     <!-- Profile -->
     <string name="profile_name_placeholder">No name yet</string>

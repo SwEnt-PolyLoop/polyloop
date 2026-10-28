@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.listingdetail
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
@@ -47,6 +48,7 @@ class ListingDetailViewModelTest {
 
   private val oct6 = LocalDate.of(2026, 10, 6)
   private val oct8 = LocalDate.of(2026, 10, 8)
+  private val today = LocalDate.of(2026, 10, 1)
 
   private val me = AuthUser(uid = "me", email = "loca@epfl.ch", name = "Loca")
 
@@ -71,7 +73,14 @@ class ListingDetailViewModelTest {
   }
 
   private fun viewModel(id: String = listing.id) =
-      ListingDetailViewModel(id, repository, rentalRepository, authRepository, profileRepository)
+      ListingDetailViewModel(
+          id,
+          repository,
+          rentalRepository,
+          authRepository,
+          profileRepository,
+          today = { today },
+      )
 
   private fun factory() =
       ListingDetailViewModel.Factory(
@@ -80,6 +89,7 @@ class ListingDetailViewModelTest {
           rentalRepository,
           authRepository,
           profileRepository,
+          today = { today },
       )
 
   /** A view model on the listing, owned by [ownerId], with its date picker open. */
@@ -281,13 +291,16 @@ class ListingDetailViewModelTest {
   }
 
   @Test
-  fun notSignedInSendsNothing() {
+  fun notSignedInSendsNothingAndShowsTheGenericError() {
     authRepository.signedInUser = null
     val vm = openPickerOn()
+    vm.sendRequest(oct6.minusDays(1), oct8) // refused first: shows the dates-taken message
+    assertTrue(vm.uiState.value.datesTaken)
 
     vm.sendRequest(oct6, oct8)
 
     assertEquals("", vm.uiState.value.sendError)
+    assertFalse(vm.uiState.value.datesTaken)
     assertTrue(rentalRepository.rentals.isEmpty())
   }
 
@@ -318,6 +331,132 @@ class ListingDetailViewModelTest {
     vm.onRequestSentHandled()
 
     assertNull(vm.uiState.value.sentRentalId)
+  }
+
+  private val oct10 = LocalDate.of(2026, 10, 10)
+  private val oct11 = LocalDate.of(2026, 10, 11)
+
+  @Test
+  fun bookedRangesOfTheListingAreDisabled() {
+    repository.listings = listOf(listing.copy(bookedRanges = listOf(BookedRange(oct10, oct11))))
+
+    assertEquals(setOf(oct10, oct11), viewModel().uiState.value.disabledDates)
+  }
+
+  @Test
+  fun rangeThePickerWouldRefuseSendsNothing() {
+    repository.listings =
+        listOf(listing.copy(ownerId = "owner", bookedRanges = listOf(BookedRange(oct10, oct11))))
+    val vm = viewModel().also { it.openDatePicker() }
+
+    vm.sendRequest(oct8, oct10) // crosses a booked day
+    vm.sendRequest(oct8, listing.availableTo) // leaves no free day after it
+
+    assertTrue(rentalRepository.rentals.isEmpty())
+  }
+
+  @Test
+  fun datesBookedMeanwhileAreNotSentAndBecomeDisabled() {
+    val vm = openPickerOn()
+    repository.listings =
+        listOf(listing.copy(ownerId = "owner", bookedRanges = listOf(BookedRange(oct6, oct6))))
+
+    vm.sendRequest(oct6, oct8)
+
+    val state = vm.uiState.value
+    assertTrue(rentalRepository.rentals.isEmpty())
+    assertTrue(state.datesTaken)
+    assertEquals(setOf(oct6), state.disabledDates)
+    assertTrue(state.isDatePickerOpen)
+    assertFalse(state.isSending)
+
+    vm.openDatePicker()
+    assertFalse(vm.uiState.value.datesTaken)
+  }
+
+  @Test
+  fun datesTakenThenNewDaysPickedSendsTheRequest() {
+    val vm = openPickerOn()
+    repository.listings =
+        listOf(listing.copy(ownerId = "owner", bookedRanges = listOf(BookedRange(oct6, oct6))))
+    vm.sendRequest(oct6, oct8)
+
+    vm.clearSendError()
+    assertFalse(vm.uiState.value.datesTaken)
+    vm.sendRequest(oct10, oct11)
+
+    val state = vm.uiState.value
+    assertEquals(1, rentalRepository.rentals.size)
+    assertEquals(oct10, rentalRepository.rentals.single().startDate)
+    assertEquals(rentalRepository.rentals.single().id, state.sentRentalId)
+    assertFalse(state.datesTaken)
+    assertNull(state.sendError)
+  }
+
+  @Test
+  fun clearSendErrorClearsAFailedSend() {
+    rentalRepository.failure = IllegalStateException("Network down")
+    val vm = openPickerOn()
+    vm.sendRequest(oct6, oct8)
+    assertEquals("Network down", vm.uiState.value.sendError)
+
+    vm.clearSendError()
+
+    assertNull(vm.uiState.value.sendError)
+  }
+
+  @Test
+  fun failedBookedRangesReadSendsNothingAndShowsTheGenericError() {
+    val vm = openPickerOn()
+    repository.failure =
+        IllegalStateException("Failed to get document because the client is offline")
+
+    vm.sendRequest(oct6, oct8)
+
+    assertTrue(rentalRepository.rentals.isEmpty())
+    assertEquals("", vm.uiState.value.sendError)
+    assertFalse(vm.uiState.value.isSending)
+  }
+
+  @Test
+  fun listingDeletedMeanwhileShowsNotFound() {
+    val vm = openPickerOn()
+    repository.listings = emptyList()
+
+    vm.sendRequest(oct6, oct8)
+
+    val state = vm.uiState.value
+    assertTrue(rentalRepository.rentals.isEmpty())
+    assertTrue(state.listingNotFound)
+    assertNull(state.listing)
+    assertFalse(state.isDatePickerOpen)
+    assertFalse(state.isSending)
+  }
+
+  @Test
+  fun startDayPassedWhilePickingShowsDatesTaken() {
+    repository.listings = listOf(listing.copy(ownerId = "owner"))
+    var now = oct6
+    val vm =
+        ListingDetailViewModel(
+                listing.id,
+                repository,
+                rentalRepository,
+                authRepository,
+                profileRepository,
+                today = { now },
+            )
+            .also { it.openDatePicker() }
+    now = now.plusDays(1)
+    // Any read would now fail and show a send error.
+    repository.failure = IllegalStateException("Network down")
+
+    vm.sendRequest(oct6, oct8)
+
+    assertTrue(rentalRepository.rentals.isEmpty())
+    assertNull(vm.uiState.value.sendError)
+    assertTrue(vm.uiState.value.datesTaken)
+    assertTrue(vm.uiState.value.isDatePickerOpen)
   }
 
   private class OtherViewModel : ViewModel()

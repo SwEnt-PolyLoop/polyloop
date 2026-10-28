@@ -2,6 +2,8 @@
 
 package com.swent.polyloop.ui.components
 
+import com.swent.polyloop.model.listing.BookedRange
+import com.swent.polyloop.model.listing.bookedDays
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
@@ -30,9 +32,14 @@ class DateRangeSelectionTest {
       }
 
   @Test
-  fun bufferDayFollowsEachBookedStretch() {
-    assertEquals(setOf(oct(9)), bufferDays(setOf(oct(6), oct(7), oct(8))))
-    assertEquals(setOf(oct(12), oct(21)), bufferDays(setOf(oct(10), oct(11), oct(20))))
+  fun bufferDaysSurroundEachBookedStretch() {
+    assertEquals(setOf(oct(5), oct(9)), bufferDays(setOf(oct(6), oct(7), oct(8))))
+    assertEquals(
+        setOf(oct(9), oct(12), oct(19), oct(21)),
+        bufferDays(setOf(oct(10), oct(11), oct(20))),
+    )
+    // One free day between two bookings is the buffer of both.
+    assertEquals(setOf(oct(1), oct(3), oct(5)), bufferDays(setOf(oct(2), oct(4))))
     assertEquals(emptySet<LocalDate>(), bufferDays(emptySet()))
   }
 
@@ -43,12 +50,13 @@ class DateRangeSelectionTest {
     assertFalse(isSelectable(oct(21), window, booked, today))
     assertFalse(isSelectable(oct(2), window, booked, today = oct(3)))
     assertFalse(isSelectable(oct(7), window, booked, today))
+    assertFalse(isSelectable(oct(5), window, booked, today))
     assertFalse(isSelectable(oct(9), window, booked, today))
   }
 
   @Test
   fun dayInsideWindowIsSelectable() {
-    assertTrue(isSelectable(oct(5), window, booked, today))
+    assertTrue(isSelectable(oct(4), window, booked, today))
     assertTrue(isSelectable(oct(1), window, booked, today))
     assertTrue(isSelectable(oct(10), window, booked, today))
   }
@@ -92,13 +100,6 @@ class DateRangeSelectionTest {
   }
 
   @Test
-  fun endBeforeBookedDayShowsBufferError() {
-    val selection = tap(oct(4), oct(5))
-    assertEquals(DateRangeSelection(start = oct(4), bufferError = true), selection)
-    assertFalse(selection.isComplete)
-  }
-
-  @Test
   fun endWithFreeNextDayIsValid() {
     val selection = tap(oct(3), oct(4))
     assertEquals(DateRangeSelection(start = oct(3), end = oct(4)), selection)
@@ -107,12 +108,17 @@ class DateRangeSelectionTest {
 
   @Test
   fun endOnLastWindowDayShowsBufferError() {
-    assertEquals(DateRangeSelection(start = oct(10), bufferError = true), tap(oct(10), oct(10)))
+    val selection = tap(oct(10), oct(10))
+    assertEquals(DateRangeSelection(start = oct(10), bufferError = true), selection)
+    assertFalse(selection.isComplete)
   }
 
   @Test
   fun bufferErrorClearsOnNextTap() {
-    assertEquals(DateRangeSelection(start = oct(4), end = oct(4)), tap(oct(4), oct(5), oct(4)))
+    assertEquals(
+        DateRangeSelection(start = oct(9), end = oct(9)),
+        tap(oct(9), oct(10), oct(9), disabledDates = emptySet()),
+    )
   }
 
   @Test
@@ -176,6 +182,7 @@ class DateRangeSelectionTest {
     fun kind(day: Int) = selection.kindOf(oct(day), window, booked, today)
     assertEquals(DayKind.UNAVAILABLE, kind(5))
     assertEquals(DayKind.AVAILABLE, kind(6))
+    assertEquals(DayKind.BUFFER, kind(9))
     assertEquals(DayKind.BOOKED, kind(10))
     assertEquals(DayKind.BUFFER, kind(12))
     assertEquals(DayKind.SELECTED, kind(16))
@@ -195,5 +202,46 @@ class DateRangeSelectionTest {
     val window = oct(6)..oct(7)
     assertNull(firstSelectableDay(window, setOf(oct(6), oct(7)), today))
     assertEquals(YearMonth.of(2026, 10), initialMonth(window, setOf(oct(6), oct(7)), today))
+  }
+
+  // The issue's example: window 1–10, a rental books 1–3, so 4 is the buffer day.
+  private fun requestable(start: Int, end: Int, today: LocalDate = this.today) =
+      isRequestable(
+          oct(start),
+          oct(end),
+          window,
+          bookedDays(listOf(BookedRange(oct(1), oct(3)))),
+          today,
+      )
+
+  @Test
+  fun rangeClearOfBookingsAndLeavingAFreeDayIsRequestable() {
+    assertTrue(requestable(5, 9))
+    assertTrue(requestable(5, 5))
+  }
+
+  @Test
+  fun rangeOverlappingABookingOrStartingOnItsBufferDayIsNotRequestable() {
+    assertFalse(requestable(1, 4))
+    assertFalse(requestable(3, 5))
+    assertFalse(requestable(4, 6))
+  }
+
+  @Test
+  fun rangeEndingOnTheLastDayOfTheWindowIsNotRequestable() {
+    assertFalse(requestable(5, 10))
+  }
+
+  @Test
+  fun rangeEndingRightBeforeABookingIsNotRequestable() {
+    // 6–8 is booked, so 5 is its buffer day and a range must end on 4 at the latest.
+    assertFalse(isRequestable(oct(2), oct(5), window, booked, today))
+    assertTrue(isRequestable(oct(2), oct(4), window, booked, today))
+  }
+
+  @Test
+  fun rangeEndingBeforeItStartsOrStartingInThePastIsNotRequestable() {
+    assertFalse(requestable(8, 6))
+    assertFalse(requestable(5, 7, today = oct(6)))
   }
 }

@@ -9,6 +9,7 @@ import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
@@ -94,6 +95,9 @@ class BrowseViewModelTest {
               Result.success(listOf(published, listing("draft", ListingStatus.DRAFT)))
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun getBookedRanges(id: String) =
+              Result.success(emptyList<BookedRange>())
 
           override suspend fun createListing(
               listing: Listing,

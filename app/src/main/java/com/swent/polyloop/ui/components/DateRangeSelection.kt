@@ -51,9 +51,15 @@ internal enum class DayKind {
   SELECTED,
 }
 
-/** The day right after each booked stretch, unless that day is booked too. */
+/**
+ * The days right before and right after each booked stretch, unless they are booked too. The day
+ * before could only end a range with no free day after it, so it is blocked like the day after.
+ */
 fun bufferDays(disabledDates: Set<LocalDate>): Set<LocalDate> =
-    disabledDates.map { it.plusDays(1) }.filterNot { it in disabledDates }.toSet()
+    disabledDates
+        .flatMap { listOf(it.minusDays(1), it.plusDays(1)) }
+        .filterNot { it in disabledDates }
+        .toSet()
 
 /** True for a day inside [window], not before [today], neither booked nor a buffer day. */
 fun isSelectable(
@@ -105,6 +111,23 @@ fun DateRangeSelection.onTap(
   }
   return DateRangeSelection(start = start, end = day)
 }
+
+/**
+ * True if a borrower could pick [start]..[end] in the request picker: tapping [start] then [end]
+ * gives exactly that range. So both days are selectable, [end] is not before [start], no booked or
+ * buffer day lies between them, and the day after [end] is free and inside [window].
+ */
+fun isRequestable(
+    start: LocalDate,
+    end: LocalDate,
+    window: ClosedRange<LocalDate>,
+    disabledDates: Set<LocalDate>,
+    today: LocalDate,
+): Boolean =
+    DateRangeSelection()
+        .onTap(start, window, disabledDates, today, requireBufferDay = true)
+        .onTap(end, window, disabledDates, today, requireBufferDay = true) ==
+        DateRangeSelection(start = start, end = end)
 
 /** The first day that can be picked, or null if there is none. */
 internal fun firstSelectableDay(

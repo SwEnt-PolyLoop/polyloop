@@ -6,10 +6,13 @@ import android.net.Uri
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseException
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.model.RepositoryProvider
+import com.swent.polyloop.model.firestore.isValidDocumentId
+import com.swent.polyloop.model.firestore.withFirebaseErrors
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -48,6 +51,14 @@ class ListingRepositoryFirestore(
       Result.success(doc.data?.let { listingFromDocument(id, it) })
     } catch (e: FirebaseException) {
       Result.failure(e)
+    }
+  }
+
+  override suspend fun getBookedRanges(id: String): Result<List<BookedRange>?> {
+    if (!isValidDocumentId(id)) return Result.success(null)
+    return withFirebaseErrors {
+      val doc = db.collection(ListingFields.COLLECTION).document(id).get(Source.SERVER).await()
+      Result.success(doc.data?.let(::publishedBookedRangesOrNull))
     }
   }
 

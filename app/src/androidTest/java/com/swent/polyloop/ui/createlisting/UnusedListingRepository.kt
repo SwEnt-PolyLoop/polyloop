@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.createlisting
 
 import android.net.Uri
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingRepository
@@ -25,5 +26,8 @@ class UnusedListingRepository : ListingRepository {
   ): Result<String> = error("Not used in this test")
 
   override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+      error("Not used in this test")
+
+  override suspend fun getBookedRanges(id: String): Result<List<BookedRange>?> =
       error("Not used in this test")
 }

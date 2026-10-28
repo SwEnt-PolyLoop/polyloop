@@ -11,6 +11,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.Source
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -195,6 +196,107 @@ class ListingRepositoryFirestoreTest {
     assertEquals(
         expectedListing("draft1").copy(status = ListingStatus.DRAFT),
         result.getOrThrow(),
+    )
+  }
+
+  private fun range(start: String, end: String) =
+      mapOf(ListingFields.RANGE_START to start, ListingFields.RANGE_END to end)
+
+  @Test
+  fun getListingReadsBookedRanges() = runTest {
+    val ranges = listOf(range("2026-10-06", "2026-10-08"), range("2026-10-12", "2026-10-12"))
+    stubDocument("listing1", validData + (ListingFields.BOOKED_RANGES to ranges))
+
+    val result = repository.getListing("listing1")
+
+    assertEquals(
+        listOf(
+            BookedRange(LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 8)),
+            BookedRange(LocalDate.of(2026, 10, 12), LocalDate.of(2026, 10, 12)),
+        ),
+        result.getOrThrow()?.bookedRanges,
+    )
+  }
+
+  @Test
+  fun getListingSkipsMalformedBookedRangesAndKeepsTheListing() = runTest {
+    val ranges =
+        listOf(
+            range("2026-10-06", "2026-10-08"),
+            range("hello", "2026-10-08"), // malformed date
+            range("2026-10-10", "2026-10-09"), // ends before it starts
+            mapOf(ListingFields.RANGE_START to "2026-10-12"), // no end
+            "2026-10-14", // not a map
+        )
+    stubDocument("listing1", validData + (ListingFields.BOOKED_RANGES to ranges))
+
+    val result = repository.getListing("listing1")
+
+    assertEquals(
+        listOf(BookedRange(LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 8))),
+        result.getOrThrow()?.bookedRanges,
+    )
+  }
+
+  @Test
+  fun getBookedRangesReadsTheServerNotTheCache() = runTest {
+    val ranges = listOf(range("2026-10-06", "2026-10-08"))
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns
+        Tasks.forResult(document("listing1", validData + (ListingFields.BOOKED_RANGES to ranges)))
+
+    val result = repository.getBookedRanges("listing1")
+
+    assertEquals(
+        listOf(BookedRange(LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 8))),
+        result.getOrThrow(),
+    )
+  }
+
+  @Test
+  fun getBookedRangesReturnsFailureOnFirestoreError() = runTest {
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns Tasks.forException(firestoreError)
+
+    assertSame(firestoreError, repository.getBookedRanges("listing1").exceptionOrNull())
+  }
+
+  @Test
+  fun getBookedRangesReturnsFailureWhenFirebaseCancelsTheRead() = runTest {
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns Tasks.forCanceled()
+
+    assertTrue(repository.getBookedRanges("listing1").isFailure)
+  }
+
+  @Test
+  fun getBookedRangesIsNullForMissingListingOrInvalidId() = runTest {
+    every { collection.document("missing") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns Tasks.forResult(document("missing", null))
+
+    assertNull(repository.getBookedRanges("missing").getOrThrow())
+    assertNull(repository.getBookedRanges("listings/listing1").getOrThrow())
+  }
+
+  @Test
+  fun getBookedRangesIsNullForDraftListing() = runTest {
+    val draft = validData + (ListingFields.STATUS to "DRAFT")
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns Tasks.forResult(document("listing1", draft))
+
+    assertNull(repository.getBookedRanges("listing1").getOrThrow())
+  }
+
+  @Test
+  fun getBookedRangesIgnoresOtherMalformedFields() = runTest {
+    val ranges = listOf(range("2026-10-06", "2026-10-08"))
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get(Source.SERVER) } returns
+        Tasks.forResult(document("listing1", brokenData + (ListingFields.BOOKED_RANGES to ranges)))
+
+    assertEquals(
+        listOf(BookedRange(LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 8))),
+        repository.getBookedRanges("listing1").getOrThrow(),
     )
   }
 
