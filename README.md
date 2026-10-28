@@ -24,7 +24,7 @@ PolyLoop turns every campus into a shared closet.
 Tests that need Firebase run against the **Firebase Emulator Suite**, a local, in-memory copy of Auth, Firestore and Cloud Storage. They never touch the real project, and all data is wiped when the emulators stop.
 
 1. Install the Firebase CLI once: `npm install -g firebase-tools` (the Firestore emulator needs Java 21+).
-2. Start the emulators from the repo root: `firebase emulators:start`. This starts all three, including Storage. Ports are in `firebase.json`: Auth 9099, Firestore 8080, Storage 9199.
+2. Start the emulators from the repo root: `firebase emulators:start --only auth,firestore,storage`. Ports are in `firebase.json`: Auth 9099, Firestore 8080, Storage 9199. Without `--only`, the Functions emulator starts too, and once `functions/` is built it runs `geocodeListingAddresses` on the test listings; the app's tests don't need it.
 3. Open the Emulator UI at http://localhost:4000 to see the test users, documents and uploaded files.
 4. With an Android emulator running, run the instrumented tests: `./gradlew connectedCheck`.
 
@@ -37,3 +37,9 @@ Rules for tests:
 - The Firestore emulator currently allows all reads and writes, because there are no Security Rules yet (#34).
 - The Storage emulator uses `storage.rules`, a placeholder that lets any signed-in user with a verified @epfl.ch email read and write, so a test must sign in with a verified account (see `FirebaseEmulator.verifyEmail`) before it uploads. The real rules come with #34.
 - The emulators are reached at `10.0.2.2`, which only works from the Android emulator, not from a physical phone.
+
+## Cloud Functions
+
+The server code is in `functions/` (see "Technical choices" in `docs/ARCHITECTURE.md`). From `functions/`, `npm ci` installs it and `firebase emulators:exec --only firestore "npm test"` runs its tests, as CI does. Tests that read and write Firestore refuse to run without the emulator, so they never touch the real project, and the Geocoding API is faked, so no key is needed.
+
+Before the first deploy of `geocodeListingAddresses`, once, in the project's Google Cloud console: enable the **Geocoding API**, create an API key restricted to it, and set a budget alert on the billing account. Then store the key with `firebase functions:secrets:set GEOCODING_API_KEY` and deploy with `firebase deploy --only functions`.
