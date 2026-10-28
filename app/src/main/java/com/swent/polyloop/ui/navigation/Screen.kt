@@ -31,7 +31,9 @@ sealed class Screen(val route: String) {
   /** The signed-in user's own profile. */
   data object Profile : TopLevel("profile", R.string.menu_profile)
 
-  /** The signed-in user's own profile, edited; opened from "Edit profile" on their profile. */
+  /**
+   * Edit profile, where the signed-in user changes their name and photo; opened from their profile.
+   */
   data object EditProfile : Screen("edit_profile")
 
   data object AdminCourtRuling : TopLevel("admin_court_ruling", R.string.menu_admin_court_ruling)

@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.profile
 
 import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -80,7 +81,8 @@ fun EditProfileScreen(
  * photo, once taken, replaces the saved one in the avatar. While the camera is open, it fills the
  * whole screen in a full-screen dialog, like in Create listing; Back closes it.
  * [cameraPermissionGranted] is the answer to the last camera permission request, null if it was
- * never asked; a refusal shows how to allow the camera.
+ * never asked; a refusal shows how to allow the camera. Back does nothing while saving, so a save
+ * is never cut off halfway (the photo uploaded but not yet saved in the profile).
  */
 @Composable
 fun EditProfileContent(
@@ -96,6 +98,7 @@ fun EditProfileContent(
     cameraPermissionGranted: Boolean? = null,
 ) {
   LaunchedEffect(uiState.isSaved) { if (uiState.isSaved) onSaved() }
+  BackHandler(enabled = uiState.isSaving) {}
   Box(
       modifier =
           modifier

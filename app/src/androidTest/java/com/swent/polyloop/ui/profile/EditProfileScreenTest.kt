@@ -4,12 +4,17 @@ package com.swent.polyloop.ui.profile
 
 import android.Manifest
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -26,9 +31,11 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.io.File
 import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -63,9 +70,12 @@ class EditProfileScreenTest {
     files.forEach { it.delete() }
   }
 
+  private lateinit var backDispatcher: OnBackPressedDispatcher
+
   /** Shows the screen backed by the real ViewModel. */
   private fun showScreen() {
     composeTestRule.setContent {
+      backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
       PolyLoopTheme { EditProfileScreen(viewModel = viewModel, onSaved = { savedCalls++ }) }
     }
   }
@@ -91,11 +101,12 @@ class EditProfileScreenTest {
 
   private val loaded = EditProfileUiState(name = "John", isLoading = false)
 
-  /** A real JPEG in the cache, like a photo from the in-app camera, as a file Uri. */
-  private fun photoFile(): String {
+  /** A real JPEG in the cache filled with [color], like a photo from the camera, as a file Uri. */
+  private fun photoFile(color: Int = Color.RED): String {
     val file = File(context.cacheDir, "edit-profile-${UUID.randomUUID()}.jpg")
     file.outputStream().use {
       Bitmap.createBitmap(40, 30, Bitmap.Config.ARGB_8888)
+          .apply { eraseColor(color) }
           .compress(Bitmap.CompressFormat.JPEG, 80, it)
     }
     files += file
@@ -184,6 +195,26 @@ class EditProfileScreenTest {
   }
 
   @Test
+  fun backDoesNothingWhileSaving() {
+    showScreen()
+    val gate = CompletableDeferred<Unit>()
+    profiles.gate = gate
+    try {
+      node(C.Tag.edit_profile_save_button).performClick()
+      node(C.Tag.edit_profile_saving).assertIsDisplayed()
+
+      // Through the dispatcher, as in CheckInboxScreenTest: Espresso.pressBack() waits for focus.
+      composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+
+      node(C.Tag.edit_profile_screen).assertIsDisplayed()
+      composeTestRule.runOnIdle { assertTrue(viewModel.uiState.value.isSaving) }
+    } finally {
+      gate.complete(Unit)
+    }
+    composeTestRule.runOnIdle { assertEquals(1, savedCalls) }
+  }
+
+  @Test
   fun whileSavingTheFormIsDisabledAndShowsASpinner() {
     showContent(loaded.copy(isSaving = true))
 
@@ -214,11 +245,14 @@ class EditProfileScreenTest {
 
   @Test
   fun theNewPhotoReplacesTheSavedOneInTheAvatar() {
-    showContent(loaded.copy(photoUrl = "", newPhotoUri = photoFile()))
-    composeTestRule.waitForIdle()
+    showContent(loaded.copy(photoUrl = photoFile(Color.BLUE), newPhotoUri = photoFile(Color.RED)))
 
-    node(C.Tag.profile_avatar_photo).assertIsDisplayed()
-    node(C.Tag.profile_avatar).assertDoesNotExist()
+    // The centre of the avatar turns red (the new photo), never staying blue (the saved one).
+    composeTestRule.waitUntil(5_000) {
+      val image = node(C.Tag.profile_avatar_photo).captureToImage().asAndroidBitmap()
+      val pixel = image.getPixel(image.width / 2, image.height / 2)
+      Color.red(pixel) > 200 && Color.blue(pixel) < 80
+    }
   }
 
   @Test

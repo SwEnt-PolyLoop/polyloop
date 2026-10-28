@@ -180,10 +180,10 @@ fun PolyLoopApp(
                     )
             )
         // Back to the profile, which follows the repository live and so shows the new name and
-        // photo.
+        // photo. Pops Edit profile by its route, so a second call cannot also pop the profile.
         EditProfileScreen(
             viewModel = editProfileViewModel,
-            onSaved = { navController.popBackStack() },
+            onSaved = { navController.popBackStack(Screen.EditProfile.route, inclusive = true) },
         )
       }
       composable(Screen.AdminCourtRuling.route) { DummyScreen(Screen.AdminCourtRuling.route) }
