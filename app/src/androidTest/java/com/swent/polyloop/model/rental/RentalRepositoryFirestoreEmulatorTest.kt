@@ -157,6 +157,49 @@ class RentalRepositoryFirestoreEmulatorTest {
     runBlocking { assertNull(repository.getRental("missing-${UUID.randomUUID()}").getOrThrow()) }
   }
 
+  // Needs the owner to be allowed to set the status and addresses, which the rules do not allow
+  // yet (issue #180): these tests fail until the rules change.
+  @Test
+  fun acceptRentalStoresStatusAndTrimmedAddresses() {
+    runBlocking {
+      val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+      Firebase.auth.signInWithEmailAndPassword(ownerEmail, PASSWORD).await()
+
+      val accepted =
+          repository
+              .acceptRental(rental.id, pickupAddress = " EPFL, Lausanne ", returnAddress = "Renens")
+              .getOrThrow()
+
+      assertEquals(RentalStatus.ACCEPTED, accepted.status)
+      assertEquals("EPFL, Lausanne", accepted.pickupAddress)
+      assertEquals(accepted, repository.getRental(rental.id).getOrThrow())
+    }
+  }
+
+  @Test
+  fun declineRentalStoresDeclinedStatus() {
+    runBlocking {
+      val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+      Firebase.auth.signInWithEmailAndPassword(ownerEmail, PASSWORD).await()
+
+      val declined = repository.declineRental(rental.id).getOrThrow()
+
+      assertEquals(RentalStatus.DECLINED, declined.status)
+      assertEquals(declined, repository.getRental(rental.id).getOrThrow())
+    }
+  }
+
+  @Test
+  fun acceptRentalFailsForAMissingRental() {
+    runBlocking {
+      Firebase.auth.signInWithEmailAndPassword(ownerEmail, PASSWORD).await()
+
+      assertTrue(
+          repository.acceptRental("missing-${UUID.randomUUID()}", "EPFL", "Renens").isFailure
+      )
+    }
+  }
+
   private companion object {
     const val PASSWORD = "password123"
     const val TIMEOUT_MS = 10_000L

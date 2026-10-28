@@ -247,4 +247,17 @@
     <string name="chat_system_message">%1$s · %2$s</string>
     <string name="chat_send_failed">Message not sent. Press send to try again.</string>
 
+    <string name="rental_detail_error_fallback">Could not load this rental</string>
+    <string name="rental_detail_retry">Retry</string>
+    <string name="rental_detail_no_action">There is nothing to answer for this rental.</string>
+    <string name="rental_detail_title">Review request</string>
+    <string name="rental_detail_dates">%1$s – %2$s</string>
+    <string name="rental_detail_price">%1$d PP for %2$d days</string>
+    <string name="rental_detail_pickup_label">Pickup address</string>
+    <string name="rental_detail_return_label">Drop-off address</string>
+    <string name="rental_detail_deposit_label">Agreed deposit (PP)</string>
+    <string name="rental_detail_accept">Accept</string>
+    <string name="rental_detail_decline">Decline</string>
+    <string name="rental_detail_answer_error_fallback">Could not save your answer</string>
+
 </resources>

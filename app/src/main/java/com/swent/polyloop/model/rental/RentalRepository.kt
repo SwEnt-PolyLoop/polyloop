@@ -46,4 +46,21 @@ interface RentalRepository {
    * cannot be read.
    */
   suspend fun getRental(id: String): Result<Rental?>
+
+  /**
+   * The lender accepts the [RentalStatus.REQUESTED] rental [id], with the exact [pickupAddress] and
+   * [returnAddress], and returns it with status [RentalStatus.ACCEPTED]. Fails if the rental is not
+   * requested any more, or with the cause if it cannot be written.
+   *
+   * Temporary: the app writes the status itself, like [requestRental]. Declining the other
+   * overlapping requests and booking the dates on the listing are not done here yet.
+   */
+  suspend fun acceptRental(id: String, pickupAddress: String, returnAddress: String): Result<Rental>
+
+  /**
+   * The lender declines the [RentalStatus.REQUESTED] rental [id] and returns it with status
+   * [RentalStatus.DECLINED]. Fails if the rental is not requested any more, or with the cause if it
+   * cannot be written.
+   */
+  suspend fun declineRental(id: String): Result<Rental>
 }

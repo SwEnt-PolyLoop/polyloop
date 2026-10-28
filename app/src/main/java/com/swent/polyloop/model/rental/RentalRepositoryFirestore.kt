@@ -65,6 +65,65 @@ class RentalRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fir
     return withFirebaseErrors { Result.success(readRental(rentals.document(id))) }
   }
 
+  override suspend fun acceptRental(
+      id: String,
+      pickupAddress: String,
+      returnAddress: String,
+  ): Result<Rental> {
+    val pickup = pickupAddress.trim()
+    val returnTo = returnAddress.trim()
+    return answerRequest(
+        id,
+        change = {
+          it.copy(status = RentalStatus.ACCEPTED, pickupAddress = pickup, returnAddress = returnTo)
+        },
+        fields =
+            mapOf(
+                RentalFields.STATUS to RentalStatus.ACCEPTED.name,
+                RentalFields.PICKUP_ADDRESS to pickup,
+                RentalFields.RETURN_ADDRESS to returnTo,
+            ),
+    )
+  }
+
+  override suspend fun declineRental(id: String): Result<Rental> =
+      answerRequest(
+          id,
+          change = { it.copy(status = RentalStatus.DECLINED) },
+          fields = mapOf(RentalFields.STATUS to RentalStatus.DECLINED.name),
+      )
+
+  /**
+   * Writes [fields] to the rental [id] inside a transaction, so the rental is checked to be still
+   * [RentalStatus.REQUESTED] when it is changed. Returns [change] applied to the rental. Needs a
+   * connection: a transaction cannot be queued offline, so the failure is reported instead.
+   */
+  private suspend fun answerRequest(
+      id: String,
+      change: (Rental) -> Rental,
+      fields: Map<String, Any>,
+  ): Result<Rental> {
+    if (!isValidDocumentId(id)) return Result.failure(IllegalArgumentException("Invalid id $id"))
+    return withFirebaseErrors {
+      val document = rentals.document(id)
+      db.runTransaction { transaction ->
+            val rental =
+                toRental(transaction.get(document))
+                    ?: return@runTransaction Result.failure<Rental>(
+                        NoSuchElementException("No rental $id")
+                    )
+            if (rental.status != RentalStatus.REQUESTED) {
+              return@runTransaction Result.failure<Rental>(
+                  IllegalStateException("Rental $id is ${rental.status}, not REQUESTED")
+              )
+            }
+            transaction.update(document, fields)
+            Result.success(change(rental))
+          }
+          .await()
+    }
+  }
+
   /**
    * The rentals whose [field] is [uid], newest first. Sorted here rather than by the query, so no
    * composite index is needed (see "Firestore schema" in docs/ARCHITECTURE.md).

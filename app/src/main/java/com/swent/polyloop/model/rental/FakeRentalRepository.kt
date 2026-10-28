@@ -87,6 +87,42 @@ class FakeRentalRepository(
     return failure?.let { Result.failure(it) } ?: Result.success(stored.value.find { it.id == id })
   }
 
+  override suspend fun acceptRental(
+      id: String,
+      pickupAddress: String,
+      returnAddress: String,
+  ): Result<Rental> =
+      answer(id) { rental ->
+        rental.copy(
+            status = RentalStatus.ACCEPTED,
+            pickupAddress = pickupAddress.trim(),
+            returnAddress = returnAddress.trim(),
+        )
+      }
+
+  override suspend fun declineRental(id: String): Result<Rental> =
+      answer(id) { rental -> rental.copy(status = RentalStatus.DECLINED) }
+
+  /**
+   * Replaces the [RentalStatus.REQUESTED] rental [id] by [change] of it. Fails like the other calls
+   * when [failure] is set, or when the rental is missing or no longer requested.
+   */
+  private suspend fun answer(id: String, change: (Rental) -> Rental): Result<Rental> {
+    gate?.await()
+    failure?.let {
+      return Result.failure(it)
+    }
+    val rental =
+        stored.value.find { it.id == id }
+            ?: return Result.failure(NoSuchElementException("No rental $id"))
+    if (rental.status != RentalStatus.REQUESTED) {
+      return Result.failure(IllegalStateException("Rental $id is ${rental.status}, not REQUESTED"))
+    }
+    val answered = change(rental)
+    stored.update { rentals -> rentals.map { if (it.id == id) answered else it } }
+    return Result.success(answered)
+  }
+
   /** "rental-N" with the smallest N not used yet, so it never clashes with the initial rentals. */
   private fun newId(): String {
     val used = stored.value.map { it.id }.toSet()

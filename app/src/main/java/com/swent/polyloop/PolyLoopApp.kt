@@ -42,6 +42,8 @@ import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.ui.profile.ProfileScreen
 import com.swent.polyloop.ui.profile.ProfileViewModel
+import com.swent.polyloop.ui.rentaldetail.RentalDetailScreen
+import com.swent.polyloop.ui.rentaldetail.RentalDetailViewModel
 
 /**
  * The app's navigation: the top bar and a NavHost holding every route. Screens that are not built
@@ -146,6 +148,7 @@ fun PolyLoopApp(
         MyRentalsScreen(
             viewModel = myRentalsViewModel,
             onRentalClick = { id -> navController.navigate(Screen.RentalDetail.createRoute(id)) },
+            onReviewRequest = { id -> navController.navigate(Screen.RentalDetail.createRoute(id)) },
         )
       }
       composable(Screen.ChatList.route) {
@@ -194,7 +197,20 @@ fun PolyLoopApp(
         DummyScreen(Screen.EditListing.createRoute(entry.stringArg(Screen.ARG_LISTING_ID)))
       }
       composable(Screen.RentalDetail.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
-        DummyScreen(Screen.RentalDetail.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
+        val rentalDetailViewModel: RentalDetailViewModel =
+            viewModel(
+                factory =
+                    RentalDetailViewModel.Factory(
+                        rentalId = entry.stringArg(Screen.ARG_RENTAL_ID),
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        listingRepository = RepositoryProvider.listingRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                    )
+            )
+        RentalDetailScreen(
+            viewModel = rentalDetailViewModel,
+            onAnswered = { navController.popBackStack() },
+        )
       }
       composable(Screen.Chat.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
         val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)

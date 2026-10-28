@@ -209,6 +209,21 @@ object C {
     const val my_rentals_request_ = "my_rentals_request_"
     const val my_rentals_review_request_button = "my_rentals_review_request_button"
 
+    const val rental_detail_screen = "rental_detail_screen"
+    const val rental_detail_loading = "rental_detail_loading"
+    const val rental_detail_error = "rental_detail_error"
+    const val rental_detail_retry_button = "rental_detail_retry_button"
+    const val rental_detail_item_title = "rental_detail_item_title"
+    const val rental_detail_dates = "rental_detail_dates"
+    const val rental_detail_price = "rental_detail_price"
+    const val rental_detail_no_action = "rental_detail_no_action"
+    const val rental_detail_pickup_field = "rental_detail_pickup_field"
+    const val rental_detail_return_field = "rental_detail_return_field"
+    const val rental_detail_deposit_field = "rental_detail_deposit_field"
+    const val rental_detail_accept_button = "rental_detail_accept_button"
+    const val rental_detail_decline_button = "rental_detail_decline_button"
+    const val rental_detail_answer_error = "rental_detail_answer_error"
+
     const val dummy_screen = "dummy_screen"
     const val dummy_screen_text = "dummy_screen_text"
   }
