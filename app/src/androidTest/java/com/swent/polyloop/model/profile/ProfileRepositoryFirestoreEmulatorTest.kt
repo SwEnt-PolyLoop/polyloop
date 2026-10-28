@@ -2,27 +2,35 @@
 
 package com.swent.polyloop.model.profile
 
+import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.storage.storage
 import com.swent.polyloop.utils.FirebaseEmulator
+import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Runs the real [ProfileRepositoryFirestore] against the Firestore emulator (not mocks), so these
- * tests see how Firestore really behaves. Needs `firebase emulators:start`.
+ * Runs the real [ProfileRepositoryFirestore] against the Firestore and Storage emulators (not
+ * mocks), so these tests see how Firebase really behaves. Needs `firebase emulators:start`.
  */
 @RunWith(AndroidJUnit4::class)
 class ProfileRepositoryFirestoreEmulatorTest {
@@ -44,7 +52,19 @@ class ProfileRepositoryFirestoreEmulatorTest {
 
   @After
   fun tearDown() {
+    runBlocking { runCatching { photoRef().delete().await() } }
     Firebase.auth.signOut()
+  }
+
+  private val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+  private fun photoRef() = Firebase.storage.reference.child("users/$uid/profile.jpg")
+
+  /** A small file in the app's cache holding [bytes], as the camera would leave a photo. */
+  private fun photoFile(bytes: ByteArray): String {
+    val file = File(context.cacheDir, "photo-${UUID.randomUUID()}.jpg")
+    file.writeBytes(bytes)
+    return Uri.fromFile(file).toString()
   }
 
   /** Writes a profile document as it is, like the seeded profiles, bypassing the repository. */
@@ -132,7 +152,54 @@ class ProfileRepositoryFirestoreEmulatorTest {
     }
   }
 
+  // ---------- uploadProfilePhoto ----------
+
+  @Test
+  fun uploadProfilePhotoStoresThePhotoUnderTheUserFolder() {
+    runBlocking {
+      val bytes = byteArrayOf(1, 2, 3)
+
+      val url = repository.uploadProfilePhoto(uid, photoFile(bytes)).getOrThrow()
+
+      assertArrayEquals(bytes, photoRef().getBytes(MAX_BYTES).await())
+      assertEquals("image/jpeg", photoRef().metadata.await().contentType)
+      // Download URLs encode the Storage path, "/" included.
+      assertTrue(url.contains("users%2F$uid%2Fprofile.jpg"))
+    }
+  }
+
+  @Test
+  fun uploadProfilePhotoReplacesThePreviousPhoto() {
+    runBlocking {
+      val first = repository.uploadProfilePhoto(uid, photoFile(byteArrayOf(1))).getOrThrow()
+      val second = repository.uploadProfilePhoto(uid, photoFile(byteArrayOf(2, 2))).getOrThrow()
+
+      assertArrayEquals(byteArrayOf(2, 2), photoRef().getBytes(MAX_BYTES).await())
+      // A new token in the URL, so an image cache keyed by URL shows the new photo.
+      assertNotEquals(first, second)
+    }
+  }
+
+  @Test
+  fun uploadProfilePhotoFailsForAMissingFile() {
+    runBlocking {
+      val missing = Uri.fromFile(File(context.cacheDir, "missing-${UUID.randomUUID()}.jpg"))
+
+      assertTrue(repository.uploadProfilePhoto(uid, missing.toString()).isFailure)
+    }
+  }
+
+  @Test
+  fun uploadProfilePhotoFailsForSomeoneElsesFolder() {
+    runBlocking {
+      val result = repository.uploadProfilePhoto("someone-else", photoFile(byteArrayOf(1)))
+
+      assertTrue(result.isFailure)
+    }
+  }
+
   private companion object {
     const val TIMEOUT_MS = 10_000L
+    const val MAX_BYTES = 1024L
   }
 }

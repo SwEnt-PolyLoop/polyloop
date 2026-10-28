@@ -141,7 +141,7 @@ Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoi
 
 | Path | Fields | Notes |
 | --- | --- | --- |
-| `users/{uid}` | `name`, `email`, `photoUrl`, `averageRating`, `reviewCount` | Missing fields read as `""` or 0. |
+| `users/{uid}` | `name`, `email`, `photoUrl`, `averageRating`, `reviewCount` | Missing fields read as `""` or 0. `photoUrl` is the download URL of the profile photo in Storage, or `""` without one. |
 | `listings/{listingId}` | `ownerId`, `title`, `description`, `category`, `photoUrls`, `pricePerDay`, `itemValue`, `availableFrom`, `availableTo`, `status`, `pickupArea`, `dropOffArea`, `bookedRanges` | Public. `bookedRanges` is a list of `{start, end}` (`YYYY-MM-DD`, both days booked, the buffer days around it not included); missing reads as an empty list. It holds accepted rentals only: a pending request blocks no day. Each range copies the `startDate` and `endDate` of an accepted rental, which stay in `rentals/{rentalId}` to tell who has the item and when; the copy on the listing is public so that anyone can see which days are free without reading other people's rentals. Only Cloud Functions write it; the app never does, so it stays empty until the Function that accepts rentals exists. |
 | `listings/{listingId}/private/addresses` | `pickup`, `dropOff` | Exact addresses, readable only by the owner. |
 | `rentals/{rentalId}` | `listingId`, `listingTitle`, `listingPhotoUrl`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. |
@@ -155,7 +155,7 @@ Rentals:
 - `pickupAddress` and `returnAddress` stay empty until the lender accepts; the borrower cannot read the listing's exact addresses before that.
 - **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants. Until then, the dates are checked against `bookedRanges` only in the app (Listing detail reads them again from the server just before sending), so a client that skips this check is not stopped.
 
-Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, so the Storage rules can check the owner. Photos added before this rule live in `listing_images/` and keep working through their download URLs.
+Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, so the Storage rules can check the owner. Photos added before this rule live in `listing_images/` and keep working through their download URLs. A profile photo goes to `users/{uid}/profile.jpg`, one file per user that each new photo replaces; replacing it gives a new download URL, so the new photo is not hidden by an image cache.
 
 ## Security rules
 
@@ -164,7 +164,8 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 - A rental request must match its listing, which must be `PUBLISHED`: same owner, title, first photo (`""` if the listing has none), price per day and areas, dates inside the availability window, and `totalPrice` equal to the price per day × the number of days.
 - Profiles: a user creates and edits only their own, with their own email; `averageRating` and `reviewCount` are left to Cloud Functions.
 - Storage: listing photos must be images under 100 MB (a placeholder until the camera sets the photo size). They are uploaded before the listing document exists, so a folder whose listing does not exist yet is open to any verified user; once it exists, only the owner may change it. These rules read Firestore, so the first deploy asks to let Storage read Firestore.
-- Not enforced yet: locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; Storage writes to folders with no listing (any verified user, so made-up and deleted ids too); a limit on the requests one borrower sends for a listing (left to `requestRental`).
+- Storage: a profile photo can be read by any verified user and changed or deleted only by its user; it must be an image under 5 MB, and no other file is allowed under `users/`. The camera still takes photos at full resolution, which can go over 5 MB on some phones, until it sets the photo size (#224).
+- Not enforced yet: locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; a profile's `photoUrl` pointing at its own photo in Storage; Storage writes to folders with no listing (any verified user, so made-up and deleted ids too); a limit on the requests one borrower sends for a listing (left to `requestRental`).
 
 ## Not decided yet — ask before implementing
 

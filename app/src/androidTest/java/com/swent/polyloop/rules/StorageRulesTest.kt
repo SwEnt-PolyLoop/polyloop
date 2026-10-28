@@ -8,6 +8,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.storage.StorageException
+import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.storage
 import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.utils.FirebaseEmulator
@@ -134,6 +135,86 @@ class StorageRulesTest {
 
         assertDenied { ref.putBytes(bytes, jpeg).await() }
       }
+
+  // ---------- profile photos ----------
+
+  private fun profilePhoto(uid: String = ownerUid, name: String = "profile.jpg") =
+      Firebase.storage.reference.child("users/$uid/$name")
+
+  /** Uploads a sparse file of [size] bytes (it takes no space on the device) to [ref]. */
+  private suspend fun uploadSparseFile(ref: StorageReference, size: Long) {
+    val file = File(context.cacheDir, "big-${UUID.randomUUID()}.jpg")
+    try {
+      RandomAccessFile(file, "rw").use { it.setLength(size) }
+      ref.putFile(Uri.fromFile(file), jpeg).await()
+    } finally {
+      file.delete()
+    }
+  }
+
+  @Test
+  fun aUserUploadsTheirProfilePhotoAndAnyVerifiedUserReadsIt() =
+      runBlocking<Unit> {
+        profilePhoto().putBytes(bytes, jpeg).await()
+
+        FirebaseEmulator.signUpVerified()
+        assertArrayEquals(bytes, profilePhoto().getBytes(MAX_BYTES).await())
+      }
+
+  @Test
+  fun aUserReplacesAndDeletesTheirOwnProfilePhoto() =
+      runBlocking<Unit> {
+        profilePhoto().putBytes(bytes, jpeg).await()
+        val newBytes = byteArrayOf(5, 6, 7)
+
+        profilePhoto().putBytes(newBytes, jpeg).await()
+        assertArrayEquals(newBytes, profilePhoto().getBytes(MAX_BYTES).await())
+
+        profilePhoto().delete().await()
+      }
+
+  @Test
+  fun nobodyElseChangesOrDeletesAProfilePhoto() =
+      runBlocking<Unit> {
+        profilePhoto().putBytes(bytes, jpeg).await()
+
+        FirebaseEmulator.signUpVerified()
+        assertDenied { profilePhoto().putBytes(byteArrayOf(9), jpeg).await() }
+        assertDenied { profilePhoto().delete().await() }
+      }
+
+  @Test
+  fun anUnverifiedUserCannotUploadTheirProfilePhoto() =
+      runBlocking<Unit> {
+        val email = "unverified-${UUID.randomUUID()}@epfl.ch"
+        val uid = Firebase.auth.createUserWithEmailAndPassword(email, PASSWORD).await().user!!.uid
+
+        assertDenied { profilePhoto(uid).putBytes(bytes, jpeg).await() }
+      }
+
+  @Test
+  fun onlyTheFileProfileJpgIsAcceptedInAUserFolder() =
+      runBlocking<Unit> {
+        assertDenied { profilePhoto(name = "other.jpg").putBytes(bytes, jpeg).await() }
+      }
+
+  @Test
+  fun profilePhotosMustBeImages() =
+      runBlocking<Unit> {
+        assertDenied {
+          profilePhoto()
+              .putBytes(bytes, storageMetadata { contentType = "application/pdf" })
+              .await()
+        }
+      }
+
+  @Test
+  fun profilePhotosJustUnder5MbAreAccepted() =
+      runBlocking<Unit> { uploadSparseFile(profilePhoto(), 5L * 1024 * 1024 - 1) }
+
+  @Test
+  fun profilePhotosOf5MbOrMoreAreRefused() =
+      runBlocking<Unit> { assertDenied { uploadSparseFile(profilePhoto(), 5L * 1024 * 1024) } }
 
   private companion object {
     const val PASSWORD = "password123"

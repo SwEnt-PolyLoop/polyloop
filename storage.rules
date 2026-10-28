@@ -36,5 +36,18 @@ service firebase.storage {
                 || firestore.get(listing).data.ownerId == request.auth.uid);
       }
     }
+
+    // Profile photos, uploaded by ProfileRepositoryFirestore: one file per user, which only that
+    // user may change.
+    match /users/{uid}/profile.jpg {
+      allow read: if isVerifiedEpfl();
+
+      allow create, update: if isVerifiedEpfl()
+          && request.auth.uid == uid
+          && request.resource.size < 5 * 1024 * 1024
+          && request.resource.contentType.matches('image/.*');
+
+      allow delete: if isVerifiedEpfl() && request.auth.uid == uid;
+    }
   }
 }

@@ -172,4 +172,55 @@ class FakeProfileRepositoryTest {
 
     assertEquals(Result.success(john), result)
   }
+
+  // ---------- uploadProfilePhoto ----------
+
+  @Test
+  fun uploadProfilePhotoRecordsThePhotoAndReturnsItsUrl() = runTest {
+    val repository = FakeProfileRepository(listOf(john))
+
+    val result = repository.uploadProfilePhoto("u1", "file:///photo.jpg")
+
+    assertEquals(Result.success(FakeProfileRepository.uploadedUrl("file:///photo.jpg")), result)
+    assertEquals(listOf("u1" to "file:///photo.jpg"), repository.uploadedPhotos)
+    // Uploading does not change the profile; updateProfile saves the URL.
+    assertEquals(listOf(john), repository.profiles)
+  }
+
+  @Test
+  fun uploadFailureFailsOnlyUploads() = runTest {
+    val repository = FakeProfileRepository(listOf(john), uploadFailure = failure)
+
+    val upload = repository.uploadProfilePhoto("u1", "file:///photo.jpg")
+    val update = repository.updateProfile("u1", "Johnny", "")
+
+    assertSame(failure, upload.exceptionOrNull())
+    assertTrue(repository.uploadedPhotos.isEmpty())
+    assertEquals(Result.success(Unit), update)
+  }
+
+  @Test
+  fun failureAlsoFailsUploads() = runTest {
+    val repository = FakeProfileRepository(listOf(john), failure = failure)
+
+    assertSame(failure, repository.uploadProfilePhoto("u1", "file:///photo.jpg").exceptionOrNull())
+    assertTrue(repository.uploadedPhotos.isEmpty())
+  }
+
+  @Test
+  fun gateHoldsUploadsUntilItIsCompleted() = runTest {
+    val gate = CompletableDeferred<Unit>()
+    val repository = FakeProfileRepository(listOf(john), gate = gate)
+
+    val call =
+        launch(UnconfinedTestDispatcher(testScheduler)) {
+          repository.uploadProfilePhoto("u1", "file:///photo.jpg")
+        }
+    assertFalse(call.isCompleted)
+
+    gate.complete(Unit)
+    call.join()
+
+    assertEquals(1, repository.uploadedPhotos.size)
+  }
 }
