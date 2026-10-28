@@ -35,8 +35,8 @@ import kotlinx.coroutines.launch
  * @property isDatePickerOpen true while the date picker for the availability window is shown.
  * @property isCameraOpen true while the in-app camera is shown; it stays open between photos so
  *   several can be taken in a row.
- * @property publishError non-null when publishing failed; it is blank when the failure carried no
- *   message, and the screen then shows a generic text.
+ * @property publishFailed true when publishing failed, or when nobody was signed in; the screen
+ *   then shows a generic error text. It is reset when a new publish starts.
  * @property publishedListingId the new listing's id until the screen has opened it.
  */
 data class CreateListingUiState(
@@ -54,7 +54,7 @@ data class CreateListingUiState(
     val isPublishing: Boolean = false,
     val isDatePickerOpen: Boolean = false,
     val isCameraOpen: Boolean = false,
-    val publishError: String? = null,
+    val publishFailed: Boolean = false,
     val publishedListingId: String? = null,
 ) {
   val isTitleBlank: Boolean
@@ -185,7 +185,7 @@ class CreateListingViewModel(
     if (!form.canPublish) return
     val owner = authRepository.getCurrentUser()
     if (owner == null) {
-      _uiState.update { it.copy(publishError = "") }
+      _uiState.update { it.copy(publishFailed = true) }
       return
     }
     val listing =
@@ -203,16 +203,14 @@ class CreateListingViewModel(
             status = ListingStatus.PUBLISHED,
         )
     val addresses = ListingAddresses(form.pickupAddress, form.dropOffAddress)
-    _uiState.update { it.copy(isPublishing = true, publishError = null) }
+    _uiState.update { it.copy(isPublishing = true, publishFailed = false) }
     viewModelScope.launch {
       listingRepository
           .createListing(listing, addresses, form.photos.map(Uri::parse))
           .onSuccess { id ->
             _uiState.update { it.copy(isPublishing = false, publishedListingId = id) }
           }
-          .onFailure { e ->
-            _uiState.update { it.copy(isPublishing = false, publishError = e.message ?: "") }
-          }
+          .onFailure { _uiState.update { it.copy(isPublishing = false, publishFailed = true) } }
     }
   }
 

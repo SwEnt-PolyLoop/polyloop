@@ -313,9 +313,9 @@ fun CreateListingContent(
         )
       }
     }
-    uiState.publishError?.let { error ->
+    if (uiState.publishFailed) {
       Text(
-          text = error.ifBlank { stringResource(R.string.create_listing_publish_error) },
+          text = stringResource(R.string.create_listing_publish_error),
           color = MaterialTheme.colorScheme.error,
           style = MaterialTheme.typography.bodyMedium,
           modifier =

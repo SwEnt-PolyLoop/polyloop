@@ -287,21 +287,12 @@ class CreateListingScreenTest {
   }
 
   @Test
-  fun publishErrorShowsItsMessage() {
-    setContent(filled.copy(publishError = "No connection"))
+  fun publishFailedShowsTheGenericMessage() {
+    setContent(filled.copy(publishFailed = true))
 
     composeTestRule
         .onNodeWithTag(C.Tag.create_listing_publish_error)
         .assertIsDisplayed()
-        .assertTextEquals("No connection")
-  }
-
-  @Test
-  fun blankPublishErrorShowsTheGenericMessage() {
-    setContent(filled.copy(publishError = ""))
-
-    composeTestRule
-        .onNodeWithTag(C.Tag.create_listing_publish_error)
         .assertTextEquals(context.getString(R.string.create_listing_publish_error))
   }
 

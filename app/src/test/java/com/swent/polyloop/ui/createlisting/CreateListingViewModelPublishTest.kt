@@ -95,7 +95,7 @@ class CreateListingViewModelPublishTest {
     )
     assertEquals(saved.id, state.publishedListingId)
     assertFalse(state.isPublishing)
-    assertNull(state.publishError)
+    assertFalse(state.publishFailed)
     assertTrue(state.hasAttemptedPublish)
   }
 
@@ -110,36 +110,45 @@ class CreateListingViewModelPublishTest {
     assertTrue(state.hasAttemptedPublish)
     assertFalse(state.isPublishing)
     assertNull(state.publishedListingId)
-    assertNull(state.publishError)
+    assertFalse(state.publishFailed)
   }
 
   @Test
-  fun publishFailureShowsTheMessageAndAllowsAnotherTry() {
+  fun publishFailureWithAMessageSetsPublishFailed() {
     fillForm()
     listingRepository.failure = IOException("No connection")
 
     viewModel.onPublish()
 
-    assertEquals("No connection", state.publishError)
+    assertTrue(state.publishFailed)
     assertFalse(state.isPublishing)
     assertNull(state.publishedListingId)
-
-    listingRepository.failure = null
-    viewModel.onPublish()
-
-    assertNull(state.publishError)
-    assertEquals(1, listingRepository.listings.size)
-    assertEquals(listingRepository.listings.single().id, state.publishedListingId)
   }
 
   @Test
-  fun publishFailureWithoutAMessageGivesABlankError() {
+  fun publishFailureWithoutAMessageSetsPublishFailed() {
     fillForm()
     listingRepository.failure = Exception()
 
     viewModel.onPublish()
 
-    assertEquals("", state.publishError)
+    assertTrue(state.publishFailed)
+    assertFalse(state.isPublishing)
+  }
+
+  @Test
+  fun publishFailureThenRetryClearsPublishFailed() {
+    fillForm()
+    listingRepository.failure = IOException("No connection")
+    viewModel.onPublish()
+    assertTrue(state.publishFailed)
+
+    listingRepository.failure = null
+    viewModel.onPublish()
+
+    assertFalse(state.publishFailed)
+    assertEquals(1, listingRepository.listings.size)
+    assertEquals(listingRepository.listings.single().id, state.publishedListingId)
   }
 
   @Test
@@ -149,7 +158,7 @@ class CreateListingViewModelPublishTest {
 
     viewModel.onPublish()
 
-    assertEquals("", state.publishError)
+    assertTrue(state.publishFailed)
     assertFalse(state.isPublishing)
     assertTrue(listingRepository.listings.isEmpty())
   }
