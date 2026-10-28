@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
@@ -43,6 +42,7 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.browse.ListingCard
+import com.swent.polyloop.ui.components.ProfileAvatar
 
 /**
  * The Profile screen, for the signed-in user's own profile or someone else's.
@@ -187,7 +187,7 @@ private fun ProfileLoaded(
   }
 }
 
-/** Avatar with the initial, name, and rating with the number of reviews. */
+/** Avatar (the photo, or the initial), name, and rating with the number of reviews. */
 @Composable
 private fun ProfileHeader(profile: UserProfile) {
   Column(
@@ -195,18 +195,7 @@ private fun ProfileHeader(profile: UserProfile) {
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    Box(
-        modifier =
-            Modifier.size(80.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-      Text(
-          text = profile.name.trim().firstOrNull()?.uppercase() ?: "?",
-          style = MaterialTheme.typography.headlineMedium,
-          fontWeight = FontWeight.Bold,
-          modifier = Modifier.testTag(C.Tag.profile_avatar),
-      )
-    }
+    ProfileAvatar(photo = profile.photoUrl, name = profile.name, size = 80.dp)
     Text(
         text = profile.name.ifBlank { stringResource(R.string.profile_name_placeholder) },
         style = MaterialTheme.typography.headlineSmall,

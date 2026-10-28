@@ -47,6 +47,7 @@
 
     <!-- Profile -->
     <string name="profile_name_placeholder">No name yet</string>
+    <string name="profile_photo_description">Profile photo</string>
     <plurals name="profile_rating">
         <item quantity="one">%1$.1f · %2$d review</item>
         <item quantity="other">%1$.1f · %2$d reviews</item>

@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -171,6 +172,17 @@ class ProfileScreenTest {
     node(C.Tag.profile_listings_title).assertDoesNotExist()
     node(C.Tag.profile_listings_empty).assertDoesNotExist()
     node(C.Tag.profile_sign_out_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun aProfilePhotoThatNoLongerLoadsShowsTheInitial() {
+    // e.g. a URL that stopped working because a newer photo replaced it
+    setContent(ownProfile.copy(profile = john.copy(photoUrl = "file:///data/missing.jpg")))
+
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule.onAllNodesWithTag(C.Tag.profile_avatar).fetchSemanticsNodes().isNotEmpty()
+    }
+    node(C.Tag.profile_avatar).assertTextEquals("J")
   }
 
   @Test

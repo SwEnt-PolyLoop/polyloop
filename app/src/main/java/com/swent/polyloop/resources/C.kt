@@ -151,6 +151,7 @@ object C {
 
     const val profile_screen = "profile_screen"
     const val profile_avatar = "profile_avatar"
+    const val profile_avatar_photo = "profile_avatar_photo"
     const val profile_name = "profile_name"
     const val profile_rating = "profile_rating"
     const val profile_listings_title = "profile_listings_title"
