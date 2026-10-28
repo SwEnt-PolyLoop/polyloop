@@ -3,6 +3,7 @@
 package com.swent.polyloop.model.profile
 
 import android.net.Uri
+import com.google.android.gms.tasks.OnCompleteListener
 import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.FirebaseNetworkException
@@ -24,6 +25,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import java.util.concurrent.Executor
 import java.util.concurrent.TimeoutException
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -342,9 +344,18 @@ class ProfileRepositoryFirestoreTest {
     every { isCanceled } returns false
     every { exception } returns error
     every { result } returns mockk()
+    // Cancelling a finished upload does nothing, as in the real SDK.
+    every { cancel() } returns false
   }
 
   private val storageError = FirebaseNetworkException("offline")
+
+  /**
+   * True when [error] is [storageError]. Coroutines rethrow a copy of an error that crosses the
+   * upload's timeout, so the type and message are compared, not the object.
+   */
+  private fun isStorageError(error: Throwable?): Boolean =
+      error is FirebaseNetworkException && error.message == storageError.message
 
   @Test
   fun uploadProfilePhotoUploadsAJpegAndReturnsItsDownloadUrl() = runTest {
@@ -375,7 +386,7 @@ class ProfileRepositoryFirestoreTest {
 
     val result = repository.uploadProfilePhoto("uid123", photoUri)
 
-    assertSame(storageError, result.exceptionOrNull())
+    assertTrue(isStorageError(result.exceptionOrNull()))
     verify(exactly = 0) { photoRef.downloadUrl }
   }
 
@@ -385,7 +396,7 @@ class ProfileRepositoryFirestoreTest {
     every { photoRef.putFile(any(), any()) } returns finishedUpload()
     every { photoRef.downloadUrl } returns Tasks.forException(storageError)
 
-    assertSame(storageError, repository.uploadProfilePhoto("uid123", photoUri).exceptionOrNull())
+    assertTrue(isStorageError(repository.uploadProfilePhoto("uid123", photoUri).exceptionOrNull()))
   }
 
   @Test
@@ -410,5 +421,43 @@ class ProfileRepositoryFirestoreTest {
     repository.updateProfile("uid123", "John", "")
 
     assertEquals(0, storageAccesses)
+  }
+
+  /** An upload that never finishes, as when offline; records whether it was cancelled. */
+  private var uploadCancelled = false
+
+  private fun neverEndingUpload(): UploadTask = mockk {
+    every { isComplete } returns false
+    every {
+      addOnCompleteListener(any<Executor>(), any<OnCompleteListener<UploadTask.TaskSnapshot>>())
+    } returns this
+    every { cancel() } answers
+        {
+          uploadCancelled = true
+          true
+        }
+  }
+
+  @Test
+  fun uploadProfilePhotoTimesOutAndCancelsAnUploadThatNeverEnds() = runTest {
+    val repository = uploadRepository()
+    every { photoRef.putFile(any(), any()) } returns neverEndingUpload()
+
+    val result = repository.uploadProfilePhoto("uid123", photoUri)
+
+    assertTrue(result.exceptionOrNull() is TimeoutException)
+    assertTrue(uploadCancelled)
+    verify(exactly = 0) { photoRef.downloadUrl }
+  }
+
+  @Test
+  fun uploadProfilePhotoTimesOutWhenTheUrlIsNeverRead() = runTest {
+    val repository = uploadRepository()
+    every { photoRef.putFile(any(), any()) } returns finishedUpload()
+    every { photoRef.downloadUrl } returns TaskCompletionSource<Uri>().task
+
+    val result = repository.uploadProfilePhoto("uid123", photoUri)
+
+    assertTrue(result.exceptionOrNull() is TimeoutException)
   }
 }

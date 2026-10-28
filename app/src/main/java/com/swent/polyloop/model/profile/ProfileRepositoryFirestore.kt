@@ -114,8 +114,20 @@ class ProfileRepositoryFirestore(
     return withFirebaseErrors {
       // One file per user, so a new photo replaces the old one instead of piling up.
       val ref = storage.reference.child("${ProfileFields.COLLECTION}/$uid/$PHOTO_FILE")
-      ref.putFile(photoUri.toUri(), storageMetadata { contentType = PHOTO_CONTENT_TYPE }).await()
-      Result.success(ref.downloadUrl.await().toString())
+      val upload =
+          ref.putFile(photoUri.toUri(), storageMetadata { contentType = PHOTO_CONTENT_TYPE })
+      // Offline, Storage keeps retrying for minutes, so stop waiting after a while.
+      val url =
+          withTimeoutOrNull(UPLOAD_TIMEOUT_MS) {
+            upload.await()
+            ref.downloadUrl.await().toString()
+          }
+      if (url != null) Result.success(url)
+      else {
+        // Stop the upload too, so it cannot replace the photo later without the profile knowing.
+        upload.cancel()
+        Result.failure(TimeoutException("Profile photo not uploaded in time"))
+      }
     }
   }
 
@@ -159,6 +171,8 @@ class ProfileRepositoryFirestore(
 
   private companion object {
     const val WRITE_TIMEOUT_MS = 10_000L
+    // Longer than a Firestore write: a photo can take a while to send.
+    const val UPLOAD_TIMEOUT_MS = 30_000L
     const val PHOTO_FILE = "profile.jpg"
     const val PHOTO_CONTENT_TYPE = "image/jpeg"
   }
