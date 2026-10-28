@@ -62,6 +62,12 @@ object C {
 
     const val create_listing_photos_counter = "create_listing_photos_counter"
     const val create_listing_photos_hint = "create_listing_photos_hint"
+    const val create_listing_camera_permission_message = "create_listing_camera_permission_message"
+    const val create_listing_camera = "create_listing_camera"
+    const val create_listing_camera_shutter = "create_listing_camera_shutter"
+    const val create_listing_camera_close = "create_listing_camera_close"
+    const val create_listing_camera_count = "create_listing_camera_count"
+    const val create_listing_camera_error = "create_listing_camera_error"
     // Prefix: each photo is tagged create_listing_photo_ + its index
     const val create_listing_photo_ = "create_listing_photo_"
     // Prefix: each photo's remove button is tagged create_listing_remove_photo_ + its index
@@ -101,6 +107,8 @@ object C {
     const val date_picker_balance = "date_picker_balance"
     const val date_picker_balance_error = "date_picker_balance_error"
     const val date_picker_confirm_button = "date_picker_confirm_button"
+    const val date_picker_sending = "date_picker_sending"
+    const val date_picker_send_error = "date_picker_send_error"
 
     fun datePickerDay(date: LocalDate) = "date_picker_day_$date"
 
@@ -192,6 +200,13 @@ object C {
     const val my_rentals_row_return = "my_rentals_row_return"
     const val my_rentals_row_location = "my_rentals_row_location"
     const val my_rentals_row_status = "my_rentals_row_status"
+    const val my_rentals_row_reserved = "my_rentals_row_reserved"
+    const val my_rentals_row_line = "my_rentals_row_line"
+    const val my_rentals_section_requests = "my_rentals_section_requests"
+    const val my_rentals_section_current = "my_rentals_section_current"
+    // Prefix: each request card on Lending is tagged my_rentals_request_ + rental id
+    const val my_rentals_request_ = "my_rentals_request_"
+    const val my_rentals_review_request_button = "my_rentals_review_request_button"
 
     const val dummy_screen = "dummy_screen"
     const val dummy_screen_text = "dummy_screen_text"

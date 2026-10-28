@@ -478,6 +478,88 @@ class AuthViewModelTest {
     assertEquals(AuthError.EMAIL_NOT_VERIFIED, state.error)
   }
 
+  // ---------- expired sign-up ----------
+
+  @Test
+  fun confirmVerifiedAfterTheAccountWasDeletedSaysTheSignUpExpired() {
+    fillSignUp()
+    viewModel.submit()
+    // The server deleted the unverified account: the same email and password are now refused.
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+
+    viewModel.confirmVerified()
+
+    assertEquals(AuthError.SIGN_UP_EXPIRED, state.error)
+    assertTrue(state.isAwaitingVerification)
+    assertFalse(state.isSignedIn)
+  }
+
+  @Test
+  fun resendAfterTheAccountWasDeletedSaysTheSignUpExpired() {
+    fillSignUp()
+    viewModel.submit()
+    advanceSeconds(60)
+    repository.resendResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+
+    viewModel.resendVerificationEmail()
+
+    assertEquals(AuthError.SIGN_UP_EXPIRED, state.error)
+    assertFalse(state.isVerificationEmailResent)
+    assertTrue(state.canResend) // no new countdown: nothing was sent
+  }
+
+  @Test
+  fun expiredSignUpAfterLoggingInUnverifiedSaysTheSignUpExpired() {
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    fillLogIn()
+    viewModel.submit()
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+
+    viewModel.confirmVerified()
+
+    assertEquals(AuthError.SIGN_UP_EXPIRED, state.error)
+  }
+
+  @Test
+  fun otherErrorsOnCheckInboxAreShownAsTheyAre() {
+    fillSignUp()
+    viewModel.submit()
+    repository.signInResult = AuthResult.Failure(AuthError.NETWORK)
+
+    viewModel.confirmVerified()
+    assertEquals(AuthError.NETWORK, state.error)
+
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    viewModel.confirmVerified()
+    assertEquals(AuthError.EMAIL_NOT_VERIFIED, state.error)
+  }
+
+  @Test
+  fun wrongCredentialsOnTheLogInFormAreNotAnExpiredSignUp() {
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+    fillLogIn()
+
+    viewModel.submit()
+
+    assertEquals(AuthError.WRONG_CREDENTIALS, state.error)
+    assertFalse(state.isAwaitingVerification)
+  }
+
+  @Test
+  fun backToFormAfterAnExpiredSignUpKeepsTheFieldsToSignUpAgain() {
+    fillSignUp()
+    viewModel.submit()
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+    viewModel.confirmVerified()
+
+    assertTrue(viewModel.backToForm())
+
+    assertNull(state.error)
+    assertFalse(state.isAwaitingVerification)
+    assertEquals(AuthMode.SIGN_UP, state.mode)
+    assertEquals("john@epfl.ch", state.email)
+  }
+
   // ---------- resend countdown ----------
 
   @Test

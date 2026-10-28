@@ -154,6 +154,11 @@ dependencies {
   // Loading images from a URL (listing photos), with the https loader
   implementation(libs.coil.compose)
   implementation(libs.coil.network.okhttp)
+  // In-app camera for listing photos (no gallery, no system camera)
+  implementation(libs.camera.core)
+  implementation(libs.camera.camera2)
+  implementation(libs.camera.lifecycle)
+  implementation(libs.camera.view)
   // Android Studio Preview support
   implementation(libs.compose.preview)
   debugImplementation(libs.compose.tooling)

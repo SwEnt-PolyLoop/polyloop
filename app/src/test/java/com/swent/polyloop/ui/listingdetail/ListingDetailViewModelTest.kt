@@ -3,9 +3,15 @@
 package com.swent.polyloop.ui.listingdetail
 
 import androidx.lifecycle.ViewModel
+import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.profile.UserProfile
+import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.RentalStatus
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -42,12 +48,21 @@ class ListingDetailViewModelTest {
   private val oct6 = LocalDate.of(2026, 10, 6)
   private val oct8 = LocalDate.of(2026, 10, 8)
 
+  private val me = AuthUser(uid = "me", email = "loca@epfl.ch", name = "Loca")
+
   private lateinit var repository: FakeListingRepository
+  private lateinit var rentalRepository: FakeRentalRepository
+  private lateinit var authRepository: FakeAuthRepository
+  private lateinit var profileRepository: FakeProfileRepository
 
   @Before
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     repository = FakeListingRepository(listings = listOf(listing))
+    rentalRepository = FakeRentalRepository()
+    authRepository = FakeAuthRepository(signedInUser = me)
+    profileRepository =
+        FakeProfileRepository(profiles = listOf(UserProfile("owner", "Mara", "mara@epfl.ch")))
   }
 
   @After
@@ -55,7 +70,23 @@ class ListingDetailViewModelTest {
     Dispatchers.resetMain()
   }
 
-  private fun viewModel(id: String = listing.id) = ListingDetailViewModel(id, repository)
+  private fun viewModel(id: String = listing.id) =
+      ListingDetailViewModel(id, repository, rentalRepository, authRepository, profileRepository)
+
+  private fun factory() =
+      ListingDetailViewModel.Factory(
+          listing.id,
+          repository,
+          rentalRepository,
+          authRepository,
+          profileRepository,
+      )
+
+  /** A view model on the listing, owned by [ownerId], with its date picker open. */
+  private fun openPickerOn(ownerId: String = "owner"): ListingDetailViewModel {
+    repository.listings = listOf(listing.copy(ownerId = ownerId))
+    return viewModel().also { it.openDatePicker() }
+  }
 
   @Test
   fun showsLoadingThenHoldsTheListing() {
@@ -170,15 +201,123 @@ class ListingDetailViewModelTest {
 
   @Test
   fun factoryCreatesViewModelForTheListing() {
-    val vm =
-        ListingDetailViewModel.Factory(listing.id, repository)
-            .create(ListingDetailViewModel::class.java)
+    val vm = factory().create(ListingDetailViewModel::class.java)
     assertEquals(listing, vm.uiState.value.listing)
   }
 
   @Test(expected = IllegalArgumentException::class)
   fun factoryRejectsOtherViewModels() {
-    ListingDetailViewModel.Factory(listing.id, repository).create(OtherViewModel::class.java)
+    factory().create(OtherViewModel::class.java)
+  }
+
+  @Test
+  fun sendRequestCreatesTheRentalWithTheRightValues() {
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+
+    val rental = rentalRepository.rentals.single()
+    assertEquals(listing.id, rental.listingId)
+    assertEquals("owner", rental.ownerId)
+    assertEquals("Mara", rental.ownerName)
+    assertEquals("me", rental.borrowerId)
+    assertEquals("Loca", rental.borrowerName)
+    assertEquals(oct6, rental.startDate)
+    assertEquals(oct8, rental.endDate)
+    assertEquals(RentalStatus.REQUESTED, rental.status)
+    assertEquals(rental.id, vm.uiState.value.sentRentalId)
+    assertFalse(vm.uiState.value.isDatePickerOpen)
+  }
+
+  @Test
+  fun missingOrFailedOwnerProfileSendsWithBlankName() {
+    profileRepository = FakeProfileRepository()
+    openPickerOn().sendRequest(oct6, oct8)
+
+    profileRepository = FakeProfileRepository(failure = IllegalStateException("Network down"))
+    openPickerOn().sendRequest(oct6, oct8)
+
+    assertEquals(listOf("", ""), rentalRepository.rentals.map { it.ownerName })
+  }
+
+  @Test
+  fun failedRequestShowsTheErrorAndKeepsTheSheetOpen() {
+    rentalRepository.failure = IllegalStateException("Network down")
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+
+    val state = vm.uiState.value
+    assertEquals("Network down", state.sendError)
+    assertFalse(state.isSending)
+    assertTrue(state.isDatePickerOpen)
+    assertNull(state.sentRentalId)
+  }
+
+  @Test
+  fun isSendingWhileTheRequestRuns() {
+    val gate = CompletableDeferred<Unit>()
+    rentalRepository.gate = gate
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+    assertTrue(vm.uiState.value.isSending)
+
+    gate.complete(Unit)
+    assertFalse(vm.uiState.value.isSending)
+  }
+
+  @Test
+  fun secondTapWhileSendingSendsNothing() {
+    val gate = CompletableDeferred<Unit>()
+    rentalRepository.gate = gate
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+    vm.sendRequest(oct6, oct8)
+    gate.complete(Unit)
+
+    assertEquals(1, rentalRepository.rentals.size)
+  }
+
+  @Test
+  fun notSignedInSendsNothing() {
+    authRepository.signedInUser = null
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+
+    assertEquals("", vm.uiState.value.sendError)
+    assertTrue(rentalRepository.rentals.isEmpty())
+  }
+
+  @Test
+  fun ownListingIsFlaggedAndCannotSend() {
+    val vm = openPickerOn(ownerId = "me")
+
+    vm.sendRequest(oct6, oct8)
+
+    assertTrue(vm.uiState.value.isOwnListing)
+    assertTrue(rentalRepository.rentals.isEmpty())
+  }
+
+  @Test
+  fun invalidRangeSendsNothing() {
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6.minusDays(1), oct8)
+
+    assertTrue(rentalRepository.rentals.isEmpty())
+  }
+
+  @Test
+  fun onRequestSentHandledClearsTheRentalId() {
+    val vm = openPickerOn()
+    vm.sendRequest(oct6, oct8)
+
+    vm.onRequestSentHandled()
+
+    assertNull(vm.uiState.value.sentRentalId)
   }
 
   private class OtherViewModel : ViewModel()

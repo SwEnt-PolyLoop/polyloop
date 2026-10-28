@@ -162,6 +162,9 @@ fun PolyLoopApp(
                     ListingDetailViewModel.Factory(
                         listingId = entry.stringArg(Screen.ARG_LISTING_ID),
                         listingRepository = RepositoryProvider.listingRepository,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                        profileRepository = RepositoryProvider.profileRepository,
                     )
             )
         ListingDetailScreen(
@@ -169,6 +172,7 @@ fun PolyLoopApp(
             onLenderClick = { ownerId ->
               navController.navigate(Screen.UserProfile.createRoute(ownerId))
             },
+            onRequestSent = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
         )
       }
       composable(Screen.EditListing.route, stringArgument(Screen.ARG_LISTING_ID)) { entry ->

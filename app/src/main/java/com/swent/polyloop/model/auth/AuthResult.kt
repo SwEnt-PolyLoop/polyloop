@@ -23,6 +23,11 @@ enum class AuthError {
   NAME_NOT_SAVED,
   /** The user signed in, but their profile could not be created; they are signed out again. */
   PROFILE_NOT_CREATED,
+  /**
+   * On "Check your inbox": the account is gone, because the server deletes accounts not verified in
+   * time (see [com.swent.polyloop.ui.authentication.AuthViewModel.SIGN_UP_EXPIRY_MINUTES]).
+   */
+  SIGN_UP_EXPIRED,
   TOO_MANY_REQUESTS,
   NETWORK,
   UNKNOWN,

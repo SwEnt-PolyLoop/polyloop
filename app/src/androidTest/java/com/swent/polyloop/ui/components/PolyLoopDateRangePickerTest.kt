@@ -31,6 +31,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -62,6 +63,8 @@ class PolyLoopDateRangePickerTest {
       disabledDates: Set<LocalDate> = booked,
       mode: DateRangePickerMode = requestMode,
       today: LocalDate = this.today,
+      isSending: Boolean = false,
+      errorMsg: String? = null,
   ) {
     composeTestRule.setContent {
       DateRangePickerBody(
@@ -70,6 +73,8 @@ class PolyLoopDateRangePickerTest {
           mode = mode,
           onConfirm = { start, end -> confirmed += start to end },
           today = today,
+          isSending = isSending,
+          errorMsg = errorMsg,
       )
     }
   }
@@ -260,5 +265,32 @@ class PolyLoopDateRangePickerTest {
     composeTestRule.waitUntil(timeoutMillis = 5_000) { dismissed > 0 }
 
     assertEquals(1, dismissed)
+  }
+
+  @Test
+  fun sendingDisablesTheButtonAndShowsProgress() {
+    setBody(isSending = true)
+    tap(oct(15), oct(17))
+
+    node(C.Tag.date_picker_confirm_button).assertIsNotEnabled()
+    node(C.Tag.date_picker_sending).assertIsDisplayed()
+  }
+
+  @Test
+  fun errorIsShownAboveTheButton() {
+    setBody(errorMsg = "Network down")
+
+    val error = node(C.Tag.date_picker_send_error).assertTextEquals("Network down")
+    val errorBottom = error.fetchSemanticsNode().boundsInRoot.bottom
+    val buttonTop = node(C.Tag.date_picker_confirm_button).fetchSemanticsNode().boundsInRoot.top
+    assertTrue(errorBottom <= buttonTop)
+  }
+
+  @Test
+  fun blankErrorShowsTheFallback() {
+    setBody(errorMsg = "")
+
+    node(C.Tag.date_picker_send_error)
+        .assertTextEquals(context.getString(R.string.date_picker_send_error_fallback))
   }
 }

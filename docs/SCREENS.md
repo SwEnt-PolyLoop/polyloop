@@ -26,6 +26,7 @@ Only users with a verified EPFL email get past this screen. ViewModel: AuthViewM
 - A name field when signing up. The photo is added later in Profile.
 - After sign-up, or when logging in with an EPFL email that isn't verified yet, a “Check your inbox” state with a “Resend email” button, an “I've verified” button that refreshes the account, and a way back to the form to fix a mistyped email. A non-EPFL email gets an error on the form and never reaches this state.
 - “Resend email” is disabled for 60 seconds after each email sent, with a countdown.
+- “Check your inbox” says the email must be verified within 5 minutes of creating the account, and that resending does not give more time. An account not verified by then is deleted, so “I've verified” and “Resend email” then say the sign-up expired and the user should go back to the form and sign up again.
 - A “Forgot password” link.
 - The first verified log-in creates the user's profile. If the name could not be saved at sign-up, a “What's your name?” step asks for it first. If the profile cannot be created, the user is signed out and the log-in form shows an error, so they can try again.
 
@@ -91,8 +92,9 @@ Listing detail is where a borrower decides and sends a request. ViewModel: Listi
 
 This form puts an item up for rent, or changes an existing listing. ViewModel: CreateListingViewModel, using ListingRepository and RentalRepository.
 
-- A photo row with an “Add photo” button that opens the in-app camera. Each listing needs 3 to 10 photos, which can be removed and reordered.
+- A photo row with an “Add photo” button that opens the in-app camera, after asking for the camera permission. If the user refuses, a message explains that photos are taken in the app and how to allow the camera in Settings; there is no gallery or system-camera fallback. Each listing needs 3 to 10 photos (taken with the in-app camera only), which can be removed and reordered. The hint showing how many photos are missing is marked as an error once the user presses “Publish” with fewer than 3.
 - Fields: title, description, category, price per day, item value (the suggested deposit), the availability window (the dates the lender is willing to lend), and the pickup and drop-off addresses, typed as text.
+- **In-app camera.** Full screen, over the form: a live preview, a shutter button, a close button and the count “n / 10”. It stays open after each photo so several can be taken in a row, and closes with the close button, the Back button, or by itself at 10 photos. If the camera cannot start or a photo cannot be saved, a short message is shown and the camera stays open.
 - The typed addresses are turned into map coordinates by geocoding.
 - “Publish” when creating, “Save” when editing. Uploads need a connection.
 - Editing is locked while a rental of the item is accepted or active.
@@ -103,7 +105,7 @@ My rentals is the user's overview of everything they borrow and lend, and it wor
 
 - Two tabs: “Borrowing” and “Lending”.
 - Each row shows the item, the other person, a status label, the return deadline, and the meeting point as text.
-- Incoming requests appear at the top of “Lending”. Tapping any row opens Rental detail.
+- Incoming requests appear at the top of “Lending”; on a request, only its “Review request” button reacts. Tapping any other row opens Rental detail.
 - Offline: the whole list, deadlines and meeting points stay available from cache.
 - The items the user has put up for rent are listed in Profile, not here.
 

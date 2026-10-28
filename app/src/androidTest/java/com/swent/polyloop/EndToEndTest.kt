@@ -306,8 +306,7 @@ class EndToEndTest {
     composeTestRule.onNodeWithTag(C.Tag.date_picker_error).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).assertIsNotEnabled()
 
-    // Two days instead: both picked, priced at two days; confirming closes the picker (sending
-    // the request comes later).
+    // Two days instead: both picked, priced at two days; sending opens the new rental's chat.
     pickDay(firstDay.plusDays(1))
     composeTestRule.onNodeWithTag(C.Tag.date_picker_error).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.datePickerDay(firstDay)).assertIsSelected()
@@ -319,7 +318,9 @@ class EndToEndTest {
     // Enabled only because Listing detail still uses a placeholder balance: once it reads the
     // wallet, the test must give the new account enough PolyPoints first.
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
-    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertDoesNotExist()
+    waitForText(C.Tag.chat_header_item, listing.title)
+    assertRoute(Screen.Chat)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
     assertRoute(Screen.ListingDetail)
 
     // The lender card opens the lender's profile; Back returns to the listing.
@@ -335,7 +336,7 @@ class EndToEndTest {
     val listing = seedLenderAndListing()
     setApp()
     signUpAndVerify()
-    // Sent by the test: the Request button does not send it yet.
+    // Sent directly so this test doesn’t depend on the picker.
     val borrower = requireNotNull(RepositoryProvider.authRepository.getCurrentUser())
     val rental = runBlocking {
       RepositoryProvider.rentalRepository
