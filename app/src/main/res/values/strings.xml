@@ -186,6 +186,7 @@
     <string name="auth_password_rule_special">At least one special character</string>
     <string name="auth_error_wrong_credentials">The email or password is incorrect.</string>
     <string name="auth_error_weak_password">Your password is too weak.</string>
+    <string name="auth_error_password_too_long">Your password is too long.</string>
     <string name="auth_error_email_not_verified">Please verify your email address.</string>
     <string name="auth_error_too_many_requests">Too many attempts. Please try again later.</string>
     <string name="auth_error_network">A network error occurred. Please try again.</string>

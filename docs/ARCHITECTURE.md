@@ -75,7 +75,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 **Accounts**
 - Only @epfl.ch emails, checked with a regex, plus Firebase email verification. Name asked at sign-up; photo added later in Profile.
-- Sign-up passwords need at least 8 characters, an uppercase letter, a lowercase letter, a number and a special character from the list the Firebase password policy accepts (see SCREENS.md); the app checks them before calling Firebase. Logging in does not check them, so existing accounts keep working.
+- Sign-up passwords need at least 8 characters (at most 4096, refused as too long), an uppercase letter, a lowercase letter, a number from 0 to 9 and a special character from a fixed list (see SCREENS.md); the app checks them before calling Firebase, whose password policy (enforced on the project) accepts every password that follows them. Logging in does not check them, so existing accounts keep working.
 - Admins are identified by a Firebase custom claim.
 
 **Money (PolyPoints)**

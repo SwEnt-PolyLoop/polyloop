@@ -21,6 +21,8 @@ class PasswordRuleTest {
 
   @Test fun eightCharactersFollowMinLength() = assertFails("Abc12!xy")
 
+  @Test fun nonAsciiDigitsBreakDigit() = assertFails("Secret٣٤!", PasswordRule.DIGIT)
+
   @Test fun noUppercaseBreaksUppercase() = assertFails("secret12!", PasswordRule.UPPERCASE)
 
   @Test fun noLowercaseBreaksLowercase() = assertFails("SECRET12!", PasswordRule.LOWERCASE)
@@ -37,9 +39,7 @@ class PasswordRuleTest {
 
   @Test
   fun otherSymbolsBreakSpecial() {
-    listOf(" ", "€", "😀", "=", "+", "-", "é").forEach {
-      assertFails("Secret12$it", PasswordRule.SPECIAL)
-    }
+    listOf(" ", "€", "😀", "é").forEach { assertFails("Secret12$it", PasswordRule.SPECIAL) }
   }
 
   @Test

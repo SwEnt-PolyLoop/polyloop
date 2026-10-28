@@ -625,6 +625,7 @@ internal fun AuthError.messageRes(): Int =
     when (this) {
       AuthError.WRONG_CREDENTIALS -> R.string.auth_error_wrong_credentials
       AuthError.WEAK_PASSWORD -> R.string.auth_error_weak_password
+      AuthError.PASSWORD_TOO_LONG -> R.string.auth_error_password_too_long
       AuthError.EMAIL_NOT_VERIFIED -> R.string.auth_error_email_not_verified
       AuthError.TOO_MANY_REQUESTS -> R.string.auth_error_too_many_requests
       AuthError.NETWORK -> R.string.auth_error_network

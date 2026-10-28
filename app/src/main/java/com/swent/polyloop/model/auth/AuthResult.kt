@@ -14,6 +14,8 @@ enum class AuthError {
   WRONG_CREDENTIALS,
   EMAIL_ALREADY_IN_USE,
   WEAK_PASSWORD,
+  /** Longer than [PasswordRule.MAX_LENGTH_CHARS], which the Firebase password policy refuses. */
+  PASSWORD_TOO_LONG,
   EMAIL_NOT_VERIFIED,
   /** The account was created, but the verification email could not be sent; offer "Resend". */
   VERIFICATION_EMAIL_NOT_SENT,

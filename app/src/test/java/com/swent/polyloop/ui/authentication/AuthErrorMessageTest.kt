@@ -16,6 +16,7 @@ class AuthErrorMessageTest {
         mapOf(
             AuthError.WRONG_CREDENTIALS to R.string.auth_error_wrong_credentials,
             AuthError.WEAK_PASSWORD to R.string.auth_error_weak_password,
+            AuthError.PASSWORD_TOO_LONG to R.string.auth_error_password_too_long,
             AuthError.EMAIL_NOT_VERIFIED to R.string.auth_error_email_not_verified,
             AuthError.TOO_MANY_REQUESTS to R.string.auth_error_too_many_requests,
             AuthError.NETWORK to R.string.auth_error_network,
