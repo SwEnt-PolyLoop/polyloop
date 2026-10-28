@@ -24,7 +24,7 @@ class CameraPhotosTest {
   @get:Rule val tempFolder = TemporaryFolder()
 
   private fun photoIn(dirName: String, fileName: String = "photo.jpg"): File {
-    val dir = File(tempFolder.root, dirName).apply { mkdirs() }
+    val dir = tempFolder.newFolder(dirName)
     return File(dir, fileName).apply { writeText("jpeg") }
   }
 
@@ -32,7 +32,7 @@ class CameraPhotosTest {
   fun deletePhotoFileDeletesAFileInTheListingPhotosFolder() {
     val photo = photoIn(LISTING_PHOTOS_DIR)
 
-    deletePhotoFile(photo.toURI().toString())
+    assertTrue(deletePhotoFile(photo.toURI().toString()))
 
     assertFalse(photo.exists())
   }
@@ -41,7 +41,7 @@ class CameraPhotosTest {
   fun deletePhotoFileKeepsAFileOutsideTheListingPhotosFolder() {
     val photo = photoIn("other_folder")
 
-    deletePhotoFile(photo.toURI().toString())
+    assertFalse(deletePhotoFile(photo.toURI().toString()))
 
     assertTrue(photo.exists())
   }
@@ -52,7 +52,7 @@ class CameraPhotosTest {
     val outside = File(tempFolder.root, "outside.jpg").apply { writeText("jpeg") }
     val sneaky = "file://${tempFolder.root.absolutePath}/$LISTING_PHOTOS_DIR/../outside.jpg"
 
-    deletePhotoFile(sneaky)
+    assertFalse(deletePhotoFile(sneaky))
 
     assertTrue(outside.exists())
   }
@@ -61,7 +61,7 @@ class CameraPhotosTest {
   fun deletePhotoFileIgnoresAMissingFile() {
     val missing = File(File(tempFolder.root, LISTING_PHOTOS_DIR), "missing.jpg")
 
-    deletePhotoFile(missing.toURI().toString())
+    assertFalse(deletePhotoFile(missing.toURI().toString()))
 
     assertFalse(missing.exists())
   }
@@ -70,18 +70,18 @@ class CameraPhotosTest {
   fun deletePhotoFileIgnoresANonFileUri() {
     val photo = photoIn(LISTING_PHOTOS_DIR)
 
-    deletePhotoFile("content://media/$LISTING_PHOTOS_DIR/${photo.name}")
-    deletePhotoFile("https://example.com/$LISTING_PHOTOS_DIR/${photo.name}")
-    deletePhotoFile(photo.absolutePath)
+    assertFalse(deletePhotoFile("content://media/$LISTING_PHOTOS_DIR/${photo.name}"))
+    assertFalse(deletePhotoFile("https://example.com/$LISTING_PHOTOS_DIR/${photo.name}"))
+    assertFalse(deletePhotoFile(photo.absolutePath))
 
     assertTrue(photo.exists())
   }
 
   @Test
   fun deletePhotoFileNeverThrowsOnAMalformedUri() {
-    deletePhotoFile("not a uri")
-    deletePhotoFile("")
-    deletePhotoFile("file://")
+    assertFalse(deletePhotoFile("not a uri"))
+    assertFalse(deletePhotoFile(""))
+    assertFalse(deletePhotoFile("file://"))
   }
 
   @Test

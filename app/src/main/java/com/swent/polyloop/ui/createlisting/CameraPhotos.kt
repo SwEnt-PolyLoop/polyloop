@@ -41,15 +41,15 @@ internal fun photoResolutionSelector(): ResolutionSelector =
  * Deletes the photo file at [uri]. Only a `file:` URI whose file sits directly in a folder named
  * [LISTING_PHOTOS_DIR] is deleted (the path is resolved first, so `..` cannot escape the folder);
  * anything else is left alone. A missing file or a malformed [uri] is ignored; it never throws.
+ * Returns true only if a file was actually deleted.
  */
-internal fun deletePhotoFile(uri: String) {
-  runCatching {
-    val parsed = URI(uri)
-    if (parsed.scheme != "file") return
-    val file = File(parsed.path).canonicalFile
-    if (file.parentFile?.name == LISTING_PHOTOS_DIR) file.delete()
-  }
+internal fun deletePhotoFile(uri: String): Boolean = runCatching {
+  val parsed = URI(uri)
+  if (parsed.scheme != "file") return@runCatching false
+  val file = File(parsed.path).canonicalFile
+  file.parentFile?.name == LISTING_PHOTOS_DIR && file.delete()
 }
+    .getOrDefault(false)
 
 /**
  * A new, unique JPEG file in [photosDir], which is created if needed. The name holds the time of

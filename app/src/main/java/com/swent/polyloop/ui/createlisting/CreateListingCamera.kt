@@ -138,7 +138,7 @@ internal fun PolyLoopCameraContent(
                   captureInFlight.set(false)
                   isCapturing = false
                   hasError = true
-                  file.delete()
+                  deletePhotoFile(Uri.fromFile(file).toString())
                 },
             )
           }
