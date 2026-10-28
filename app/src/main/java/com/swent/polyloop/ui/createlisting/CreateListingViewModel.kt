@@ -162,23 +162,37 @@ class CreateListingViewModel(
     it.copy(availableFrom = start, availableTo = end, isDatePickerOpen = false)
   }
 
-  /** Opens the in-app camera. Ignored once there are [Listing.MAX_PHOTOS] photos. */
-  fun openCamera() = _uiState.update { if (it.canAddPhoto) it.copy(isCameraOpen = true) else it }
+  /**
+   * Opens the in-app camera. Ignored once there are [Listing.MAX_PHOTOS] photos, and while a
+   * publish is running.
+   */
+  fun openCamera() = _uiState.update {
+    if (it.canAddPhoto && !it.isPublishing) it.copy(isCameraOpen = true) else it
+  }
 
   /** Closes the in-app camera and keeps the photos already taken. */
   fun closeCamera() = _uiState.update { it.copy(isCameraOpen = false) }
 
   /**
    * Appends the photo taken at [uri] and keeps the camera open. Once there are [Listing.MAX_PHOTOS]
-   * photos the photo is not added and its file is deleted.
+   * photos, or while a publish is running, the photo is not added and its file is deleted.
+   *
+   * @param uri the `file:` URI of the photo the camera just saved.
    */
   fun onPhotoTaken(uri: String) {
-    if (_uiState.value.canAddPhoto) _uiState.update { it.copy(photos = it.photos + uri) }
+    if (_uiState.value.canAddPhoto && !_uiState.value.isPublishing)
+        _uiState.update { it.copy(photos = it.photos + uri) }
     else deletePhoto(uri)
   }
 
-  /** Removes the photo at [index] and deletes its file. Ignored when there is no photo there. */
+  /**
+   * Removes the photo at [index] and deletes its file. Ignored when there is no photo there, and
+   * while a publish is running.
+   *
+   * @param index the position of the photo in the photo row, starting at 0.
+   */
   fun onRemovePhoto(index: Int) {
+    if (_uiState.value.isPublishing) return
     val removed = _uiState.value.photos.getOrNull(index) ?: return
     _uiState.update { it.copy(photos = it.photos.filterIndexed { i, _ -> i != index }) }
     deletePhoto(removed)

@@ -9,6 +9,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -97,6 +99,23 @@ class CreateListingPhotosTest {
     tile(C.Tag.create_listing_remove_photo_ + 2).performClick()
 
     assertEquals(listOf(1, 2), removedIndexes)
+  }
+
+  @Test
+  fun removeButtonsAndAddPhotoTileAreDisabledWhilePublishing() {
+    setContent(CreateListingUiState(photos = photos(3), isPublishing = true))
+
+    tile(C.Tag.create_listing_remove_photo_ + 0).assertIsNotEnabled()
+    tile(C.Tag.create_listing_remove_photo_ + 2).assertIsNotEnabled()
+    tile(C.Tag.create_listing_add_photo).assertIsNotEnabled()
+  }
+
+  @Test
+  fun removeButtonsAndAddPhotoTileAreEnabledWhileNotPublishing() {
+    setContent(CreateListingUiState(photos = photos(3)))
+
+    tile(C.Tag.create_listing_remove_photo_ + 0).assertIsEnabled()
+    tile(C.Tag.create_listing_add_photo).assertIsEnabled()
   }
 
   @Test

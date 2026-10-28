@@ -113,6 +113,41 @@ class CreateListingViewModelPublishTest {
   }
 
   @Test
+  fun removingAPhotoWhilePublishingDeletesNothingAndKeepsThePhoto() {
+    fillForm()
+    listingRepository.gate = CompletableDeferred()
+    viewModel.onPublish()
+
+    viewModel.onRemovePhoto(0)
+
+    assertTrue(deleted.isEmpty())
+    assertEquals(photos, state.photos)
+  }
+
+  @Test
+  fun aPhotoTakenWhilePublishingIsDeletedAndNotAdded() {
+    fillForm()
+    listingRepository.gate = CompletableDeferred()
+    viewModel.onPublish()
+
+    viewModel.onPhotoTaken("file:///late.jpg")
+
+    assertEquals(listOf("file:///late.jpg"), deleted)
+    assertEquals(photos, state.photos)
+  }
+
+  @Test
+  fun openCameraIsIgnoredWhilePublishing() {
+    fillForm()
+    listingRepository.gate = CompletableDeferred()
+    viewModel.onPublish()
+
+    viewModel.openCamera()
+
+    assertFalse(state.isCameraOpen)
+  }
+
+  @Test
   fun clearingAfterAPublishDeletesNothingMore() {
     val store = ViewModelStore()
     val vm = storedViewModel(store)
