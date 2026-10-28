@@ -75,6 +75,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 **Accounts**
 - Only @epfl.ch emails, checked with a regex, plus Firebase email verification. Name asked at sign-up; photo added later in Profile.
+- Sign-up passwords need at least 8 characters (at most 4096, refused as too long), an uppercase letter, a lowercase letter, a number from 0 to 9 and a special character from a fixed list (see SCREENS.md); the app checks them before calling Firebase, whose password policy (enforced on the project) accepts every password that follows them. Logging in does not check them, so existing accounts keep working.
 - An account must verify its email within 5 minutes of signing up, or it is deleted, so nobody can block an address by signing up with it (someone else's, or a typo). The Cloud Function `deleteExpiredSignUpsEvery5Minutes` checks every 5 minutes, so an expired account is gone 5 to 10 minutes after sign-up. Unverified accounts cannot write to Firestore or Storage, so only the Auth account is deleted.
 - Admins are identified by a Firebase custom claim.
 

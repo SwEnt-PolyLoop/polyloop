@@ -119,6 +119,31 @@ class AuthRepositoryFirebaseTest {
   }
 
   @Test
+  fun signUpWithTooLongPasswordReturnsPasswordTooLongWithoutCallingFirebase() = runTest {
+    val result = repository.signUp("John Doe", "john@epfl.ch", "Secret12!".padEnd(4097, 'x'))
+
+    assertEquals(AuthResult.Failure(AuthError.PASSWORD_TOO_LONG), result)
+    verify(exactly = 0) { auth.createUserWithEmailAndPassword(any(), any()) }
+  }
+
+  @Test
+  fun signUpRefusedByPasswordPolicyReturnsWeakPassword() = runTest {
+    // The SDK throws a plain FirebaseException when the password policy refuses a password; only
+    // the server's error code in its message matters, the rest of the text is an example.
+    every { auth.createUserWithEmailAndPassword(any(), any()) } returns
+        Tasks.forException(
+            FirebaseException(
+                "An internal error has occurred. [ PASSWORD_DOES_NOT_MEET_REQUIREMENTS:Missing " +
+                    "password requirements: [Password must contain a non-alphanumeric character] ]"
+            )
+        )
+
+    val result = repository.signUp("John Doe", "john@epfl.ch", "Secret12€")
+
+    assertEquals(AuthResult.Failure(AuthError.WEAK_PASSWORD), result)
+  }
+
+  @Test
   fun signUpWithoutNetworkReturnsNetwork() = runTest {
     every { auth.createUserWithEmailAndPassword(any(), any()) } returns
         Tasks.forException(FirebaseNetworkException("offline"))

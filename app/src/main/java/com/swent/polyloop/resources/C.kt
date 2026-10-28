@@ -123,6 +123,8 @@ object C {
     const val auth_name_error = "auth_name_error"
     const val auth_email_error = "auth_email_error"
     const val auth_password_error = "auth_password_error"
+    const val auth_password_rules_header = "auth_password_rules_header"
+    const val auth_password_rule = "auth_password_rule"
     const val auth_error = "auth_error"
     const val auth_check_inbox_screen = "auth_check_inbox_screen"
     const val auth_check_inbox_body = "auth_check_inbox_body"
