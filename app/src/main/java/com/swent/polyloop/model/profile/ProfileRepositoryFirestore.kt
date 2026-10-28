@@ -2,7 +2,7 @@
 
 package com.swent.polyloop.model.profile
 
-import android.net.Uri
+import androidx.core.net.toUri
 import com.google.android.gms.tasks.Task
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseException
@@ -114,7 +114,7 @@ class ProfileRepositoryFirestore(
     return withFirebaseErrors {
       // One file per user, so a new photo replaces the old one instead of piling up.
       val ref = storage.reference.child("${ProfileFields.COLLECTION}/$uid/$PHOTO_FILE")
-      ref.putFile(Uri.parse(photoUri), storageMetadata { contentType = PHOTO_CONTENT_TYPE }).await()
+      ref.putFile(photoUri.toUri(), storageMetadata { contentType = PHOTO_CONTENT_TYPE }).await()
       Result.success(ref.downloadUrl.await().toString())
     }
   }
