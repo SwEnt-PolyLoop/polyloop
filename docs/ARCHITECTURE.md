@@ -116,7 +116,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 ## Technical choices
 
-Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase. New Firestore repositories use the shared helpers in `model/firestore/FirestoreHelpers.kt` (reading fields, errors, write timeout, listening to a query) instead of copying them; Listing, Profile and Chat will move to them.
+Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase. New Firestore repositories use the shared helpers in `model/firestore/FirestoreHelpers.kt` (reading fields, errors, write timeout, listening to a query) instead of copying them; Rental, Profile and Chat use them; Listing will move to them.
 
 Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `firebase-functions` v2, Jest). `src/index.ts` exports every function and sets the region, `europe-west1`, next to the Firestore database (`eur3`). In `functions/`: `npm ci` installs, `npm run lint` type-checks, `firebase emulators:exec --only firestore "npm test"` runs the tests on the Firestore emulator (external APIs are faked), and `firebase deploy --only functions` deploys (needs the Blaze plan). API keys live in Secret Manager. CI runs the install, lint, build and test steps in its own job.
 

@@ -2,11 +2,10 @@
 
 package com.swent.polyloop.model.chat
 
-import com.google.firebase.Timestamp
+import com.swent.polyloop.model.firestore.dateOrNull
+import com.swent.polyloop.model.firestore.enumOrNull
+import com.swent.polyloop.model.firestore.instantOrNull
 import com.swent.polyloop.model.rental.RentalStatus
-import java.time.Instant
-import java.time.LocalDate
-import java.time.format.DateTimeParseException
 
 /**
  * Firestore names for chat, from the schema in #94, kept in one place so they are easy to change.
@@ -44,7 +43,7 @@ internal fun messageFromDocument(id: String, data: Map<String, Any?>): Message? 
       senderId = data[ChatFields.SENDER_ID] as? String ?: return null,
       text = (data[ChatFields.TEXT] as? String)?.takeIf { it.isNotBlank() } ?: return null,
       sentAt = instantOrNull(data[ChatFields.SENT_AT]) ?: return null,
-      type = MessageType.entries.firstOrNull { it.name == data[ChatFields.TYPE] } ?: return null,
+      type = enumOrNull<MessageType>(data[ChatFields.TYPE]) ?: return null,
   )
 }
 
@@ -62,20 +61,8 @@ internal fun conversationFromDocument(id: String, data: Map<String, Any?>): Conv
       borrowerName = data[ChatFields.BORROWER_NAME] as? String ?: return null,
       lastMessage = data[ChatFields.LAST_MESSAGE] as? String ?: "",
       lastMessageAt = instantOrNull(data[ChatFields.LAST_MESSAGE_AT]) ?: return null,
-      status =
-          RentalStatus.entries.firstOrNull { it.name == data[ChatFields.STATUS] } ?: return null,
+      status = enumOrNull<RentalStatus>(data[ChatFields.STATUS]) ?: return null,
       startDate = dateOrNull(data[ChatFields.START_DATE]) ?: return null,
       endDate = dateOrNull(data[ChatFields.END_DATE]) ?: return null,
   )
 }
-
-/** Firestore returns its date-times as [Timestamp]; anything else (e.g. text) is rejected. */
-private fun instantOrNull(value: Any?): Instant? = (value as? Timestamp)?.toInstant()
-
-/** Dates without a time are stored as `YYYY-MM-DD` text; anything else is rejected. */
-private fun dateOrNull(value: Any?): LocalDate? =
-    try {
-      (value as? String)?.let(LocalDate::parse)
-    } catch (e: DateTimeParseException) {
-      null
-    }

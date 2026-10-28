@@ -5,6 +5,8 @@ package com.swent.polyloop.model.firestore
 import com.google.android.gms.tasks.Task
 import com.google.firebase.FirebaseException
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import java.time.Instant
@@ -20,8 +22,8 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 
 // Tools shared by the Firestore repositories, so they all read fields and handle errors the same
-// way. New repositories use these; Listing, Profile and Chat still keep private copies, to be
-// moved here in a follow-up.
+// way. Rental, Profile and Chat use them; Listing still keeps private copies, to be moved here in a
+// follow-up.
 
 /** How long a write waits for the server to confirm it; see [confirmWrite]. */
 internal const val WRITE_TIMEOUT_MS = 10_000L
@@ -92,3 +94,15 @@ internal fun <T> Query.snapshotsAsFlow(transform: (QuerySnapshot) -> T): Flow<T>
   }
   awaitClose { registration.remove() }
 }
+
+/**
+ * Listens to this document and emits [transform] of every snapshot. A read error closes the flow
+ * with that error, so the collector's `catch` sees it, as with [snapshotsAsFlow].
+ */
+internal fun <T> DocumentReference.snapshotsAsFlow(transform: (DocumentSnapshot) -> T): Flow<T> =
+    callbackFlow {
+      val registration = addSnapshotListener { snapshot, error ->
+        if (error != null) close(error) else if (snapshot != null) trySend(transform(snapshot))
+      }
+      awaitClose { registration.remove() }
+    }
