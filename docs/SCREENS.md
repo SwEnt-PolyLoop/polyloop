@@ -34,11 +34,20 @@ Only users with a verified EPFL email get past this screen. ViewModel: AuthViewM
 
 The profile shows who someone is and how past rentals went. It opens from the profile button in the top bar or by tapping a person on Listing detail or Rental detail. ViewModel: ProfileViewModel, using ProfileRepository, ListingRepository and AuthRepository.
 
-- Name, photo, and the average rating (1 to 5 stars) with the number of reviews.
+- Name, photo, and the average rating (1 to 5 stars) with the number of reviews. The photo is round, cropped to fill the circle; without a photo, or when it cannot be loaded, the first letter of the name takes its place.
 - The list of reviews, each with stars, author, date and the item rented.
 - On your own profile: a “My listings” section with the items you have put up for rent (available offline), plus “Edit profile” (where the photo is added) and “Sign out”.
 - A review prompt appears as soon as a rental closes, however it closed: clean return, direct settlement, LLM proposal or court ruling. Like rating a ride in Uber or Bolt, each participant rates the other once, from 1 to 5 stars. Stars only for now; a written comment may come later.
 - Other people's profiles don't show their listings for now.
+
+## Edit profile
+
+Edit profile is where the signed-in user changes their name and photo. It opens from “Edit profile” on their own profile. ViewModel: EditProfileViewModel, using ProfileRepository.
+
+- The photo, round like on the profile, with a “Take photo” button. It opens the in-app camera for a single photo (no count, it closes once the photo is taken), after asking for the camera permission; a refusal shows the same message as Create listing. The new photo replaces the old one in the circle right away, but is uploaded only on “Save”, so leaving without saving changes nothing.
+- The name field. “Save” with a blank name shows “Enter your name” and saves nothing; the name is trimmed.
+- “Save” uploads the new photo, if one was taken, then saves the name and the photo. While it runs, the field and both buttons are disabled and “Save” shows a spinner. On success the screen goes back to the profile, which shows the new name and photo. If it fails, an error is shown and the edits are kept; saving again does not upload the same photo a second time.
+- A spinner while the profile loads, and an error with “Retry” if it cannot be loaded.
 
 ## Wallet
 
