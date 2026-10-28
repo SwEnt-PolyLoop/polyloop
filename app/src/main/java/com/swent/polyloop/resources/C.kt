@@ -157,6 +157,7 @@ object C {
     const val profile_listings_title = "profile_listings_title"
     const val profile_listings_empty = "profile_listings_empty"
     const val profile_sign_out_button = "profile_sign_out_button"
+    const val profile_edit_button = "profile_edit_button"
     const val profile_loading = "profile_loading"
     const val profile_error = "profile_error"
     const val profile_retry_button = "profile_retry_button"

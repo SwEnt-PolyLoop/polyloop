@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -234,6 +235,7 @@ class PolyLoopAppTest {
           Screen.Chat -> C.Tag.chat_screen
           Screen.Profile,
           Screen.UserProfile -> C.Tag.profile_screen
+          Screen.EditProfile -> C.Tag.edit_profile_screen
           else -> null
         }
     if (realScreenTag != null) {
@@ -650,6 +652,23 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + rental.id).performClick()
 
     assertCurrentScreen(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
+  }
+
+  @Test
+  fun editProfileSavesTheNameAndGoesBackToTheProfile() {
+    setAppSignedIn()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_profile_button).performClick()
+    waitForTag(C.Tag.profile_edit_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.profile_edit_button).performScrollTo().performClick()
+    assertCurrentScreen(Screen.EditProfile)
+    waitForTag(C.Tag.edit_profile_name_field)
+    composeTestRule.onNodeWithTag(C.Tag.edit_profile_name_field).performTextReplacement("New me")
+    composeTestRule.onNodeWithTag(C.Tag.edit_profile_save_button).performClick()
+
+    assertCurrentScreen(Screen.Profile)
+    composeTestRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals("New me")
+    assertEquals("New me", profileRepository.profiles.single { it.uid == "me" }.name)
   }
 
   @Test
