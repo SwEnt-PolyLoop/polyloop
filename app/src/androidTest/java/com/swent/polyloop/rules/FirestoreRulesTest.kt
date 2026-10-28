@@ -9,6 +9,7 @@ import com.google.firebase.auth.auth
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
 import com.swent.polyloop.model.auth.AuthUser
@@ -67,6 +68,7 @@ class FirestoreRulesTest {
     Firebase.auth.signInWithEmailAndPassword(account.email, PASSWORD).await()
   }
 
+  /** A listing as the app creates it: its areas stay empty until geocodeListingAddresses runs. */
   private fun listing(ownerId: String, id: String = "listing-${UUID.randomUUID()}") =
       Listing(
           id = id,
@@ -80,8 +82,6 @@ class FirestoreRulesTest {
           availableFrom = LocalDate.of(2026, 11, 1),
           availableTo = LocalDate.of(2026, 11, 30),
           status = ListingStatus.PUBLISHED,
-          pickupArea = "Ecublens",
-          dropOffArea = "Renens",
       )
 
   /** A listing of [ownerId], written as an admin. */
@@ -305,6 +305,45 @@ class FirestoreRulesTest {
         assertDenied { ref.update("bookedRanges", emptyList<Any>()).await() }
         assertDenied { ref.update("ownerId", "someone-else").await() }
         assertDenied { ref.update("pricePerDay", -1).await() }
+      }
+
+  @Test
+  fun onlyCloudFunctionsWriteTheAreasAndPoints() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val listing = listing(owner.uid)
+        val document = listingToDocument(listing)
+        val ecublens = GeoPoint(46.52, 6.57)
+
+        // A new listing has empty areas and no points.
+        listOf(
+                "pickupArea" to "Ecublens",
+                "dropOffArea" to "Renens",
+                "pickupPoint" to ecublens,
+                "dropOffPoint" to ecublens,
+            )
+            .forEach { field ->
+              assertDenied {
+                listingRef("listing-${UUID.randomUUID()}").set(document + field).await()
+              }
+            }
+
+        // Once geocoded, the owner still edits the listing, but not its areas or points.
+        FirebaseEmulator.createDocumentAsAdmin(
+            "listings/${listing.id}",
+            document +
+                mapOf(
+                    "pickupArea" to "Ecublens",
+                    "pickupPoint" to ecublens,
+                    "dropOffArea" to "Renens",
+                    "dropOffPoint" to GeoPoint(46.54, 6.59),
+                ),
+        )
+        val ref = listingRef(listing.id)
+        ref.update("title", "Bigger tent").await()
+        assertDenied { ref.update("pickupArea", "Lausanne").await() }
+        assertDenied { ref.update("dropOffPoint", GeoPoint(46.2, 6.1)).await() }
+        assertDenied { ref.update("pickupPoint", FieldValue.delete()).await() }
       }
 
   @Test
