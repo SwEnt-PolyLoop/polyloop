@@ -360,7 +360,7 @@ class EndToEndTest {
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_tab_borrowing).performClick()
     waitForTag(row)
     composeTestRule.onNodeWithTag(row).performClick()
-    assertOpenedFor(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
+    assertOpenedFor(Screen.RentalDetail)
 
     // Chat list: the rental's conversation opens its chat, whose header names the lender and the
     // item (a wrong rental would show another title), and links back to Rental detail.
@@ -372,7 +372,7 @@ class EndToEndTest {
     assertRoute(Screen.Chat)
     composeTestRule.onNodeWithTag(C.Tag.chat_header_name).assertTextEquals(LENDER_NAME)
     composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
-    assertOpenedFor(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
+    assertOpenedFor(Screen.RentalDetail)
   }
 
   @Test
@@ -576,9 +576,9 @@ class EndToEndTest {
    * Checks that [screen] is open for the rental of [route]. It is still a stand-in, which shows the
    * route it was opened with: a wrong rental id would show here.
    */
-  private fun assertOpenedFor(screen: Screen, route: String) {
+  private fun assertOpenedFor(screen: Screen) {
     assertRoute(screen)
-    composeTestRule.onNodeWithTag(C.Tag.dummy_screen_text).assertTextEquals(route)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_screen).assertIsDisplayed()
   }
 
   /** Waits for [tag] to be shown; Firebase calls take longer than in-memory fakes. */

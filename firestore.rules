@@ -109,7 +109,7 @@ service cloud.firestore {
           && changedKeys().hasOnly(['bookedRanges'])
           && request.resource.data.bookedRanges is list
           && request.resource.data.bookedRanges.size()
-              >= resource.data.get('bookedRanges', []).size();
+              > resource.data.get('bookedRanges', []).size();
 
       allow delete: if isUser(resource.data.ownerId);
 
@@ -198,11 +198,11 @@ service cloud.firestore {
           && changedKeys().hasOnly(['status', 'pickupAddress', 'returnAddress'])
           && (
               (request.resource.data.status == 'DECLINED'
-                  && request.resource.data.pickupAddress == resource.data.pickupAddress
-                  && request.resource.data.returnAddress == resource.data.returnAddress)
+                  && request.resource.data.get('pickupAddress', '') == resource.data.get('pickupAddress', '')
+                  && request.resource.data.get('returnAddress', '') == resource.data.get('returnAddress', ''))
               || (request.resource.data.status == 'ACCEPTED'
-                  && isNonBlankString(request.resource.data.pickupAddress)
-                  && isNonBlankString(request.resource.data.returnAddress))
+                  && isNonBlankString(request.resource.data.get('pickupAddress', ''))
+                  && isNonBlankString(request.resource.data.get('returnAddress', '')))
           );
 
       function isValidNewRental(rental) {

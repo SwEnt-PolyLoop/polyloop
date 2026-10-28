@@ -595,10 +595,11 @@ class FirestoreRulesTest {
         assertDenied {
           listingRef(draft.id).update("bookedRanges", FieldValue.arrayUnion(booked)).await()
         }
-        // Only the booked ranges may change in that write.
+        // Adding a range together with another change is refused.
+        val another = mapOf("start" to "2026-12-01", "end" to "2026-12-02")
         assertDenied {
           listingRef(published.id)
-              .update(mapOf("bookedRanges" to listOf(booked), "title" to "Other"))
+              .update(mapOf("bookedRanges" to listOf(booked, another), "title" to "Other"))
               .await()
         }
       }
