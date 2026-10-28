@@ -22,9 +22,16 @@ internal fun newPhotoFile(
   return File(photosDir, "listing_${nowMillis}_$id.jpg")
 }
 
-/** True when the shutter may be used: a shot is not already being saved and a photo still fits. */
-internal fun canTakePhoto(photoCount: Int, isCapturing: Boolean): Boolean =
-    !isCapturing && photoCount < Listing.MAX_PHOTOS
+/**
+ * True when the shutter may be used: a shot is not already being saved and a photo still fits
+ * (fewer than [maxPhotos] taken).
+ */
+internal fun canTakePhoto(
+    photoCount: Int,
+    isCapturing: Boolean,
+    maxPhotos: Int = Listing.MAX_PHOTOS,
+): Boolean = !isCapturing && photoCount < maxPhotos
 
 /** True when the camera closes by itself, because no more photo fits. */
-internal fun shouldCloseCamera(photoCount: Int): Boolean = photoCount >= Listing.MAX_PHOTOS
+internal fun shouldCloseCamera(photoCount: Int, maxPhotos: Int = Listing.MAX_PHOTOS): Boolean =
+    photoCount >= maxPhotos

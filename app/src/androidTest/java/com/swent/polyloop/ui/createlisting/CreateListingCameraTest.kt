@@ -6,6 +6,8 @@ import android.Manifest
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.test.assertIsDisplayed
@@ -182,10 +184,12 @@ class CreateListingCameraTest {
       photoCount: Int = 0,
       onPhotoTaken: (String) -> Unit = {},
       onClose: () -> Unit = {},
+      maxPhotos: Int = Listing.MAX_PHOTOS,
   ) {
     composeTestRule.setContent {
       PolyLoopCameraContent(
           photoCount = photoCount,
+          maxPhotos = maxPhotos,
           onPhotoTaken = onPhotoTaken,
           onClose = onClose,
           preview = { _, modifier -> Box(modifier) },
@@ -238,5 +242,39 @@ class CreateListingCameraTest {
     node(C.Tag.create_listing_camera_shutter).assertIsEnabled()
     assertFalse(closed)
     assertTrue(taken.isEmpty())
+  }
+
+  @Test
+  fun aSinglePhotoCameraClosesByItselfOnceThePhotoIsTaken() {
+    val fake = FakeCapture()
+    var photoCount by mutableIntStateOf(0)
+    var closed = false
+    composeTestRule.setContent {
+      PolyLoopCameraContent(
+          photoCount = photoCount,
+          maxPhotos = 1,
+          onPhotoTaken = { photoCount++ },
+          onClose = { closed = true },
+          preview = { _, modifier -> Box(modifier) },
+          capture = fake::capture,
+      )
+    }
+
+    node(C.Tag.create_listing_camera_shutter).performClick()
+    composeTestRule.runOnIdle {
+      assertFalse(closed)
+      fake.onSaved()
+    }
+
+    composeTestRule.runOnIdle { assertTrue(closed) }
+  }
+
+  @Test
+  fun aSinglePhotoCameraOpenedWithItsPhotoCannotTakeAnother() {
+    var closed = false
+    setCameraContent(FakeCapture(), photoCount = 1, maxPhotos = 1, onClose = { closed = true })
+
+    node(C.Tag.create_listing_camera_shutter).assertIsNotEnabled()
+    composeTestRule.runOnIdle { assertTrue(closed) }
   }
 }
