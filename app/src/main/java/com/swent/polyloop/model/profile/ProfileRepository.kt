@@ -45,11 +45,18 @@ interface ProfileRepository {
   suspend fun updateProfile(uid: String, name: String, photoUrl: String): Result<Unit>
 
   /**
-   * Uploads the photo at [photoUri] (a local file taken with the in-app camera) to Cloud Storage as
-   * the profile photo of [uid], replacing the previous one, and returns its download URL. The
-   * profile itself is not changed: save the URL with [updateProfile]. Fails with the cause if the
-   * photo cannot be uploaded, or with an `IllegalArgumentException` if [uid] is blank or contains
-   * '/'.
+   * Uploads the photo at [photoUri] to Cloud Storage as the profile photo of [uid], replacing the
+   * previous one, and returns its download URL. [photoUri] must be a local JPEG file taken with the
+   * in-app camera, the only source of photos (see SCREENS.md). The profile itself is not changed:
+   * save the URL with [updateProfile].
+   *
+   * Replacing the photo makes the URL saved in the profile stop working at once, so call
+   * [updateProfile] with the new URL right away, and retry it if it fails: until then the profile
+   * points to a photo that no longer loads.
+   *
+   * Fails with the cause if the photo cannot be uploaded, with a `TimeoutException` if the upload
+   * does not finish within 30 seconds (it is then cancelled), or with an `IllegalArgumentException`
+   * if [uid] is blank or contains '/'.
    */
   suspend fun uploadProfilePhoto(uid: String, photoUri: String): Result<String>
 }
