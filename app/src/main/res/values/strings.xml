@@ -117,6 +117,7 @@
     <string name="create_listing_category_placeholder">Choose a category</string>
     <string name="create_listing_availability_placeholder">Choose dates</string>
     <string name="create_listing_publish">Publish</string>
+    <string name="create_listing_publish_error">Could not publish the listing. Please try again.</string>
     <string name="create_listing_headline">New listing</string>
     <string name="create_listing_category_label">Category</string>
     <string name="create_listing_category_required">Please choose a category.</string>

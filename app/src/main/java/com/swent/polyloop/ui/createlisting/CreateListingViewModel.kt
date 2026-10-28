@@ -2,14 +2,22 @@
 
 package com.swent.polyloop.ui.createlisting
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingRepository
+import com.swent.polyloop.model.listing.ListingStatus
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * State of the Create listing screen: the fields as typed, plus checks that follow the rules of
@@ -27,6 +35,9 @@ import kotlinx.coroutines.flow.update
  * @property isDatePickerOpen true while the date picker for the availability window is shown.
  * @property isCameraOpen true while the in-app camera is shown; it stays open between photos so
  *   several can be taken in a row.
+ * @property publishFailed true when publishing failed, or when nobody was signed in; the screen
+ *   then shows a generic error text. It is reset when a new publish starts.
+ * @property publishedListingId the new listing's id until the screen has opened it.
  */
 data class CreateListingUiState(
     val title: String = "",
@@ -43,6 +54,8 @@ data class CreateListingUiState(
     val isPublishing: Boolean = false,
     val isDatePickerOpen: Boolean = false,
     val isCameraOpen: Boolean = false,
+    val publishFailed: Boolean = false,
+    val publishedListingId: String? = null,
 ) {
   val isTitleBlank: Boolean
     get() = title.isBlank()
@@ -97,8 +110,11 @@ data class CreateListingUiState(
             !isDropOffAddressBlank
 }
 
-/** Holds the Create listing form while the user fills it in. */
-class CreateListingViewModel : ViewModel() {
+/** Holds the Create listing form while the user fills it in, and publishes the listing. */
+class CreateListingViewModel(
+    private val listingRepository: ListingRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
 
   private val _uiState = MutableStateFlow(CreateListingUiState())
   val uiState: StateFlow<CreateListingUiState> = _uiState.asStateFlow()
@@ -157,10 +173,63 @@ class CreateListingViewModel : ViewModel() {
   }
 
   /**
-   * Marks the publish attempt, so the screen shows the errors of empty fields. Saving the listing
-   * comes with #102.
+   * Marks the publish attempt, so the screen shows the errors of empty fields, then saves the
+   * listing if every check passes (the photos are uploaded first). The title and description are
+   * trimmed. On success it sets the new listing's id; on failure, the error. Ignored while a
+   * publish is running.
    */
-  fun onPublish() = _uiState.update { it.copy(hasAttemptedPublish = true) }
+  fun onPublish() {
+    if (_uiState.value.isPublishing) return
+    val form = _uiState.value
+    _uiState.update { it.copy(hasAttemptedPublish = true) }
+    if (!form.canPublish) return
+    val owner = authRepository.getCurrentUser()
+    if (owner == null) {
+      _uiState.update { it.copy(publishFailed = true) }
+      return
+    }
+    val listing =
+        Listing(
+            id = "",
+            ownerId = owner.uid,
+            title = form.title.trim(),
+            description = form.description.trim(),
+            category = requireNotNull(form.category),
+            photoUrls = emptyList(),
+            pricePerDay = form.pricePerDay.toInt(),
+            itemValue = form.itemValue.toInt(),
+            availableFrom = requireNotNull(form.availableFrom),
+            availableTo = requireNotNull(form.availableTo),
+            status = ListingStatus.PUBLISHED,
+        )
+    val addresses = ListingAddresses(form.pickupAddress, form.dropOffAddress)
+    _uiState.update { it.copy(isPublishing = true, publishFailed = false) }
+    viewModelScope.launch {
+      listingRepository
+          .createListing(listing, addresses, form.photos.map(Uri::parse))
+          .onSuccess { id ->
+            _uiState.update { it.copy(isPublishing = false, publishedListingId = id) }
+          }
+          .onFailure { _uiState.update { it.copy(isPublishing = false, publishFailed = true) } }
+    }
+  }
+
+  /** Clears the new listing's id once the screen has opened it. */
+  fun onPublishedHandled() = _uiState.update { it.copy(publishedListingId = null) }
+
+  /** Builds the ViewModel with its dependencies (manual constructor injection). */
+  class Factory(
+      private val listingRepository: ListingRepository,
+      private val authRepository: AuthRepository,
+  ) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+      require(modelClass.isAssignableFrom(CreateListingViewModel::class.java)) {
+        "Unknown ViewModel class: ${modelClass.name}"
+      }
+      @Suppress("UNCHECKED_CAST")
+      return CreateListingViewModel(listingRepository, authRepository) as T
+    }
+  }
 }
 
 /** Only the digits 0-9 ("007" is 7), from 1 to [Listing.MAX_AMOUNT]. */

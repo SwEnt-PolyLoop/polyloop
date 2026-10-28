@@ -116,8 +116,23 @@ fun PolyLoopApp(
         )
       }
       composable(Screen.CreateListing.route) {
-        val createListingViewModel: CreateListingViewModel = viewModel()
-        CreateListingScreen(viewModel = createListingViewModel)
+        val createListingViewModel: CreateListingViewModel =
+            viewModel(
+                factory =
+                    CreateListingViewModel.Factory(
+                        listingRepository = RepositoryProvider.listingRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                    )
+            )
+        CreateListingScreen(
+            viewModel = createListingViewModel,
+            onListingPublished = { id ->
+              // Leaves the filled form off the back stack, so Back cannot publish a duplicate.
+              navController.navigate(Screen.ListingDetail.createRoute(id)) {
+                popUpTo(Screen.CreateListing.route) { inclusive = true }
+              }
+            },
+        )
       }
       composable(Screen.MyRentals.route) {
         val myRentalsViewModel: MyRentalsViewModel =
