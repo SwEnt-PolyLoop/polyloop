@@ -583,7 +583,7 @@ class FirestoreRulesTest {
       }
 
   @Test
-  fun ownerAddsBookedRangesToAPublishedListingOnly() =
+  fun ownerCannotAddBookedRangesEvenOnAPublishedListing() =
       runBlocking<Unit> {
         val owner = newAccount()
         val published = seedListing(owner.uid)
@@ -591,16 +591,11 @@ class FirestoreRulesTest {
         val booked = mapOf("start" to "2026-11-02", "end" to "2026-11-04")
 
         signInAs(owner)
-        listingRef(published.id).update("bookedRanges", FieldValue.arrayUnion(booked)).await()
+        assertDenied {
+          listingRef(published.id).update("bookedRanges", FieldValue.arrayUnion(booked)).await()
+        }
         assertDenied {
           listingRef(draft.id).update("bookedRanges", FieldValue.arrayUnion(booked)).await()
-        }
-        // Adding a range together with another change is refused.
-        val another = mapOf("start" to "2026-12-01", "end" to "2026-12-02")
-        assertDenied {
-          listingRef(published.id)
-              .update(mapOf("bookedRanges" to listOf(booked, another), "title" to "Other"))
-              .await()
         }
       }
 

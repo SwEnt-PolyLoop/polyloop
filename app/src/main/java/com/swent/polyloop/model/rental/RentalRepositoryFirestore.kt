@@ -7,7 +7,6 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
@@ -17,7 +16,6 @@ import com.swent.polyloop.model.firestore.isValidDocumentId
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
 import com.swent.polyloop.model.listing.Listing
-import com.swent.polyloop.model.listing.ListingFields
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -113,18 +111,6 @@ class RentalRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fir
                     RentalFields.STATUS to RentalStatus.ACCEPTED.name,
                     RentalFields.PICKUP_ADDRESS to pickup,
                     RentalFields.RETURN_ADDRESS to returnTo,
-                ),
-            )
-            // The dates become unavailable on the listing (the buffer day is not stored: the rules
-            // and the picker add it).
-            transaction.update(
-                db.collection(ListingFields.COLLECTION).document(rental.listingId),
-                ListingFields.BOOKED_RANGES,
-                FieldValue.arrayUnion(
-                    mapOf(
-                        ListingFields.RANGE_START to rental.startDate.toString(),
-                        ListingFields.RANGE_END to rental.endDate.toString(),
-                    )
                 ),
             )
             Result.success(

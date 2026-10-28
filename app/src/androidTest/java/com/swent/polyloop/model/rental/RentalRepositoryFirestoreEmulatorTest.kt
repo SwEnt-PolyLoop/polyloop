@@ -216,11 +216,6 @@ class RentalRepositoryFirestoreEmulatorTest {
           RentalStatus.REQUESTED,
           repository.getRental(otherRequest.id).getOrThrow()?.status,
       )
-      val booked = Firebase.firestore.collection("listings").document(listing.id).get().await()
-      assertEquals(
-          listOf(mapOf("start" to "2026-10-20", "end" to "2026-10-22")),
-          booked.get("bookedRanges"),
-      )
     }
   }
 

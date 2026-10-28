@@ -49,10 +49,10 @@ interface RentalRepository {
 
   /**
    * The lender accepts the [RentalStatus.REQUESTED] rental [id], with the exact [pickupAddress] and
-   * [returnAddress], and returns it with status [RentalStatus.ACCEPTED]. In the same write, the
-   * rental's dates are added to the listing's booked ranges, and each request in [declineIds] that
-   * is still REQUESTED on the same listing is declined. Fails if the rental is not requested any
-   * more, or with the cause if it cannot be written.
+   * [returnAddress], and returns it with status [RentalStatus.ACCEPTED]. In the same write, each
+   * request in [declineIds] that is still REQUESTED on the same listing is declined. The listing's
+   * booked ranges are not written here: only Cloud Functions write them. Fails if the rental is not
+   * requested any more, or with the cause if it cannot be written.
    *
    * Temporary: the app writes these fields itself, like [requestRental], until the acceptRental
    * Cloud Function exists. The caller works out [declineIds] from the booked days (see the shared
