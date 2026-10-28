@@ -55,6 +55,11 @@ class EditProfileViewModel(
   private val _uiState = MutableStateFlow(EditProfileUiState())
   val uiState: StateFlow<EditProfileUiState> = _uiState.asStateFlow()
 
+  // The photo uploaded by a Save whose profile update then failed, as (photo uri, its URL). The
+  // upload already made the old URL stop working, so a retry saves this URL instead of uploading
+  // the same photo again.
+  private var uploadedPhoto: Pair<String, String>? = null
+
   init {
     load()
   }
@@ -81,8 +86,8 @@ class EditProfileViewModel(
 
   /**
    * Saves the trimmed name and, if a new photo was taken, uploads it first and saves its URL. A
-   * blank name is not saved and shows [EditProfileUiState.nameError]. Ignored while loading or
-   * saving.
+   * photo already uploaded by an earlier Save that failed afterwards is not uploaded again. A blank
+   * name is not saved and shows [EditProfileUiState.nameError]. Ignored while loading or saving.
    */
   fun save() {
     val form = _uiState.value
@@ -99,15 +104,21 @@ class EditProfileViewModel(
     }
     _uiState.update { it.copy(isSaving = true, saveFailed = false) }
     viewModelScope.launch {
-      // 1. Upload the new photo, if one was taken; otherwise keep the saved one.
+      // 1. Upload the new photo, if one was taken and not uploaded yet; otherwise keep the saved
+      //    one.
       val newPhotoUri = form.newPhotoUri
+      val alreadyUploaded = uploadedPhoto?.takeIf { it.first == newPhotoUri }?.second
       val photoUrl =
-          if (newPhotoUri == null) form.photoUrl
-          else
-              profileRepository.uploadProfilePhoto(uid, newPhotoUri).getOrElse {
-                onSaveFailed()
-                return@launch
-              }
+          when {
+            newPhotoUri == null -> form.photoUrl
+            alreadyUploaded != null -> alreadyUploaded
+            else ->
+                profileRepository.uploadProfilePhoto(uid, newPhotoUri).getOrElse {
+                  onSaveFailed()
+                  return@launch
+                }
+          }
+      if (newPhotoUri != null) uploadedPhoto = newPhotoUri to photoUrl
       // 2. Save the name and the photo's URL in the profile.
       profileRepository
           .updateProfile(uid, name, photoUrl)

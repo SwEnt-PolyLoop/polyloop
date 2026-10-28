@@ -321,6 +321,38 @@ class EditProfileViewModelTest {
   }
 
   @Test
+  fun aRetryAfterAFailedUpdateSavesTheUploadedPhotoWithoutUploadingItAgain() {
+    val vm = viewModel()
+    vm.onPhotoTaken(newPhoto)
+    profiles.updateFailure = failure
+    vm.save()
+    assertTrue(vm.uiState.value.saveFailed)
+    assertEquals(1, profiles.uploadedPhotos.size)
+
+    profiles.updateFailure = null
+    vm.save()
+
+    assertEquals(1, profiles.uploadedPhotos.size)
+    assertEquals(FakeProfileRepository.uploadedUrl(newPhoto), savedProfile().photoUrl)
+    assertTrue(vm.uiState.value.isSaved)
+  }
+
+  @Test
+  fun aNewPhotoAfterAFailedUpdateIsUploaded() {
+    val vm = viewModel()
+    vm.onPhotoTaken("file:///first.jpg")
+    profiles.updateFailure = failure
+    vm.save()
+
+    profiles.updateFailure = null
+    vm.onPhotoTaken(newPhoto)
+    vm.save()
+
+    assertEquals(listOf("me" to "file:///first.jpg", "me" to newPhoto), profiles.uploadedPhotos)
+    assertEquals(FakeProfileRepository.uploadedUrl(newPhoto), savedProfile().photoUrl)
+  }
+
+  @Test
   fun takingAPhotoClearsTheSaveError() {
     val vm = viewModel()
     profiles.failure = failure

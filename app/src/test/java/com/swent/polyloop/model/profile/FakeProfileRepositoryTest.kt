@@ -223,4 +223,16 @@ class FakeProfileRepositoryTest {
 
     assertEquals(1, repository.uploadedPhotos.size)
   }
+
+  @Test
+  fun updateFailureFailsOnlyProfileUpdates() = runTest {
+    val repository = FakeProfileRepository(listOf(john), updateFailure = failure)
+
+    val upload = repository.uploadProfilePhoto("u1", "file:///photo.jpg")
+    val update = repository.updateProfile("u1", "Johnny", "")
+
+    assertTrue(upload.isSuccess)
+    assertSame(failure, update.exceptionOrNull())
+    assertEquals(listOf(john), repository.profiles)
+  }
 }
