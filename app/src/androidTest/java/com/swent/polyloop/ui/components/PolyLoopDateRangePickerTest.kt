@@ -116,9 +116,8 @@ class PolyLoopDateRangePickerTest {
   fun bookedBufferAndOutOfWindowDaysAreNotEnabled() {
     setBody()
 
-    day(oct(9))
-        .assertIsNotEnabled()
-        .assert(hasContentDescription(context.getString(R.string.date_picker_day_buffer, 9)))
+    // The day before a booking is not a buffer day, so it stays selectable.
+    day(oct(9)).assertIsEnabled()
     day(oct(10))
         .assertIsNotEnabled()
         .assert(hasContentDescription(context.getString(R.string.date_picker_day_booked, 10)))

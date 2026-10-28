@@ -52,14 +52,11 @@ internal enum class DayKind {
 }
 
 /**
- * The days right before and right after each booked stretch, unless they are booked too. The day
- * before could only end a range with no free day after it, so it is blocked like the day after.
+ * The day right after each booked stretch, unless that day is booked too. Only the day after is a
+ * buffer day (the spec: a 1-day buffer follows every booking).
  */
 fun bufferDays(disabledDates: Set<LocalDate>): Set<LocalDate> =
-    disabledDates
-        .flatMap { listOf(it.minusDays(1), it.plusDays(1)) }
-        .filterNot { it in disabledDates }
-        .toSet()
+    disabledDates.map { it.plusDays(1) }.filterNot { it in disabledDates }.toSet()
 
 /** True for a day inside [window], not before [today], neither booked nor a buffer day. */
 fun isSelectable(
