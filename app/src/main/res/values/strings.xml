@@ -61,6 +61,12 @@
     <string name="profile_error_fallback">Could not load the profile</string>
     <string name="profile_retry">Retry</string>
     <string name="profile_not_found">This profile doesn\'t exist.</string>
+    <string name="edit_profile_take_photo">Take photo</string>
+    <string name="edit_profile_name_label">Name</string>
+    <string name="edit_profile_name_required">Enter your name</string>
+    <string name="edit_profile_save">Save</string>
+    <string name="edit_profile_save_error">Your profile could not be saved. Check your connection and try again.</string>
+    <string name="edit_profile_load_error">Could not load your profile</string>
 
     <!-- My rentals -->
     <string name="my_rentals_title">My rentals</string>
