@@ -4,9 +4,9 @@
 ## Layers
 
 ```
-UI layer        Compose screens (13 screens, see SCREENS.md)
+UI layer        Compose screens (14 screens, see SCREENS.md)
                   │  observe state / send user actions
-ViewModel layer 13 screen ViewModels (one per screen)
+ViewModel layer 14 screen ViewModels (one per screen)
                   │  call the repositories they need (no domain layer)
 Data layer      10 repositories + local upload queue (WorkManager)
                   │
@@ -42,6 +42,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | --- | --- | --- |
 | Sign-up / login | AuthViewModel | Auth; Profile (creates the profile on the first verified sign-in) |
 | Profile & reviews | ProfileViewModel | Profile; Listing ("My listings"); Auth ("Sign out") |
+| Edit profile | EditProfileViewModel | Profile (loads the profile, uploads the new photo, saves the name and the photo's URL) |
 | Wallet | WalletViewModel | Wallet |
 | Chat list | ChatListViewModel | Chat (the item and the other person are copied on each rental, see "Firestore schema") |
 | Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
@@ -119,7 +120,7 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 
 | Area | Choice |
 | --- | --- |
-| Architecture | MVVM without a domain layer: 13 screen ViewModels, each calling the repositories it needs |
+| Architecture | MVVM without a domain layer: 14 screen ViewModels, each calling the repositories it needs |
 | UI state | Each ViewModel exposes its screen state as a `StateFlow`, collected with `collectAsStateWithLifecycle()`; user actions are method calls (unidirectional data flow) |
 | Navigation | Single activity, Navigation 2 (`navigation-compose`). Navigation 3 is Google's newer option, not adopted for now |
 | Dependency injection | Manual constructor injection: repositories and ViewModels receive their dependencies in the constructor (ViewModels through a `ViewModelProvider.Factory`), so tests can pass fakes. `RepositoryProvider` creates the shared repository instances |

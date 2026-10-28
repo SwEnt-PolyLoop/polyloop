@@ -19,7 +19,7 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 
 1. **Do not make design or technical decisions on your own.** If something you need is not in `docs/`, or the docs are ambiguous, stop and ask. The "Not decided yet" list in ARCHITECTURE.md names known gaps.
 2. **Respect the layers.** Each screen (Compose) only talks to its own ViewModel. ViewModels call the repositories they need directly; they never call each other, and there is no domain/use-case layer.
-3. **One ViewModel per screen, one repository per feature.** There are 13 screens, each with its own ViewModel, and 10 repositories, one per type of data (Auth, Profile, Listing, Rental, Chat, Handover, Dispute, Wallet, Location, Connectivity). `docs/ARCHITECTURE.md` lists the repositories each ViewModel uses; keep that list up to date. Do not create new ViewModels or repositories without asking.
+3. **One ViewModel per screen, one repository per feature.** There are 14 screens, each with its own ViewModel, and 10 repositories, one per type of data (Auth, Profile, Listing, Rental, Chat, Handover, Dispute, Wallet, Location, Connectivity). `docs/ARCHITECTURE.md` lists the repositories each ViewModel uses; keep that list up to date. Do not create new ViewModels or repositories without asking.
 4. **If the architecture changes**, update `docs/ARCHITECTURE.md`, `docs/SCREENS.md`, the diagram and, if a rule changes, this file in the same pull request as the code.
 
 ## Rules that must never be broken
