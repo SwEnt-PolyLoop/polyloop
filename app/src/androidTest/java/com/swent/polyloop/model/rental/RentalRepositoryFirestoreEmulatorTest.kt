@@ -47,6 +47,7 @@ class RentalRepositoryFirestoreEmulatorTest {
   private lateinit var ownerId: String
   private lateinit var borrower: AuthUser
   private lateinit var listing: Listing
+  private lateinit var otherListing: Listing
 
   @Before
   fun setUp() {
@@ -74,6 +75,11 @@ class RentalRepositoryFirestoreEmulatorTest {
             dropOffArea = "Renens",
         )
     // The rules check each request against its listing, which only the owner may write.
+    otherListing = listing.copy(id = "listing-${UUID.randomUUID()}")
+    FirebaseEmulator.createDocumentAsAdmin(
+        "listings/${otherListing.id}",
+        listingToDocument(otherListing),
+    )
     FirebaseEmulator.createDocumentAsAdmin("listings/${listing.id}", listingToDocument(listing))
   }
 
@@ -167,12 +173,54 @@ class RentalRepositoryFirestoreEmulatorTest {
 
       val accepted =
           repository
-              .acceptRental(rental.id, pickupAddress = " EPFL, Lausanne ", returnAddress = "Renens")
+              .acceptRental(
+                  rental.id,
+                  pickupAddress = " EPFL, Lausanne ",
+                  returnAddress = "Renens",
+                  declineIds = emptyList(),
+              )
               .getOrThrow()
 
       assertEquals(RentalStatus.ACCEPTED, accepted.status)
       assertEquals("EPFL, Lausanne", accepted.pickupAddress)
       assertEquals(accepted, repository.getRental(rental.id).getOrThrow())
+    }
+  }
+
+  @Test
+  fun acceptRentalDeclinesOverlappingRequestsOfTheSameItemOnly() {
+    runBlocking {
+      val accepted = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+      val overlapping =
+          repository
+              .requestRental(listing, "Vida", borrower, start.plusDays(1), end.plusDays(1))
+              .getOrThrow()
+      val otherItem = repository.requestRental(otherListing, "Vida", borrower, start, end)
+      val otherRequest = otherItem.getOrThrow()
+      Firebase.auth.signInWithEmailAndPassword(ownerEmail, PASSWORD).await()
+
+      repository
+          .acceptRental(
+              accepted.id,
+              pickupAddress = "EPFL",
+              returnAddress = "Renens",
+              declineIds = listOf(overlapping.id, otherRequest.id),
+          )
+          .getOrThrow()
+
+      assertEquals(
+          RentalStatus.DECLINED,
+          repository.getRental(overlapping.id).getOrThrow()?.status,
+      )
+      assertEquals(
+          RentalStatus.REQUESTED,
+          repository.getRental(otherRequest.id).getOrThrow()?.status,
+      )
+      val booked = Firebase.firestore.collection("listings").document(listing.id).get().await()
+      assertEquals(
+          listOf(mapOf("start" to "2026-10-20", "end" to "2026-10-22")),
+          booked.get("bookedRanges"),
+      )
     }
   }
 
@@ -195,7 +243,14 @@ class RentalRepositoryFirestoreEmulatorTest {
       Firebase.auth.signInWithEmailAndPassword(ownerEmail, PASSWORD).await()
 
       assertTrue(
-          repository.acceptRental("missing-${UUID.randomUUID()}", "EPFL", "Renens").isFailure
+          repository
+              .acceptRental(
+                  "missing-${UUID.randomUUID()}",
+                  "EPFL",
+                  "Renens",
+                  declineIds = emptyList(),
+              )
+              .isFailure
       )
     }
   }

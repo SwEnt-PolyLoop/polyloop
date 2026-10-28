@@ -101,6 +101,16 @@ service cloud.firestore {
               'pickupPoint', 'dropOffPoint'])
           && isValidListing(request.resource.data);
 
+      // Temporary exception until the acceptRental Cloud Function exists (#176): when the lender
+      // accepts a request, the owner adds its dates to a published listing's bookedRanges, and
+      // nothing else changes. Remove this with that Function.
+      allow update: if isUser(resource.data.ownerId)
+          && resource.data.status == 'PUBLISHED'
+          && changedKeys().hasOnly(['bookedRanges'])
+          && request.resource.data.bookedRanges is list
+          && request.resource.data.bookedRanges.size()
+              >= resource.data.get('bookedRanges', []).size();
+
       allow delete: if isUser(resource.data.ownerId);
 
       // The same checks as Listing.canPublish in the app, for every status.
@@ -178,6 +188,22 @@ service cloud.firestore {
           && changedKeys().hasOnly(['lastMessage', 'lastMessageAt'])
           && request.resource.data.lastMessage is string
           && request.resource.data.lastMessageAt == request.time;
+
+      // Temporary exception to the core rule, until the acceptRental and declineRental Cloud
+      // Functions exist (#176): the lender answers a REQUESTED rental. Accepting also stores the
+      // exact addresses; declining changes nothing else. Remove this with those Functions.
+      allow update: if isVerifiedEpfl()
+          && request.auth.uid == resource.data.ownerId
+          && resource.data.status == 'REQUESTED'
+          && changedKeys().hasOnly(['status', 'pickupAddress', 'returnAddress'])
+          && (
+              (request.resource.data.status == 'DECLINED'
+                  && request.resource.data.pickupAddress == resource.data.pickupAddress
+                  && request.resource.data.returnAddress == resource.data.returnAddress)
+              || (request.resource.data.status == 'ACCEPTED'
+                  && isNonBlankString(request.resource.data.pickupAddress)
+                  && isNonBlankString(request.resource.data.returnAddress))
+          );
 
       function isValidNewRental(rental) {
         let fields = ['listingId', 'listingTitle', 'listingPhotoUrl', 'ownerId', 'ownerName',

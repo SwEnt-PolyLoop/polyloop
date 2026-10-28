@@ -7,6 +7,7 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
@@ -16,6 +17,7 @@ import com.swent.polyloop.model.firestore.isValidDocumentId
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingFields
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -69,21 +71,72 @@ class RentalRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fir
       id: String,
       pickupAddress: String,
       returnAddress: String,
+      declineIds: List<String>,
   ): Result<Rental> {
+    if (!isValidDocumentId(id)) return Result.failure(IllegalArgumentException("Invalid id $id"))
     val pickup = pickupAddress.trim()
     val returnTo = returnAddress.trim()
-    return answerRequest(
-        id,
-        change = {
-          it.copy(status = RentalStatus.ACCEPTED, pickupAddress = pickup, returnAddress = returnTo)
-        },
-        fields =
-            mapOf(
-                RentalFields.STATUS to RentalStatus.ACCEPTED.name,
-                RentalFields.PICKUP_ADDRESS to pickup,
-                RentalFields.RETURN_ADDRESS to returnTo,
-            ),
-    )
+    return withFirebaseErrors {
+      val document = rentals.document(id)
+      db.runTransaction { transaction ->
+            val rental =
+                toRental(transaction.get(document))
+                    ?: return@runTransaction Result.failure<Rental>(
+                        NoSuchElementException("No rental $id")
+                    )
+            if (rental.status != RentalStatus.REQUESTED) {
+              return@runTransaction Result.failure<Rental>(
+                  IllegalStateException("Rental $id is ${rental.status}, not REQUESTED")
+              )
+            }
+            // Reads come first: a transaction must read everything before it writes. Only requests
+            // for the same item that are still REQUESTED are declined.
+            val others =
+                declineIds
+                    .filter { it != id && isValidDocumentId(it) }
+                    .map { rentals.document(it) }
+                    .map { transaction.get(it) }
+                    .filter { snapshot ->
+                      toRental(snapshot)?.let {
+                        it.status == RentalStatus.REQUESTED && it.listingId == rental.listingId
+                      } == true
+                    }
+            for (other in others) {
+              transaction.update(
+                  other.reference,
+                  mapOf(RentalFields.STATUS to RentalStatus.DECLINED.name),
+              )
+            }
+            transaction.update(
+                document,
+                mapOf(
+                    RentalFields.STATUS to RentalStatus.ACCEPTED.name,
+                    RentalFields.PICKUP_ADDRESS to pickup,
+                    RentalFields.RETURN_ADDRESS to returnTo,
+                ),
+            )
+            // The dates become unavailable on the listing (the buffer day is not stored: the rules
+            // and the picker add it).
+            transaction.update(
+                db.collection(ListingFields.COLLECTION).document(rental.listingId),
+                ListingFields.BOOKED_RANGES,
+                FieldValue.arrayUnion(
+                    mapOf(
+                        ListingFields.RANGE_START to rental.startDate.toString(),
+                        ListingFields.RANGE_END to rental.endDate.toString(),
+                    )
+                ),
+            )
+            Result.success(
+                rental.copy(
+                    status = RentalStatus.ACCEPTED,
+                    pickupAddress = pickup,
+                    returnAddress = returnTo,
+                )
+            )
+          }
+          .await()
+    }
   }
 
   override suspend fun declineRental(id: String): Result<Rental> =

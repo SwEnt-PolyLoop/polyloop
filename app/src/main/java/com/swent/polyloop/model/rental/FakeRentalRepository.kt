@@ -91,14 +91,38 @@ class FakeRentalRepository(
       id: String,
       pickupAddress: String,
       returnAddress: String,
-  ): Result<Rental> =
-      answer(id) { rental ->
+      declineIds: List<String>,
+  ): Result<Rental> {
+    gate?.await()
+    failure?.let {
+      return Result.failure(it)
+    }
+    val rental =
+        stored.value.find { it.id == id }
+            ?: return Result.failure(NoSuchElementException("No rental $id"))
+    if (rental.status != RentalStatus.REQUESTED) {
+      return Result.failure(IllegalStateException("Rental $id is ${rental.status}, not REQUESTED"))
+    }
+    val accepted =
         rental.copy(
             status = RentalStatus.ACCEPTED,
             pickupAddress = pickupAddress.trim(),
             returnAddress = returnAddress.trim(),
         )
+    // Same listing only: the lender can only decline requests for the item being accepted.
+    stored.update { rentals ->
+      rentals.map { other ->
+        when {
+          other.id == id -> accepted
+          other.id in declineIds &&
+              other.listingId == rental.listingId &&
+              other.status == RentalStatus.REQUESTED -> other.copy(status = RentalStatus.DECLINED)
+          else -> other
+        }
       }
+    }
+    return Result.success(accepted)
+  }
 
   override suspend fun declineRental(id: String): Result<Rental> =
       answer(id) { rental -> rental.copy(status = RentalStatus.DECLINED) }

@@ -50,17 +50,23 @@ class RentalDetailViewModelTest {
           dropOffArea = "Renens",
       )
 
-  private fun rental(id: String = "rental-1", status: RentalStatus = RentalStatus.REQUESTED) =
+  private fun rental(
+      id: String = "rental-1",
+      status: RentalStatus = RentalStatus.REQUESTED,
+      listingId: String = listing.id,
+      startDate: LocalDate = LocalDate.of(2026, 10, 20),
+      endDate: LocalDate = LocalDate.of(2026, 10, 22),
+  ) =
       Rental(
           id = id,
-          listingId = listing.id,
+          listingId = listingId,
           listingTitle = listing.title,
           ownerId = lender.uid,
           ownerName = lender.name,
           borrowerId = borrower.uid,
           borrowerName = borrower.name,
-          startDate = LocalDate.of(2026, 10, 20),
-          endDate = LocalDate.of(2026, 10, 22),
+          startDate = startDate,
+          endDate = endDate,
           status = status,
           pricePerDay = 5,
           totalPrice = 15,
@@ -164,6 +170,50 @@ class RentalDetailViewModelTest {
     assertEquals("Renens station", saved.returnAddress)
     assertTrue(vm.uiState.value.isAnswered)
     assertEquals(RentalStatus.ACCEPTED, vm.uiState.value.rental?.status)
+  }
+
+  @Test
+  fun acceptDeclinesRequestsOverlappingTheBookingAndItsBufferDay() {
+    rentals =
+        FakeRentalRepository(
+            rentals =
+                listOf(
+                    rental("rental-1"), // 20 to 22 Oct, accepted now
+                    rental(
+                        "rental-2",
+                        startDate = LocalDate.of(2026, 10, 22),
+                        endDate = LocalDate.of(2026, 10, 24),
+                    ),
+                    rental(
+                        "rental-3",
+                        startDate = LocalDate.of(2026, 10, 23),
+                        endDate = LocalDate.of(2026, 10, 25),
+                    ),
+                    rental(
+                        "rental-4",
+                        startDate = LocalDate.of(2026, 10, 24),
+                        endDate = LocalDate.of(2026, 10, 26),
+                    ),
+                    rental(
+                        "rental-5",
+                        listingId = "other",
+                        startDate = LocalDate.of(2026, 10, 20),
+                        endDate = LocalDate.of(2026, 10, 22),
+                    ),
+                )
+        )
+    val vm = viewModel()
+    vm.fillValidForm()
+    vm.accept()
+
+    val byId = rentals.rentals.associateBy { it.id }
+    assertEquals(RentalStatus.ACCEPTED, byId.getValue("rental-1").status)
+    // Overlaps the booking, and starts on the buffer day after it.
+    assertEquals(RentalStatus.DECLINED, byId.getValue("rental-2").status)
+    assertEquals(RentalStatus.DECLINED, byId.getValue("rental-3").status)
+    // Starts after the buffer day, or is for another item.
+    assertEquals(RentalStatus.REQUESTED, byId.getValue("rental-4").status)
+    assertEquals(RentalStatus.REQUESTED, byId.getValue("rental-5").status)
   }
 
   @Test

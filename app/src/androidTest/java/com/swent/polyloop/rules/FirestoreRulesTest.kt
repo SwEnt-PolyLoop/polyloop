@@ -497,6 +497,125 @@ class FirestoreRulesTest {
         assertDenied { messages.document().set(message(stranger.uid)).await() }
       }
 
+  // ---------- temporary exception: the lender answers a request (#176) ----------
+
+  @Test
+  fun lenderAcceptsARequestWithItsAddresses() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid)
+
+        signInAs(owner)
+        rental
+            .update(
+                mapOf(
+                    "status" to "ACCEPTED",
+                    "pickupAddress" to "EPFL, Lausanne",
+                    "returnAddress" to "Renens",
+                )
+            )
+            .await()
+      }
+
+  @Test
+  fun lenderCannotAcceptWithoutBothAddresses() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid)
+
+        signInAs(owner)
+        assertDenied {
+          rental
+              .update(
+                  mapOf("status" to "ACCEPTED", "pickupAddress" to "EPFL", "returnAddress" to " ")
+              )
+              .await()
+        }
+        assertDenied { rental.update("status", "ACCEPTED").await() }
+      }
+
+  @Test
+  fun lenderDeclinesARequestAndChangesNothingElse() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid)
+
+        signInAs(owner)
+        rental.update("status", "DECLINED").await()
+
+        val other = seedRental(owner.uid, borrower.uid)
+        assertDenied {
+          other.update(mapOf("status" to "DECLINED", "startDate" to "2026-12-01")).await()
+        }
+      }
+
+  @Test
+  fun lenderCannotAnswerARequestTwice() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid)
+
+        signInAs(owner)
+        rental
+            .update(
+                mapOf(
+                    "status" to "ACCEPTED",
+                    "pickupAddress" to "EPFL",
+                    "returnAddress" to "Renens",
+                )
+            )
+            .await()
+        assertDenied { rental.update("status", "DECLINED").await() }
+      }
+
+  @Test
+  fun borrowerCannotAnswerARequest() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid)
+
+        assertDenied { rental.update("status", "ACCEPTED").await() }
+      }
+
+  @Test
+  fun ownerAddsBookedRangesToAPublishedListingOnly() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val published = seedListing(owner.uid)
+        val draft = seedListing(owner.uid, ListingStatus.DRAFT)
+        val booked = mapOf("start" to "2026-11-02", "end" to "2026-11-04")
+
+        signInAs(owner)
+        listingRef(published.id).update("bookedRanges", FieldValue.arrayUnion(booked)).await()
+        assertDenied {
+          listingRef(draft.id).update("bookedRanges", FieldValue.arrayUnion(booked)).await()
+        }
+        // Only the booked ranges may change in that write.
+        assertDenied {
+          listingRef(published.id)
+              .update(mapOf("bookedRanges" to listOf(booked), "title" to "Other"))
+              .await()
+        }
+      }
+
+  @Test
+  fun strangerCannotAddBookedRanges() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val published = seedListing(owner.uid)
+        val booked = mapOf("start" to "2026-11-02", "end" to "2026-11-04")
+
+        newAccount()
+        assertDenied {
+          listingRef(published.id).update("bookedRanges", FieldValue.arrayUnion(booked)).await()
+        }
+      }
+
   private companion object {
     const val PASSWORD = "password123"
   }

@@ -6,13 +6,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.ListingRepository
+import com.swent.polyloop.model.listing.bookedDays
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.ui.components.bufferDays
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -98,11 +103,17 @@ class RentalDetailViewModel(
   fun accept() {
     val state = _uiState.value
     if (!state.canAccept) return
+    val rental = state.rental ?: return
     answer {
+      val declineIds =
+          overlappingRequestIds(rental).getOrElse {
+            return@answer Result.failure(it)
+          }
       rentalRepository.acceptRental(
           id = rentalId,
           pickupAddress = state.pickupAddress,
           returnAddress = state.returnAddress,
+          declineIds = declineIds,
       )
     }
   }
@@ -140,6 +151,39 @@ class RentalDetailViewModel(
             errorMsg = null,
         )
       }
+    }
+  }
+
+  /**
+   * The other requests for the same item that overlap [rental] or its buffer days, the same days
+   * the picker greys out (see [bufferDays]). Read from the lender's rentals, so the lender's user
+   * id is needed; an error is returned, not thrown.
+   */
+  private suspend fun overlappingRequestIds(rental: Rental): Result<List<String>> {
+    val uid =
+        authRepository.getCurrentUser()?.uid
+            ?: return Result.failure(IllegalStateException("Signed out"))
+    return try {
+      val booked = bookedDays(listOf(BookedRange(rental.startDate, rental.endDate)))
+      val blocked = booked + bufferDays(booked)
+      val ids =
+          rentalRepository
+              .observeRentalsAsLender(uid)
+              .first()
+              .filter { other ->
+                other.id != rental.id &&
+                    other.listingId == rental.listingId &&
+                    other.status == RentalStatus.REQUESTED &&
+                    generateSequence(other.startDate) { it.plusDays(1) }
+                        .takeWhile { !it.isAfter(other.endDate) }
+                        .any { it in blocked }
+              }
+              .map { it.id }
+      Result.success(ids)
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      Result.failure(e)
     }
   }
 
