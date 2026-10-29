@@ -6,6 +6,7 @@ import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.storage
 import java.io.IOException
@@ -153,6 +154,12 @@ object FirebaseEmulator {
                 .put(
                     "timestampValue",
                     Instant.ofEpochSecond(value.seconds, value.nanoseconds.toLong()).toString(),
+                )
+        is GeoPoint ->
+            JSONObject()
+                .put(
+                    "geoPointValue",
+                    JSONObject().put("latitude", value.latitude).put("longitude", value.longitude),
                 )
         is List<*> ->
             JSONObject()

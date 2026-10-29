@@ -22,6 +22,7 @@ import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
@@ -95,6 +96,9 @@ class BrowseScreenTest {
           override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun getBookedRanges(id: String) =
+              Result.success(emptyList<BookedRange>())
 
           override suspend fun createListing(
               listing: Listing,
@@ -216,6 +220,9 @@ class BrowseScreenTest {
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
 
+          override suspend fun getBookedRanges(id: String) =
+              Result.success(emptyList<BookedRange>())
+
           override suspend fun createListing(
               listing: Listing,
               addresses: ListingAddresses,
@@ -250,6 +257,9 @@ class BrowseScreenTest {
               if (calls++ == 0) Result.success(listings) else awaitCancellation()
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun getBookedRanges(id: String) =
+              Result.success(emptyList<BookedRange>())
 
           override suspend fun createListing(
               listing: Listing,
@@ -320,6 +330,9 @@ class BrowseScreenTest {
               else Result.success(listings)
 
           override suspend fun getListing(id: String): Result<Listing?> = Result.success(null)
+
+          override suspend fun getBookedRanges(id: String) =
+              Result.success(emptyList<BookedRange>())
 
           override suspend fun createListing(
               listing: Listing,

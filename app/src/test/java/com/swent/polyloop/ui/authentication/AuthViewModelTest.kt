@@ -9,6 +9,7 @@ import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.auth.PasswordRule
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import kotlin.coroutines.cancellation.CancellationException
@@ -59,10 +60,12 @@ class AuthViewModelTest {
     viewModel.onPasswordChange("secret")
   }
 
+  /** Fills a valid sign-up form, with a password that follows every rule. */
   private fun fillSignUp() {
     viewModel.switchMode(AuthMode.SIGN_UP)
     viewModel.onNameChange("John")
-    fillLogIn()
+    viewModel.onEmailChange("john@epfl.ch")
+    viewModel.onPasswordChange("Secret12!")
   }
 
   /** Moves the virtual clock forward, running what was due, e.g. the resend countdown. */
@@ -112,11 +115,44 @@ class AuthViewModelTest {
 
   @Test
   fun signUpAlsoNeedsName() {
-    viewModel.switchMode(AuthMode.SIGN_UP)
-    fillLogIn()
+    fillSignUp()
+    viewModel.onNameChange(" ")
     assertFalse(state.canSubmit)
 
     viewModel.onNameChange("John")
+    assertTrue(state.canSubmit)
+  }
+
+  @Test
+  fun passwordRulesShowOnlyWhenSigningUpWithATypedPassword() {
+    viewModel.onPasswordChange("abc")
+    assertEquals(emptyList<PasswordRule>(), state.shownPasswordRules)
+
+    viewModel.switchMode(AuthMode.SIGN_UP)
+    assertEquals(
+        listOf(
+            PasswordRule.MIN_LENGTH,
+            PasswordRule.UPPERCASE,
+            PasswordRule.DIGIT,
+            PasswordRule.SPECIAL,
+        ),
+        state.shownPasswordRules,
+    )
+
+    viewModel.onPasswordChange("")
+    assertEquals(emptyList<PasswordRule>(), state.shownPasswordRules)
+  }
+
+  @Test
+  fun signUpNeedsAPasswordFollowingEveryRule() {
+    fillSignUp()
+    viewModel.onPasswordChange("secret")
+    assertFalse(state.canSubmit)
+
+    viewModel.submit()
+    assertTrue(repository.calls.isEmpty())
+
+    viewModel.onPasswordChange("Secret12!")
     assertTrue(state.canSubmit)
   }
 
@@ -248,7 +284,7 @@ class AuthViewModelTest {
 
     viewModel.submit()
 
-    assertEquals(listOf("signUp(John, john@epfl.ch, secret)"), repository.calls)
+    assertEquals(listOf("signUp(John, john@epfl.ch, Secret12!)"), repository.calls)
     assertTrue(state.isAwaitingVerification)
     assertFalse(state.isSignedIn)
     assertNull(state.error)
@@ -323,7 +359,7 @@ class AuthViewModelTest {
 
     viewModel.resendVerificationEmail()
 
-    assertEquals("resendVerificationEmail(john@epfl.ch, secret)", repository.calls.last())
+    assertEquals("resendVerificationEmail(john@epfl.ch, Secret12!)", repository.calls.last())
     assertTrue(state.isVerificationEmailResent)
     assertNull(state.error)
   }
@@ -363,7 +399,7 @@ class AuthViewModelTest {
 
     viewModel.confirmVerified()
 
-    assertEquals("signIn(john@epfl.ch, secret)", repository.calls.last())
+    assertEquals("signIn(john@epfl.ch, Secret12!)", repository.calls.last())
     assertTrue(state.isSignedIn)
     assertFalse(state.isAwaitingVerification)
   }
@@ -440,6 +476,88 @@ class AuthViewModelTest {
     gate.complete(Unit)
     assertTrue(state.isAwaitingVerification)
     assertEquals(AuthError.EMAIL_NOT_VERIFIED, state.error)
+  }
+
+  // ---------- expired sign-up ----------
+
+  @Test
+  fun confirmVerifiedAfterTheAccountWasDeletedSaysTheSignUpExpired() {
+    fillSignUp()
+    viewModel.submit()
+    // The server deleted the unverified account: the same email and password are now refused.
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+
+    viewModel.confirmVerified()
+
+    assertEquals(AuthError.SIGN_UP_EXPIRED, state.error)
+    assertTrue(state.isAwaitingVerification)
+    assertFalse(state.isSignedIn)
+  }
+
+  @Test
+  fun resendAfterTheAccountWasDeletedSaysTheSignUpExpired() {
+    fillSignUp()
+    viewModel.submit()
+    advanceSeconds(60)
+    repository.resendResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+
+    viewModel.resendVerificationEmail()
+
+    assertEquals(AuthError.SIGN_UP_EXPIRED, state.error)
+    assertFalse(state.isVerificationEmailResent)
+    assertTrue(state.canResend) // no new countdown: nothing was sent
+  }
+
+  @Test
+  fun expiredSignUpAfterLoggingInUnverifiedSaysTheSignUpExpired() {
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    fillLogIn()
+    viewModel.submit()
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+
+    viewModel.confirmVerified()
+
+    assertEquals(AuthError.SIGN_UP_EXPIRED, state.error)
+  }
+
+  @Test
+  fun otherErrorsOnCheckInboxAreShownAsTheyAre() {
+    fillSignUp()
+    viewModel.submit()
+    repository.signInResult = AuthResult.Failure(AuthError.NETWORK)
+
+    viewModel.confirmVerified()
+    assertEquals(AuthError.NETWORK, state.error)
+
+    repository.signInResult = AuthResult.Failure(AuthError.EMAIL_NOT_VERIFIED)
+    viewModel.confirmVerified()
+    assertEquals(AuthError.EMAIL_NOT_VERIFIED, state.error)
+  }
+
+  @Test
+  fun wrongCredentialsOnTheLogInFormAreNotAnExpiredSignUp() {
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+    fillLogIn()
+
+    viewModel.submit()
+
+    assertEquals(AuthError.WRONG_CREDENTIALS, state.error)
+    assertFalse(state.isAwaitingVerification)
+  }
+
+  @Test
+  fun backToFormAfterAnExpiredSignUpKeepsTheFieldsToSignUpAgain() {
+    fillSignUp()
+    viewModel.submit()
+    repository.signInResult = AuthResult.Failure(AuthError.WRONG_CREDENTIALS)
+    viewModel.confirmVerified()
+
+    assertTrue(viewModel.backToForm())
+
+    assertNull(state.error)
+    assertFalse(state.isAwaitingVerification)
+    assertEquals(AuthMode.SIGN_UP, state.mode)
+    assertEquals("john@epfl.ch", state.email)
   }
 
   // ---------- resend countdown ----------

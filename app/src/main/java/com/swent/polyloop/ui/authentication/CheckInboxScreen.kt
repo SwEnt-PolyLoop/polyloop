@@ -134,7 +134,15 @@ internal fun CheckInboxContent(
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            text = boldEmail(stringResource(R.string.auth_check_inbox_body, email), email),
+            text =
+                boldEmail(
+                    stringResource(
+                        R.string.auth_check_inbox_body,
+                        email,
+                        AuthViewModel.SIGN_UP_EXPIRY_MINUTES,
+                    ),
+                    email,
+                ),
             style = MaterialTheme.typography.bodyLarge,
             color = colors.onSurfaceVariant,
             textAlign = TextAlign.Center,

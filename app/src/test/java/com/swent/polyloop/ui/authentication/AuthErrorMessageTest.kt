@@ -4,6 +4,7 @@ package com.swent.polyloop.ui.authentication
 
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthError
+import com.swent.polyloop.model.auth.PasswordRule
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -15,6 +16,7 @@ class AuthErrorMessageTest {
         mapOf(
             AuthError.WRONG_CREDENTIALS to R.string.auth_error_wrong_credentials,
             AuthError.WEAK_PASSWORD to R.string.auth_error_weak_password,
+            AuthError.PASSWORD_TOO_LONG to R.string.auth_error_password_too_long,
             AuthError.EMAIL_NOT_VERIFIED to R.string.auth_error_email_not_verified,
             AuthError.TOO_MANY_REQUESTS to R.string.auth_error_too_many_requests,
             AuthError.NETWORK to R.string.auth_error_network,
@@ -26,8 +28,23 @@ class AuthErrorMessageTest {
                 R.string.auth_error_verification_email_not_sent,
             AuthError.NAME_NOT_SAVED to R.string.auth_error_name_not_saved,
             AuthError.PROFILE_NOT_CREATED to R.string.auth_error_profile_not_created,
+            AuthError.SIGN_UP_EXPIRED to R.string.auth_error_sign_up_expired,
         )
 
     assertEquals(expected, AuthError.entries.associateWith { it.messageRes() })
+  }
+
+  @Test
+  fun everyPasswordRuleMapsToItsMessage() {
+    val expected =
+        mapOf(
+            PasswordRule.MIN_LENGTH to R.string.auth_password_rule_min_length,
+            PasswordRule.UPPERCASE to R.string.auth_password_rule_uppercase,
+            PasswordRule.LOWERCASE to R.string.auth_password_rule_lowercase,
+            PasswordRule.DIGIT to R.string.auth_password_rule_digit,
+            PasswordRule.SPECIAL to R.string.auth_password_rule_special,
+        )
+
+    assertEquals(expected, PasswordRule.entries.associateWith { it.messageRes() })
   }
 }

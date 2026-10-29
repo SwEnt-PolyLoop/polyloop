@@ -22,9 +22,11 @@ Only users with a verified EPFL email get past this screen. ViewModel: AuthViewM
 
 - Email and password fields, with a switch between “Sign up” and “Log in”.
 - Only @epfl.ch addresses are accepted. A regex check shows an inline error as soon as the address doesn't match.
+- When signing up, the password must have at least 8 characters, one uppercase letter, one lowercase letter, one number (0–9) and one special character among `` ^ $ * . [ ] { } ( ) ? " ! @ # % & / \ , > < ' : ; | _ ~ ` `` (other symbols, spaces and emojis do not count). As soon as the password is typed, a “Your password needs:” list appears under the field, with one bullet per broken rule; each bullet disappears once its rule is met, and the list disappears with the last one. Pressing “Sign up” does not create the account until every rule is met. A password over 4096 characters, the most the Firebase password policy accepts, gets “Your password is too long.” If the policy still refuses the password, the form shows “Your password is too weak.” Logging in does not check these rules.
 - A name field when signing up. The photo is added later in Profile.
 - After sign-up, or when logging in with an EPFL email that isn't verified yet, a “Check your inbox” state with a “Resend email” button, an “I've verified” button that refreshes the account, and a way back to the form to fix a mistyped email. A non-EPFL email gets an error on the form and never reaches this state.
 - “Resend email” is disabled for 60 seconds after each email sent, with a countdown.
+- “Check your inbox” says the email must be verified within 5 minutes of creating the account, and that resending does not give more time. An account not verified by then is deleted, so “I've verified” and “Resend email” then say the sign-up expired and the user should go back to the form and sign up again.
 - A “Forgot password” link.
 - The first verified log-in creates the user's profile. If the name could not be saved at sign-up, a “What's your name?” step asks for it first. If the profile cannot be created, the user is signed out and the log-in form shows an error, so they can try again.
 
@@ -83,19 +85,22 @@ Listing detail is where a borrower decides and sends a request. ViewModel: Listi
 - Photo carousel, title, description, price per day, and the suggested deposit (the item's value), all in PolyPoints. The final deposit is negotiated in chat; the lender enters it when accepting.
 - The owner's name and rating, linking to their profile.
 - A small map of the pickup area, placed by geocoding the typed address. The exact address only appears on Rental detail after acceptance.
-- The lender's availability window, and a “Request” button that opens a date picker limited to that window. Booked days, plus a 1-day buffer after each booking, are greyed out. The total is the price per day times the number of days. Disabled offline.
+- The lender's availability window, and a “Request” button that opens a date picker limited to that window. Booked days (accepted rentals only; a pending request blocks no day), plus a 1-day buffer before and after each booking, are greyed out. The total is the price per day times the number of days. Disabled offline.
+- When the request is sent, the booked days are read again from the server. If the dates were booked meanwhile, nothing is sent: the picker greys out the new booked days and shows “These dates are no longer available”, until the user taps a new day. If the listing was deleted or unpublished meanwhile, the picker closes and the listing shows as not found.
 - Sending a request reserves the rental price from the borrower's balance; if the balance is too low, the request does not go through.
 - On your own listing: “Edit” and “Delete” instead of “Request”, locked while a rental is accepted or active.
 
 ## Create / edit listing
 
-This form puts an item up for rent, or changes an existing listing. ViewModel: CreateListingViewModel, using ListingRepository and RentalRepository.
+This form puts an item up for rent, or changes an existing listing. ViewModel: CreateListingViewModel, using ListingRepository and AuthRepository.
 
 - A photo row with an “Add photo” button that opens the in-app camera, after asking for the camera permission. If the user refuses, a message explains that photos are taken in the app and how to allow the camera in Settings; there is no gallery or system-camera fallback. Each listing needs 3 to 10 photos (taken with the in-app camera only), which can be removed and reordered. The hint showing how many photos are missing is marked as an error once the user presses “Publish” with fewer than 3.
 - Fields: title, description, category, price per day, item value (the suggested deposit), the availability window (the dates the lender is willing to lend), and the pickup and drop-off addresses, typed as text.
-- **In-app camera.** Full screen, over the form: a live preview, a shutter button, a close button and the count “n / 10”. It stays open after each photo so several can be taken in a row, and closes with the close button, the Back button, or by itself at 10 photos. If the camera cannot start or a photo cannot be saved, a short message is shown and the camera stays open.
+- **In-app camera.** Full screen, over the form: a live preview, a shutter button, a close button and the count “n / 10”. It stays open after each photo so several can be taken in a row, and closes with the close button, the Back button, or by itself at 10 photos. If the camera cannot start or a photo cannot be saved, a short message is shown and the camera stays open. Photos are limited in size: shot at about 1440 × 1080 (4:3) as JPEG at quality 80.
+- **Photo files.** Each photo is a file on the phone until the listing is saved. It is deleted when the user removes the photo, when the form is closed without publishing, and after the listing is published (once the photos are uploaded). If publishing fails the files are kept, so the user can try again. Leftovers from an app killed mid-form are removed a day later, when the next photo is taken.
 - The typed addresses are turned into map coordinates by geocoding.
 - “Publish” when creating, “Save” when editing. Uploads need a connection.
+- Pressing “Publish” with every field valid uploads the photos, saves the listing as published (title and description trimmed) and opens the new listing's detail, replacing the form in the navigation history so Back cannot publish it twice. While it runs the button is disabled and shows a spinner; if it fails, the error is shown above the button and the form keeps its content.
 - Editing is locked while a rental of the item is accepted or active.
 
 ## My rentals

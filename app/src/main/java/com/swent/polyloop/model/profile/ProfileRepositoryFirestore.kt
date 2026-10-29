@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.profile
 
+import androidx.core.net.toUri
 import com.google.android.gms.tasks.Task
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseException
@@ -9,6 +10,9 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.firestore
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.storageMetadata
+import com.swent.polyloop.model.RepositoryProvider
 import java.util.concurrent.TimeoutException
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.channels.awaitClose
@@ -21,9 +25,17 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** [ProfileRepository] backed by Firestore, one document per user at `users/{uid}`. */
-class ProfileRepositoryFirestore(private val db: FirebaseFirestore = Firebase.firestore) :
-    ProfileRepository {
+/**
+ * [ProfileRepository] backed by Firestore, one document per user at `users/{uid}`, with the profile
+ * photo in Cloud Storage at `users/{uid}/profile.jpg`.
+ */
+class ProfileRepositoryFirestore(
+    private val db: FirebaseFirestore = Firebase.firestore,
+    storageProvider: () -> FirebaseStorage = { RepositoryProvider.storage },
+) : ProfileRepository {
+
+  // Lazy, so creating the repository does not touch Storage; only uploadProfilePhoto does.
+  private val storage by lazy(storageProvider)
 
   override suspend fun createProfileIfMissing(
       uid: String,
@@ -97,13 +109,35 @@ class ProfileRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fi
     }
   }
 
+  override suspend fun uploadProfilePhoto(uid: String, photoUri: String): Result<String> {
+    if (!isValidId(uid)) return invalidId(uid)
+    return withFirebaseErrors {
+      // One file per user, so a new photo replaces the old one instead of piling up.
+      val ref = storage.reference.child("${ProfileFields.COLLECTION}/$uid/$PHOTO_FILE")
+      val upload =
+          ref.putFile(photoUri.toUri(), storageMetadata { contentType = PHOTO_CONTENT_TYPE })
+      // Offline, Storage keeps retrying for minutes, so stop waiting after a while.
+      val url =
+          withTimeoutOrNull(UPLOAD_TIMEOUT_MS) {
+            upload.await()
+            ref.downloadUrl.await().toString()
+          }
+      if (url != null) Result.success(url)
+      else {
+        // Stop the upload too, so it cannot replace the photo later without the profile knowing.
+        upload.cancel()
+        Result.failure(TimeoutException("Profile photo not uploaded in time"))
+      }
+    }
+  }
+
   private fun profileDocument(uid: String): DocumentReference =
       db.collection(ProfileFields.COLLECTION).document(uid)
 
   /** Firestore throws on these ids instead of failing the task, and no profile can have them. */
   private fun isValidId(uid: String): Boolean = uid.isNotBlank() && '/' !in uid
 
-  private fun invalidId(uid: String): Result<Unit> =
+  private fun <T> invalidId(uid: String): Result<T> =
       Result.failure(IllegalArgumentException("Invalid profile id \"$uid\""))
 
   /**
@@ -137,5 +171,9 @@ class ProfileRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fi
 
   private companion object {
     const val WRITE_TIMEOUT_MS = 10_000L
+    // Longer than a Firestore write: a photo can take a while to send.
+    const val UPLOAD_TIMEOUT_MS = 30_000L
+    const val PHOTO_FILE = "profile.jpg"
+    const val PHOTO_CONTENT_TYPE = "image/jpeg"
   }
 }

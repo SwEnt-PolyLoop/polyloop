@@ -46,8 +46,8 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Chat list | ChatListViewModel | Chat (the item and the other person are copied on each rental, see "Firestore schema") |
 | Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
 | Browse | BrowseViewModel | Listing; Location (distance and map position) |
-| Listing detail | ListingDetailViewModel | Listing; Rental (booked days, sending the request); Profile (the owner's name and rating); Auth (the borrower sending the request) |
-| Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active) |
+| Listing detail | ListingDetailViewModel | Listing (the item and its booked days); Rental (sending the request); Profile (the owner's name and rating); Auth (the borrower sending the request) |
+| Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active); Auth (the owner publishing the listing) |
 | My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |
@@ -75,6 +75,8 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 **Accounts**
 - Only @epfl.ch emails, checked with a regex, plus Firebase email verification. Name asked at sign-up; photo added later in Profile.
+- Sign-up passwords need at least 8 characters (at most 4096, refused as too long), an uppercase letter, a lowercase letter, a number from 0 to 9 and a special character from a fixed list (see SCREENS.md); the app checks them before calling Firebase, whose password policy (enforced on the project) accepts every password that follows them. Logging in does not check them, so existing accounts keep working.
+- An account must verify its email within 5 minutes of signing up, or it is deleted, so nobody can block an address by signing up with it (someone else's, or a typo). The Cloud Function `deleteExpiredSignUpsEvery5Minutes` checks every 5 minutes, so an expired account is gone 5 to 10 minutes after sign-up. Unverified accounts cannot write to Firestore or Storage, so only the Auth account is deleted.
 - Admins are identified by a Firebase custom claim.
 
 **Money (PolyPoints)**
@@ -85,8 +87,8 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 **Listings and booking**
 - Price per day. The lender sets an availability window; the borrower picks dates inside it with a date picker.
 - 3 to 10 listing photos, taken with the in-app camera only (no gallery).
-- Pickup and drop-off addresses are typed as text; a Cloud Function geocodes them when the listing is saved. Only the area is public; the exact address is shown after acceptance.
-- A 1-day buffer follows every booking. Booked days and buffer days are not selectable.
+- Pickup and drop-off addresses are typed as text; a Cloud Function geocodes them when the listing is saved. Only the area is public (its name and a point rounded to about 1 km); the exact address is shown after acceptance.
+- A 1-day buffer comes before and after every booking. Booked days and buffer days are not selectable.
 - Accepting a request auto-declines other requests whose dates overlap (buffer included).
 - Your own listings never appear in Browse. Categories are a hardcoded list: Electronics, Sports & outdoor, Books & course material, Tools & DIY, Kitchen & home, Music, Other.
 
@@ -113,7 +115,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase. New Firestore repositories use the shared helpers in `model/firestore/FirestoreHelpers.kt` (reading fields, errors, write timeout, listening to a query) instead of copying them; Listing, Profile and Chat will move to them.
 
-Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `firebase-functions` v2, Jest). `src/index.ts` exports every function and sets the region, `europe-west1`, next to the Firestore database (`eur3`). In `functions/`: `npm ci` installs, `npm run lint` type-checks, `npm test` runs the tests, and `firebase deploy --only functions` deploys (needs the Blaze plan). CI runs the install, lint, build and test steps in its own job.
+Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `firebase-functions` v2, Jest). `src/index.ts` exports every function and sets the region, `europe-west1`, next to the Firestore database (`eur3`). In `functions/`: `npm ci` installs, `npm run lint` type-checks, `firebase emulators:exec --only firestore "npm test"` runs the tests on the Firestore emulator (external APIs are faked), and `firebase deploy --only functions` deploys (needs the Blaze plan). API keys live in Secret Manager. CI runs the install, lint, build and test steps in its own job.
 
 | Area | Choice |
 | --- | --- |
@@ -126,10 +128,10 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 | Upload queue | WorkManager, for offline photos and QR scans |
 | Camera and QR | CameraX for photos; ML Kit code scanner to scan, ZXing to generate QR codes |
 | Maps | Google Maps SDK in the app |
-| Geocoding | Cloud Function, when a listing is saved |
+| Geocoding | Cloud Function `geocodeListingAddresses`, when a listing's exact addresses are written (Geocoding API, key `GEOCODING_API_KEY`) |
 | "Near me" | Geohash queries with the GeoFire utilities |
 | LLM | Gemini API, called only from Cloud Functions (dispute proposals, court-ruling reading) |
-| Scheduled jobs | Hourly Cloud Function: 30-day escalation, deadline reminders, late fees, lost items, auto-cancelling rentals blocked by a late return |
+| Scheduled jobs | Every 5 minutes: deleting accounts not verified in time (`deleteExpiredSignUpsEvery5Minutes`). Hourly Cloud Function: 30-day escalation, deadline reminders, late fees, lost items, auto-cancelling rentals blocked by a late return |
 | Notifications | FCM |
 | Admins | Firebase custom claim |
 
@@ -139,11 +141,15 @@ Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoi
 
 | Path | Fields | Notes |
 | --- | --- | --- |
-| `users/{uid}` | `name`, `email`, `photoUrl`, `averageRating`, `reviewCount` | Missing fields read as `""` or 0. |
-| `listings/{listingId}` | `ownerId`, `title`, `description`, `category`, `photoUrls`, `pricePerDay`, `itemValue`, `availableFrom`, `availableTo`, `status`, `pickupArea`, `dropOffArea`, `bookedRanges` | Public. `bookedRanges` is a list of `{start, end}` (`YYYY-MM-DD`, both days booked, the 1-day buffer not included); missing reads as an empty list. |
+| `users/{uid}` | `name`, `email`, `photoUrl`, `averageRating`, `reviewCount` | Missing fields read as `""` or 0. `photoUrl` is the download URL of the profile photo in Storage, or `""` without one. |
+| `listings/{listingId}` | `ownerId`, `title`, `description`, `category`, `photoUrls`, `pricePerDay`, `itemValue`, `availableFrom`, `availableTo`, `status`, `pickupArea`, `dropOffArea`, `pickupPoint`, `dropOffPoint`, `bookedRanges` | Public. `bookedRanges` is a list of `{start, end}` (`YYYY-MM-DD`, both days booked, the buffer days around it not included); missing reads as an empty list. It holds accepted rentals only: a pending request blocks no day. Each range copies the `startDate` and `endDate` of an accepted rental, which stay in `rentals/{rentalId}` to tell who has the item and when; the copy on the listing is public so that anyone can see which days are free without reading other people's rentals. Only Cloud Functions write it; the app never does, so it stays empty until the Function that accepts rentals exists. The areas and points: see below. |
 | `listings/{listingId}/private/addresses` | `pickup`, `dropOff` | Exact addresses, readable only by the owner. |
 | `rentals/{rentalId}` | `listingId`, `listingTitle`, `listingPhotoUrl`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. |
 | `rentals/{rentalId}/messages/{messageId}` | `senderId`, `text`, `sentAt`, `type` (`USER` or `SYSTEM`) | One conversation per rental. |
+
+Listings:
+- `pickupArea` and `dropOffArea` are area names (e.g. "Ecublens"); `pickupPoint` and `dropOffPoint` are GeoPoints. The app creates a listing with empty names and no points; the `geocodeListingAddresses` Cloud Function fills them in. Each time `listings/{listingId}/private/addresses` is written, it geocodes each changed address (in Switzerland only) and stores its area name and its point rounded to a 0.01° grid (about 1.1 × 0.8 km around EPFL). The exact address and point never reach the public listing. A lookup that fails (e.g. the Geocoding API is down or takes more than 10 seconds) is retried for up to a day, and a result is written only if its address has not changed since, so the newest edit wins even if its run finishes first.
+- Until an address is geocoded, or when it is blank, not found or its geocoding fails, its name and point are missing, and screens show a placeholder.
 
 Rentals:
 - The listing title, both names and the public areas are copied when the rental is created, so My rentals and the chat list need no other read. A missing owner name is stored as `""`; screens show a translated placeholder.
@@ -151,22 +157,23 @@ Rentals:
 - My rentals queries `borrowerId` or `ownerId` only and sorts newest first in the app (a user has few rentals), so it needs no index.
 - `lastMessageAt` is set to the same server timestamp as `createdAt` when the rental is created: the chat list sorts by it, and leaves out a rental that lacks it.
 - `pickupAddress` and `returnAddress` stay empty until the lender accepts; the borrower cannot read the listing's exact addresses before that.
-- **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants.
+- **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants. Until then, the dates are checked against `bookedRanges` only in the app (Listing detail reads them again from the server just before sending), so a client that skips this check is not stopped.
 
-Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, so the Storage rules can check the owner. Photos added before this rule live in `listing_images/` and keep working through their download URLs.
+Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, so the Storage rules can check the owner. Photos added before this rule live in `listing_images/` and keep working through their download URLs. A profile photo goes to `users/{uid}/profile.jpg`, one file per user that each new photo replaces; replacing it gives a new download URL, so the new photo is not hidden by an image cache.
 
 ## Security rules
 
 `firestore.rules` and `storage.rules` are listed in `firebase.json`, so the emulators enforce them; `FirestoreRulesTest` and `StorageRulesTest` (in `androidTest/.../rules/`) check them. Every read and write needs a verified `@epfl.ch` account. Beyond the notes in the schema above:
-- A listing must pass the same checks as `Listing.canPublish` (3 to 10 photo URLs, all strings, prices from 1 to 99,999 PP, `availableFrom` before `availableTo`, a known category and status). Clients never write `bookedRanges` (a Cloud Function will, on acceptance) and never change `ownerId`. A listing cannot be created at an id whose `private/addresses` is left over from a deleted listing.
+- A listing must pass the same checks as `Listing.canPublish` (3 to 10 photo URLs, all strings, prices from 1 to 99,999 PP, `availableFrom` before `availableTo`, a known category and status). Clients never write `bookedRanges` (a Cloud Function will, on acceptance) and never change `ownerId`. They create `pickupArea` and `dropOffArea` empty, never write `pickupPoint` or `dropOffPoint`, and never change any of the four afterwards (`geocodeListingAddresses` does). A listing cannot be created at an id whose `private/addresses` is left over from a deleted listing.
 - A rental request must match its listing, which must be `PUBLISHED`: same owner, title, first photo (`""` if the listing has none), price per day and areas, dates inside the availability window, and `totalPrice` equal to the price per day × the number of days.
 - Profiles: a user creates and edits only their own, with their own email; `averageRating` and `reviewCount` are left to Cloud Functions.
 - Storage: listing photos must be images under 100 MB (a placeholder until the camera sets the photo size). They are uploaded before the listing document exists, so a folder whose listing does not exist yet is open to any verified user; once it exists, only the owner may change it. These rules read Firestore, so the first deploy asks to let Storage read Firestore.
-- Not enforced yet: locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; Storage writes to folders with no listing (any verified user, so made-up and deleted ids too); a limit on the requests one borrower sends for a listing (left to `requestRental`).
+- Storage: a profile photo can be read by any verified user and changed or deleted only by its user; it must be an image under 5 MB, and no other file is allowed under `users/`. The camera still takes photos at full resolution, which can go over 5 MB on some phones, until it sets the photo size (#224).
+- Not enforced yet: locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; a profile's `photoUrl` pointing at its own photo in Storage; Storage writes to folders with no listing (any verified user, so made-up and deleted ids too); a limit on the requests one borrower sends for a listing (left to `requestRental`).
 
 ## Not decided yet — ask before implementing
 
 - Security rules for collections not listed in the schema above
-- Cloud Function names and signatures
+- Cloud Function names and signatures, apart from `geocodeListingAddresses` (see "Firestore schema")
 - Whether the auto-cancel waits until a set time on the pickup day (e.g. noon) so offline return scans can sync first
 - The exact list of push notifications
