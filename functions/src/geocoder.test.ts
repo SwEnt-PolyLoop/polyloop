@@ -35,7 +35,7 @@ describe("googleGeocoder", () => {
     expect(found).toEqual({ point: { latitude: 46.51843, longitude: 6.56826 }, area: "Ecublens" });
   });
 
-  it("asks for the address in Switzerland, in English, with the key", async () => {
+  it("asks for the address in Switzerland only, in English, with the key", async () => {
     const { fetchUrl, urls } = fakeFetch(rolexCenter);
 
     await googleGeocoder("test-key", fetchUrl)("Route Cantonale, Ecublens");
@@ -45,7 +45,7 @@ describe("googleGeocoder", () => {
       "https://maps.googleapis.com/maps/api/geocode/json",
     );
     expect(urls[0].searchParams.get("address")).toBe("Route Cantonale, Ecublens");
-    expect(urls[0].searchParams.get("region")).toBe("ch");
+    expect(urls[0].searchParams.get("components")).toBe("country:CH");
     expect(urls[0].searchParams.get("language")).toBe("en");
     expect(urls[0].searchParams.get("key")).toBe("test-key");
   });

@@ -37,9 +37,9 @@ interface GeocodingResponse {
 }
 
 /**
- * A [Geocoder] that calls Google's Geocoding API with [apiKey], preferring Swiss results and
- * English names. A lookup that takes longer than [timeoutMs] fails. Errors never include the key or
- * the address, so they can be logged.
+ * A [Geocoder] that calls Google's Geocoding API with [apiKey], looking only in Switzerland so that
+ * a mistyped address cannot land abroad, with English names. A lookup that takes longer than
+ * [timeoutMs] fails. Errors never include the key or the address, so they can be logged.
  */
 export function googleGeocoder(
   apiKey: string,
@@ -47,7 +47,12 @@ export function googleGeocoder(
   timeoutMs: number = TIMEOUT_MS,
 ): Geocoder {
   return async (address) => {
-    const query = new URLSearchParams({ address, region: "ch", language: "en", key: apiKey });
+    const query = new URLSearchParams({
+      address,
+      components: "country:CH",
+      language: "en",
+      key: apiKey,
+    });
     let response: Response;
     try {
       response = await fetchUrl(`${GEOCODING_URL}?${query}`, {
