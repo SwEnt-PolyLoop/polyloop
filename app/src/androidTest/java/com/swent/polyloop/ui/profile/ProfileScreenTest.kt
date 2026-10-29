@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.profile
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
@@ -175,6 +177,23 @@ class ProfileScreenTest {
     node(C.Tag.profile_listings_empty).assertDoesNotExist()
     node(C.Tag.profile_sign_out_button).assertDoesNotExist()
     node(C.Tag.profile_edit_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun editProfileAndSignOutSitSideBySideAboveMyListings() {
+    setContent(ownProfile)
+
+    val edit = node(C.Tag.profile_edit_button).getUnclippedBoundsInRoot()
+    val signOut = node(C.Tag.profile_sign_out_button).getUnclippedBoundsInRoot()
+    val listingsTitle = node(C.Tag.profile_listings_title).getUnclippedBoundsInRoot()
+
+    // One row: same top, Edit profile on the left, both as wide.
+    assertEquals(edit.top, signOut.top)
+    assertTrue(edit.right <= signOut.left)
+    // Within 1 dp: splitting the row in two can round each half differently.
+    assertEquals(edit.width.value, signOut.width.value, 1f)
+    // The row comes before "My listings".
+    assertTrue(edit.bottom <= listingsTitle.top)
   }
 
   @Test

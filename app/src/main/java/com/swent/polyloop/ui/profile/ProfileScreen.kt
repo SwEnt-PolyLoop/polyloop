@@ -133,7 +133,10 @@ private fun ProfileError(errorMsg: String, onRetry: () -> Unit) {
   }
 }
 
-/** The header, then, on the own profile only, the listings, "Edit profile" and "Sign out". */
+/**
+ * The header, then, on the own profile only, "Edit profile" and "Sign out" side by side, then the
+ * listings.
+ */
 @Composable
 private fun ProfileLoaded(
     profile: UserProfile,
@@ -150,6 +153,7 @@ private fun ProfileLoaded(
   ) {
     item { ProfileHeader(profile) }
     if (isOwnProfile) {
+      item { ProfileActions(onEditProfile = onEditProfile, onSignOut = onSignOut) }
       item {
         Text(
             text = stringResource(R.string.profile_my_listings),
@@ -180,24 +184,33 @@ private fun ProfileLoaded(
             onClick = { onListingClick(listing.id) },
         )
       }
-      item {
-        OutlinedButton(
-            onClick = onEditProfile,
-            modifier =
-                Modifier.fillMaxWidth().padding(top = 12.dp).testTag(C.Tag.profile_edit_button),
-        ) {
-          Text(stringResource(R.string.profile_edit))
-        }
-      }
-      item {
-        OutlinedButton(
-            onClick = onSignOut,
-            modifier =
-                Modifier.fillMaxWidth().padding(top = 12.dp).testTag(C.Tag.profile_sign_out_button),
-        ) {
-          Text(stringResource(R.string.profile_sign_out))
-        }
-      }
+    }
+  }
+}
+
+/**
+ * "Edit profile" and "Sign out" side by side, equally wide, as rectangles with rounded corners like
+ * the "Request" button of Listing detail.
+ */
+@Composable
+private fun ProfileActions(onEditProfile: () -> Unit, onSignOut: () -> Unit) {
+  Row(
+      modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    OutlinedButton(
+        onClick = onEditProfile,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.weight(1f).testTag(C.Tag.profile_edit_button),
+    ) {
+      Text(stringResource(R.string.profile_edit))
+    }
+    OutlinedButton(
+        onClick = onSignOut,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.weight(1f).testTag(C.Tag.profile_sign_out_button),
+    ) {
+      Text(stringResource(R.string.profile_sign_out))
     }
   }
 }

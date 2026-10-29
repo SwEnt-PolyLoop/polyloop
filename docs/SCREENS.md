@@ -36,7 +36,7 @@ The profile shows who someone is and how past rentals went. It opens from the pr
 
 - Name, photo, and the average rating (1 to 5 stars) with the number of reviews. The photo is round, cropped to fill the circle; without a photo, or when it cannot be loaded, the first letter of the name takes its place.
 - The list of reviews, each with stars, author, date and the item rented.
-- On your own profile: a “My listings” section with the items you have put up for rent (available offline), plus “Edit profile” (where the photo is added) and “Sign out”.
+- On your own profile: “Edit profile” (where the photo is added) and “Sign out” side by side under the rating, then a “My listings” section with the items you have put up for rent (available offline).
 - A review prompt appears as soon as a rental closes, however it closed: clean return, direct settlement, LLM proposal or court ruling. Like rating a ride in Uber or Bolt, each participant rates the other once, from 1 to 5 stars. Stars only for now; a written comment may come later.
 - Other people's profiles don't show their listings for now.
 
