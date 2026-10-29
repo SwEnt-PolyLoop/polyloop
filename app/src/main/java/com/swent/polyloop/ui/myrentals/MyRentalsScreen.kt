@@ -31,7 +31,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +43,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
+import com.swent.polyloop.ui.components.badgeColors
 import com.swent.polyloop.ui.components.formatDay
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import com.swent.polyloop.ui.theme.PolyLoopTheme
@@ -494,25 +494,6 @@ internal val RentalStatus.labelRes: Int
         RentalStatus.DISPUTED -> R.string.rental_status_disputed
         RentalStatus.FROZEN -> R.string.rental_status_frozen
       }
-
-/** Badge colours: waiting, in progress, a problem, or finished. */
-@Composable
-private fun RentalStatus.badgeColors(): Pair<Color, Color> {
-  val colors = MaterialTheme.colorScheme
-  return when (this) {
-    RentalStatus.REQUESTED -> colors.secondaryContainer to colors.onSecondaryContainer
-    RentalStatus.ACCEPTED,
-    RentalStatus.ACTIVE -> colors.primaryContainer to colors.onPrimaryContainer
-    RentalStatus.OVERDUE,
-    RentalStatus.LOST,
-    RentalStatus.DISPUTED,
-    RentalStatus.FROZEN -> colors.errorContainer to colors.onErrorContainer
-    RentalStatus.RETURNED,
-    RentalStatus.CLOSED,
-    RentalStatus.DECLINED,
-    RentalStatus.CANCELLED -> colors.surfaceVariant to colors.onSurfaceVariant
-  }
-}
 
 @Preview(showBackground = true)
 @Composable

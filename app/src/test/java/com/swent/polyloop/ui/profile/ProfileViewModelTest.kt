@@ -7,14 +7,21 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
+import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.Rental
+import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -60,6 +67,7 @@ class ProfileViewModelTest {
 
   private lateinit var profiles: FakeProfileRepository
   private lateinit var listings: FakeListingRepository
+  private lateinit var rentals: FakeRentalRepository
   private lateinit var auth: FakeAuthRepository
 
   @Before
@@ -67,6 +75,7 @@ class ProfileViewModelTest {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     profiles = FakeProfileRepository(listOf(me, jane))
     listings = FakeListingRepository(listings = listOf(myTent, myDraft, janesBike))
+    rentals = FakeRentalRepository()
     auth =
         FakeAuthRepository(
             signedInUser = AuthUser(uid = "me", email = "john@epfl.ch", name = "John")
@@ -78,7 +87,17 @@ class ProfileViewModelTest {
     Dispatchers.resetMain()
   }
 
-  private fun viewModel(userId: String? = null) = ProfileViewModel(userId, profiles, listings, auth)
+  private fun viewModel(userId: String? = null) =
+      ProfileViewModel(userId, profiles, listings, rentals, auth)
+
+  /** [listings], calling [onRead] at each read of the own listings. */
+  private fun countingListings(onRead: () -> Unit) =
+      object : ListingRepository by listings {
+        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+          onRead()
+          return listings.getListingsByOwner(ownerId)
+        }
+      }
 
   // ---------- own profile ----------
 
@@ -88,10 +107,35 @@ class ProfileViewModelTest {
 
     assertTrue(state.isOwnProfile)
     assertEquals(me, state.profile)
-    assertEquals(listOf(myTent, myDraft), state.listings)
+    assertEquals(
+        listOf(
+            MyListing(myTent, ListingRentalState.AVAILABLE),
+            MyListing(myDraft, ListingRentalState.AVAILABLE),
+        ),
+        state.listings,
+    )
     assertFalse(state.isLoading)
+    assertFalse(state.listingsLoading)
     assertFalse(state.profileNotFound)
     assertNull(state.errorMsg)
+  }
+
+  @Test
+  fun listingStateFollowsItsRentalsLive() = runTest {
+    val vm = viewModel()
+
+    rentals.requestRental(
+        listing = myTent,
+        ownerName = "John",
+        borrower = AuthUser(uid = "jane", email = "jane@epfl.ch", name = "Jane"),
+        startDate = LocalDate.of(2026, 10, 10),
+        endDate = LocalDate.of(2026, 10, 12),
+    )
+
+    assertEquals(
+        listOf(ListingRentalState.REQUESTED, ListingRentalState.AVAILABLE),
+        vm.uiState.value.listings.map { it.rentalState },
+    )
   }
 
   @Test
@@ -147,17 +191,18 @@ class ProfileViewModelTest {
   // ---------- loading and errors ----------
 
   @Test
-  fun staysLoadingUntilProfileAndListingsArrive() {
+  fun profileShowsWhileTheListingsStillLoad() {
     val gate = CompletableDeferred<Unit>()
     listings.gate = gate
 
     val vm = viewModel()
-    assertTrue(vm.uiState.value.isLoading)
-    assertNull(vm.uiState.value.profile)
-
-    gate.complete(Unit)
     assertFalse(vm.uiState.value.isLoading)
     assertEquals(me, vm.uiState.value.profile)
+    assertTrue(vm.uiState.value.listingsLoading)
+
+    gate.complete(Unit)
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertEquals(2, vm.uiState.value.listings.size)
   }
 
   @Test
@@ -175,13 +220,202 @@ class ProfileViewModelTest {
   }
 
   @Test
-  fun listingsErrorShowsTheError() {
+  fun listingsErrorKeepsTheProfile() {
     listings.failure = IllegalStateException("No connection")
 
     val state = viewModel().uiState.value
 
-    assertEquals("No connection", state.errorMsg)
-    assertFalse(state.isLoading)
+    assertTrue(state.listingsError)
+    assertFalse(state.listingsLoading)
+    // Nothing was read before, so there are no old listings to show.
+    assertFalse(state.listingsStale)
+    assertNull(state.errorMsg)
+    assertEquals(me, state.profile)
+  }
+
+  @Test
+  fun refreshListingsShowsListingsChangedMeanwhile() {
+    val vm = viewModel()
+
+    listings.listings = listOf(myTent.copy(title = "Big tent"), janesBike)
+    vm.refreshListings()
+
+    assertEquals(
+        listOf(MyListing(myTent.copy(title = "Big tent"), ListingRentalState.AVAILABLE)),
+        vm.uiState.value.listings,
+    )
+  }
+
+  @Test
+  fun refreshListingsKeepsFollowingTheSameRentals() {
+    var subscriptions = 0
+    val counted =
+        object : RentalRepository by rentals {
+          override fun observeRentalsAsLender(uid: String): Flow<List<Rental>> =
+              rentals.observeRentalsAsLender(uid).onStart { subscriptions++ }
+        }
+    val vm = ProfileViewModel(null, profiles, listings, counted, auth)
+
+    vm.refreshListings()
+
+    assertEquals(1, subscriptions)
+  }
+
+  @Test
+  fun refreshListingsKeepsTheShownListingsWithoutASpinner() {
+    val vm = viewModel()
+
+    listings.gate = CompletableDeferred()
+    vm.refreshListings()
+
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertEquals(2, vm.uiState.value.listings.size)
+  }
+
+  @Test
+  fun refreshThatFailsKeepsTheListingsAsStaleWithTheirLivePills() = runTest {
+    val vm = viewModel()
+
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    rentals.requestRental(
+        listing = myTent,
+        ownerName = "John",
+        borrower = AuthUser(uid = "jane", email = "jane@epfl.ch", name = "Jane"),
+        startDate = LocalDate.of(2026, 10, 10),
+        endDate = LocalDate.of(2026, 10, 12),
+    )
+
+    assertFalse(vm.uiState.value.listingsError)
+    assertTrue(vm.uiState.value.listingsStale)
+    assertEquals(
+        listOf(ListingRentalState.REQUESTED, ListingRentalState.AVAILABLE),
+        vm.uiState.value.listings.map { it.rentalState },
+    )
+  }
+
+  @Test
+  fun refreshThatSucceedsAfterAFailureIsNoLongerStale() {
+    val vm = viewModel()
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    assertTrue(vm.uiState.value.listingsStale)
+
+    listings.failure = null
+    vm.refreshListings()
+
+    assertFalse(vm.uiState.value.listingsStale)
+  }
+
+  @Test
+  fun retryWhileStaleLoadsTheListingsWithoutTheStaleNote() {
+    val vm = viewModel()
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    assertTrue(vm.uiState.value.listingsStale)
+
+    listings.failure = null
+    listings.gate = CompletableDeferred()
+    vm.retry()
+
+    assertTrue(vm.uiState.value.listingsLoading)
+    assertFalse(vm.uiState.value.listingsStale)
+  }
+
+  @Test
+  fun refreshThatFailsWithNoListingShownIsStillStale() {
+    listings.listings = listOf(janesBike)
+    val vm = viewModel()
+
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+
+    assertTrue(vm.uiState.value.listings.isEmpty())
+    assertFalse(vm.uiState.value.listingsError)
+    assertTrue(vm.uiState.value.listingsStale)
+  }
+
+  @Test
+  fun rentalsFailingWhileStaleShowTheErrorWithoutTheStaleNote() {
+    val rentalsFailure = CompletableDeferred<Nothing>()
+    val failing =
+        object : RentalRepository by rentals {
+          override fun observeRentalsAsLender(uid: String): Flow<List<Rental>> = flow {
+            emit(emptyList())
+            rentalsFailure.await()
+          }
+        }
+    val vm = ProfileViewModel(null, profiles, listings, failing, auth)
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    assertTrue(vm.uiState.value.listingsStale)
+
+    rentalsFailure.completeExceptionally(IllegalStateException("No connection"))
+
+    assertTrue(vm.uiState.value.listingsError)
+    assertFalse(vm.uiState.value.listingsStale)
+  }
+
+  @Test
+  fun onlyComingBackToTheScreenReadsTheListingsAgain() {
+    var reads = 0
+    val vm = ProfileViewModel(null, profiles, countingListings { reads++ }, rentals, auth)
+
+    vm.onScreenResumed()
+    assertEquals(1, reads)
+
+    vm.onScreenResumed()
+    assertEquals(2, reads)
+  }
+
+  @Test
+  fun retryAfterAnErrorShowsTheSpinnerThenTheListings() {
+    listings.failure = IllegalStateException("No connection")
+    val vm = viewModel()
+
+    listings.failure = null
+    val gate = CompletableDeferred<Unit>()
+    listings.gate = gate
+    vm.refreshListings()
+    assertTrue(vm.uiState.value.listingsLoading)
+    assertFalse(vm.uiState.value.listingsError)
+
+    gate.complete(Unit)
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertEquals(2, vm.uiState.value.listings.size)
+  }
+
+  @Test
+  fun refreshListingsWhileTheyLoadIsIgnored() {
+    var reads = 0
+    val gate = CompletableDeferred<Unit>()
+    listings.gate = gate
+    val vm = ProfileViewModel(null, profiles, countingListings { reads++ }, rentals, auth)
+
+    vm.refreshListings()
+    gate.complete(Unit)
+
+    assertEquals(1, reads)
+  }
+
+  @Test
+  fun rentalsErrorShowsAListingsError() {
+    rentals.failure = IllegalStateException("No connection")
+
+    val state = viewModel().uiState.value
+
+    assertTrue(state.listingsError)
+    assertEquals(me, state.profile)
+  }
+
+  @Test
+  fun otherProfileNeverLoadsListings() {
+    val vm = viewModel(userId = "jane")
+
+    vm.refreshListings()
+
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertTrue(vm.uiState.value.listings.isEmpty())
   }
 
   @Test
@@ -215,6 +449,27 @@ class ProfileViewModelTest {
   }
 
   @Test
+  fun refreshListingsAfterSigningOutReadsNothing() {
+    var reads = 0
+    val vm = ProfileViewModel(null, profiles, countingListings { reads++ }, rentals, auth)
+
+    vm.signOut()
+    vm.refreshListings()
+
+    assertEquals(1, reads)
+  }
+
+  @Test
+  fun signingOutWhileTheListingsLoadStopsTheSpinner() {
+    listings.gate = CompletableDeferred()
+    val vm = viewModel()
+
+    vm.signOut()
+
+    assertFalse(vm.uiState.value.listingsLoading)
+  }
+
+  @Test
   fun signOutIsIgnoredOnSomeoneElsesProfile() {
     val vm = viewModel(userId = "jane")
 
@@ -229,7 +484,7 @@ class ProfileViewModelTest {
   @Test
   fun factoryCreatesTheViewModel() {
     val created =
-        ProfileViewModel.Factory("jane", profiles, listings, auth)
+        ProfileViewModel.Factory("jane", profiles, listings, rentals, auth)
             .create(ProfileViewModel::class.java)
 
     assertEquals(jane, created.uiState.value.profile)
@@ -240,7 +495,7 @@ class ProfileViewModelTest {
     class Other : ViewModel()
 
     assertThrows(IllegalArgumentException::class.java) {
-      ProfileViewModel.Factory(null, profiles, listings, auth).create(Other::class.java)
+      ProfileViewModel.Factory(null, profiles, listings, rentals, auth).create(Other::class.java)
     }
   }
 }

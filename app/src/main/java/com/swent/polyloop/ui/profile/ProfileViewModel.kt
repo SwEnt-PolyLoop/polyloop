@@ -10,15 +10,14 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
+import com.swent.polyloop.model.rental.RentalRepository
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -28,36 +27,54 @@ import kotlinx.coroutines.launch
  * @property isOwnProfile true on the signed-in user's profile, which also shows their listings and
  *   "Sign out".
  * @property profile null while loading, or when the user has no profile ([profileNotFound]).
- * @property listings the signed-in user's listings; always empty on someone else's profile.
- * @property errorMsg non-null when the profile or the listings cannot be loaded (or nobody is
- *   signed in); blank when there is no message to show, and the screen then shows a generic text.
+ * @property listings the signed-in user's listings with where each stands; always empty on someone
+ *   else's profile.
+ * @property isLoading true while the profile loads; the listings have their own [listingsLoading].
+ * @property errorMsg non-null when the profile cannot be loaded (or nobody is signed in); blank
+ *   when there is no message to show, and the screen then shows a generic text.
+ * @property listingsLoading true while the own listings load; false on someone else's profile.
+ * @property listingsError true when the own listings cannot be loaded; the profile still shows, and
+ *   the card shows a generic text whatever the cause.
+ * @property listingsStale true when the last refresh of the own listings failed, so [listings] are
+ *   the ones read before, even when that read found none; false while they load, on
+ *   [listingsError], and before a first read succeeded, as there is then nothing read before.
  * @property isSignedOut true once the user signed out; the app then goes back to sign-in.
  */
 data class ProfileUiState(
     val isOwnProfile: Boolean = false,
     val profile: UserProfile? = null,
-    val listings: List<Listing> = emptyList(),
+    val listings: List<MyListing> = emptyList(),
     val isLoading: Boolean = true,
     val profileNotFound: Boolean = false,
     val errorMsg: String? = null,
+    val listingsLoading: Boolean = false,
+    val listingsError: Boolean = false,
+    val listingsStale: Boolean = false,
     val isSignedOut: Boolean = false,
 )
 
 /**
  * Shows a profile: the signed-in user's own when [userId] is null (or is their id), someone else's
- * otherwise. The profile follows the repository live; the own listings are loaded once.
+ * otherwise. The profile follows the repository live. The own listings are loaded separately, again
+ * each time the screen comes back ([onScreenResumed]), and their rentals are followed live, so the
+ * state of each listing updates by itself.
  */
 class ProfileViewModel(
     private val userId: String?,
     private val profileRepository: ProfileRepository,
     private val listingRepository: ListingRepository,
+    private val rentalRepository: RentalRepository,
     private val authRepository: AuthRepository,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(ProfileUiState())
   val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
-  private var loading: Job? = null
+  private var loadingProfile: Job? = null
+  private var loadingListings: Job? = null
+  private var listingsOwner: String? = null
+  private val listingsRefresh = MutableStateFlow(0)
+  private var screenShown = false
 
   init {
     load()
@@ -66,17 +83,45 @@ class ProfileViewModel(
   /** Loads the profile again, e.g. after an error. */
   fun retry() = load()
 
+  /**
+   * Loads the own listings again, after an error or when the screen comes back (they may have been
+   * edited or deleted meanwhile); the profile stays as it is. Ignored while they are loading. The
+   * rentals stay followed, so only the listings are read again, without showing the spinner.
+   */
+  fun refreshListings() {
+    val uid = listingsOwner ?: return
+    when {
+      _uiState.value.listingsLoading -> Unit
+      loadingListings?.isActive == true -> listingsRefresh.update { it + 1 }
+      else -> loadListings(uid)
+    }
+  }
+
+  /**
+   * Called each time the screen is resumed. The first time comes right after the listings were
+   * loaded, so only coming back (e.g. from Listing detail, where a listing may have been edited or
+   * deleted) loads them again. Kept here because the screen leaves the composition while another
+   * screen is shown, and would forget it.
+   */
+  fun onScreenResumed() {
+    if (screenShown) refreshListings() else screenShown = true
+  }
+
   /** Signs the user out. Only on their own profile; ignored on someone else's. */
   fun signOut() {
     if (!_uiState.value.isOwnProfile) return
-    // Stop listening first: once signed out, the profile can no longer be read.
-    loading?.cancel()
+    // Stop listening first: once signed out, the profile and rentals can no longer be read.
+    loadingProfile?.cancel()
+    loadingListings?.cancel()
+    // So that a later refresh (resume or "Retry") reads nothing.
+    listingsOwner = null
     authRepository.signOut()
-    _uiState.update { it.copy(isSignedOut = true) }
+    _uiState.update { it.copy(isSignedOut = true, listingsLoading = false) }
   }
 
   private fun load() {
-    loading?.cancel()
+    loadingProfile?.cancel()
+    loadingListings?.cancel()
     val signedInUid = authRepository.getCurrentUser()?.uid
     val uid = userId ?: signedInUid
     val isOwnProfile = uid != null && uid == signedInUid
@@ -93,18 +138,14 @@ class ProfileViewModel(
       _uiState.update { it.copy(isLoading = false, errorMsg = "") }
       return
     }
-    loading = viewModelScope.launch {
-      combine(profileRepository.observeProfile(uid), listingsOf(uid, isOwnProfile)) {
-              profile,
-              listings ->
-            profile to listings
-          }
+    loadingProfile = viewModelScope.launch {
+      profileRepository
+          .observeProfile(uid)
           .catch { e -> _uiState.update { it.copy(isLoading = false, errorMsg = e.message ?: "") } }
-          .collect { (profile, listings) ->
+          .collect { profile ->
             _uiState.update {
               it.copy(
                   profile = profile,
-                  listings = listings,
                   isLoading = false,
                   profileNotFound = profile == null,
                   errorMsg = null,
@@ -112,18 +153,60 @@ class ProfileViewModel(
             }
           }
     }
+    if (isOwnProfile) loadListings(uid)
   }
 
-  /** The own listings, loaded once; someone else's profile shows none. */
-  private fun listingsOf(uid: String, isOwnProfile: Boolean): Flow<List<Listing>> =
-      if (isOwnProfile) flow { emit(listingRepository.getListingsByOwner(uid).getOrThrow()) }
-      else flowOf(emptyList())
+  /**
+   * Loads the own listings, again at each [listingsRefresh], and follows their rentals live. Called
+   * for the first load and after an error only, so the spinner always shows: a retry never shows
+   * the old listings as if they were current. A refresh that fails (e.g. a network error) keeps the
+   * listings already shown, marked as stale until a refresh succeeds (even when there are none, so
+   * the user knows why a new listing is missing), and their rentals stay followed.
+   */
+  private fun loadListings(uid: String) {
+    loadingListings?.cancel()
+    listingsOwner = uid
+    _uiState.update {
+      it.copy(listingsLoading = true, listingsError = false, listingsStale = false)
+    }
+    var shown: List<Listing>? = null
+    // Each read gives the listings to show, and whether they are the old ones kept after a failure.
+    val listings = listingsRefresh.map {
+      listingRepository
+          .getListingsByOwner(uid)
+          .fold(
+              onSuccess = { read -> read.also { shown = it } to false },
+              onFailure = { e -> (shown ?: throw e) to true },
+          )
+    }
+    loadingListings = viewModelScope.launch {
+      combine(listings, rentalRepository.observeRentalsAsLender(uid)) { (owned, stale), rentals ->
+            owned.map { MyListing(it, rentalStateOf(it.id, rentals)) } to stale
+          }
+          .catch {
+            _uiState.update {
+              it.copy(listingsLoading = false, listingsError = true, listingsStale = false)
+            }
+          }
+          .collect { (mine, stale) ->
+            _uiState.update {
+              it.copy(
+                  listings = mine,
+                  listingsLoading = false,
+                  listingsError = false,
+                  listingsStale = stale,
+              )
+            }
+          }
+    }
+  }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */
   class Factory(
       private val userId: String?,
       private val profileRepository: ProfileRepository,
       private val listingRepository: ListingRepository,
+      private val rentalRepository: RentalRepository,
       private val authRepository: AuthRepository,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -131,7 +214,14 @@ class ProfileViewModel(
         "Unknown ViewModel class: ${modelClass.name}"
       }
       @Suppress("UNCHECKED_CAST")
-      return ProfileViewModel(userId, profileRepository, listingRepository, authRepository) as T
+      return ProfileViewModel(
+          userId,
+          profileRepository,
+          listingRepository,
+          rentalRepository,
+          authRepository,
+      )
+          as T
     }
   }
 }
