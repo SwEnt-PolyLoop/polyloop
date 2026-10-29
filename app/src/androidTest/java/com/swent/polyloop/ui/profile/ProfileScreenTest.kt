@@ -17,6 +17,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
@@ -246,6 +247,9 @@ class ProfileScreenTest {
           override suspend fun getListing(id: String) = Result.success<Listing?>(null)
 
           override suspend fun getListingsByOwner(ownerId: String) = Result.success(listOf(tent))
+
+          override suspend fun getBookedRanges(id: String) =
+              Result.success(emptyList<BookedRange>())
 
           override suspend fun createListing(
               listing: Listing,

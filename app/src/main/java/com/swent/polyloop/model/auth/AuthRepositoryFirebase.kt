@@ -22,6 +22,9 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
     if (!EpflEmail.isValid(email)) return AuthResult.Failure(AuthError.INVALID_DOMAIN)
     // Firebase throws (and crashes the app) on an empty password instead of failing the task.
     if (password.isBlank()) return AuthResult.Failure(AuthError.WEAK_PASSWORD)
+    if (password.length > PasswordRule.MAX_LENGTH_CHARS) {
+      return AuthResult.Failure(AuthError.PASSWORD_TOO_LONG)
+    }
 
     return try {
       // Firebase signs the new user in automatically; `finally` signs them out again.
@@ -122,6 +125,15 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
         is FirebaseAuthUserCollisionException -> AuthError.EMAIL_ALREADY_IN_USE
         is FirebaseNetworkException -> AuthError.NETWORK
         is FirebaseTooManyRequestsException -> AuthError.TOO_MANY_REQUESTS
-        else -> AuthError.UNKNOWN
+        // The SDK has no exception for the password policy: it throws a plain FirebaseException
+        // whose message carries the server's error code.
+        else ->
+            if (e.message.orEmpty().contains(PASSWORD_POLICY_ERROR)) AuthError.WEAK_PASSWORD
+            else AuthError.UNKNOWN
       }
+
+  private companion object {
+    /** The error code the server returns when a password breaks the Firebase password policy. */
+    const val PASSWORD_POLICY_ERROR = "PASSWORD_DOES_NOT_MEET_REQUIREMENTS"
+  }
 }

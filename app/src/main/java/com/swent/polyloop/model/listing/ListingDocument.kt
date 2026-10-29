@@ -23,6 +23,9 @@ internal object ListingFields {
   const val STATUS = "status"
   const val PICKUP_AREA = "pickupArea"
   const val DROP_OFF_AREA = "dropOffArea"
+  const val BOOKED_RANGES = "bookedRanges"
+  const val RANGE_START = "start"
+  const val RANGE_END = "end"
 }
 
 /**
@@ -38,7 +41,8 @@ internal object ListingAddressFields {
 
 /**
  * The Firestore fields of [listing], the reverse of [listingFromDocument]; the id is the key.
- * Amounts are Long, the type Firestore returns them as.
+ * Amounts are Long, the type Firestore returns them as. The booked ranges are left out: only Cloud
+ * Functions write them.
  */
 internal fun listingToDocument(listing: Listing): Map<String, Any> =
     mapOf(
@@ -65,7 +69,8 @@ internal fun addressesToDocument(addresses: ListingAddresses): Map<String, Any> 
 
 /**
  * Builds a [Listing] from a Firestore document, or returns null if a required field is missing or
- * has the wrong type. The areas default to empty because a Cloud Function fills them in later.
+ * has the wrong type. The areas default to empty because a Cloud Function fills them in later, and
+ * the booked ranges because listings saved before them do not have the field.
  */
 internal fun listingFromDocument(id: String, data: Map<String, Any?>): Listing? {
   return Listing(
@@ -82,8 +87,31 @@ internal fun listingFromDocument(id: String, data: Map<String, Any?>): Listing? 
       status = enumOrNull<ListingStatus>(data[ListingFields.STATUS]) ?: return null,
       pickupArea = data[ListingFields.PICKUP_AREA] as? String ?: "",
       dropOffArea = data[ListingFields.DROP_OFF_AREA] as? String ?: "",
+      bookedRanges = bookedRangesOrEmpty(data[ListingFields.BOOKED_RANGES]),
   )
 }
+
+/**
+ * The booked ranges in a listing document's [data], or null if the listing is not published. Only
+ * the status and the ranges are read, so another malformed field does not hide the bookings.
+ */
+internal fun publishedBookedRangesOrNull(data: Map<String, Any>): List<BookedRange>? =
+    bookedRangesOrEmpty(data[ListingFields.BOOKED_RANGES]).takeIf {
+      data[ListingFields.STATUS] == ListingStatus.PUBLISHED.name
+    }
+
+/**
+ * The booked ranges stored in [value], a list of `{start, end}` maps. A range with a missing or
+ * malformed date, or ending before it starts, is skipped so that one bad entry does not hide the
+ * whole listing.
+ */
+private fun bookedRangesOrEmpty(value: Any?): List<BookedRange> =
+    (value as? List<*>).orEmpty().mapNotNull { entry ->
+      val range = entry as? Map<*, *> ?: return@mapNotNull null
+      val start = dateOrNull(range[ListingFields.RANGE_START]) ?: return@mapNotNull null
+      val end = dateOrNull(range[ListingFields.RANGE_END]) ?: return@mapNotNull null
+      BookedRange(start, end).takeUnless { end.isBefore(start) }
+    }
 
 private inline fun <reified T : Enum<T>> enumOrNull(value: Any?): T? =
     enumValues<T>().firstOrNull { it.name == value }

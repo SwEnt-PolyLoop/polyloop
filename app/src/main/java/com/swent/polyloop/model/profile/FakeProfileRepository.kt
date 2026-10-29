@@ -18,12 +18,23 @@ import kotlinx.coroutines.flow.update
  * every call fails with it; an observer throws it when it subscribes or at the next change, not as
  * soon as it is set. When [gate] is set, every call waits for it to complete (an observer before
  * its first value), so tests can see a loading state.
+ *
+ * [uploadProfilePhoto] stores nothing: it records the photo in [uploadedPhotos] and returns
+ * [uploadedUrl] of it. When [uploadFailure] is set, only uploads fail with it, so a test can fail
+ * the photo while the name still saves.
  */
 class FakeProfileRepository(
     profiles: List<UserProfile> = emptyList(),
     var failure: Throwable? = null,
     var gate: CompletableDeferred<Unit>? = null,
+    var uploadFailure: Throwable? = null,
 ) : ProfileRepository {
+
+  private val uploads = mutableListOf<Pair<String, String>>()
+
+  /** Each upload so far, as (uid, photoUri), oldest first. */
+  val uploadedPhotos: List<Pair<String, String>>
+    get() = uploads.toList()
 
   private val stored = MutableStateFlow(profiles.associateBy { it.uid })
 
@@ -67,5 +78,19 @@ class FakeProfileRepository(
         stored.value[uid] ?: return Result.failure(NoSuchElementException("No profile for $uid"))
     stored.update { it + (uid to profile.copy(name = name, photoUrl = photoUrl)) }
     return Result.success(Unit)
+  }
+
+  override suspend fun uploadProfilePhoto(uid: String, photoUri: String): Result<String> {
+    gate?.await()
+    (failure ?: uploadFailure)?.let {
+      return Result.failure(it)
+    }
+    uploads += uid to photoUri
+    return Result.success(uploadedUrl(photoUri))
+  }
+
+  companion object {
+    /** The download URL [uploadProfilePhoto] returns for [photoUri]. */
+    fun uploadedUrl(photoUri: String): String = "https://storage.example/$photoUri"
   }
 }

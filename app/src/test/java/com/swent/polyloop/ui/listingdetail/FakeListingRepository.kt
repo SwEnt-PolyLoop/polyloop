@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.listingdetail
 
 import android.net.Uri
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingRepository
@@ -37,6 +38,14 @@ class FakeListingRepository(
     getListingCalls++
     gate?.await()
     return failure?.let { Result.failure(it) } ?: Result.success(listings.find { it.id == id })
+  }
+
+  override suspend fun getBookedRanges(id: String): Result<List<BookedRange>?> {
+    gate?.await()
+    return failure?.let { Result.failure(it) }
+        ?: Result.success(
+            listings.find { it.id == id && it.status == ListingStatus.PUBLISHED }?.bookedRanges
+        )
   }
 
   // The addresses of each created listing, by listing id.

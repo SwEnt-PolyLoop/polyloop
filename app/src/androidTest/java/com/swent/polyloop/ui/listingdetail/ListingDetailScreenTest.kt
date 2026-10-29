@@ -25,7 +25,9 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
+import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
@@ -483,27 +485,42 @@ class ListingDetailScreenTest {
     assertEquals(listOf(oct(15) to oct(17)), confirmedDates)
   }
 
+  /**
+   * A [ListingRepository] answering getListing with [loadListing], getBookedRanges with
+   * [readBookedRanges].
+   */
+  private fun listingRepository(
+      loadListing: (String) -> Result<Listing?>,
+      readBookedRanges: (String) -> Result<List<BookedRange>?> = { Result.success(emptyList()) },
+  ) =
+      object : ListingRepository {
+        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
+            Result.success(emptyList())
+
+        override suspend fun getAllListings(): Result<List<Listing>> = Result.success(emptyList())
+
+        override suspend fun getListing(id: String) = loadListing(id)
+
+        override suspend fun getBookedRanges(id: String) = readBookedRanges(id)
+
+        override suspend fun createListing(
+            listing: Listing,
+            addresses: ListingAddresses,
+            photos: List<Uri>,
+        ): Result<String> = error("Not used in this test")
+      }
+
   @Test
   fun listingDetailScreenShowsErrorThenListingAfterRetry() {
     // Fails the first load, then returns the listing, so Retry must reach the ViewModel.
     var calls = 0
     val repository =
-        object : ListingRepository {
-          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-              Result.success(emptyList())
-
-          override suspend fun getAllListings(): Result<List<Listing>> = Result.success(emptyList())
-
-          override suspend fun getListing(id: String): Result<Listing?> =
+        listingRepository(
+            loadListing = { id ->
               if (calls++ == 0) Result.failure(IllegalStateException("Network down"))
               else Result.success(listing.takeIf { it.id == id })
-
-          override suspend fun createListing(
-              listing: Listing,
-              addresses: ListingAddresses,
-              photos: List<Uri>,
-          ): Result<String> = error("Not used in this test")
-        }
+            }
+        )
     val viewModel =
         ListingDetailViewModel(
             "tent",
@@ -576,5 +593,96 @@ class ListingDetailScreenTest {
         .onNodeWithTag(C.Tag.date_picker_send_error)
         .performScrollTo()
         .assertTextEquals("Network down")
+  }
+
+  @Test
+  fun pickerShowsBookedDaysAndTheDatesTakenMessage() {
+    setContent(
+        uiState =
+            ListingDetailUiState(
+                listing = listing,
+                isDatePickerOpen = true,
+                disabledDates = setOf(oct(10)),
+                datesTaken = true,
+                sendError = "Network down",
+            )
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.datePickerDay(oct(10)))
+        .assertContentDescriptionEquals(context.getString(R.string.date_picker_day_booked, 10))
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_send_error)
+        .performScrollTo()
+        .assertTextEquals(context.getString(R.string.listing_detail_dates_taken))
+  }
+
+  @Test
+  fun tappingADayCallsOnDayPicked() {
+    var dayPicks = 0
+    composeTestRule.setContent {
+      ListingDetailContent(
+          uiState = ListingDetailUiState(listing = listing, isDatePickerOpen = true),
+          onRequestDates = {},
+          onConfirmDates = { _, _ -> },
+          onDismissDatePicker = {},
+          onLenderClick = {},
+          onRetry = {},
+          today = today,
+          onDayPicked = { dayPicks++ },
+      )
+    }
+
+    tapDays(oct(12))
+
+    assertEquals(1, dayPicks)
+  }
+
+  @Test
+  fun datesBookedMeanwhileThenNewDaysPickedSendsTheRequest() {
+    // ListingDetailScreen's picker uses the phone's date. Six days in one month, starting
+    // tomorrow, so the picker shows them all and a run past midnight still finds them selectable.
+    val first =
+        LocalDate.now().plusDays(1).let {
+          if (it.plusDays(5).month == it.month) it else it.plusMonths(1).withDayOfMonth(1)
+        }
+    val window = listing.copy(availableFrom = first, availableTo = first.plusDays(5))
+    // Someone books the first day while the user is picking: only the send reads it.
+    val repository =
+        listingRepository(
+            loadListing = { Result.success(window) },
+            readBookedRanges = { Result.success(listOf(BookedRange(first, first))) },
+        )
+    val rentalRepository = FakeRentalRepository()
+    val viewModel =
+        ListingDetailViewModel(
+            "tent",
+            repository,
+            rentalRepository,
+            FakeAuthRepository(signedInUser = AuthUser("me", "loca@epfl.ch", "Loca")),
+            FakeProfileRepository(),
+        )
+    val sent = mutableListOf<String>()
+    composeTestRule.setContent {
+      ListingDetailScreen(viewModel = viewModel, onLenderClick = {}, onRequestSent = { sent += it })
+    }
+    waitForTag(C.Tag.listing_detail_request_button)
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).performClick()
+
+    tapDays(first, first.plusDays(1))
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
+    waitForTag(C.Tag.date_picker_send_error)
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_send_error)
+        .assertTextEquals(context.getString(R.string.listing_detail_dates_taken))
+
+    tapDays(first.plusDays(3))
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_send_error).assertDoesNotExist()
+    tapDays(first.plusDays(4))
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
+
+    composeTestRule.waitUntil(timeoutMillis = 5_000) { sent.isNotEmpty() }
+    assertEquals(listOf(rentalRepository.rentals.single().id), sent)
+    assertEquals(first.plusDays(3), rentalRepository.rentals.single().startDate)
   }
 }

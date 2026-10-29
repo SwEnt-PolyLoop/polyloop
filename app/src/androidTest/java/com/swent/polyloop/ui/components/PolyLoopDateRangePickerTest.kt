@@ -116,6 +116,9 @@ class PolyLoopDateRangePickerTest {
   fun bookedBufferAndOutOfWindowDaysAreNotEnabled() {
     setBody()
 
+    day(oct(9))
+        .assertIsNotEnabled()
+        .assert(hasContentDescription(context.getString(R.string.date_picker_day_buffer, 9)))
     day(oct(10))
         .assertIsNotEnabled()
         .assert(hasContentDescription(context.getString(R.string.date_picker_day_booked, 10)))
@@ -153,7 +156,7 @@ class PolyLoopDateRangePickerTest {
   fun bufferViolationShowsErrorAndKeepsButtonDisabled() {
     setBody(window = oct(1)..oct(10), disabledDates = setOf(oct(6), oct(7), oct(8)))
 
-    tap(oct(4), oct(5))
+    tap(oct(10), oct(10))
     node(C.Tag.date_picker_error)
         .assertTextEquals(context.getString(R.string.date_picker_buffer_error))
     node(C.Tag.date_picker_confirm_button).assertIsNotEnabled()
@@ -240,6 +243,51 @@ class PolyLoopDateRangePickerTest {
     composeTestRule.waitForIdle()
     node(C.Tag.date_picker_sheet).assertDoesNotExist()
     visible = true
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onAllNodes(isSelected()).assertCountEquals(0)
+    node(C.Tag.date_picker_confirm_button).assertIsNotEnabled()
+  }
+
+  @Test
+  fun newlyBookedDaysClearTheSelection() {
+    var disabledDates by mutableStateOf(booked)
+    composeTestRule.setContent {
+      DateRangePickerBody(
+          window = window,
+          disabledDates = disabledDates,
+          mode = requestMode,
+          onConfirm = { _, _ -> },
+          today = today,
+      )
+    }
+    tap(oct(15), oct(18))
+    node(C.Tag.date_picker_confirm_button).assertIsEnabled()
+
+    disabledDates = booked + oct(16)
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onAllNodes(isSelected()).assertCountEquals(0)
+    node(C.Tag.date_picker_confirm_button).assertIsNotEnabled()
+    day(oct(16)).assertIsNotEnabled()
+  }
+
+  @Test
+  fun aNewDayClearsTheSelection() {
+    var now by mutableStateOf(today)
+    composeTestRule.setContent {
+      DateRangePickerBody(
+          window = window,
+          disabledDates = booked,
+          mode = requestMode,
+          onConfirm = { _, _ -> },
+          today = now,
+      )
+    }
+    tap(oct(15), oct(18))
+    node(C.Tag.date_picker_confirm_button).assertIsEnabled()
+
+    now = today.plusDays(1)
     composeTestRule.waitForIdle()
 
     composeTestRule.onAllNodes(isSelected()).assertCountEquals(0)

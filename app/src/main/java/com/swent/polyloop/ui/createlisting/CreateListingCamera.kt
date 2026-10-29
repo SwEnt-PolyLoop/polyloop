@@ -51,6 +51,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.resources.C
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -73,7 +74,12 @@ fun PolyLoopCamera(
     modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
-  val imageCapture = remember { ImageCapture.Builder().build() }
+  val imageCapture = remember {
+    ImageCapture.Builder()
+        .setResolutionSelector(photoResolutionSelector())
+        .setJpegQuality(PHOTO_JPEG_QUALITY)
+        .build()
+  }
   PolyLoopCameraContent(
       photoCount = photoCount,
       onPhotoTaken = onPhotoTaken,
@@ -105,6 +111,8 @@ internal fun PolyLoopCameraContent(
   val context = LocalContext.current
   var isCapturing by remember { mutableStateOf(false) }
   var hasError by remember { mutableStateOf(false) }
+  // Set before the capture starts, so a second tap before the next recomposition is ignored.
+  val captureInFlight = remember { AtomicBoolean(false) }
 
   LaunchedEffect(photoCount) { if (shouldCloseCamera(photoCount)) onClose() }
 
@@ -115,20 +123,25 @@ internal fun PolyLoopCameraContent(
         canTakePhoto = canTakePhoto(photoCount, isCapturing),
         errorMessage = if (hasError) stringResource(R.string.create_listing_camera_error) else null,
         onShutter = {
-          isCapturing = true
-          hasError = false
-          val file = newPhotoFile(File(context.filesDir, LISTING_PHOTOS_DIR))
-          capture(
-              file,
-              {
-                isCapturing = false
-                onPhotoTaken(Uri.fromFile(file).toString())
-              },
-              {
-                isCapturing = false
-                hasError = true
-              },
-          )
+          if (captureInFlight.compareAndSet(false, true)) {
+            isCapturing = true
+            hasError = false
+            val file = newPhotoFile(File(context.filesDir, LISTING_PHOTOS_DIR))
+            capture(
+                file,
+                {
+                  captureInFlight.set(false)
+                  isCapturing = false
+                  onPhotoTaken(Uri.fromFile(file).toString())
+                },
+                {
+                  captureInFlight.set(false)
+                  isCapturing = false
+                  hasError = true
+                  deletePhotoFile(Uri.fromFile(file).toString())
+                },
+            )
+          }
         },
         onClose = onClose,
     )

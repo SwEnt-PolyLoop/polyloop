@@ -25,6 +25,7 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
@@ -86,6 +87,8 @@ class PolyLoopAppTest {
 
         override suspend fun getListing(id: String): Result<Listing?> =
             Result.success(listing.takeIf { it.id == id })
+
+        override suspend fun getBookedRanges(id: String) = Result.success(emptyList<BookedRange>())
 
         override suspend fun createListing(
             listing: Listing,
