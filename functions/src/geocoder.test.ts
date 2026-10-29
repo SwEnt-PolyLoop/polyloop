@@ -35,7 +35,7 @@ describe("googleGeocoder", () => {
     expect(found).toEqual({ point: { latitude: 46.51843, longitude: 6.56826 }, area: "Ecublens" });
   });
 
-  it("asks for the address in Switzerland, in English, with the key", async () => {
+  it("asks for the address in Switzerland only, in English, with the key", async () => {
     const { fetchUrl, urls } = fakeFetch(rolexCenter);
 
     await googleGeocoder("test-key", fetchUrl)("Route Cantonale, Ecublens");
@@ -45,7 +45,7 @@ describe("googleGeocoder", () => {
       "https://maps.googleapis.com/maps/api/geocode/json",
     );
     expect(urls[0].searchParams.get("address")).toBe("Route Cantonale, Ecublens");
-    expect(urls[0].searchParams.get("region")).toBe("ch");
+    expect(urls[0].searchParams.get("components")).toBe("country:CH");
     expect(urls[0].searchParams.get("language")).toBe("en");
     expect(urls[0].searchParams.get("key")).toBe("test-key");
   });
@@ -63,14 +63,23 @@ describe("googleGeocoder", () => {
     expect(found?.area).toBe("Ouest lausannois");
   });
 
-  it("leaves the area empty when no part names one", async () => {
-    const noArea = structuredClone(rolexCenter);
-    noArea.results[0].address_components = [{ long_name: "Route Cantonale", types: ["route"] }];
-    const { fetchUrl } = fakeFetch(noArea);
+  it("keeps a partial match, named after its town", async () => {
+    const partial = { ...rolexCenter, results: [{ ...rolexCenter.results[0], partial_match: true }] };
+    const { fetchUrl } = fakeFetch(partial);
 
-    const found = await googleGeocoder("test-key", fetchUrl)("Route Cantonale");
+    const found = await googleGeocoder("test-key", fetchUrl)("Route Cantonnale, Ecublens");
 
-    expect(found?.area).toBe("");
+    expect(found?.area).toBe("Ecublens");
+  });
+
+  it("resolves to null when the result names no area, e.g. the whole country", async () => {
+    const country = structuredClone(rolexCenter);
+    country.results[0].address_components = [
+      { long_name: "Switzerland", types: ["country", "political"] },
+    ];
+    const { fetchUrl } = fakeFetch(country);
+
+    expect(await googleGeocoder("test-key", fetchUrl)("Nowhere 99")).toBeNull();
   });
 
   it("resolves to null when the address is not found", async () => {
@@ -94,5 +103,30 @@ describe("googleGeocoder", () => {
     await expect(googleGeocoder("test-key", fetchUrl)("Route Cantonale")).rejects.toThrow(
       "Geocoding API answered HTTP 503",
     );
+  });
+
+  it("gives up when the API does not answer in time", async () => {
+    // Never answers: it only rejects once the request is aborted, as fetch does.
+    const silent = ((_input: string | URL | Request, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      })) as typeof fetch;
+
+    await expect(googleGeocoder("test-key", silent, 10)("Route Cantonale")).rejects.toThrow(
+      "Geocoding API request failed (TimeoutError)",
+    );
+  });
+
+  it("rejects without the key or the address when the request itself fails", async () => {
+    // The worst case: an error from fetch that repeats the whole URL.
+    const offline = (async (input: string | URL | Request) => {
+      throw new TypeError(`fetch failed: ${input.toString()}`);
+    }) as typeof fetch;
+
+    const error = await googleGeocoder("test-key", offline)("Route Cantonale").catch((e) => e);
+
+    expect(error.message).toBe("Geocoding API request failed (TypeError)");
+    expect(error.message).not.toContain("test-key");
+    expect(error.message).not.toContain("Cantonale");
   });
 });
