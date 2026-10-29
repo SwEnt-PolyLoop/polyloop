@@ -48,9 +48,15 @@ export function googleGeocoder(
 ): Geocoder {
   return async (address) => {
     const query = new URLSearchParams({ address, region: "ch", language: "en", key: apiKey });
-    const response = await fetchUrl(`${GEOCODING_URL}?${query}`, {
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    let response: Response;
+    try {
+      response = await fetchUrl(`${GEOCODING_URL}?${query}`, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (error) {
+      // fetch's own errors (no connection, timeout) are replaced: they could name the URL, so the key.
+      throw new Error(`Geocoding API request failed (${(error as Error).name})`);
+    }
     if (!response.ok) {
       throw new Error(`Geocoding API answered HTTP ${response.status}`);
     }

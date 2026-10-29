@@ -103,8 +103,21 @@ describe("googleGeocoder", () => {
         init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
       })) as typeof fetch;
 
-    await expect(googleGeocoder("test-key", silent, 10)("Route Cantonale")).rejects.toMatchObject({
-      name: "TimeoutError",
-    });
+    await expect(googleGeocoder("test-key", silent, 10)("Route Cantonale")).rejects.toThrow(
+      "Geocoding API request failed (TimeoutError)",
+    );
+  });
+
+  it("rejects without the key or the address when the request itself fails", async () => {
+    // The worst case: an error from fetch that repeats the whole URL.
+    const offline = (async (input: string | URL | Request) => {
+      throw new TypeError(`fetch failed: ${input.toString()}`);
+    }) as typeof fetch;
+
+    const error = await googleGeocoder("test-key", offline)("Route Cantonale").catch((e) => e);
+
+    expect(error.message).toBe("Geocoding API request failed (TypeError)");
+    expect(error.message).not.toContain("test-key");
+    expect(error.message).not.toContain("Cantonale");
   });
 });
