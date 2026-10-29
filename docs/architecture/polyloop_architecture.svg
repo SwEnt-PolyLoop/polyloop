@@ -9,6 +9,8 @@
 <text x="144.8" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Sign-up / login</text>
 <rect x="241.5" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
 <text x="326.2" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Profile &amp; reviews</text>
+<rect x="241.5" y="168.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="326.2" y="195.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Edit profile</text>
 <rect x="423.0" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
 <text x="507.8" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Chat list</text>
 <rect x="423.0" y="168.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
@@ -51,6 +53,9 @@
 <rect x="241.5" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
 <text x="326.2" y="411.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">Profile</text>
 <text x="326.2" y="430.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#A32D2D">ViewModel</text>
+<rect x="241.5" y="456.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+<text x="326.2" y="475.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">EditProfile</text>
+<text x="326.2" y="494.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#A32D2D">ViewModel</text>
 <rect x="423.0" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
 <text x="507.8" y="411.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">ChatList</text>
 <text x="507.8" y="430.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#A32D2D">ViewModel</text>
