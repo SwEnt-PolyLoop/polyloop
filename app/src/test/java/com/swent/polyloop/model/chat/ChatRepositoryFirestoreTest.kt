@@ -138,6 +138,12 @@ class ChatRepositoryFirestoreTest {
   }
 
   @Test
+  fun aTaskCancelledByFirebaseIsReturnedAsAFailure() = runTest {
+    every { batch.commit() } returns Tasks.forCanceled()
+    assertTrue(repository.sendMessage("r1", "Hi").isFailure)
+  }
+
+  @Test
   fun sendIsASuccessEvenWhenTheServerNeverConfirms() = runTest {
     every { batch.commit() } returns TaskCompletionSource<Void>().task
     // Queued offline: Firestore sends it later, so the caller must not see a failure.
