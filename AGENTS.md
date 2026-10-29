@@ -56,6 +56,7 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 - Changes to Firestore or Storage Security Rules come with tests.
 - ViewModel tests use fake repositories (`Fake<Name>Repository`, implementing the repository interface), not mocks. Mocks are only for APIs we don't own, such as Firebase in repository tests.
 - Fakes shared by unit tests, Compose tests and previews live in `main`, next to their interface (e.g. `model/profile/FakeProfileRepository`), because `androidTest` cannot see `app/src/test`. The app itself never uses them.
+- Cloud Functions tests sit next to their code in `functions/src` (`<thing>.test.ts`). They run on the Firestore emulator (`firebase emulators:exec --only firestore "npm test"` in `functions/`), and external APIs such as Geocoding are faked, never called.
 
 ## How to work
 
