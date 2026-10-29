@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
@@ -43,17 +42,20 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.browse.ListingCard
+import com.swent.polyloop.ui.components.ProfileAvatar
 
 /**
  * The Profile screen, for the signed-in user's own profile or someone else's.
  *
  * @param onListingClick opens one of the own listings.
+ * @param onEditProfile opens Edit profile, from the own profile.
  * @param onSignedOut called once the user signed out, to leave the screen for sign-in.
  */
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     onListingClick: (listingId: String) -> Unit,
+    onEditProfile: () -> Unit,
     onSignedOut: () -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -61,6 +63,7 @@ fun ProfileScreen(
   ProfileContent(
       uiState = uiState,
       onListingClick = onListingClick,
+      onEditProfile = onEditProfile,
       onSignOut = viewModel::signOut,
       onRetry = viewModel::retry,
   )
@@ -71,6 +74,7 @@ fun ProfileScreen(
 fun ProfileContent(
     uiState: ProfileUiState,
     onListingClick: (listingId: String) -> Unit,
+    onEditProfile: () -> Unit,
     onSignOut: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -103,6 +107,7 @@ fun ProfileContent(
               isOwnProfile = uiState.isOwnProfile,
               listings = uiState.listings,
               onListingClick = onListingClick,
+              onEditProfile = onEditProfile,
               onSignOut = onSignOut,
           )
     }
@@ -128,13 +133,14 @@ private fun ProfileError(errorMsg: String, onRetry: () -> Unit) {
   }
 }
 
-/** The header, then, on the own profile only, the listings and "Sign out". */
+/** The header, then, on the own profile only, the listings, "Edit profile" and "Sign out". */
 @Composable
 private fun ProfileLoaded(
     profile: UserProfile,
     isOwnProfile: Boolean,
     listings: List<Listing>,
     onListingClick: (listingId: String) -> Unit,
+    onEditProfile: () -> Unit,
     onSignOut: () -> Unit,
 ) {
   LazyColumn(
@@ -176,6 +182,15 @@ private fun ProfileLoaded(
       }
       item {
         OutlinedButton(
+            onClick = onEditProfile,
+            modifier =
+                Modifier.fillMaxWidth().padding(top = 12.dp).testTag(C.Tag.profile_edit_button),
+        ) {
+          Text(stringResource(R.string.profile_edit))
+        }
+      }
+      item {
+        OutlinedButton(
             onClick = onSignOut,
             modifier =
                 Modifier.fillMaxWidth().padding(top = 12.dp).testTag(C.Tag.profile_sign_out_button),
@@ -187,7 +202,7 @@ private fun ProfileLoaded(
   }
 }
 
-/** Avatar with the initial, name, and rating with the number of reviews. */
+/** Avatar (the photo, or the initial), name, and rating with the number of reviews. */
 @Composable
 private fun ProfileHeader(profile: UserProfile) {
   Column(
@@ -195,18 +210,7 @@ private fun ProfileHeader(profile: UserProfile) {
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    Box(
-        modifier =
-            Modifier.size(80.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-      Text(
-          text = profile.name.trim().firstOrNull()?.uppercase() ?: "?",
-          style = MaterialTheme.typography.headlineMedium,
-          fontWeight = FontWeight.Bold,
-          modifier = Modifier.testTag(C.Tag.profile_avatar),
-      )
-    }
+    ProfileAvatar(photo = profile.photoUrl, name = profile.name, size = 80.dp)
     Text(
         text = profile.name.ifBlank { stringResource(R.string.profile_name_placeholder) },
         style = MaterialTheme.typography.headlineSmall,

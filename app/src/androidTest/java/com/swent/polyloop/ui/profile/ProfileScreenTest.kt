@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -83,6 +84,7 @@ class ProfileScreenTest {
 
   private var openedListing: String? = null
   private var signOutClicks = 0
+  private var editClicks = 0
   private var retryClicks = 0
 
   private fun setContent(state: ProfileUiState) {
@@ -91,6 +93,7 @@ class ProfileScreenTest {
         ProfileContent(
             uiState = state,
             onListingClick = { openedListing = it },
+            onEditProfile = { editClicks++ },
             onSignOut = { signOutClicks++ },
             onRetry = { retryClicks++ },
         )
@@ -171,6 +174,33 @@ class ProfileScreenTest {
     node(C.Tag.profile_listings_title).assertDoesNotExist()
     node(C.Tag.profile_listings_empty).assertDoesNotExist()
     node(C.Tag.profile_sign_out_button).assertDoesNotExist()
+    node(C.Tag.profile_edit_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun editProfileButtonOpensEditProfile() {
+    setContent(ownProfile)
+
+    node(C.Tag.profile_edit_button)
+        .performScrollTo()
+        .assertTextEquals(context.getString(R.string.profile_edit))
+        .performClick()
+
+    composeTestRule.runOnIdle {
+      assertEquals(1, editClicks)
+      assertEquals(0, signOutClicks)
+    }
+  }
+
+  @Test
+  fun aProfilePhotoThatNoLongerLoadsShowsTheInitial() {
+    // e.g. a URL that stopped working because a newer photo replaced it
+    setContent(ownProfile.copy(profile = john.copy(photoUrl = "file:///data/missing.jpg")))
+
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule.onAllNodesWithTag(C.Tag.profile_avatar).fetchSemanticsNodes().isNotEmpty()
+    }
+    node(C.Tag.profile_avatar).assertTextEquals("J")
   }
 
   @Test
@@ -263,6 +293,7 @@ class ProfileScreenTest {
         ProfileScreen(
             viewModel = viewModel,
             onListingClick = {},
+            onEditProfile = {},
             onSignedOut = { signedOut = true },
         )
       }
