@@ -153,22 +153,37 @@ describe("updateListingAreas", () => {
     expect(await readListing(id)).toEqual(rest);
   });
 
-  it("removes the area and point when geocoding fails, and logs it without the address", async () => {
+  it("removes the area and point when geocoding fails, then fails so it is retried", async () => {
     const logged = jest.mocked(logger.error);
     logged.mockClear();
     const id = await createListing();
 
-    await addressesWritten(
+    const run = addressesWritten(
       id,
       undefined,
       { pickup: PICKUP, dropOff: DROP_OFF },
       fakeGeocoder([PICKUP]).geocode,
     );
 
+    await expect(run).rejects.toThrow(`Could not geocode every changed address of listing ${id}`);
+    // The other address is still written, and the log does not hold the address.
     const { pickupArea, pickupPoint, ...rest } = GEOCODED_LISTING;
     expect(await readListing(id)).toEqual(rest);
     expect(logged).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(logged.mock.calls)).not.toContain(PICKUP);
+  });
+
+  it("puts the area back when the retried run succeeds", async () => {
+    const id = await createListing();
+    const addresses = { pickup: PICKUP, dropOff: DROP_OFF };
+    await addressesWritten(id, undefined, addresses, fakeGeocoder([PICKUP]).geocode).catch(
+      () => undefined,
+    );
+
+    // The same event, delivered again once the Geocoding API answers.
+    await updateListingAreas(db, id, undefined, addresses, fakeGeocoder().geocode);
+
+    expect(await readListing(id)).toEqual(GEOCODED_LISTING);
   });
 
   it("treats a blank address like a missing one, without looking it up", async () => {

@@ -1,12 +1,14 @@
 // Made with Claude.
 
 import { getApps, initializeApp } from "firebase-admin/app";
+import * as logger from "firebase-functions/logger";
 import { geocodeListingAddresses } from "./geocodeListingAddresses";
 import { updateListingAreas } from "./listingAreas";
 
 // The Firestore logic is tested on the emulator in listingAreas.test.ts; here only the wiring.
 // Imported from its own file, not index.ts: index also loads Firebase Auth, which Jest cannot load.
 jest.mock("./listingAreas");
+jest.mock("firebase-functions/logger");
 
 const update = jest.mocked(updateListingAreas);
 
@@ -17,11 +19,20 @@ beforeAll(() => {
 
 type WriteEvent = Parameters<typeof geocodeListingAddresses.run>[0];
 
-/** The event of a write to listings/{listingId}/private/addresses, from [before] to [after]. */
-function addressesWritten(listingId: string, before?: object, after?: object): WriteEvent {
+/**
+ * The event of a write to listings/{listingId}/private/addresses, from [before] to [after], made at
+ * [time] (now by default).
+ */
+function addressesWritten(
+  listingId: string,
+  before?: object,
+  after?: object,
+  time = new Date(),
+): WriteEvent {
   const snapshot = (data?: object) => ({ data: () => data });
   return {
     params: { listingId },
+    time: time.toISOString(),
     data: { before: snapshot(before), after: snapshot(after) },
   } as unknown as WriteEvent;
 }
@@ -36,6 +47,23 @@ describe("geocodeListingAddresses", () => {
       document: "listings/{listingId}/private/addresses",
     });
     expect(endpoint.secretEnvironmentVariables).toEqual([{ key: "GEOCODING_API_KEY" }]);
+  });
+
+  it("is retried when a run fails", () => {
+    expect(geocodeListingAddresses.__endpoint.eventTrigger?.retry).toBe(true);
+  });
+
+  it("gives up on an event older than a day, without geocoding it", async () => {
+    const dayAndAMinuteAgo = new Date(Date.now() - (24 * 60 + 1) * 60 * 1000);
+
+    await geocodeListingAddresses.run(
+      addressesWritten("listing-1", undefined, { pickup: "New" }, dayAndAMinuteAgo),
+    );
+
+    expect(update).not.toHaveBeenCalled();
+    expect(jest.mocked(logger.error)).toHaveBeenCalledWith(
+      "Gave up geocoding the addresses of listing listing-1",
+    );
   });
 
   it("passes the listing id and the addresses before and after the write", async () => {

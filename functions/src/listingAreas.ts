@@ -33,8 +33,10 @@ interface Lookup {
  *
  * Only addresses whose text changed are geocoded. An address that is blank, not found or cannot be
  * geocoded removes its area and point, so the app shows its placeholder instead of an old area.
- * Nothing happens when the addresses were deleted, and a deleted listing is not recreated. A run
- * that finishes after a newer edit of the addresses writes nothing for the ones changed since.
+ * When a lookup fails, the promise then rejects (after writing the other address), so that the
+ * event is delivered again. Nothing happens when the addresses were deleted, and a deleted listing
+ * is not recreated. A run that finishes after a newer edit of the addresses writes nothing for the
+ * ones changed since.
  */
 export async function updateListingAreas(
   db: Firestore,
@@ -45,12 +47,22 @@ export async function updateListingAreas(
 ): Promise<void> {
   if (after === undefined) return;
   const lookups: Lookup[] = [];
+  let failed = false;
   for (const address of ADDRESSES) {
     const text = textOf(after[address.field]);
     if (before !== undefined && textOf(before[address.field]) === text) continue;
-    lookups.push({ address, text, found: await locate(text, geocode, listingId, address.field) });
+    let found: GeocodedAddress | null = null;
+    try {
+      found = text === "" ? null : await geocode(text);
+    } catch (error) {
+      // The listing id, not the address: logs must not hold exact addresses.
+      logger.error(`Could not geocode the ${address.field} address of listing ${listingId}`, error);
+      failed = true;
+    }
+    lookups.push({ address, text, found });
   }
   if (lookups.length > 0) await writeAreas(db, listingId, lookups);
+  if (failed) throw new Error(`Could not geocode every changed address of listing ${listingId}`);
 }
 
 /**
@@ -83,16 +95,4 @@ async function writeAreas(db: Firestore, listingId: string, lookups: Lookup[]): 
 
 function textOf(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-/** Geocodes [text], or null when it is blank, not found or the lookup fails (which is logged). */
-async function locate(text: string, geocode: Geocoder, listingId: string, field: string) {
-  if (text === "") return null;
-  try {
-    return await geocode(text);
-  } catch (error) {
-    // The listing id, not the address: logs must not hold exact addresses.
-    logger.error(`Could not geocode the ${field} address of listing ${listingId}`, error);
-    return null;
-  }
 }
