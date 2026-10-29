@@ -148,7 +148,7 @@ Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoi
 | `rentals/{rentalId}/messages/{messageId}` | `senderId`, `text`, `sentAt`, `type` (`USER` or `SYSTEM`) | One conversation per rental. |
 
 Listings:
-- `pickupArea` and `dropOffArea` are area names (e.g. "Ecublens"); `pickupPoint` and `dropOffPoint` are GeoPoints. The app creates a listing with empty names and no points; the `geocodeListingAddresses` Cloud Function fills them in. Each time `listings/{listingId}/private/addresses` is written, it geocodes each changed address and stores its area name and its point rounded to a 0.01° grid (about 1.1 × 0.8 km around EPFL). The exact address and point never reach the public listing.
+- `pickupArea` and `dropOffArea` are area names (e.g. "Ecublens"); `pickupPoint` and `dropOffPoint` are GeoPoints. The app creates a listing with empty names and no points; the `geocodeListingAddresses` Cloud Function fills them in. Each time `listings/{listingId}/private/addresses` is written, it geocodes each changed address (in Switzerland only) and stores its area name and its point rounded to a 0.01° grid (about 1.1 × 0.8 km around EPFL). The exact address and point never reach the public listing. A lookup that fails (e.g. the Geocoding API is down or takes more than 10 seconds) is retried for up to a day, and a result is written only if its address has not changed since, so the newest edit wins even if its run finishes first.
 - Until an address is geocoded, or when it is blank, not found or its geocoding fails, its name and point are missing, and screens show a placeholder.
 
 Rentals:
