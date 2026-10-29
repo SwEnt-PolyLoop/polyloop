@@ -70,6 +70,7 @@ class PolyLoopThemeTest {
     assertEquals(Sand, colorScheme.surfaceVariant)
     assertEquals(Stone, colorScheme.onSurfaceVariant)
     assertEquals(Color.White, colorScheme.surfaceContainer)
+    assertEquals(Color.White, colorScheme.surfaceContainerLow)
     assertEquals(Border, colorScheme.outline)
     assertEquals(Border, colorScheme.outlineVariant)
   }

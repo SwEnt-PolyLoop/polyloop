@@ -2,12 +2,17 @@
 
 package com.swent.polyloop
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -37,17 +42,21 @@ import com.swent.polyloop.ui.listingdetail.ListingDetailScreen
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
 import com.swent.polyloop.ui.myrentals.MyRentalsScreen
 import com.swent.polyloop.ui.myrentals.MyRentalsViewModel
+import com.swent.polyloop.ui.navigation.DrawerViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
+import com.swent.polyloop.ui.navigation.PolyLoopDrawerContent
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.ui.profile.ProfileScreen
 import com.swent.polyloop.ui.profile.ProfileViewModel
+import kotlinx.coroutines.launch
 
 /**
- * The app's navigation: the top bar and a NavHost holding every route. Screens that are not built
- * yet show [DummyScreen]; replace each one with the real screen as it is built.
+ * The app's navigation: the navigation drawer, the top bar and a NavHost holding every route.
+ * Screens that are not built yet show [DummyScreen]; replace each one with the real screen as it is
+ * built.
  *
- * @param isAdmin whether the top-bar menu lists Admin court ruling.
+ * @param isAdmin whether the drawer lists Admin court ruling.
  * @param isSignedIn whether a user is already signed in; decides the start destination. Read once,
  *   on first composition. Tests can pass it directly instead of signing in.
  */
@@ -64,12 +73,62 @@ fun PolyLoopApp(
   // Computed once: changing a NavHost's start destination later does not navigate.
   val startDestination = remember { if (isSignedIn) Screen.Browse.route else Screen.Auth.route }
 
+  // Lives as long as the app, shared by every screen's drawer.
+  val drawerViewModel: DrawerViewModel =
+      viewModel(
+          factory =
+              DrawerViewModel.Factory(
+                  RepositoryProvider.profileRepository,
+                  RepositoryProvider.authRepository,
+              )
+      )
+  val drawerUiState by drawerViewModel.uiState.collectAsStateWithLifecycle()
+  // Every sign-in and sign-out changes the route, so the header follows the signed-in user.
+  LaunchedEffect(currentRoute) { drawerViewModel.refresh() }
+  val drawerState = rememberDrawerState(DrawerValue.Closed)
+  val scope = rememberCoroutineScope()
+  // Added only while the drawer opens or is open, so it is registered after the NavHost's handler
+  // and called first: Back closes the drawer instead of leaving the screen under it.
+  if (drawerState.targetValue == DrawerValue.Open) {
+    BackHandler { scope.launch { drawerState.close() } }
+  }
+
+  ModalNavigationDrawer(
+      drawerState = drawerState,
+      // Opened only by the menu button, so swipes on carousels never open it; swiping closes it.
+      gesturesEnabled = drawerState.isOpen,
+      drawerContent = {
+        PolyLoopDrawerContent(
+            profile = drawerUiState.profile,
+            destinations = Screen.topLevelDestinations(isAdmin),
+            currentRoute = currentRoute,
+            onDestinationClick = { screen ->
+              scope.launch { drawerState.close() }
+              navigationActions.navigateTo(screen)
+            },
+        )
+      },
+  ) {
+    PolyLoopScaffold(navController, navigationActions, currentRoute, startDestination) {
+      scope.launch { drawerState.open() }
+    }
+  }
+}
+
+/** The top bar over a NavHost holding every route; [onMenuClick] opens the drawer. */
+@Composable
+private fun PolyLoopScaffold(
+    navController: NavHostController,
+    navigationActions: NavigationActions,
+    currentRoute: String?,
+    startDestination: String,
+    onMenuClick: () -> Unit,
+) {
   Scaffold(
       topBar = {
         if (currentRoute != null && currentRoute != Screen.Auth.route) {
           PolyLoopTopBar(
-              destinations = Screen.topLevelDestinations(isAdmin),
-              onDestinationClick = navigationActions::navigateTo,
+              onMenuClick = onMenuClick,
               onProfileClick = { navigationActions.navigateTo(Screen.Profile) },
           )
         }

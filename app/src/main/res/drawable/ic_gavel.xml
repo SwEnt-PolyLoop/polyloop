@@ -1,0 +1,14 @@
+<!-- Made with Claude. -->
+<!-- Outlined gavel, for Court rulings in the drawer; tinted with the theme color in code. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M14.5,12.5L6.5,20.5A2.119,2.119 0,1 1,3.5 17.5L11.5,9.5M16,16L22,10M8,8L14,2M9,7L17,15M21,11L13,3"
+        android:strokeWidth="2"
+        android:strokeColor="@android:color/black"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

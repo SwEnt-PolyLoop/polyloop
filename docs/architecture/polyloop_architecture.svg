@@ -35,6 +35,9 @@
 <rect x="1330.5" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
 <text x="1415.2" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Wallet</text>
 <text x="1415.2" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">balance, recharge</text>
+<rect x="1330.5" y="168.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="1415.2" y="187.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Navigation drawer</text>
+<text x="1415.2" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">on every screen</text>
 <line x1="144.8" y1="312" x2="144.8" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
 <line x1="326.2" y1="312" x2="326.2" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
 <line x1="507.8" y1="312" x2="507.8" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
@@ -44,7 +47,7 @@
 <line x1="1233.8" y1="312" x2="1233.8" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
 <line x1="1415.2" y1="312" x2="1415.2" y2="346" stroke="#888780" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
 <rect x="40" y="352" width="1480" height="242" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
-<text x="60" y="374" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">ViewModel layer: one per screen (UI state + user actions)</text>
+<text x="60" y="374" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">ViewModel layer: one per screen, plus the drawer's (UI state + user actions)</text>
 <rect x="60.0" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
 <text x="144.8" y="411.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">Auth</text>
 <text x="144.8" y="430.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#A32D2D">ViewModel</text>
@@ -84,6 +87,9 @@
 <rect x="1330.5" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
 <text x="1415.2" y="411.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">Wallet</text>
 <text x="1415.2" y="430.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#A32D2D">ViewModel</text>
+<rect x="1330.5" y="456.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="1415.2" y="475.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">Drawer</text>
+<text x="1415.2" y="494.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#A32D2D">ViewModel</text>
 <line x1="780.0" y1="600" x2="780.0" y2="634" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
 <text x="796" y="617" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">each ViewModel calls the repositories it needs (table in ARCHITECTURE.md)</text>
 <rect x="40" y="640" width="1480" height="224" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>

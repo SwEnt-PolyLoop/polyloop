@@ -59,7 +59,6 @@ import com.swent.polyloop.ui.components.ListingPhoto
 import com.swent.polyloop.ui.components.PolyLoopDateRangePicker
 import com.swent.polyloop.ui.components.PriceText
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
-import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
 
@@ -480,11 +479,7 @@ private val previewListing =
 private fun ListingDetailContentPreview() {
   PolyLoopTheme {
     Column {
-      PolyLoopTopBar(
-          destinations = Screen.topLevelDestinations(isAdmin = false),
-          onDestinationClick = {},
-          onProfileClick = {},
-      )
+      PolyLoopTopBar(onMenuClick = {}, onProfileClick = {})
       ListingDetailContent(
           uiState = ListingDetailUiState(listing = previewListing),
           onRequestDates = {},

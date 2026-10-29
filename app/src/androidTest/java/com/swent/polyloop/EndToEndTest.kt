@@ -445,7 +445,7 @@ class EndToEndTest {
 
   private fun openFromMenu(screen: Screen.TopLevel) {
     composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(screen.route)).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.drawerItem(screen.route)).performScrollTo().performClick()
   }
 
   private fun fillField(tag: String, text: String) {

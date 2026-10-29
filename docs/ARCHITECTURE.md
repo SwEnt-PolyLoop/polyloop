@@ -6,7 +6,7 @@
 ```
 UI layer        Compose screens (13 screens, see SCREENS.md)
                   │  observe state / send user actions
-ViewModel layer 13 screen ViewModels (one per screen)
+ViewModel layer 13 screen ViewModels (one per screen) + DrawerViewModel (navigation drawer)
                   │  call the repositories they need (no domain layer)
 Data layer      10 repositories + local upload queue (WorkManager)
                   │
@@ -53,8 +53,11 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |
 | Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos); Rental (the deposit); Listing (the item) |
 | Admin court ruling | AdminCourtRulingViewModel | Dispute; Handover (the photos); Rental (the deposit); Listing (the item); Profile (both parties) |
+| Navigation drawer (every screen) | DrawerViewModel | Profile (the signed-in user's name, photo and rating in the header) |
 
 If a ViewModel needs a repository that is not listed here, add it to this table in the same pull request.
+
+DrawerViewModel is the one ViewModel not tied to a screen: the navigation drawer opens from the top bar of every screen, so `PolyLoopApp` creates it once for the whole app and refreshes it on each navigation, which follows sign-ins and sign-outs. Whether the drawer lists Court rulings comes from the navigation (`isAdmin`), not from this ViewModel, until the admin claim is read.
 
 ## Core rule: the app expresses intent, Cloud Functions decide
 

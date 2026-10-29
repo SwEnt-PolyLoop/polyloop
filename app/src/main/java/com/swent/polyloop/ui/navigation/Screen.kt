@@ -13,7 +13,7 @@ import com.swent.polyloop.R
  */
 sealed class Screen(val route: String) {
 
-  /** A destination listed in the top-bar menu, under [labelRes]. */
+  /** A destination listed in the navigation drawer, under [labelRes]. */
   sealed class TopLevel(route: String, @StringRes val labelRes: Int) : Screen(route)
 
   data object Auth : Screen("auth")
@@ -69,7 +69,7 @@ sealed class Screen(val route: String) {
     const val ARG_RENTAL_ID = "rentalId"
     const val ARG_USER_ID = "userId"
 
-    /** The screens listed in the top-bar menu, in menu order. */
+    /** The screens listed in the navigation drawer, in drawer order. */
     fun topLevelDestinations(isAdmin: Boolean): List<TopLevel> =
         listOfNotNull(
             Browse,
