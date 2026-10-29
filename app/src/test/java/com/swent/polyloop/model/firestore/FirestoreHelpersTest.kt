@@ -235,4 +235,17 @@ class FirestoreHelpersTest {
 
     assertSame(firestoreError, error.await())
   }
+
+  @Test
+  fun documentSnapshotsAsFlowIgnoresAnEventWithoutSnapshotOrError() = runTest {
+    listenToDocument()
+    val snapshot = mockk<DocumentSnapshot> { every { id } returns "u9" }
+
+    val id = async { document.snapshotsAsFlow { it.id }.first() }
+    runCurrent()
+    documentListener.captured.onEvent(null, null)
+    documentListener.captured.onEvent(snapshot, null)
+
+    assertEquals("u9", id.await())
+  }
 }

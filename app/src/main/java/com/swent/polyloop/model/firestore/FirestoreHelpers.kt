@@ -7,6 +7,8 @@ import com.google.firebase.FirebaseException
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import java.time.Instant
@@ -22,8 +24,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 
 // Tools shared by the Firestore repositories, so they all read fields and handle errors the same
-// way. Rental, Profile and Chat use them; Listing still keeps private copies, to be moved here in a
-// follow-up.
+// way. Rental, Listing, Profile and Chat all use them.
 
 /** How long a write waits for the server to confirm it; see [confirmWrite]. */
 internal const val WRITE_TIMEOUT_MS = 10_000L
@@ -88,21 +89,26 @@ internal suspend fun confirmWrite(
  * that error, so the collector's `catch` sees it (Firestore's own `snapshots()` cancels the flow
  * instead, which `catch` does not report as an error).
  */
-internal fun <T> Query.snapshotsAsFlow(transform: (QuerySnapshot) -> T): Flow<T> = callbackFlow {
-  val registration = addSnapshotListener { snapshot, error ->
-    if (error != null) close(error) else if (snapshot != null) trySend(transform(snapshot))
-  }
-  awaitClose { registration.remove() }
-}
+internal fun <T> Query.snapshotsAsFlow(transform: (QuerySnapshot) -> T): Flow<T> =
+    listenAsFlow({ listener -> addSnapshotListener { s, e -> listener(s, e) } }, transform)
 
 /**
  * Listens to this document and emits [transform] of every snapshot. A read error closes the flow
  * with that error, so the collector's `catch` sees it, as with [snapshotsAsFlow].
  */
 internal fun <T> DocumentReference.snapshotsAsFlow(transform: (DocumentSnapshot) -> T): Flow<T> =
-    callbackFlow {
-      val registration = addSnapshotListener { snapshot, error ->
-        if (error != null) close(error) else if (snapshot != null) trySend(transform(snapshot))
-      }
-      awaitClose { registration.remove() }
-    }
+    listenAsFlow({ listener -> addSnapshotListener { s, e -> listener(s, e) } }, transform)
+
+/**
+ * The shared body of both [snapshotsAsFlow]: [register] starts a listener that gives each event as
+ * a snapshot or an error. An event with neither is ignored.
+ */
+private fun <S, T> listenAsFlow(
+    register: ((S?, FirebaseFirestoreException?) -> Unit) -> ListenerRegistration,
+    transform: (S) -> T,
+): Flow<T> = callbackFlow {
+  val registration = register { snapshot, error ->
+    if (error != null) close(error) else if (snapshot != null) trySend(transform(snapshot))
+  }
+  awaitClose { registration.remove() }
+}
