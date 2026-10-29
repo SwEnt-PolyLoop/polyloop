@@ -68,12 +68,27 @@ async function readListing(id: string): Promise<DocumentData | undefined> {
   return (await db.collection(LISTINGS).doc(id).get()).data();
 }
 
+/**
+ * Runs updateListingAreas as the trigger does after [id]'s addresses were written from [before] to
+ * [after]: the addresses document already holds [after], or is gone when it is undefined.
+ */
+async function addressesWritten(
+  id: string,
+  before: DocumentData | undefined,
+  after: DocumentData | undefined,
+  geocode: Geocoder,
+): Promise<void> {
+  const addresses = db.collection(LISTINGS).doc(id).collection("private").doc("addresses");
+  await (after === undefined ? addresses.delete() : addresses.set(after));
+  await updateListingAreas(db, id, before, after, geocode);
+}
+
 describe("updateListingAreas", () => {
   it("puts the area names and blurred points of new addresses on the listing", async () => {
     const id = await createListing();
     const { geocode, lookups } = fakeGeocoder();
 
-    await updateListingAreas(db, id, undefined, { pickup: PICKUP, dropOff: DROP_OFF }, geocode);
+    await addressesWritten(id, undefined, { pickup: PICKUP, dropOff: DROP_OFF }, geocode);
 
     expect(await readListing(id)).toEqual(GEOCODED_LISTING);
     expect(lookups).toEqual([PICKUP, DROP_OFF]);
@@ -82,8 +97,7 @@ describe("updateListingAreas", () => {
   it("never writes the exact addresses or points on the listing", async () => {
     const id = await createListing();
 
-    await updateListingAreas(
-      db,
+    await addressesWritten(
       id,
       undefined,
       { pickup: PICKUP, dropOff: DROP_OFF },
@@ -101,7 +115,7 @@ describe("updateListingAreas", () => {
     const addresses = { pickup: PICKUP, dropOff: DROP_OFF };
     const { geocode, lookups } = fakeGeocoder();
 
-    await updateListingAreas(db, id, addresses, { ...addresses }, geocode);
+    await addressesWritten(id, addresses, { ...addresses }, geocode);
 
     expect(lookups).toEqual([]);
     expect(await readListing(id)).toEqual(GEOCODED_LISTING);
@@ -111,8 +125,7 @@ describe("updateListingAreas", () => {
     const id = await createListing(GEOCODED_LISTING);
     const { geocode, lookups } = fakeGeocoder();
 
-    await updateListingAreas(
-      db,
+    await addressesWritten(
       id,
       { pickup: PICKUP, dropOff: DROP_OFF },
       { pickup: PICKUP, dropOff: OTHER_DROP_OFF },
@@ -129,8 +142,7 @@ describe("updateListingAreas", () => {
   it("removes the area and point of an address that is not found", async () => {
     const id = await createListing(GEOCODED_LISTING);
 
-    await updateListingAreas(
-      db,
+    await addressesWritten(
       id,
       { pickup: PICKUP, dropOff: DROP_OFF },
       { pickup: PICKUP, dropOff: "Nowhere 99" },
@@ -146,8 +158,7 @@ describe("updateListingAreas", () => {
     logged.mockClear();
     const id = await createListing();
 
-    await updateListingAreas(
-      db,
+    await addressesWritten(
       id,
       undefined,
       { pickup: PICKUP, dropOff: DROP_OFF },
@@ -164,7 +175,7 @@ describe("updateListingAreas", () => {
     const id = await createListing();
     const { geocode, lookups } = fakeGeocoder();
 
-    await updateListingAreas(db, id, undefined, { pickup: "   ", dropOff: DROP_OFF }, geocode);
+    await addressesWritten(id, undefined, { pickup: "   ", dropOff: DROP_OFF }, geocode);
 
     const { pickupArea, pickupPoint, ...rest } = GEOCODED_LISTING;
     expect(await readListing(id)).toEqual(rest);
@@ -174,8 +185,7 @@ describe("updateListingAreas", () => {
   it("does not recreate a listing deleted in the meantime", async () => {
     const id = `test-${randomUUID()}`;
 
-    await updateListingAreas(
-      db,
+    await addressesWritten(
       id,
       undefined,
       { pickup: PICKUP, dropOff: DROP_OFF },
@@ -189,9 +199,25 @@ describe("updateListingAreas", () => {
     const id = await createListing(GEOCODED_LISTING);
     const { geocode, lookups } = fakeGeocoder();
 
-    await updateListingAreas(db, id, { pickup: PICKUP, dropOff: DROP_OFF }, undefined, geocode);
+    await addressesWritten(id, { pickup: PICKUP, dropOff: DROP_OFF }, undefined, geocode);
 
     expect(lookups).toEqual([]);
     expect(await readListing(id)).toEqual(GEOCODED_LISTING);
+  });
+
+  it("keeps the newest drop-off when the run for an older one finishes last", async () => {
+    const id = await createListing();
+    const first = { pickup: PICKUP, dropOff: DROP_OFF };
+    const second = { pickup: PICKUP, dropOff: OTHER_DROP_OFF };
+    // The owner saved [first], then [second]; the run for [second] finishes first.
+    await addressesWritten(id, first, second, fakeGeocoder().geocode);
+
+    // The run for [first] finishes late, while the document already holds [second].
+    await updateListingAreas(db, id, undefined, first, fakeGeocoder().geocode);
+
+    expect(await readListing(id)).toEqual({
+      ...GEOCODED_LISTING,
+      dropOffPoint: new GeoPoint(46.53, 6.58),
+    });
   });
 });
