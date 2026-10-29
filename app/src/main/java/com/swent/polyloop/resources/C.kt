@@ -180,10 +180,11 @@ object C {
     const val top_bar_menu_button = "top_bar_menu_button"
     const val top_bar_profile_button = "top_bar_profile_button"
 
-    // Each destination's item in the navigation drawer opened by the menu button
-    fun topBarMenuItem(route: String) = "top_bar_menu_item_$route"
-
     const val drawer = "drawer"
+
+    // Each destination's item in the navigation drawer opened by the menu button
+    fun drawerItem(route: String) = "drawer_item_$route"
+
     const val drawer_avatar_initial = "drawer_avatar_initial"
     const val drawer_avatar_photo = "drawer_avatar_photo"
     const val drawer_name = "drawer_name"

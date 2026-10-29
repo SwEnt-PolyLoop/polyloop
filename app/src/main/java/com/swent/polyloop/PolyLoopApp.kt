@@ -87,7 +87,11 @@ fun PolyLoopApp(
   LaunchedEffect(currentRoute) { drawerViewModel.refresh() }
   val drawerState = rememberDrawerState(DrawerValue.Closed)
   val scope = rememberCoroutineScope()
-  BackHandler(enabled = drawerState.isOpen) { scope.launch { drawerState.close() } }
+  // Added only while the drawer opens or is open, so it is registered after the NavHost's handler
+  // and called first: Back closes the drawer instead of leaving the screen under it.
+  if (drawerState.targetValue == DrawerValue.Open) {
+    BackHandler { scope.launch { drawerState.close() } }
+  }
 
   ModalNavigationDrawer(
       drawerState = drawerState,

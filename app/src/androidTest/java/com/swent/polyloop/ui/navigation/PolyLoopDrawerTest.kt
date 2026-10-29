@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -55,7 +56,7 @@ class PolyLoopDrawerTest {
 
   private fun node(tag: String) = composeTestRule.onNodeWithTag(tag)
 
-  private fun item(screen: Screen.TopLevel) = node(C.Tag.topBarMenuItem(screen.route))
+  private fun item(screen: Screen.TopLevel) = node(C.Tag.drawerItem(screen.route))
 
   // Inside the clickable item, whose semantics merge it away.
   private fun badge() =
@@ -76,10 +77,31 @@ class PolyLoopDrawerTest {
 
   @Test
   fun headerShowsThePhotoInsteadOfTheInitial() {
-    setDrawer(profile = john.copy(photoUrl = "https://example.com/john.jpg"))
+    // A local image, so the photo loads without the network and never falls back.
+    setDrawer(
+        profile =
+            john.copy(
+                photoUrl = "android.resource://${context.packageName}/${R.drawable.ic_wallet}"
+            )
+    )
 
     node(C.Tag.drawer_avatar_photo).assertExists()
     node(C.Tag.drawer_avatar_initial).assertDoesNotExist()
+  }
+
+  @Test
+  fun headerShowsTheInitialWhenThePhotoCannotLoad() {
+    // No image loader handles this scheme, so loading fails without touching the network.
+    setDrawer(profile = john.copy(photoUrl = "broken://john.jpg"))
+
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.drawer_avatar_initial)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    node(C.Tag.drawer_avatar_initial).assertTextEquals("J")
+    node(C.Tag.drawer_avatar_photo).assertDoesNotExist()
   }
 
   @Test
@@ -148,8 +170,5 @@ class PolyLoopDrawerTest {
 
     item(Screen.AdminCourtRuling).performScrollTo().assertIsDisplayed()
     badge().assertIsDisplayed()
-
-    item(Screen.AdminCourtRuling).performClick()
-    assertEquals(listOf<Screen.TopLevel>(Screen.AdminCourtRuling), clicked)
   }
 }

@@ -28,6 +28,10 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -99,11 +103,15 @@ private fun DrawerHeader(profile: UserProfile?) {
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
-      if (profile != null && profile.photoUrl.isNotBlank()) {
+      val photoUrl = profile?.photoUrl.orEmpty()
+      // A photo that cannot load falls back to the initial, until the URL changes.
+      var photoFailed by remember(photoUrl) { mutableStateOf(false) }
+      if (photoUrl.isNotBlank() && !photoFailed) {
         AsyncImage(
-            model = profile.photoUrl,
+            model = photoUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
+            onError = { photoFailed = true },
             modifier = Modifier.fillMaxSize().testTag(C.Tag.drawer_avatar_photo),
         )
       } else {
@@ -171,7 +179,7 @@ private fun DrawerItem(
       },
       selected = selected,
       onClick = { onClick(screen) },
-      modifier = Modifier.padding(horizontal = 12.dp).testTag(C.Tag.topBarMenuItem(screen.route)),
+      modifier = Modifier.padding(horizontal = 12.dp).testTag(C.Tag.drawerItem(screen.route)),
   )
 }
 

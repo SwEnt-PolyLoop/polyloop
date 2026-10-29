@@ -7,6 +7,7 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -103,8 +104,10 @@ class DrawerViewModelTest {
   }
 
   @Test
-  fun refreshWithTheSameUserKeepsTheProfile() {
+  fun refreshWithTheSameUserKeepsTheProfileWithoutListeningAgain() {
     val vm = viewModel()
+    // A new listener would wait here before its first value, leaving the header empty.
+    profiles.gate = CompletableDeferred()
 
     vm.refresh()
 
