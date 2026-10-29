@@ -13,6 +13,9 @@ export type Geocoder = (address: string) => Promise<GeocodedAddress | null>;
 
 const GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 
+/** How long a lookup may take before it fails, well within the function's own 60 s limit. */
+const TIMEOUT_MS = 10_000;
+
 /**
  * Address parts that can name the area, most precise first: the town, or the closest larger area
  * when an address has no town.
@@ -35,12 +38,19 @@ interface GeocodingResponse {
 
 /**
  * A [Geocoder] that calls Google's Geocoding API with [apiKey], preferring Swiss results and
- * English names. Errors never include the key or the address, so they can be logged.
+ * English names. A lookup that takes longer than [timeoutMs] fails. Errors never include the key or
+ * the address, so they can be logged.
  */
-export function googleGeocoder(apiKey: string, fetchUrl: typeof fetch = fetch): Geocoder {
+export function googleGeocoder(
+  apiKey: string,
+  fetchUrl: typeof fetch = fetch,
+  timeoutMs: number = TIMEOUT_MS,
+): Geocoder {
   return async (address) => {
     const query = new URLSearchParams({ address, region: "ch", language: "en", key: apiKey });
-    const response = await fetchUrl(`${GEOCODING_URL}?${query}`);
+    const response = await fetchUrl(`${GEOCODING_URL}?${query}`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     if (!response.ok) {
       throw new Error(`Geocoding API answered HTTP ${response.status}`);
     }

@@ -95,4 +95,16 @@ describe("googleGeocoder", () => {
       "Geocoding API answered HTTP 503",
     );
   });
+
+  it("gives up when the API does not answer in time", async () => {
+    // Never answers: it only rejects once the request is aborted, as fetch does.
+    const silent = ((_input: string | URL | Request, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      })) as typeof fetch;
+
+    await expect(googleGeocoder("test-key", silent, 10)("Route Cantonale")).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+  });
 });
