@@ -40,6 +40,10 @@ interface GeocodingResponse {
  * A [Geocoder] that calls Google's Geocoding API with [apiKey], looking only in Switzerland so that
  * a mistyped address cannot land abroad, with English names. A lookup that takes longer than
  * [timeoutMs] fails. Errors never include the key or the address, so they can be logged.
+ *
+ * A partial match (Google matched only part of the address, e.g. a mistyped street) is kept: only
+ * its town and a point rounded to about 1 km become public, which such a match usually gets right.
+ * A result that names no town or larger area, such as Switzerland as a whole, counts as not found.
  */
 export function googleGeocoder(
   apiKey: string,
@@ -74,9 +78,10 @@ export function googleGeocoder(
     const area = AREA_TYPES.map(
       (type) => result.address_components.find((part) => part.types.includes(type))?.long_name,
     ).find((name) => name !== undefined);
+    if (area === undefined) return null;
     return {
       point: { latitude: result.geometry.location.lat, longitude: result.geometry.location.lng },
-      area: area ?? "",
+      area,
     };
   };
 }

@@ -63,14 +63,23 @@ describe("googleGeocoder", () => {
     expect(found?.area).toBe("Ouest lausannois");
   });
 
-  it("leaves the area empty when no part names one", async () => {
-    const noArea = structuredClone(rolexCenter);
-    noArea.results[0].address_components = [{ long_name: "Route Cantonale", types: ["route"] }];
-    const { fetchUrl } = fakeFetch(noArea);
+  it("keeps a partial match, named after its town", async () => {
+    const partial = { ...rolexCenter, results: [{ ...rolexCenter.results[0], partial_match: true }] };
+    const { fetchUrl } = fakeFetch(partial);
 
-    const found = await googleGeocoder("test-key", fetchUrl)("Route Cantonale");
+    const found = await googleGeocoder("test-key", fetchUrl)("Route Cantonnale, Ecublens");
 
-    expect(found?.area).toBe("");
+    expect(found?.area).toBe("Ecublens");
+  });
+
+  it("resolves to null when the result names no area, e.g. the whole country", async () => {
+    const country = structuredClone(rolexCenter);
+    country.results[0].address_components = [
+      { long_name: "Switzerland", types: ["country", "political"] },
+    ];
+    const { fetchUrl } = fakeFetch(country);
+
+    expect(await googleGeocoder("test-key", fetchUrl)("Nowhere 99")).toBeNull();
   });
 
   it("resolves to null when the address is not found", async () => {
