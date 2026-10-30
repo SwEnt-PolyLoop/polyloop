@@ -50,7 +50,7 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
 
 /**
- * The My rentals screen, showing what the signed-in user borrows and lends (Figma frame 10).
+ * The My rentals screen, showing what the signed-in user borrows and lends (Figma frames 10, 11).
  * [onReviewRequest] receives the rental id of a request whose "Review request" button is tapped.
  */
 @Composable
@@ -72,7 +72,7 @@ fun MyRentalsScreen(
 /**
  * Stateless My rentals content: the title and the Borrowing / Lending tabs, then a loading
  * indicator, an error with a Retry button, the empty state of the tab or its rows, depending on
- * [uiState]. Lending shows its rows in two sections, REQUESTS and CURRENT, each only when it has
+ * [uiState]. Both tabs show their rows in two sections, REQUESTS and CURRENT, each only when it has
  * rows.
  */
 @Composable
@@ -140,39 +140,48 @@ fun MyRentalsContent(
         uiState.errorMsg?.let {
           MyRentalsError(errorMsg = it, onRetry = onRetry, modifier = Modifier.fillMaxWidth())
         }
+        val tab = uiState.selectedTab
+        val isBorrowing = tab == RentalsTab.BORROWING
+        val requests = if (isBorrowing) uiState.borrowingRequests else uiState.lendingRequests
+        val current = if (isBorrowing) uiState.borrowingCurrent else uiState.lendingCurrent
         LazyColumn(
             modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_list),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-          if (uiState.selectedTab == RentalsTab.BORROWING) {
-            items(uiState.borrowing, key = { it.rentalId }) { row ->
-              RentalRowCard(
-                  row = row,
-                  tab = uiState.selectedTab,
-                  today = today,
-                  onClick = { onRentalClick(row.rentalId) },
+          if (requests.isNotEmpty()) {
+            item(key = C.Tag.my_rentals_section_requests) {
+              SectionHeader(
+                  R.string.my_rentals_section_requests,
+                  C.Tag.my_rentals_section_requests,
               )
             }
-          } else {
-            if (uiState.lendingRequests.isNotEmpty()) {
-              item(key = C.Tag.my_rentals_section_requests) {
-                SectionHeader(
-                    R.string.my_rentals_section_requests,
-                    C.Tag.my_rentals_section_requests,
+            items(requests, key = { it.rentalId }) { row ->
+              // Only the request card differs: the lender has a request to answer, while the
+              // borrower can only wait, so a plain card is enough.
+              if (isBorrowing) {
+                RentalCard(
+                    row = row,
+                    personLine = row.personLine(tab),
+                    today = today,
+                    onClick = { onRentalClick(row.rentalId) },
                 )
-              }
-              items(uiState.lendingRequests, key = { it.rentalId }) { row ->
+              } else {
                 RequestCard(row = row, onReviewRequest = { onReviewRequest(row.rentalId) })
               }
             }
-            if (uiState.lendingCurrent.isNotEmpty()) {
-              item(key = C.Tag.my_rentals_section_current) {
-                SectionHeader(R.string.my_rentals_section_current, C.Tag.my_rentals_section_current)
-              }
-              items(uiState.lendingCurrent, key = { it.rentalId }) { row ->
-                CurrentCard(row = row, today = today, onClick = { onRentalClick(row.rentalId) })
-              }
+          }
+          if (current.isNotEmpty()) {
+            item(key = C.Tag.my_rentals_section_current) {
+              SectionHeader(R.string.my_rentals_section_current, C.Tag.my_rentals_section_current)
+            }
+            items(current, key = { it.rentalId }) { row ->
+              RentalCard(
+                  row = row,
+                  personLine = row.personLine(tab),
+                  today = today,
+                  onClick = { onRentalClick(row.rentalId) },
+              )
             }
           }
         }
@@ -181,7 +190,7 @@ fun MyRentalsContent(
   }
 }
 
-/** The title of a section of Lending, e.g. "REQUESTS". */
+/** The title of a section of My rentals, e.g. "REQUESTS". */
 @Composable
 private fun SectionHeader(@StringRes textRes: Int, testTag: String) {
   Text(
@@ -234,12 +243,12 @@ private fun RequestCard(row: RentalRow, onReviewRequest: () -> Unit) {
 }
 
 /**
- * Any other rental the user lends (Figma frame 10): the listing photo, the title and the status
- * badge, the borrower, and a line saying what comes next (see [currentLine]). Tapping it calls
- * [onClick].
+ * A rental on either tab (Figma frames 10, 11), for every row but the lender's requests: the
+ * listing photo, the title and the status badge, [personLine], and a line saying what comes next
+ * (see [currentLine]). Tapping it calls [onClick].
  */
 @Composable
-private fun CurrentCard(row: RentalRow, today: LocalDate, onClick: () -> Unit) {
+private fun RentalCard(row: RentalRow, personLine: String, today: LocalDate, onClick: () -> Unit) {
   OutlinedCard(
       onClick = onClick,
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_row_ + row.rentalId),
@@ -248,7 +257,7 @@ private fun CurrentCard(row: RentalRow, today: LocalDate, onClick: () -> Unit) {
         modifier = Modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      RentalCardTop(row = row, isNewRequest = false, personLine = row.personOrPlaceholder())
+      RentalCardTop(row = row, isNewRequest = false, personLine = personLine)
       row.currentLine(today)?.let {
         Text(
             text = it,
@@ -262,8 +271,8 @@ private fun CurrentCard(row: RentalRow, today: LocalDate, onClick: () -> Unit) {
 }
 
 /**
- * The top of a Lending card: the listing photo (a grey box when there is none), the title with the
- * status badge ("New request" with [isNewRequest]), and [personLine] under them.
+ * The top of a card: the listing photo (a grey box when there is none), the title with the status
+ * badge ("New request" with [isNewRequest]), and [personLine] under them.
  */
 @Composable
 private fun RentalCardTop(row: RentalRow, isNewRequest: Boolean, personLine: String) {
@@ -305,14 +314,31 @@ private fun RentalRow.personOrPlaceholder(): String = otherPersonName.ifBlank {
 }
 
 /**
- * What comes next for a lent rental: "Pickup 22 Oct · area" once accepted, "Return by 9 Oct · area"
- * while active or overdue, the drop-off area alone while disputed, frozen or lost, and null once it
- * is over. "· area" is left out when the area is blank, and the line is null when nothing is left.
+ * The person line of a [RentalCard]. On Lending the card is about the borrower, so the name stands
+ * alone; on Borrowing the item comes from someone, so it reads "from Loca".
+ */
+@Composable
+private fun RentalRow.personLine(tab: RentalsTab): String =
+    when (tab) {
+      RentalsTab.BORROWING -> stringResource(R.string.my_rentals_from, personOrPlaceholder())
+      RentalsTab.LENDING -> personOrPlaceholder()
+    }
+
+/**
+ * What comes next for a rental, on both tabs: the dates while requested, "Pickup 22 Oct · area"
+ * once accepted, "Return by 9 Oct · area" while active or overdue, the drop-off area alone while
+ * disputed, frozen or lost, "Closed 2 Oct" once closed, and null when returned, declined or
+ * cancelled. "· area" is left out when the area is blank, and the line is null when nothing is
+ * left.
  */
 @Composable
 private fun RentalRow.currentLine(today: LocalDate): String? {
   val date =
       when (status) {
+        RentalStatus.REQUESTED -> {
+          val (from, to) = formatRangeEnds(startDate, returnDate)
+          stringResource(R.string.my_rentals_date_range, from, to)
+        }
         RentalStatus.ACCEPTED ->
             stringResource(
                 R.string.my_rentals_pickup_on,
@@ -322,6 +348,13 @@ private fun RentalRow.currentLine(today: LocalDate): String? {
         RentalStatus.OVERDUE ->
             stringResource(
                 R.string.my_rentals_return_by,
+                formatDay(returnDate, withYear = returnDate.year != today.year),
+            )
+        // Rental has no closing date, and adding one is a data model change, so the last day of
+        // the rental stands in for it for now.
+        RentalStatus.CLOSED ->
+            stringResource(
+                R.string.my_rentals_closed_on,
                 formatDay(returnDate, withYear = returnDate.year != today.year),
             )
         else -> null
@@ -334,7 +367,7 @@ private fun RentalRow.currentLine(today: LocalDate): String? {
   }
 }
 
-/** Statuses whose Current card names the area where the item is handed over. */
+/** Statuses whose [RentalCard] names the area where the item is handed over. */
 private val STATUSES_WITH_AREA =
     setOf(
         RentalStatus.ACCEPTED,

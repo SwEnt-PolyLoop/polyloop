@@ -143,6 +143,16 @@ class MyRentalsScreenTest {
           isLoading = false,
       )
 
+  private fun borrowing(
+      requests: List<RentalRow> = emptyList(),
+      current: List<RentalRow> = emptyList(),
+  ) =
+      MyRentalsUiState(
+          borrowingRequests = requests,
+          borrowingCurrent = current,
+          isLoading = false,
+      )
+
   @Test
   fun showsTitleAndBothTabsWithBorrowingSelected() {
     setContent(MyRentalsUiState(isLoading = false))
@@ -234,63 +244,130 @@ class MyRentalsScreenTest {
   }
 
   @Test
-  fun borrowedRowShowsItemLenderReturnDateLocationAndStatus() {
-    setContent(MyRentalsUiState(borrowingCurrent = listOf(row("tent")), isLoading = false))
+  fun borrowingRequestShowsTheLenderStatusAndDatesWithNoButton() {
+    setContent(borrowing(requests = listOf(request("tent"))))
 
-    inRow("tent", C.Tag.my_rentals_row_title).assertTextEquals("Item tent")
-    inRow("tent", C.Tag.my_rentals_row_person)
-        .assertTextEquals(context.getString(R.string.my_rentals_lender, "Loca"))
-    inRow("tent", C.Tag.my_rentals_row_return)
-        .assertTextEquals(
-            context.getString(R.string.my_rentals_return_by, formatDay(LocalDate.of(2026, 10, 22)))
-        )
-    inRow("tent", C.Tag.my_rentals_row_location)
-        .assertTextEquals(context.getString(R.string.my_rentals_pickup_at, "Renens"))
+    inRow("tent", C.Tag.my_rentals_row_title).assertTextEquals("Camping tent")
+    inRow("tent", C.Tag.my_rentals_row_person).assertTextEquals("from Loca")
     inRow("tent", C.Tag.my_rentals_row_status)
         .assertTextEquals(context.getString(R.string.rental_status_requested))
+    inRow("tent", C.Tag.my_rentals_row_line).assertTextEquals(requestDates)
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_review_request_button).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_reserved).assertDoesNotExist()
   }
 
   @Test
-  fun pickedUpItemShowsTheDropOffArea() {
-    setContent(
-        MyRentalsUiState(
-            borrowingCurrent =
-                listOf(row("tent", status = RentalStatus.ACTIVE, isPickupArea = false)),
-            isLoading = false,
-        )
-    )
+  fun acceptedBorrowingCardShowsThePickupDayAndArea() {
+    val accepted =
+        row("tent", status = RentalStatus.ACCEPTED, location = "Renens")
+            .copy(startDate = LocalDate.of(2026, 10, 22))
+    setContent(borrowing(current = listOf(accepted)))
 
-    inRow("tent", C.Tag.my_rentals_row_location)
-        .assertTextEquals(context.getString(R.string.my_rentals_drop_off_at, "Renens"))
+    inRow("tent", C.Tag.my_rentals_row_person).assertTextEquals("from Loca")
+    inRow("tent", C.Tag.my_rentals_row_line)
+        .assertTextEquals("Pickup ${formatDay(LocalDate.of(2026, 10, 22))} · Renens")
   }
 
   @Test
-  fun returnDateIsHiddenWhenTheRowSaysSo() {
-    setContent(
-        MyRentalsUiState(
-            borrowingCurrent =
-                listOf(row("tent", status = RentalStatus.CLOSED, showReturnDate = false)),
-            isLoading = false,
-        )
-    )
+  fun activeAndOverdueBorrowingCardsShowTheReturnDayAndArea() {
+    val setState = setMutableContent()
 
-    inRow("tent", C.Tag.my_rentals_row_return).assertDoesNotExist()
+    listOf(RentalStatus.ACTIVE, RentalStatus.OVERDUE).forEach { status ->
+      val row =
+          row(
+              "tent",
+              status = status,
+              location = "EPFL",
+              returnDate = LocalDate.of(2026, 10, 9),
+              isPickupArea = false,
+          )
+      setState(borrowing(current = listOf(row)))
+      inRow("tent", C.Tag.my_rentals_row_line)
+          .assertTextEquals("Return by ${formatDay(LocalDate.of(2026, 10, 9))} · EPFL")
+    }
   }
 
   @Test
-  fun returnDateInAnotherYearShowsTheYear() {
-    val nextYear = LocalDate.of(2027, 1, 5)
+  fun closedBorrowingCardShowsTheDateWithoutTheArea() {
+    val closed = row("tent", status = RentalStatus.CLOSED, returnDate = LocalDate.of(2026, 10, 2))
+    setContent(borrowing(current = listOf(closed)))
+
+    inRow("tent", C.Tag.my_rentals_row_line)
+        .assertTextEquals("Closed ${formatDay(LocalDate.of(2026, 10, 2))}")
+  }
+
+  @Test
+  fun closedBorrowingCardInAnotherYearShowsTheYear() {
+    val lastYear = LocalDate.of(2025, 12, 30)
+    val closed = row("tent", status = RentalStatus.CLOSED, returnDate = lastYear)
+    setContent(borrowing(current = listOf(closed)))
+
+    inRow("tent", C.Tag.my_rentals_row_line)
+        .assertTextEquals("Closed ${formatDay(lastYear, withYear = true)}")
+  }
+
+  @Test
+  fun closedLendingCardShowsItsDate() {
+    val closed = row("drill", status = RentalStatus.CLOSED, returnDate = LocalDate.of(2026, 10, 2))
+    setContent(lending(current = listOf(closed)))
+
+    inRow("drill", C.Tag.my_rentals_row_person).assertTextEquals("Loca")
+    inRow("drill", C.Tag.my_rentals_row_line)
+        .assertTextEquals("Closed ${formatDay(LocalDate.of(2026, 10, 2))}")
+  }
+
+  @Test
+  fun borrowingSectionsShowRequestsAboveCurrent() {
     setContent(
-        MyRentalsUiState(
-            borrowingCurrent = listOf(row("tent", returnDate = nextYear)),
-            isLoading = false,
+        borrowing(
+            requests = listOf(request("tent")),
+            current = listOf(row("drill", status = RentalStatus.ACTIVE)),
         )
     )
 
-    inRow("tent", C.Tag.my_rentals_row_return)
-        .assertTextEquals(
-            context.getString(R.string.my_rentals_return_by, formatDay(nextYear, withYear = true))
+    val top = { tag: String ->
+      composeTestRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.top
+    }
+    val requestsHeader = top(C.Tag.my_rentals_section_requests)
+    val request = top(C.Tag.my_rentals_row_ + "tent")
+    val currentHeader = top(C.Tag.my_rentals_section_current)
+    val current = top(C.Tag.my_rentals_row_ + "drill")
+    assertTrue(requestsHeader < request)
+    assertTrue(request < currentHeader)
+    assertTrue(currentHeader < current)
+  }
+
+  @Test
+  fun borrowingShowsOnlyTheHeaderOfASectionWithRows() {
+    val setState = setMutableContent()
+
+    setState(borrowing(requests = listOf(request("tent"))))
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_requests).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_current).assertDoesNotExist()
+
+    setState(borrowing(current = listOf(row("drill", status = RentalStatus.ACTIVE))))
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_current).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_section_requests).assertDoesNotExist()
+  }
+
+  @Test
+  fun sameRequestShowsOnEachTabsOwnCard() {
+    // The same rental in both tabs' lists: only the selected tab decides the card.
+    val setState = setMutableContent()
+    val both =
+        MyRentalsUiState(
+            borrowingRequests = listOf(request("tent")),
+            lendingRequests = listOf(request("tent")),
+            isLoading = false,
         )
+
+    setState(both)
+    inRow("tent", C.Tag.my_rentals_row_person).assertTextEquals("from Loca")
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent").assertDoesNotExist()
+
+    setState(both.copy(selectedTab = RentalsTab.LENDING))
+    inRequest("tent", C.Tag.my_rentals_review_request_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "tent").assertDoesNotExist()
   }
 
   @Test
@@ -352,19 +429,13 @@ class MyRentalsScreenTest {
   }
 
   @Test
-  fun finishedCurrentCardsHaveNoLine() {
+  fun returnedDeclinedAndCancelledCardsHaveNoLine() {
     val setState = setMutableContent()
 
-    listOf(
-            RentalStatus.RETURNED,
-            RentalStatus.CLOSED,
-            RentalStatus.DECLINED,
-            RentalStatus.CANCELLED,
-        )
-        .forEach { status ->
-          setState(lending(current = listOf(row("drill", status = status))))
-          inRow("drill", C.Tag.my_rentals_row_line).assertDoesNotExist()
-        }
+    listOf(RentalStatus.RETURNED, RentalStatus.DECLINED, RentalStatus.CANCELLED).forEach { status ->
+      setState(lending(current = listOf(row("drill", status = status))))
+      inRow("drill", C.Tag.my_rentals_row_line).assertDoesNotExist()
+    }
   }
 
   @Test
@@ -389,22 +460,6 @@ class MyRentalsScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "drill").performClick()
 
     assertEquals(listOf("drill"), opened)
-  }
-
-  @Test
-  fun borrowingTabIsUnchanged() {
-    // The same request on both tabs: Borrowing must still show it on the old card.
-    setContent(
-        MyRentalsUiState(
-            borrowingCurrent = listOf(row("tent")),
-            lendingRequests = listOf(request("tent")),
-            isLoading = false,
-        )
-    )
-
-    inRow("tent", C.Tag.my_rentals_row_person)
-        .assertTextEquals(context.getString(R.string.my_rentals_lender, "Loca"))
-    composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent").assertDoesNotExist()
   }
 
   @Test
@@ -493,23 +548,34 @@ class MyRentalsScreenTest {
   }
 
   @Test
-  fun missingNameShowsThePlaceholder() {
+  fun missingLenderShowsThePlaceholderOnBothSections() {
     setContent(
-        MyRentalsUiState(borrowingCurrent = listOf(row("tent", person = "")), isLoading = false)
+        borrowing(
+            requests = listOf(request("tent", person = "")),
+            current = listOf(row("drill", status = RentalStatus.ACTIVE, person = "")),
+        )
     )
 
     val unknown = context.getString(R.string.my_rentals_unknown_person)
-    inRow("tent", C.Tag.my_rentals_row_person)
-        .assertTextEquals(context.getString(R.string.my_rentals_lender, unknown))
+    inRow("tent", C.Tag.my_rentals_row_person).assertTextEquals("from $unknown")
+    inRow("drill", C.Tag.my_rentals_row_person).assertTextEquals("from $unknown")
   }
 
   @Test
-  fun blankLocationIsNotShown() {
-    setContent(
-        MyRentalsUiState(borrowingCurrent = listOf(row("tent", location = "")), isLoading = false)
-    )
+  fun missingBorrowerShowsThePlaceholderOnACurrentCard() {
+    setContent(lending(current = listOf(row("drill", status = RentalStatus.ACTIVE, person = ""))))
 
-    inRow("tent", C.Tag.my_rentals_row_location).assertDoesNotExist()
+    inRow("drill", C.Tag.my_rentals_row_person)
+        .assertTextEquals(context.getString(R.string.my_rentals_unknown_person))
+  }
+
+  @Test
+  fun blankAreaLeavesOutTheAreaOnABorrowingCard() {
+    val active = row("tent", status = RentalStatus.ACTIVE, location = "", isPickupArea = false)
+    setContent(borrowing(current = listOf(active)))
+
+    inRow("tent", C.Tag.my_rentals_row_line)
+        .assertTextEquals("Return by ${formatDay(LocalDate.of(2026, 10, 22))}")
   }
 
   @Test
