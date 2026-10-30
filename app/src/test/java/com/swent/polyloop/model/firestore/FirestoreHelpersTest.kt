@@ -5,6 +5,8 @@ package com.swent.polyloop.model.firestore
 import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.EventListener
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
@@ -193,5 +195,57 @@ class FirestoreHelpersTest {
     listener.captured.onEvent(snapshot, null)
 
     assertEquals(3, size.await())
+  }
+
+  // ---------- snapshotsAsFlow on a document ----------
+
+  private val document = mockk<DocumentReference>()
+  private val documentListener = slot<EventListener<DocumentSnapshot>>()
+
+  private fun listenToDocument() {
+    every { document.addSnapshotListener(capture(documentListener)) } returns registration
+  }
+
+  @Test
+  fun documentSnapshotsAsFlowEmitsEveryChangeAndStopsListeningAfterwards() = runTest {
+    listenToDocument()
+    val first = mockk<DocumentSnapshot> { every { id } returns "u1" }
+    val second = mockk<DocumentSnapshot> { every { id } returns "u2" }
+
+    val ids = async { document.snapshotsAsFlow { it.id }.take(2).toList() }
+    runCurrent()
+    documentListener.captured.onEvent(first, null)
+    documentListener.captured.onEvent(second, null)
+
+    assertEquals(listOf("u1", "u2"), ids.await())
+    verify { registration.remove() }
+  }
+
+  @Test
+  fun documentSnapshotsAsFlowThrowsReadErrorsToTheCollector() = runTest {
+    listenToDocument()
+
+    val error = async {
+      var caught: Throwable? = null
+      document.snapshotsAsFlow { it.id }.catch { caught = it }.toList()
+      caught
+    }
+    runCurrent()
+    documentListener.captured.onEvent(null, firestoreError)
+
+    assertSame(firestoreError, error.await())
+  }
+
+  @Test
+  fun documentSnapshotsAsFlowIgnoresAnEventWithoutSnapshotOrError() = runTest {
+    listenToDocument()
+    val snapshot = mockk<DocumentSnapshot> { every { id } returns "u9" }
+
+    val id = async { document.snapshotsAsFlow { it.id }.first() }
+    runCurrent()
+    documentListener.captured.onEvent(null, null)
+    documentListener.captured.onEvent(snapshot, null)
+
+    assertEquals("u9", id.await())
   }
 }
