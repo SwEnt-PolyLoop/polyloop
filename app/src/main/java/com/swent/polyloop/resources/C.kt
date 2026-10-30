@@ -219,8 +219,6 @@ object C {
     const val my_rentals_row_ = "my_rentals_row_"
     const val my_rentals_row_title = "my_rentals_row_title"
     const val my_rentals_row_person = "my_rentals_row_person"
-    const val my_rentals_row_return = "my_rentals_row_return"
-    const val my_rentals_row_location = "my_rentals_row_location"
     const val my_rentals_row_status = "my_rentals_row_status"
     const val my_rentals_row_reserved = "my_rentals_row_reserved"
     const val my_rentals_row_line = "my_rentals_row_line"

@@ -108,8 +108,6 @@ class MyRentalsViewModelTest {
             returnDate = LocalDate.of(2026, 10, 22),
             location = "Ecublens",
             status = RentalStatus.REQUESTED,
-            isPickupArea = true,
-            showReturnDate = true,
             totalPrice = 15,
         ),
         row,
@@ -140,26 +138,6 @@ class MyRentalsViewModelTest {
           "location for $status",
           if (status in before) "Ecublens" else "Renens",
           row.location,
-      )
-      assertEquals("isPickupArea for $status", status in before, row.isPickupArea)
-    }
-  }
-
-  @Test
-  fun returnDateIsShownOnlyWhileTheItemStillHasToComeBack() {
-    val awaitingReturn =
-        setOf(
-            RentalStatus.REQUESTED,
-            RentalStatus.ACCEPTED,
-            RentalStatus.ACTIVE,
-            RentalStatus.OVERDUE,
-        )
-    RentalStatus.entries.forEach { status ->
-      rentals = FakeRentalRepository(listOf(rental("tent", "vida", "me", status = status)))
-      assertEquals(
-          "showReturnDate for $status",
-          status in awaitingReturn,
-          viewModel().uiState.value.borrowing.single().showReturnDate,
       )
     }
   }

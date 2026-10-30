@@ -32,9 +32,6 @@ enum class RentalsTab {
  *   name is missing, and the screen then shows a placeholder.
  * @property returnDate the last day of the rental, when the item must be back.
  * @property location the public pickup area until the item is picked up, then the drop-off area.
- * @property isPickupArea true while [location] is the pickup area, false once it is the drop-off
- *   area.
- * @property showReturnDate true while the item still has to come back, so [returnDate] matters.
  * @property totalPrice the rental price in PP, reserved from the borrower while it is requested.
  * @property listingPhotoUrl the listing's first photo; "" for older rentals, and the screen then
  *   shows a grey box.
@@ -47,8 +44,6 @@ data class RentalRow(
     val returnDate: LocalDate,
     val location: String,
     val status: RentalStatus,
-    val isPickupArea: Boolean,
-    val showReturnDate: Boolean,
     val totalPrice: Int = 0,
     val listingPhotoUrl: String = "",
 )
@@ -178,15 +173,6 @@ class MyRentalsViewModel(
             RentalStatus.CANCELLED,
         )
 
-    /** Statuses in which the item still has to come back, so the return date matters. */
-    val AWAITING_RETURN =
-        setOf(
-            RentalStatus.REQUESTED,
-            RentalStatus.ACCEPTED,
-            RentalStatus.ACTIVE,
-            RentalStatus.OVERDUE,
-        )
-
     /**
      * The order of the CURRENT section on both tabs. Lenders and borrowers worry about the same
      * things first: a late return, a dispute, then what is under way, with what is over last.
@@ -229,8 +215,6 @@ class MyRentalsViewModel(
             returnDate = endDate,
             location = if (status in BEFORE_PICKUP) pickupArea else dropOffArea,
             status = status,
-            isPickupArea = status in BEFORE_PICKUP,
-            showReturnDate = status in AWAITING_RETURN,
             totalPrice = totalPrice,
             listingPhotoUrl = listingPhotoUrl,
         )

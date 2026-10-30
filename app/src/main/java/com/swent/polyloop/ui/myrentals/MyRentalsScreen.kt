@@ -385,58 +385,6 @@ private val STATUSES_WITH_AREA =
         RentalStatus.LOST,
     )
 
-/** One rental: the item, the other person, the return date, the location and the status badge. */
-@Composable
-private fun RentalRowCard(row: RentalRow, tab: RentalsTab, today: LocalDate, onClick: () -> Unit) {
-  OutlinedCard(
-      onClick = onClick,
-      modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_row_ + row.rentalId),
-  ) {
-    Column(
-        modifier = Modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = row.itemTitle,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).testTag(C.Tag.my_rentals_row_title),
-        )
-        StatusBadge(row.status)
-      }
-      val person =
-          row.otherPersonName.ifBlank { stringResource(R.string.my_rentals_unknown_person) }
-      Text(
-          text = stringResource(tab.personRes, person),
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.testTag(C.Tag.my_rentals_row_person),
-      )
-      if (row.showReturnDate) {
-        val returnDay = formatDay(row.returnDate, withYear = row.returnDate.year != today.year)
-        Text(
-            text = stringResource(R.string.my_rentals_return_by, returnDay),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.testTag(C.Tag.my_rentals_row_return),
-        )
-      }
-      if (row.location.isNotBlank()) {
-        val locationRes =
-            if (row.isPickupArea) R.string.my_rentals_pickup_at else R.string.my_rentals_drop_off_at
-        Text(
-            text = stringResource(locationRes, row.location),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.testTag(C.Tag.my_rentals_row_location),
-        )
-      }
-    }
-  }
-}
-
 /** The status of a rental as a small coloured label, or "New request" with [isNewRequest]. */
 @Composable
 private fun StatusBadge(status: RentalStatus, isNewRequest: Boolean = false) {
@@ -502,15 +450,6 @@ private val RentalsTab.emptyRes: Int
         RentalsTab.LENDING -> R.string.my_rentals_empty_lending
       }
 
-/** "Lender: …" on a borrowed item, "Borrower: …" on a lent one, true for every status. */
-@get:StringRes
-private val RentalsTab.personRes: Int
-  get() =
-      when (this) {
-        RentalsTab.BORROWING -> R.string.my_rentals_lender
-        RentalsTab.LENDING -> R.string.my_rentals_borrower
-      }
-
 private val RentalsTab.testTag: String
   get() =
       when (this) {
@@ -547,8 +486,6 @@ private fun MyRentalsContentPreview() {
           returnDate = LocalDate.of(2026, 10, 22),
           location = "Renens",
           status = RentalStatus.REQUESTED,
-          isPickupArea = true,
-          showReturnDate = true,
       )
   PolyLoopTheme {
     MyRentalsContent(

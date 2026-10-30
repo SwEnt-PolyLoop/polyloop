@@ -53,8 +53,6 @@ class MyRentalsScreenTest {
       person: String = "Loca",
       location: String = "Renens",
       returnDate: LocalDate = LocalDate.of(2026, 10, 22),
-      isPickupArea: Boolean = true,
-      showReturnDate: Boolean = true,
   ) =
       RentalRow(
           rentalId = id,
@@ -64,8 +62,6 @@ class MyRentalsScreenTest {
           returnDate = returnDate,
           location = location,
           status = status,
-          isPickupArea = isPickupArea,
-          showReturnDate = showReturnDate,
       )
 
   /** A pending request for "Camping tent" from Loca, 15 to 17 Oct 2026, 45 PP reserved. */
@@ -78,8 +74,6 @@ class MyRentalsScreenTest {
           returnDate = LocalDate.of(2026, 10, 17),
           location = "Ecublens",
           status = RentalStatus.REQUESTED,
-          isPickupArea = true,
-          showReturnDate = true,
           totalPrice = 45,
       )
 
@@ -281,7 +275,6 @@ class MyRentalsScreenTest {
               status = status,
               location = "EPFL",
               returnDate = LocalDate.of(2026, 10, 9),
-              isPickupArea = false,
           )
       setState(borrowing(current = listOf(row)))
       inRow("tent", C.Tag.my_rentals_row_line)
@@ -401,7 +394,6 @@ class MyRentalsScreenTest {
               status = status,
               location = "EPFL",
               returnDate = LocalDate.of(2026, 10, 9),
-              isPickupArea = false,
           )
       setState(lending(current = listOf(row)))
       inRow("drill", C.Tag.my_rentals_row_line)
@@ -442,7 +434,7 @@ class MyRentalsScreenTest {
 
   @Test
   fun blankAreaLeavesOutTheAreaAndAnEmptyLineIsNotShown() {
-    val active = row("drill", status = RentalStatus.ACTIVE, location = "", isPickupArea = false)
+    val active = row("drill", status = RentalStatus.ACTIVE, location = "")
     val disputed = row("bike", status = RentalStatus.DISPUTED, location = "")
     setContent(lending(current = listOf(active, disputed)))
 
@@ -605,7 +597,7 @@ class MyRentalsScreenTest {
 
   @Test
   fun blankAreaLeavesOutTheAreaOnABorrowingCard() {
-    val active = row("tent", status = RentalStatus.ACTIVE, location = "", isPickupArea = false)
+    val active = row("tent", status = RentalStatus.ACTIVE, location = "")
     setContent(borrowing(current = listOf(active)))
 
     inRow("tent", C.Tag.my_rentals_row_line)
