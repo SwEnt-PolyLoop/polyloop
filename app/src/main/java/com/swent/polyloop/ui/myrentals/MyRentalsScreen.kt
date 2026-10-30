@@ -512,7 +512,7 @@ private fun MyRentalsContentPreview() {
       )
   PolyLoopTheme {
     MyRentalsContent(
-        uiState = MyRentalsUiState(borrowing = listOf(row), isLoading = false),
+        uiState = MyRentalsUiState(borrowingRequests = listOf(row), isLoading = false),
         onTabSelected = {},
         onRentalClick = {},
         onRetry = {},

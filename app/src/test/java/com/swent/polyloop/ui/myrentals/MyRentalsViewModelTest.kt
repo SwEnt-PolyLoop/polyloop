@@ -89,13 +89,15 @@ class MyRentalsViewModelTest {
 
     assertFalse(state.isLoading)
     assertNull(state.errorMsg)
-    assertEquals(listOf("tent"), state.borrowing.map { it.rentalId })
-    assertEquals(listOf("drill"), state.lending.map { it.rentalId })
+    assertEquals(listOf("tent"), state.borrowingRequests.map { it.rentalId })
+    assertTrue(state.borrowingCurrent.isEmpty())
+    assertEquals(listOf("drill"), state.lendingRequests.map { it.rentalId })
+    assertTrue(state.lendingCurrent.isEmpty())
   }
 
   @Test
   fun borrowedRowShowsTheLenderAndTheDates() {
-    val row = viewModel().uiState.value.borrowing.single()
+    val row = viewModel().uiState.value.borrowingRequests.single()
 
     assertEquals(
         RentalRow(
@@ -167,7 +169,10 @@ class MyRentalsViewModelTest {
     val older = rental("old", "vida", "me", createdAt = createdAt.minusSeconds(60))
     rentals = FakeRentalRepository(listOf(older, borrowed))
 
-    assertEquals(listOf("tent", "old"), viewModel().uiState.value.borrowing.map { it.rentalId })
+    assertEquals(
+        listOf("tent", "old"),
+        viewModel().uiState.value.borrowingRequests.map { it.rentalId },
+    )
   }
 
   @Test
@@ -208,8 +213,10 @@ class MyRentalsViewModelTest {
 
     assertFalse(state.isLoading)
     assertNull(state.errorMsg)
-    assertTrue(state.borrowing.isEmpty())
-    assertTrue(state.lending.isEmpty())
+    assertTrue(state.borrowingRequests.isEmpty())
+    assertTrue(state.borrowingCurrent.isEmpty())
+    assertTrue(state.lendingRequests.isEmpty())
+    assertTrue(state.lendingCurrent.isEmpty())
   }
 
   @Test
@@ -238,7 +245,7 @@ class MyRentalsViewModelTest {
     vm.retry()
 
     assertNull(vm.uiState.value.errorMsg)
-    assertEquals(listOf("tent"), vm.uiState.value.borrowing.map { it.rentalId })
+    assertEquals(listOf("tent"), vm.uiState.value.borrowingRequests.map { it.rentalId })
   }
 
   @Test
@@ -256,8 +263,10 @@ class MyRentalsViewModelTest {
 
     assertFalse(state.isLoading)
     assertEquals("", state.errorMsg)
-    assertTrue(state.borrowing.isEmpty())
-    assertTrue(state.lending.isEmpty())
+    assertTrue(state.borrowingRequests.isEmpty())
+    assertTrue(state.borrowingCurrent.isEmpty())
+    assertTrue(state.lendingRequests.isEmpty())
+    assertTrue(state.lendingCurrent.isEmpty())
   }
 
   @Test
@@ -278,6 +287,33 @@ class MyRentalsViewModelTest {
   }
 
   @Test
+  fun onlyPendingBorrowedRentalsGoToRequests() {
+    rentals =
+        FakeRentalRepository(
+            RentalStatus.entries.map { rental(it.name, "vida", "me", status = it) }
+        )
+
+    val state = viewModel().uiState.value
+
+    assertEquals(listOf("REQUESTED"), state.borrowingRequests.map { it.rentalId })
+    assertEquals(
+        RentalStatus.entries.filter { it != RentalStatus.REQUESTED }.toSet(),
+        state.borrowingCurrent.map { it.status }.toSet(),
+    )
+    assertEquals(RentalStatus.entries.size - 1, state.borrowingCurrent.size)
+  }
+
+  @Test
+  fun rentalsILendAreNotInBorrowing() {
+    rentals = FakeRentalRepository(listOf(lent, someoneElses))
+
+    val state = viewModel().uiState.value
+
+    assertTrue(state.borrowingRequests.isEmpty())
+    assertTrue(state.borrowingCurrent.isEmpty())
+  }
+
+  @Test
   fun requestsOnOtherPeoplesListingsAreNotShown() {
     rentals = FakeRentalRepository(listOf(borrowed, someoneElses))
 
@@ -287,8 +323,11 @@ class MyRentalsViewModelTest {
     assertTrue(state.lendingCurrent.isEmpty())
   }
 
-  @Test
-  fun currentIsOrderedByAttentionThenNewest() {
+  /**
+   * One rental of [ownerId] and [borrowerId] per status, plus a newer active one. They are created
+   * in reverse order of attention, so newest first alone would give the wrong order.
+   */
+  private fun rentalsOfEveryCurrentStatus(ownerId: String, borrowerId: String): List<Rental> {
     val order =
         listOf(
             RentalStatus.OVERDUE,
@@ -302,29 +341,45 @@ class MyRentalsViewModelTest {
             RentalStatus.DECLINED,
             RentalStatus.CANCELLED,
         )
-    // Created in reverse order of attention, so newest first alone would give the wrong order.
     val byStatus = order.mapIndexed { i, status ->
-      rental(status.name, "me", "loca", status, createdAt.plusSeconds(i * 60L))
+      rental(status.name, ownerId, borrowerId, status, createdAt.plusSeconds(i * 60L))
     }
-    val newerActive =
-        rental("ACTIVE-new", "me", "loca", RentalStatus.ACTIVE, createdAt.plusSeconds(3_600))
-    rentals = FakeRentalRepository(byStatus + newerActive)
+    return byStatus +
+        rental("ACTIVE-new", ownerId, borrowerId, RentalStatus.ACTIVE, createdAt.plusSeconds(3_600))
+  }
+
+  private val idsByAttentionThenNewest =
+      listOf(
+          "OVERDUE",
+          "DISPUTED",
+          "FROZEN",
+          "LOST",
+          "ACTIVE-new",
+          "ACTIVE",
+          "ACCEPTED",
+          "RETURNED",
+          "CLOSED",
+          "DECLINED",
+          "CANCELLED",
+      )
+
+  @Test
+  fun currentIsOrderedByAttentionThenNewest() {
+    rentals = FakeRentalRepository(rentalsOfEveryCurrentStatus("me", "loca"))
 
     assertEquals(
-        listOf(
-            "OVERDUE",
-            "DISPUTED",
-            "FROZEN",
-            "LOST",
-            "ACTIVE-new",
-            "ACTIVE",
-            "ACCEPTED",
-            "RETURNED",
-            "CLOSED",
-            "DECLINED",
-            "CANCELLED",
-        ),
+        idsByAttentionThenNewest,
         viewModel().uiState.value.lendingCurrent.map { it.rentalId },
+    )
+  }
+
+  @Test
+  fun borrowingCurrentIsOrderedByAttentionThenNewest() {
+    rentals = FakeRentalRepository(rentalsOfEveryCurrentStatus("vida", "me"))
+
+    assertEquals(
+        idsByAttentionThenNewest,
+        viewModel().uiState.value.borrowingCurrent.map { it.rentalId },
     )
   }
 
@@ -347,11 +402,29 @@ class MyRentalsViewModelTest {
   }
 
   @Test
+  fun acceptedBorrowedRentalIsInCurrentNotRequests() {
+    rentals = FakeRentalRepository(listOf(borrowed.copy(status = RentalStatus.ACCEPTED)))
+
+    val state = viewModel().uiState.value
+
+    assertTrue(state.borrowingRequests.isEmpty())
+    assertEquals(listOf("tent"), state.borrowingCurrent.map { it.rentalId })
+  }
+
+  @Test
   fun lendingIsTheRequestsThenTheCurrentRentals() {
     val active = rental("bike", "me", "loca", RentalStatus.ACTIVE, createdAt.plusSeconds(60))
     rentals = FakeRentalRepository(listOf(lent, active))
 
     assertEquals(listOf("drill", "bike"), viewModel().uiState.value.lending.map { it.rentalId })
+  }
+
+  @Test
+  fun borrowingIsTheRequestsThenTheCurrentRentals() {
+    val active = rental("bike", "vida", "me", RentalStatus.ACTIVE, createdAt.plusSeconds(60))
+    rentals = FakeRentalRepository(listOf(borrowed, active))
+
+    assertEquals(listOf("tent", "bike"), viewModel().uiState.value.borrowing.map { it.rentalId })
   }
 
   @Test
@@ -375,8 +448,10 @@ class MyRentalsViewModelTest {
     auth.signedInUser = null
     vm.retry()
 
-    assertTrue(vm.uiState.value.borrowing.isEmpty())
-    assertTrue(vm.uiState.value.lending.isEmpty())
+    assertTrue(vm.uiState.value.borrowingRequests.isEmpty())
+    assertTrue(vm.uiState.value.borrowingCurrent.isEmpty())
+    assertTrue(vm.uiState.value.lendingRequests.isEmpty())
+    assertTrue(vm.uiState.value.lendingCurrent.isEmpty())
     assertEquals("", vm.uiState.value.errorMsg)
   }
 

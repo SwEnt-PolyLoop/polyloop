@@ -161,7 +161,7 @@ class MyRentalsScreenTest {
 
   @Test
   fun rowsStayVisibleWhileReloading() {
-    setContent(MyRentalsUiState(borrowing = listOf(row("tent")), isLoading = true))
+    setContent(MyRentalsUiState(borrowingCurrent = listOf(row("tent")), isLoading = true))
 
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_loading).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "tent").assertIsDisplayed()
@@ -172,7 +172,7 @@ class MyRentalsScreenTest {
     var retries = 0
     setContent(
         MyRentalsUiState(
-            borrowing = listOf(row("tent")),
+            borrowingCurrent = listOf(row("tent")),
             isLoading = false,
             errorMsg = "No connection",
         ),
@@ -221,7 +221,7 @@ class MyRentalsScreenTest {
     setContent(
         MyRentalsUiState(
             selectedTab = RentalsTab.LENDING,
-            borrowing = listOf(row("tent")),
+            borrowingCurrent = listOf(row("tent")),
             isLoading = false,
         )
     )
@@ -235,7 +235,7 @@ class MyRentalsScreenTest {
 
   @Test
   fun borrowedRowShowsItemLenderReturnDateLocationAndStatus() {
-    setContent(MyRentalsUiState(borrowing = listOf(row("tent")), isLoading = false))
+    setContent(MyRentalsUiState(borrowingCurrent = listOf(row("tent")), isLoading = false))
 
     inRow("tent", C.Tag.my_rentals_row_title).assertTextEquals("Item tent")
     inRow("tent", C.Tag.my_rentals_row_person)
@@ -254,7 +254,8 @@ class MyRentalsScreenTest {
   fun pickedUpItemShowsTheDropOffArea() {
     setContent(
         MyRentalsUiState(
-            borrowing = listOf(row("tent", status = RentalStatus.ACTIVE, isPickupArea = false)),
+            borrowingCurrent =
+                listOf(row("tent", status = RentalStatus.ACTIVE, isPickupArea = false)),
             isLoading = false,
         )
     )
@@ -267,7 +268,8 @@ class MyRentalsScreenTest {
   fun returnDateIsHiddenWhenTheRowSaysSo() {
     setContent(
         MyRentalsUiState(
-            borrowing = listOf(row("tent", status = RentalStatus.CLOSED, showReturnDate = false)),
+            borrowingCurrent =
+                listOf(row("tent", status = RentalStatus.CLOSED, showReturnDate = false)),
             isLoading = false,
         )
     )
@@ -279,7 +281,10 @@ class MyRentalsScreenTest {
   fun returnDateInAnotherYearShowsTheYear() {
     val nextYear = LocalDate.of(2027, 1, 5)
     setContent(
-        MyRentalsUiState(borrowing = listOf(row("tent", returnDate = nextYear)), isLoading = false)
+        MyRentalsUiState(
+            borrowingCurrent = listOf(row("tent", returnDate = nextYear)),
+            isLoading = false,
+        )
     )
 
     inRow("tent", C.Tag.my_rentals_row_return)
@@ -391,7 +396,7 @@ class MyRentalsScreenTest {
     // The same request on both tabs: Borrowing must still show it on the old card.
     setContent(
         MyRentalsUiState(
-            borrowing = listOf(row("tent")),
+            borrowingCurrent = listOf(row("tent")),
             lendingRequests = listOf(request("tent")),
             isLoading = false,
         )
@@ -489,7 +494,9 @@ class MyRentalsScreenTest {
 
   @Test
   fun missingNameShowsThePlaceholder() {
-    setContent(MyRentalsUiState(borrowing = listOf(row("tent", person = "")), isLoading = false))
+    setContent(
+        MyRentalsUiState(borrowingCurrent = listOf(row("tent", person = "")), isLoading = false)
+    )
 
     val unknown = context.getString(R.string.my_rentals_unknown_person)
     inRow("tent", C.Tag.my_rentals_row_person)
@@ -498,7 +505,9 @@ class MyRentalsScreenTest {
 
   @Test
   fun blankLocationIsNotShown() {
-    setContent(MyRentalsUiState(borrowing = listOf(row("tent", location = "")), isLoading = false))
+    setContent(
+        MyRentalsUiState(borrowingCurrent = listOf(row("tent", location = "")), isLoading = false)
+    )
 
     inRow("tent", C.Tag.my_rentals_row_location).assertDoesNotExist()
   }
@@ -509,7 +518,10 @@ class MyRentalsScreenTest {
 
     RentalStatus.entries.forEach { status ->
       setState(
-          MyRentalsUiState(borrowing = listOf(row("tent", status = status)), isLoading = false)
+          MyRentalsUiState(
+              borrowingCurrent = listOf(row("tent", status = status)),
+              isLoading = false,
+          )
       )
       inRow("tent", C.Tag.my_rentals_row_status)
           .assertTextEquals(context.getString(status.labelRes))
@@ -521,7 +533,7 @@ class MyRentalsScreenTest {
     val tabs = mutableListOf<RentalsTab>()
     val clicked = mutableListOf<String>()
     setContent(
-        MyRentalsUiState(borrowing = listOf(row("tent")), isLoading = false),
+        MyRentalsUiState(borrowingCurrent = listOf(row("tent")), isLoading = false),
         onTabSelected = { tabs += it },
         onRentalClick = { clicked += it },
     )
