@@ -2,8 +2,23 @@
 
 package com.swent.polyloop.ui.dispute
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.connectivity.ConnectivityRepository
+import com.swent.polyloop.model.dispute.Dispute
+import com.swent.polyloop.model.dispute.DisputeRepository
 import com.swent.polyloop.model.dispute.DisputeStage
+import com.swent.polyloop.model.rental.RentalRepository
+import java.time.Duration
 import java.time.Instant
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * One proposed split, ready to display.
@@ -78,4 +93,97 @@ data class DisputeUiState(
 fun shareInTenths(deposit: Int, lenderPercent: Int, toLender: Boolean): Int {
   val borrowerTenths = deposit * (100 - lenderPercent) / 10
   return if (toLender) deposit * 10 - borrowerTenths else borrowerTenths
+}
+
+/**
+ * The dispute of one rental, live, as seen by the signed-in user, who takes part in the rental as
+ * lender or borrower. [clock] gives the current time, to count the days left before escalation.
+ */
+class DisputeViewModel(
+    private val rentalId: String,
+    private val disputeRepository: DisputeRepository,
+    private val rentalRepository: RentalRepository,
+    private val authRepository: AuthRepository,
+    connectivityRepository: ConnectivityRepository,
+    private val clock: () -> Instant = { Instant.now() },
+) : ViewModel() {
+
+  private val _uiState = MutableStateFlow(DisputeUiState())
+  val uiState: StateFlow<DisputeUiState> = _uiState.asStateFlow()
+
+  private var observing: Job? = null
+
+  init {
+    viewModelScope.launch {
+      connectivityRepository.isOnline.collect { online ->
+        _uiState.update { it.copy(isOnline = online) }
+      }
+    }
+    observe()
+  }
+
+  /** Loads the dispute again, e.g. after an error. */
+  fun retry() = observe()
+
+  private fun observe() {
+    observing?.cancel()
+    _uiState.update { it.copy(isLoading = true, errorMsg = null) }
+    val uid = authRepository.getCurrentUser()?.uid
+    if (uid == null) {
+      showError("")
+      return
+    }
+    observing = viewModelScope.launch {
+      val rental =
+          rentalRepository.getRental(rentalId).getOrElse {
+            showError(it.message ?: "")
+            return@launch
+          }
+      if (rental == null || uid !in rental.participants) {
+        showError("")
+        return@launch
+      }
+      _uiState.update {
+        it.copy(
+            itemTitle = rental.listingTitle,
+            otherPersonName = rental.otherPersonName(uid),
+            isLender = uid == rental.ownerId,
+        )
+      }
+      disputeRepository
+          .observeDispute(rentalId)
+          .catch { e -> showError(e.message ?: "") }
+          .collect { dispute ->
+            if (dispute == null) showError("") else show(dispute, uid)
+          }
+    }
+  }
+
+  private fun show(dispute: Dispute, uid: String) = _uiState.update {
+    it.copy(
+        stage = dispute.stage,
+        history =
+            dispute.proposals.reversed().map { p ->
+              ProposalRow(p.authorId == uid, p.lenderPercent, p.createdAt)
+            },
+        isSettled = dispute.isSettled,
+        daysUntilEscalation = daysUntil(dispute.escalatesAt),
+        isLoading = false,
+        errorMsg = null,
+    )
+  }
+
+  /** The whole days left until [deadline], rounded up; 0 once it has passed. */
+  private fun daysUntil(deadline: Instant): Int {
+    val seconds = Duration.between(clock(), deadline).seconds
+    return if (seconds <= 0) 0 else ((seconds + SECONDS_PER_DAY - 1) / SECONDS_PER_DAY).toInt()
+  }
+
+  private fun showError(message: String) = _uiState.update {
+    it.copy(isLoading = false, errorMsg = message)
+  }
+
+  private companion object {
+    const val SECONDS_PER_DAY = 86_400L
+  }
 }
