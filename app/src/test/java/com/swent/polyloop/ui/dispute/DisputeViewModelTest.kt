@@ -195,6 +195,33 @@ class DisputeViewModelTest {
     assertNotNull(vm.uiState.value.latestProposal)
   }
 
+  @Test
+  fun refreshFailureKeepsTheDisputeShown() {
+    val vm = viewModel()
+
+    disputes.failure = IOException("offline")
+    disputes.put(open.copy(proposals = listOf(mine)))
+
+    val state = vm.uiState.value
+    assertTrue(state.refreshFailed)
+    assertFalse(state.loadFailed)
+    assertEquals(70, state.latestProposal?.lenderPercent)
+  }
+
+  @Test
+  fun retryAfterARefreshFailureShowsTheNewDispute() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+    disputes.put(open.copy(proposals = listOf(mine)))
+
+    disputes.failure = null
+    vm.retry()
+
+    val state = vm.uiState.value
+    assertFalse(state.refreshFailed)
+    assertEquals(40, state.latestProposal?.lenderPercent)
+  }
+
   // ---------- actions ----------
 
   @Test

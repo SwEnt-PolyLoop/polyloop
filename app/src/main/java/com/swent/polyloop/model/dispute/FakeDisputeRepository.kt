@@ -33,6 +33,14 @@ class FakeDisputeRepository(
   val disputes: List<Dispute>
     get() = stored.value.values.toList()
 
+  /**
+   * Stores [dispute] as the server would, e.g. after an automatic escalation; observers then see
+   * it, or throw [failure] if it is set.
+   */
+  fun put(dispute: Dispute) {
+    stored.value = stored.value + (dispute.rentalId to dispute)
+  }
+
   override fun observeDispute(rentalId: String): Flow<Dispute?> =
       stored
           .map {
