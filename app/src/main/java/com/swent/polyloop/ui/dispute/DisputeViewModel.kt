@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.dispute
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
@@ -125,6 +126,42 @@ class DisputeViewModel(
   /** Loads the dispute again, e.g. after an error. */
   fun retry() = observe()
 
+  /**
+   * Sends a split giving [lenderPercent] percent of the deposit to the lender, as a first proposal,
+   * a counter-proposal, or an update of the user's own. Does nothing unless
+   * [DisputeUiState.canPropose] and [lenderPercent] is between 0 and 100.
+   */
+  fun counter(lenderPercent: Int) {
+    if (!_uiState.value.canPropose || lenderPercent !in 0..100) return
+    send { uid -> disputeRepository.propose(rentalId, uid, lenderPercent) }
+  }
+
+  /** Accepts the other person's proposal. Does nothing unless [DisputeUiState.canAccept]. */
+  fun accept() {
+    if (!_uiState.value.canAccept) return
+    send { uid -> disputeRepository.accept(rentalId, uid) }
+  }
+
+  /** Moves the dispute on to the next stage. Does nothing unless [DisputeUiState.canEscalate]. */
+  fun escalate() {
+    if (!_uiState.value.canEscalate) return
+    send { disputeRepository.escalate(rentalId) }
+  }
+
+  /**
+   * Runs [request] as the signed-in user, with [DisputeUiState.isSending] set meanwhile so no
+   * second action starts. The new dispute arrives through the observer; a failure (or nobody signed
+   * in) sets [DisputeUiState.actionFailed].
+   */
+  private fun send(request: suspend (uid: String) -> Result<Unit>) {
+    val uid = authRepository.getCurrentUser()?.uid
+    _uiState.update { it.copy(isSending = true, actionFailed = false) }
+    viewModelScope.launch {
+      val failed = uid == null || request(uid).isFailure
+      _uiState.update { it.copy(isSending = false, actionFailed = failed) }
+    }
+  }
+
   private fun observe() {
     observing?.cancel()
     _uiState.update { it.copy(isLoading = true, errorMsg = null) }
@@ -153,9 +190,7 @@ class DisputeViewModel(
       disputeRepository
           .observeDispute(rentalId)
           .catch { e -> showError(e.message ?: "") }
-          .collect { dispute ->
-            if (dispute == null) showError("") else show(dispute, uid)
-          }
+          .collect { dispute -> if (dispute == null) showError("") else show(dispute, uid) }
     }
   }
 
@@ -181,6 +216,30 @@ class DisputeViewModel(
 
   private fun showError(message: String) = _uiState.update {
     it.copy(isLoading = false, errorMsg = message)
+  }
+
+  /** Builds the ViewModel with its dependencies (manual constructor injection). */
+  class Factory(
+      private val rentalId: String,
+      private val disputeRepository: DisputeRepository,
+      private val rentalRepository: RentalRepository,
+      private val authRepository: AuthRepository,
+      private val connectivityRepository: ConnectivityRepository,
+  ) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+      require(modelClass.isAssignableFrom(DisputeViewModel::class.java)) {
+        "Unknown ViewModel class: ${modelClass.name}"
+      }
+      @Suppress("UNCHECKED_CAST")
+      return DisputeViewModel(
+          rentalId,
+          disputeRepository,
+          rentalRepository,
+          authRepository,
+          connectivityRepository,
+      )
+          as T
+    }
   }
 
   private companion object {
