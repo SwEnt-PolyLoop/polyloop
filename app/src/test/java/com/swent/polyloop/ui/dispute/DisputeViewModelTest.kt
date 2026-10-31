@@ -252,6 +252,41 @@ class DisputeViewModelTest {
   }
 
   @Test
+  fun theSplitOnTheTableIsNotSentAgainAndCancelClosesTheEditor() {
+    val vm = viewModel()
+
+    propose(vm, 70)
+    assertEquals(2, disputes.disputes.single().proposals.size)
+    assertTrue(vm.uiState.value.isEditing)
+
+    vm.cancelEditing()
+    assertFalse(vm.uiState.value.isEditing)
+  }
+
+  @Test
+  fun draftStaysBetweenZeroAndAHundred() {
+    val vm = viewModel()
+    vm.startEditing()
+
+    vm.setDraft(101)
+    assertEquals(100, vm.uiState.value.draftLenderPercent)
+
+    vm.setDraft(-1)
+    assertEquals(0, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun anAgreementReachedMeanwhileEndsTheEditing() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+    vm.startEditing()
+
+    runBlocking { disputes.accept("pump", "ana", 40) }
+
+    assertFalse(vm.uiState.value.isEditing)
+  }
+
+  @Test
   fun acceptSettlesTheDispute() {
     val vm = viewModel()
 
