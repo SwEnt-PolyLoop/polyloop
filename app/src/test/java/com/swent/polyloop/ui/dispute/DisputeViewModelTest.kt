@@ -343,6 +343,29 @@ class DisputeViewModelTest {
   }
 
   @Test
+  fun escalatingAsksForAConfirmationNamingTheNextStage() {
+    val vm = viewModel()
+
+    vm.askEscalate()
+    assertTrue(vm.uiState.value.isConfirmingEscalation)
+    assertEquals(DisputeStage.LLM_PROPOSAL, vm.uiState.value.nextStage)
+
+    vm.dismissEscalate()
+    assertFalse(vm.uiState.value.isConfirmingEscalation)
+    assertEquals(DisputeStage.SETTLE, vm.uiState.value.stage)
+  }
+
+  @Test
+  fun confirmationClosesWhenTheDisputeMovesOnMeanwhile() {
+    val vm = viewModel()
+    vm.askEscalate()
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL))
+
+    assertFalse(vm.uiState.value.isConfirmingEscalation)
+  }
+
+  @Test
   fun escalateFromTheLlmStageMovesToCourt() {
     val vm = viewModel()
 

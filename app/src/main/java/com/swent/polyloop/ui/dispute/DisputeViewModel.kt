@@ -57,7 +57,8 @@ enum class DisputeActionError {
  * [refreshFailed] is true when it could not be loaded again after it was shown, which keeps the
  * last state on screen. [actionError] is what the last proposal, acceptance or escalation could not
  * do; the next one clears it. [draftLenderPercent] is the split the user is editing, as the
- * lender's percentage, or null when the editor is closed.
+ * lender's percentage, or null when the editor is closed. [isConfirmingEscalation] is true while
+ * the user is asked to confirm moving the dispute on to [nextStage].
  */
 data class DisputeUiState(
     val itemTitle: String = "",
@@ -71,6 +72,7 @@ data class DisputeUiState(
     val isOnline: Boolean = true,
     val isSending: Boolean = false,
     val draftLenderPercent: Int? = null,
+    val isConfirmingEscalation: Boolean = false,
     val actionError: DisputeActionError? = null,
     val isLoading: Boolean = true,
     val loadFailed: Boolean = false,
@@ -109,6 +111,10 @@ data class DisputeUiState(
   /** True when the user can accept the proposal on the table: it exists and is the other's. */
   val canAccept: Boolean
     get() = canPropose && latestProposal?.byMe == false
+
+  /** The stage that escalating moves the dispute on to, or null in court. */
+  val nextStage: DisputeStage?
+    get() = DisputeStage.entries.getOrNull(stage.ordinal + 1)
 
   /** True when the user can move the dispute on: online, not sending, unsettled, not in court. */
   val canEscalate: Boolean
@@ -201,8 +207,23 @@ class DisputeViewModel(
     }
   }
 
-  /** Moves the dispute on to the next stage. Does nothing unless [DisputeUiState.canEscalate]. */
+  /**
+   * Asks the user to confirm moving the dispute on to the next stage. Does nothing unless
+   * [DisputeUiState.canEscalate].
+   */
+  fun askEscalate() {
+    if (_uiState.value.canEscalate) _uiState.update { it.copy(isConfirmingEscalation = true) }
+  }
+
+  /** Closes the confirmation without escalating. */
+  fun dismissEscalate() = _uiState.update { it.copy(isConfirmingEscalation = false) }
+
+  /**
+   * Closes the confirmation and moves the dispute on to the next stage. Does nothing else unless
+   * [DisputeUiState.canEscalate].
+   */
   fun escalate() {
+    _uiState.update { it.copy(isConfirmingEscalation = false) }
     if (!_uiState.value.canEscalate) return
     send(DisputeActionError.ESCALATE) { uid -> disputeRepository.escalate(rentalId, uid) }
   }
@@ -269,7 +290,10 @@ class DisputeViewModel(
     _uiState.update {
       it.copy(
           stage = dispute.stage,
-          // An agreement or a new stage ends the editing.
+          // An agreement or a new stage ends the editing and the confirmation, which was for
+          // another stage.
+          isConfirmingEscalation =
+              it.isConfirmingEscalation && !dispute.isSettled && dispute.stage == it.stage,
           draftLenderPercent =
               it.draftLenderPercent.takeIf {
                 !dispute.isSettled && dispute.stage == DisputeStage.SETTLE
