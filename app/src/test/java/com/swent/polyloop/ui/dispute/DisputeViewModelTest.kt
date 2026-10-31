@@ -457,4 +457,37 @@ class DisputeViewModelTest {
     assertTrue(vm.uiState.value.offerUpdated)
     assertFalse(vm.uiState.value.showsOfferUpdated)
   }
+
+  @Test
+  fun theirAcceptanceOfMyProposalIsTold() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+
+    runBlocking { disputes.accept("pump", "ana", 40) }
+
+    assertTrue(vm.uiState.value.acceptedByOther)
+  }
+
+  @Test
+  fun anEscalationTellsWhetherTheOtherPersonOrNobodyDidIt() {
+    val vm = viewModel()
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    assertEquals(EscalationNotice.BY_OTHER, vm.uiState.value.escalationNotice)
+
+    disputes.put(open.copy(stage = DisputeStage.COURT))
+    assertEquals(EscalationNotice.AUTOMATIC, vm.uiState.value.escalationNotice)
+  }
+
+  @Test
+  fun myOwnEscalationAndADisputeAlreadySettledAreNotTold() {
+    disputes = FakeDisputeRepository(listOf(open.copy(agreedAt = now)))
+    assertFalse(viewModel().uiState.value.acceptedByOther)
+
+    disputes = FakeDisputeRepository(listOf(open), clock = { now })
+    val vm = viewModel()
+    vm.escalate()
+
+    assertNull(vm.uiState.value.escalationNotice)
+  }
 }
