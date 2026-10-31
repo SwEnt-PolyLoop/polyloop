@@ -9,8 +9,9 @@ import java.time.Instant
  *
  * @property id the identifier of the transaction, unique in the user's history.
  * @property type what kind of movement this is.
- * @property amount the change in PP, signed: positive when money comes in, negative when it goes
- *   out. Whole PP, never zero.
+ * @property amount the change to the user's available balance in PP, signed: positive when it goes
+ *   up, negative when it goes down. Whole PP, never zero. Starting from an empty wallet, a user's
+ *   amounts add up to [Wallet.available] (not to the total, and not to [Wallet.reserved]).
  * @property itemTitle the title of the rented item this movement is about; "" for a recharge, and
  *   the screen then shows nothing.
  * @property date when the movement happened.
