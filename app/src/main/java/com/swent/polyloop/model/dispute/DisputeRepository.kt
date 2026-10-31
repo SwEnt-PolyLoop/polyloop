@@ -24,11 +24,13 @@ interface DisputeRepository {
   suspend fun propose(rentalId: String, authorId: String, lenderPercent: Int): Result<Unit>
 
   /**
-   * Accepts, as [uid], the latest proposal of the dispute, which settles it. Fails if the dispute
-   * does not exist, has no proposal, is no longer in [DisputeStage.SETTLE], is settled, if the
-   * latest proposal is [uid]'s own, or if it cannot be written.
+   * Accepts, as [uid], the latest proposal of the dispute, which settles it. [lenderPercent] is the
+   * split the user saw: if the latest proposal gives the lender anything else (it changed
+   * meanwhile), nothing is accepted and the call fails with [ProposalChangedException]. Also fails
+   * if the dispute does not exist, has no proposal, is no longer in [DisputeStage.SETTLE], is
+   * settled, if the latest proposal is [uid]'s own, or if it cannot be written.
    */
-  suspend fun accept(rentalId: String, uid: String): Result<Unit>
+  suspend fun accept(rentalId: String, uid: String, lenderPercent: Int): Result<Unit>
 
   /**
    * Moves the dispute on to the next stage right away, as [uid], which restarts the time left
@@ -37,3 +39,6 @@ interface DisputeRepository {
    */
   suspend fun escalate(rentalId: String, uid: String): Result<Unit>
 }
+
+/** Thrown when the user accepts a proposal that is no longer the one on the table. */
+class ProposalChangedException : IllegalStateException("The proposal on the table changed")

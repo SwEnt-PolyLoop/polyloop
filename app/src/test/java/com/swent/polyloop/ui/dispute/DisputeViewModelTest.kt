@@ -301,7 +301,7 @@ class DisputeViewModelTest {
     assertFalse(vm.uiState.value.actionFailed)
     assertEquals(ProposalRow(true, 50, now), vm.uiState.value.latestProposal)
 
-    runBlocking { disputes.accept("pump", "ana") }
+    runBlocking { disputes.accept("pump", "ana", 50) }
 
     assertTrue(vm.uiState.value.isSettled)
   }

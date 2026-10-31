@@ -138,8 +138,9 @@ class DisputeViewModel(
 
   /** Accepts the other person's proposal. Does nothing unless [DisputeUiState.canAccept]. */
   fun accept() {
-    if (!_uiState.value.canAccept) return
-    send { uid -> disputeRepository.accept(rentalId, uid) }
+    val shown = _uiState.value.latestProposal
+    if (!_uiState.value.canAccept || shown == null) return
+    send { uid -> disputeRepository.accept(rentalId, uid, shown.lenderPercent) }
   }
 
   /** Moves the dispute on to the next stage. Does nothing unless [DisputeUiState.canEscalate]. */

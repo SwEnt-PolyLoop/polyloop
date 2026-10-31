@@ -47,11 +47,12 @@ class FakeDisputeRepository(
         it.copy(proposals = it.proposals + Proposal(authorId, lenderPercent, clock()))
       }
 
-  override suspend fun accept(rentalId: String, uid: String) =
+  override suspend fun accept(rentalId: String, uid: String, lenderPercent: Int) =
       change(rentalId) {
         check(it.stage == DisputeStage.SETTLE && !it.isSettled) { "Proposals are closed" }
         val latest = checkNotNull(it.latestProposal) { "There is no proposal to accept" }
         check(latest.authorId != uid) { "$uid cannot accept their own proposal" }
+        if (latest.lenderPercent != lenderPercent) throw ProposalChangedException()
         it.copy(agreedAt = clock())
       }
 
