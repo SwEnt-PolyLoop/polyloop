@@ -224,25 +224,31 @@ class DisputeViewModelTest {
 
   // ---------- actions ----------
 
-  @Test
-  fun counterSendsMyProposal() {
-    val vm = viewModel()
-
-    vm.counter(55)
-
-    assertEquals(ProposalRow(true, 55, now), vm.uiState.value.latestProposal)
-    assertFalse(vm.uiState.value.canAccept)
+  /** Opens the editor of [vm], moves the draft to [lenderPercent] and sends it. */
+  private fun propose(vm: DisputeViewModel, lenderPercent: Int) {
+    vm.startEditing()
+    vm.setDraft(lenderPercent)
+    vm.sendDraft()
   }
 
   @Test
-  fun counterOutsideZeroToAHundredSendsNothing() {
+  fun editingStartsFromTheProposalOnTheTable() {
     val vm = viewModel()
 
-    vm.counter(101)
-    vm.counter(-1)
+    vm.startEditing()
 
-    assertEquals(2, disputes.disputes.single().proposals.size)
-    assertNull(vm.uiState.value.actionError)
+    assertEquals(70, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun sendingTheDraftSendsMyProposalAndClosesTheEditor() {
+    val vm = viewModel()
+
+    propose(vm, 55)
+
+    assertEquals(ProposalRow(true, 55, now), vm.uiState.value.latestProposal)
+    assertFalse(vm.uiState.value.isEditing)
+    assertFalse(vm.uiState.value.canAccept)
   }
 
   @Test
@@ -317,7 +323,7 @@ class DisputeViewModelTest {
     connectivity.setOnline(false)
     val vm = viewModel()
 
-    vm.counter(50)
+    propose(vm, 50)
     vm.accept()
     vm.escalate()
 
@@ -344,12 +350,13 @@ class DisputeViewModelTest {
     val vm = viewModel()
 
     disputes.failure = IOException("offline")
-    vm.counter(50)
+    propose(vm, 50)
     assertEquals(DisputeActionError.PROPOSE, vm.uiState.value.actionError)
     assertEquals(70, vm.uiState.value.latestProposal?.lenderPercent)
+    assertFalse(vm.uiState.value.isEditing)
 
     disputes.failure = null
-    vm.counter(50)
+    propose(vm, 50)
     assertNull(vm.uiState.value.actionError)
     assertEquals(ProposalRow(true, 50, now), vm.uiState.value.latestProposal)
 

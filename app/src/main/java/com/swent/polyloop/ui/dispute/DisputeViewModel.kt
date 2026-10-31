@@ -56,7 +56,8 @@ enum class DisputeActionError {
  * nobody is signed in, or the user does not take part in the rental) and nothing was shown yet;
  * [refreshFailed] is true when it could not be loaded again after it was shown, which keeps the
  * last state on screen. [actionError] is what the last proposal, acceptance or escalation could not
- * do; the next one clears it.
+ * do; the next one clears it. [draftLenderPercent] is the split the user is editing, as the
+ * lender's percentage, or null when the editor is closed.
  */
 data class DisputeUiState(
     val itemTitle: String = "",
@@ -69,6 +70,7 @@ data class DisputeUiState(
     val daysUntilEscalation: Int = 0,
     val isOnline: Boolean = true,
     val isSending: Boolean = false,
+    val draftLenderPercent: Int? = null,
     val actionError: DisputeActionError? = null,
     val isLoading: Boolean = true,
     val loadFailed: Boolean = false,
@@ -88,6 +90,21 @@ data class DisputeUiState(
   /** True when the user can send a proposal: online, not sending, still settling. */
   val canPropose: Boolean
     get() = isOnline && !isSending && !isSettled && stage == DisputeStage.SETTLE
+
+  /** True while the user edits a split. */
+  val isEditing: Boolean
+    get() = draftLenderPercent != null
+
+  /** What the user would get back if the draft were applied, in tenths of a PolyPoint. */
+  val draftGetBackTenths: Int?
+    get() = draftLenderPercent?.let { shareInTenths(deposit, it, isLender) }
+
+  /** True when the draft can be sent: the user can propose and it is not the split on the table. */
+  val canSend: Boolean
+    get() =
+        canPropose &&
+            draftLenderPercent != null &&
+            draftLenderPercent != latestProposal?.lenderPercent
 
   /** True when the user can accept the proposal on the table: it exists and is the other's. */
   val canAccept: Boolean
@@ -145,15 +162,34 @@ class DisputeViewModel(
   fun retry() = observe()
 
   /**
-   * Sends a split giving [lenderPercent] percent of the deposit to the lender, as a first proposal,
-   * a counter-proposal, or an update of the user's own. Does nothing unless
-   * [DisputeUiState.canPropose] and [lenderPercent] is between 0 and 100.
+   * Opens the split editor on the proposal on the table, or on 50/50 without one. Does nothing
+   * unless [DisputeUiState.canPropose].
    */
-  fun counter(lenderPercent: Int) {
-    if (!_uiState.value.canPropose || lenderPercent !in 0..100) return
-    send(DisputeActionError.PROPOSE) { uid ->
-      disputeRepository.propose(rentalId, uid, lenderPercent)
+  fun startEditing() {
+    if (!_uiState.value.canPropose) return
+    _uiState.update {
+      it.copy(draftLenderPercent = it.latestProposal?.lenderPercent ?: 50, actionError = null)
     }
+  }
+
+  /** Moves the draft to [lenderPercent] percent for the lender, kept between 0 and 100. */
+  fun setDraft(lenderPercent: Int) = _uiState.update {
+    if (it.isEditing) it.copy(draftLenderPercent = lenderPercent.coerceIn(0, 100)) else it
+  }
+
+  /** Closes the split editor without sending the draft. */
+  fun cancelEditing() = _uiState.update { it.copy(draftLenderPercent = null) }
+
+  /**
+   * Sends the draft as a first proposal, a counter-proposal or an update of the user's own, and
+   * closes the editor, whether the proposal goes through or not. Does nothing unless
+   * [DisputeUiState.canSend], so the split already on the table is never sent again.
+   */
+  fun sendDraft() {
+    val draft = _uiState.value.draftLenderPercent
+    if (!_uiState.value.canSend || draft == null) return
+    _uiState.update { it.copy(draftLenderPercent = null) }
+    send(DisputeActionError.PROPOSE) { uid -> disputeRepository.propose(rentalId, uid, draft) }
   }
 
   /** Accepts the other person's proposal. Does nothing unless [DisputeUiState.canAccept]. */
@@ -233,6 +269,11 @@ class DisputeViewModel(
     _uiState.update {
       it.copy(
           stage = dispute.stage,
+          // An agreement or a new stage ends the editing.
+          draftLenderPercent =
+              it.draftLenderPercent.takeIf {
+                !dispute.isSettled && dispute.stage == DisputeStage.SETTLE
+              },
           history =
               dispute.proposals.reversed().map { p ->
                 ProposalRow(p.authorId == uid, p.lenderPercent, p.createdAt)
