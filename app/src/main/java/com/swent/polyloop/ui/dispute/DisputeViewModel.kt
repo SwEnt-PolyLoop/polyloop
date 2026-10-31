@@ -10,6 +10,7 @@ import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.dispute.Dispute
 import com.swent.polyloop.model.dispute.DisputeRepository
 import com.swent.polyloop.model.dispute.DisputeStage
+import com.swent.polyloop.model.dispute.ProposalChangedException
 import com.swent.polyloop.model.rental.RentalRepository
 import java.time.Duration
 import java.time.Instant
@@ -33,16 +34,29 @@ data class ProposalRow(val byMe: Boolean, val lenderPercent: Int, val createdAt:
     get() = 100 - lenderPercent
 }
 
+/** What the user tried and could not do; the screen shows it next to the part concerned. */
+enum class DisputeActionError {
+  /** The proposal could not be sent. */
+  PROPOSE,
+  /** The proposal could not be accepted. */
+  ACCEPT,
+  /** The proposal changed just before the user accepted it, so nothing was accepted. */
+  PROPOSAL_CHANGED,
+  /** The dispute could not be moved on to the next stage. */
+  ESCALATE,
+}
+
 /**
  * State of the Dispute screen.
  *
  * [history] holds every proposal, newest first; the first one is the proposal on the table.
  * [otherPersonName] is "" when the name is missing; the screen then shows a placeholder.
  * [daysUntilEscalation] is the number of days, rounded up, before the dispute moves on to the next
- * stage on its own; 0 means today. [errorMsg] is non-null when the dispute cannot be loaded (or
- * nobody is signed in, or the user does not take part in the rental); it is blank when there is no
- * message to show, and the screen then shows a generic text. [actionFailed] is true when the last
- * proposal, acceptance or escalation could not be sent; the next one clears it.
+ * stage on its own; 0 means today. [loadFailed] is true when the dispute cannot be loaded (or
+ * nobody is signed in, or the user does not take part in the rental) and nothing was shown yet;
+ * [refreshFailed] is true when it could not be loaded again after it was shown, which keeps the
+ * last state on screen. [actionError] is what the last proposal, acceptance or escalation could not
+ * do; the next one clears it.
  */
 data class DisputeUiState(
     val itemTitle: String = "",
@@ -55,9 +69,10 @@ data class DisputeUiState(
     val daysUntilEscalation: Int = 0,
     val isOnline: Boolean = true,
     val isSending: Boolean = false,
-    val actionFailed: Boolean = false,
+    val actionError: DisputeActionError? = null,
     val isLoading: Boolean = true,
-    val errorMsg: String? = null,
+    val loadFailed: Boolean = false,
+    val refreshFailed: Boolean = false,
 ) {
   /** The proposal on the table, or null when nobody has proposed yet. */
   val latestProposal: ProposalRow?
@@ -114,6 +129,9 @@ class DisputeViewModel(
 
   private var observing: Job? = null
 
+  /** The last dispute shown, or null until one is loaded. */
+  private var shown: Dispute? = null
+
   init {
     viewModelScope.launch {
       connectivityRepository.isOnline.collect { online ->
@@ -133,52 +151,67 @@ class DisputeViewModel(
    */
   fun counter(lenderPercent: Int) {
     if (!_uiState.value.canPropose || lenderPercent !in 0..100) return
-    send { uid -> disputeRepository.propose(rentalId, uid, lenderPercent) }
+    send(DisputeActionError.PROPOSE) { uid ->
+      disputeRepository.propose(rentalId, uid, lenderPercent)
+    }
   }
 
   /** Accepts the other person's proposal. Does nothing unless [DisputeUiState.canAccept]. */
   fun accept() {
     val shown = _uiState.value.latestProposal
     if (!_uiState.value.canAccept || shown == null) return
-    send { uid -> disputeRepository.accept(rentalId, uid, shown.lenderPercent) }
+    send(DisputeActionError.ACCEPT) { uid ->
+      disputeRepository.accept(rentalId, uid, shown.lenderPercent)
+    }
   }
 
   /** Moves the dispute on to the next stage. Does nothing unless [DisputeUiState.canEscalate]. */
   fun escalate() {
     if (!_uiState.value.canEscalate) return
-    send { uid -> disputeRepository.escalate(rentalId, uid) }
+    send(DisputeActionError.ESCALATE) { uid -> disputeRepository.escalate(rentalId, uid) }
   }
 
   /**
    * Runs [request] as the signed-in user, with [DisputeUiState.isSending] set meanwhile so no
    * second action starts. The new dispute arrives through the observer; a failure (or nobody signed
-   * in) sets [DisputeUiState.actionFailed].
+   * in) sets [DisputeUiState.actionError] to [error], or to [DisputeActionError.PROPOSAL_CHANGED]
+   * when the proposal accepted was no longer the one on the table.
    */
-  private fun send(request: suspend (uid: String) -> Result<Unit>) {
+  private fun send(
+      error: DisputeActionError,
+      request: suspend (uid: String) -> Result<Unit>,
+  ) {
     val uid = authRepository.getCurrentUser()?.uid
-    _uiState.update { it.copy(isSending = true, actionFailed = false) }
+    _uiState.update { it.copy(isSending = true, actionError = null) }
     viewModelScope.launch {
-      val failed = uid == null || request(uid).isFailure
-      _uiState.update { it.copy(isSending = false, actionFailed = failed) }
+      val failure = if (uid == null) null else request(uid).exceptionOrNull()
+      val actionError =
+          when {
+            failure is ProposalChangedException -> DisputeActionError.PROPOSAL_CHANGED
+            uid == null || failure != null -> error
+            else -> null
+          }
+      _uiState.update { it.copy(isSending = false, actionError = actionError) }
     }
   }
 
   private fun observe() {
     observing?.cancel()
-    _uiState.update { it.copy(isLoading = true, errorMsg = null) }
+    // Once a dispute is shown, loading it again keeps it on screen.
+    if (shown == null) _uiState.update { it.copy(isLoading = true, loadFailed = false) }
     val uid = authRepository.getCurrentUser()?.uid
     if (uid == null) {
-      showError("")
+      fail()
       return
     }
     observing = viewModelScope.launch {
       val rental =
           rentalRepository.getRental(rentalId).getOrElse {
-            showError(it.message ?: "")
+            fail()
             return@launch
           }
       if (rental == null || uid !in rental.participants) {
-        showError("")
+        fail()
         return@launch
       }
       _uiState.update {
@@ -190,23 +223,27 @@ class DisputeViewModel(
       }
       disputeRepository
           .observeDispute(rentalId)
-          .catch { e -> showError(e.message ?: "") }
-          .collect { dispute -> if (dispute == null) showError("") else show(dispute, uid) }
+          .catch { fail() }
+          .collect { dispute -> if (dispute == null) fail() else show(dispute, uid) }
     }
   }
 
-  private fun show(dispute: Dispute, uid: String) = _uiState.update {
-    it.copy(
-        stage = dispute.stage,
-        history =
-            dispute.proposals.reversed().map { p ->
-              ProposalRow(p.authorId == uid, p.lenderPercent, p.createdAt)
-            },
-        isSettled = dispute.isSettled,
-        daysUntilEscalation = daysUntil(dispute.escalatesAt),
-        isLoading = false,
-        errorMsg = null,
-    )
+  private fun show(dispute: Dispute, uid: String) {
+    shown = dispute
+    _uiState.update {
+      it.copy(
+          stage = dispute.stage,
+          history =
+              dispute.proposals.reversed().map { p ->
+                ProposalRow(p.authorId == uid, p.lenderPercent, p.createdAt)
+              },
+          isSettled = dispute.isSettled,
+          daysUntilEscalation = daysUntil(dispute.escalatesAt),
+          isLoading = false,
+          loadFailed = false,
+          refreshFailed = false,
+      )
+    }
   }
 
   /** The whole days left until [deadline], rounded up; 0 once it has passed. */
@@ -215,8 +252,13 @@ class DisputeViewModel(
     return if (seconds <= 0) 0 else ((seconds + SECONDS_PER_DAY - 1) / SECONDS_PER_DAY).toInt()
   }
 
-  private fun showError(message: String) = _uiState.update {
-    it.copy(isLoading = false, errorMsg = message)
+  /**
+   * A failed load: the whole screen shows the error if no dispute was shown yet; otherwise the last
+   * one stays, with a note.
+   */
+  private fun fail() = _uiState.update {
+    if (shown == null) it.copy(isLoading = false, loadFailed = true)
+    else it.copy(refreshFailed = true)
   }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */

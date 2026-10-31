@@ -97,7 +97,7 @@ class DisputeViewModelTest {
     val state = viewModel().uiState.value
 
     assertFalse(state.isLoading)
-    assertNull(state.errorMsg)
+    assertFalse(state.loadFailed)
     assertEquals("Bike pump", state.itemTitle)
     assertEquals("Ana", state.otherPersonName)
     assertFalse(state.isLender)
@@ -147,40 +147,40 @@ class DisputeViewModelTest {
   fun errorWhenNobodyIsSignedIn() {
     auth.signedInUser = null
 
-    assertEquals("", viewModel().uiState.value.errorMsg)
+    assertTrue(viewModel().uiState.value.loadFailed)
   }
 
   @Test
   fun errorWhenTheRentalIsMissingOrNotTheUsers() {
-    assertEquals("", viewModel(rentalId = "other").uiState.value.errorMsg)
+    assertTrue(viewModel(rentalId = "other").uiState.value.loadFailed)
 
     auth.signedInUser = AuthUser(uid = "eve", email = "eve@epfl.ch", name = "Eve")
 
-    assertEquals("", viewModel().uiState.value.errorMsg)
+    assertTrue(viewModel().uiState.value.loadFailed)
   }
 
   @Test
   fun errorWhenTheRentalHasNoDispute() {
     disputes = FakeDisputeRepository()
 
-    assertEquals("", viewModel().uiState.value.errorMsg)
+    assertTrue(viewModel().uiState.value.loadFailed)
   }
 
   @Test
-  fun errorShowsTheCauseWhenTheRentalCannotBeRead() {
+  fun errorWhenTheRentalCannotBeRead() {
     rentals.failure = IOException("offline")
 
     val state = viewModel().uiState.value
 
     assertFalse(state.isLoading)
-    assertEquals("offline", state.errorMsg)
+    assertTrue(state.loadFailed)
   }
 
   @Test
-  fun errorShowsTheCauseWhenTheDisputeCannotBeRead() {
+  fun errorWhenTheDisputeCannotBeRead() {
     disputes.failure = IOException("denied")
 
-    assertEquals("denied", viewModel().uiState.value.errorMsg)
+    assertTrue(viewModel().uiState.value.loadFailed)
   }
 
   @Test
@@ -191,7 +191,7 @@ class DisputeViewModelTest {
     rentals.failure = null
     vm.retry()
 
-    assertNull(vm.uiState.value.errorMsg)
+    assertFalse(vm.uiState.value.loadFailed)
     assertNotNull(vm.uiState.value.latestProposal)
   }
 
@@ -215,7 +215,7 @@ class DisputeViewModelTest {
     vm.counter(-1)
 
     assertEquals(2, disputes.disputes.single().proposals.size)
-    assertFalse(vm.uiState.value.actionFailed)
+    assertNull(vm.uiState.value.actionError)
   }
 
   @Test
@@ -236,7 +236,7 @@ class DisputeViewModelTest {
     vm.accept()
 
     assertFalse(vm.uiState.value.isSettled)
-    assertFalse(vm.uiState.value.actionFailed)
+    assertNull(vm.uiState.value.actionError)
   }
 
   @Test
@@ -293,12 +293,12 @@ class DisputeViewModelTest {
 
     disputes.failure = IOException("offline")
     vm.counter(50)
-    assertTrue(vm.uiState.value.actionFailed)
+    assertEquals(DisputeActionError.PROPOSE, vm.uiState.value.actionError)
     assertEquals(70, vm.uiState.value.latestProposal?.lenderPercent)
 
     disputes.failure = null
     vm.counter(50)
-    assertFalse(vm.uiState.value.actionFailed)
+    assertNull(vm.uiState.value.actionError)
     assertEquals(ProposalRow(true, 50, now), vm.uiState.value.latestProposal)
 
     runBlocking { disputes.accept("pump", "ana", 50) }
