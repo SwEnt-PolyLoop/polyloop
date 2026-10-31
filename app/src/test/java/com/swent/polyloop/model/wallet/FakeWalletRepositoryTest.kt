@@ -52,6 +52,17 @@ class FakeWalletRepositoryTest {
   }
 
   @Test
+  fun historyAmountsAddUpToTheAvailableBalanceFromAnEmptyWallet() = runTest {
+    val repository = repository(wallet = Wallet(), history = emptyList())
+
+    listOf(WalletRepository.MIN_RECHARGE, 30, WalletRepository.MAX_RECHARGE, 7).forEach {
+      repository.recharge("me", it)
+    }
+
+    assertEquals(repository.wallet.available, repository.history.sumOf { it.amount })
+  }
+
+  @Test
   fun rechargeAppendsARechargeTransactionWithAPositiveAmountAndNoItemTitle() = runTest {
     val repository = repository()
 
@@ -190,13 +201,54 @@ class FakeWalletRepositoryTest {
   }
 
   @Test
-  fun rechargeOfLessThanOneChfFailsAndChangesNothing() = runTest {
+  fun rechargeOfZeroOrLessFailsAndChangesNothing() = runTest {
     val repository = repository()
 
-    val result = repository.recharge("me", 0)
+    listOf(0, -1).forEach {
+      val result = repository.recharge("me", it)
+
+      assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+    }
+    assertEquals(Wallet(50, 20), repository.wallet)
+    assertEquals(listOf(deposit), repository.history)
+  }
+
+  @Test
+  fun rechargeOfTheMinimumIsAccepted() = runTest {
+    val result = repository().recharge("me", WalletRepository.MIN_RECHARGE)
+
+    assertEquals(Wallet(available = 51, heldAsDeposits = 20), result.getOrNull())
+  }
+
+  @Test
+  fun rechargeOfTheMaximumIsAccepted() = runTest {
+    val result = repository().recharge("me", WalletRepository.MAX_RECHARGE)
+
+    assertEquals(
+        Wallet(available = 50 + WalletRepository.MAX_RECHARGE, heldAsDeposits = 20),
+        result.getOrNull(),
+    )
+  }
+
+  @Test
+  fun rechargeAboveTheMaximumFailsAndChangesNothing() = runTest {
+    val repository = repository()
+
+    val result = repository.recharge("me", WalletRepository.MAX_RECHARGE + 1)
 
     assertTrue(result.exceptionOrNull() is IllegalArgumentException)
     assertEquals(Wallet(50, 20), repository.wallet)
+    assertEquals(listOf(deposit), repository.history)
+  }
+
+  @Test
+  fun rechargeThatWouldOverflowTheBalanceFailsAndChangesNothing() = runTest {
+    val repository = repository(wallet = Wallet(available = Int.MAX_VALUE - 5, heldAsDeposits = 0))
+
+    val result = repository.recharge("me", 10)
+
+    assertTrue(result.exceptionOrNull() is ArithmeticException)
+    assertEquals(Wallet(available = Int.MAX_VALUE - 5), repository.wallet)
     assertEquals(listOf(deposit), repository.history)
   }
 

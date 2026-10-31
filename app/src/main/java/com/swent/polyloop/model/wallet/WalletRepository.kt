@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.wallet
 
+import com.swent.polyloop.model.listing.Listing
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -36,9 +37,20 @@ interface WalletRepository {
    * simulated: no real money moves.
    *
    * @param uid the user who recharges.
-   * @param chf the amount in whole CHF. The caller checks it first; the server checks it again.
+   * @param chf the amount in whole CHF, from [MIN_RECHARGE] to [MAX_RECHARGE]. The caller checks it
+   *   first; the server checks it again.
    * @return a success with the [Wallet] as it is after the recharge, or a failure with the cause if
-   *   the request was refused or could not be sent (e.g. no connection).
+   *   the request was refused or could not be sent (e.g. no connection). An amount outside the
+   *   range fails with an [IllegalArgumentException], and a recharge that would overflow the
+   *   balance fails with an [ArithmeticException]; nothing changes in both cases.
    */
   suspend fun recharge(uid: String, chf: Int): Result<Wallet>
+
+  companion object {
+    /** Lowest amount of one recharge, in whole PP (1 CHF = 1 PP). */
+    const val MIN_RECHARGE = 1
+
+    /** Highest amount of one recharge, in whole PP: the same cap as a listing price. */
+    const val MAX_RECHARGE = Listing.MAX_AMOUNT
+  }
 }

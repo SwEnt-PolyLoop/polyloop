@@ -121,10 +121,11 @@ class FakeWalletRepository(
    *
    * @param uid the user who recharges; the fake holds a single wallet, so only a blank value
    *   matters.
-   * @param chf the amount in whole CHF.
-   * @return a success with the wallet after the recharge; a failure with [failure] if it is set, or
-   *   with an [IllegalArgumentException] if [uid] is blank or [chf] is less than 1. Nothing changes
-   *   on a failure.
+   * @param chf the amount in whole CHF, from [WalletRepository.MIN_RECHARGE] to
+   *   [WalletRepository.MAX_RECHARGE].
+   * @return a success with the wallet after the recharge; a failure with [failure] if it is set,
+   *   with an [IllegalArgumentException] if [uid] is blank or [chf] is out of range, or with an
+   *   [ArithmeticException] if the new balance would overflow. Nothing changes on a failure.
    */
   override suspend fun recharge(uid: String, chf: Int): Result<Wallet> {
     sent += uid to chf
@@ -135,23 +136,32 @@ class FakeWalletRepository(
     if (uid.isBlank()) {
       return Result.failure(IllegalArgumentException("uid is blank"))
     }
-    if (chf < 1) {
-      return Result.failure(IllegalArgumentException("chf $chf is less than 1"))
-    }
-    val recharged = state.updateAndGet {
-      State(
-          wallet = it.wallet.copy(available = it.wallet.available + chf),
-          history =
-              it.history +
-                  WalletTransaction(
-                      id = newId(it.history),
-                      type = WalletTransactionType.RECHARGE,
-                      amount = chf,
-                      itemTitle = "",
-                      date = clock(),
-                  ),
+    if (chf !in WalletRepository.MIN_RECHARGE..WalletRepository.MAX_RECHARGE) {
+      return Result.failure(
+          IllegalArgumentException(
+              "chf $chf is not in ${WalletRepository.MIN_RECHARGE}..${WalletRepository.MAX_RECHARGE}"
+          )
       )
     }
+    val recharged =
+        try {
+          state.updateAndGet {
+            State(
+                wallet = it.wallet.copy(available = Math.addExact(it.wallet.available, chf)),
+                history =
+                    it.history +
+                        WalletTransaction(
+                            id = newId(it.history),
+                            type = WalletTransactionType.RECHARGE,
+                            amount = chf,
+                            itemTitle = "",
+                            date = clock(),
+                        ),
+            )
+          }
+        } catch (e: ArithmeticException) {
+          return Result.failure(e)
+        }
     return Result.success(recharged.wallet)
   }
 
