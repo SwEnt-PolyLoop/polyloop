@@ -11,8 +11,8 @@ import kotlinx.coroutines.flow.Flow
 interface DisputeRepository {
 
   /**
-   * The dispute of the rental [rentalId], emitted again every time it changes, or null if the rental
-   * has none. A read error is thrown to the collector, which handles it with `catch`.
+   * The dispute of the rental [rentalId], emitted again every time it changes, or null if the
+   * rental has none. A read error is thrown to the collector, which handles it with `catch`.
    */
   fun observeDispute(rentalId: String): Flow<Dispute?>
 
@@ -25,8 +25,8 @@ interface DisputeRepository {
 
   /**
    * Accepts, as [uid], the latest proposal of the dispute, which settles it. Fails if the dispute
-   * does not exist, has no proposal, is no longer in [DisputeStage.SETTLE], is settled, if the latest
-   * proposal is [uid]'s own, or if it cannot be written.
+   * does not exist, has no proposal, is no longer in [DisputeStage.SETTLE], is settled, if the
+   * latest proposal is [uid]'s own, or if it cannot be written.
    */
   suspend fun accept(rentalId: String, uid: String): Result<Unit>
 

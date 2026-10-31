@@ -47,20 +47,22 @@ class FakeDisputeRepository(
         it.copy(proposals = it.proposals + Proposal(authorId, lenderPercent, clock()))
       }
 
-  override suspend fun accept(rentalId: String, uid: String) = change(rentalId) {
-    check(it.stage == DisputeStage.SETTLE && !it.isSettled) { "Proposals are closed" }
-    val latest = checkNotNull(it.latestProposal) { "There is no proposal to accept" }
-    check(latest.authorId != uid) { "$uid cannot accept their own proposal" }
-    it.copy(agreedAt = clock())
-  }
+  override suspend fun accept(rentalId: String, uid: String) =
+      change(rentalId) {
+        check(it.stage == DisputeStage.SETTLE && !it.isSettled) { "Proposals are closed" }
+        val latest = checkNotNull(it.latestProposal) { "There is no proposal to accept" }
+        check(latest.authorId != uid) { "$uid cannot accept their own proposal" }
+        it.copy(agreedAt = clock())
+      }
 
-  override suspend fun escalate(rentalId: String) = change(rentalId) {
-    check(it.stage != DisputeStage.COURT && !it.isSettled) { "The dispute cannot move on" }
-    it.copy(
-        stage = DisputeStage.entries[it.stage.ordinal + 1],
-        escalatesAt = clock() + ESCALATION_PERIOD,
-    )
-  }
+  override suspend fun escalate(rentalId: String) =
+      change(rentalId) {
+        check(it.stage != DisputeStage.COURT && !it.isSettled) { "The dispute cannot move on" }
+        it.copy(
+            stage = DisputeStage.entries[it.stage.ordinal + 1],
+            escalatesAt = clock() + ESCALATION_PERIOD,
+        )
+      }
 
   /** Applies [update] to the dispute of [rentalId], or fails like the real repository would. */
   private suspend fun change(rentalId: String, update: (Dispute) -> Dispute): Result<Unit> {
@@ -75,7 +77,9 @@ class FakeDisputeRepository(
   }
 
   companion object {
-    /** How long a stage lasts before escalating on its own (the Cloud Function decides for real). */
+    /**
+     * How long a stage lasts before escalating on its own (the Cloud Function decides for real).
+     */
     val ESCALATION_PERIOD: Duration = Duration.ofDays(30)
   }
 }
