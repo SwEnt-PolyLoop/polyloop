@@ -16,8 +16,10 @@ import java.io.IOException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -191,5 +193,116 @@ class DisputeViewModelTest {
 
     assertNull(vm.uiState.value.errorMsg)
     assertNotNull(vm.uiState.value.latestProposal)
+  }
+
+  // ---------- actions ----------
+
+  @Test
+  fun counterSendsMyProposal() {
+    val vm = viewModel()
+
+    vm.counter(55)
+
+    assertEquals(ProposalRow(true, 55, now), vm.uiState.value.latestProposal)
+    assertFalse(vm.uiState.value.canAccept)
+  }
+
+  @Test
+  fun counterOutsideZeroToAHundredSendsNothing() {
+    val vm = viewModel()
+
+    vm.counter(101)
+    vm.counter(-1)
+
+    assertEquals(2, disputes.disputes.single().proposals.size)
+    assertFalse(vm.uiState.value.actionFailed)
+  }
+
+  @Test
+  fun acceptSettlesTheDispute() {
+    val vm = viewModel()
+
+    vm.accept()
+
+    assertTrue(vm.uiState.value.isSettled)
+    assertFalse(vm.uiState.value.canEscalate)
+  }
+
+  @Test
+  fun acceptDoesNothingOnMyOwnProposal() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+
+    vm.accept()
+
+    assertFalse(vm.uiState.value.isSettled)
+    assertFalse(vm.uiState.value.actionFailed)
+  }
+
+  @Test
+  fun escalateMovesToTheLlmStageAndRestartsTheCountdown() {
+    val vm = viewModel()
+
+    vm.escalate()
+
+    assertEquals(DisputeStage.LLM_PROPOSAL, vm.uiState.value.stage)
+    assertEquals(30, vm.uiState.value.daysUntilEscalation)
+  }
+
+  @Test
+  fun escalateFromTheLlmStageMovesToCourt() {
+    val vm = viewModel()
+
+    vm.escalate()
+    vm.escalate()
+
+    assertEquals(DisputeStage.COURT, vm.uiState.value.stage)
+    assertFalse(vm.uiState.value.canEscalate)
+  }
+
+  @Test
+  fun actionsDoNothingOffline() {
+    connectivity.setOnline(false)
+    val vm = viewModel()
+
+    vm.counter(50)
+    vm.accept()
+    vm.escalate()
+
+    assertEquals(open, disputes.disputes.single())
+  }
+
+  @Test
+  fun noSecondActionWhileOneIsSending() {
+    val gate = CompletableDeferred<Unit>()
+    disputes.gate = gate
+    val vm = viewModel()
+
+    vm.escalate()
+    assertTrue(vm.uiState.value.isSending)
+    vm.escalate()
+    gate.complete(Unit)
+
+    assertFalse(vm.uiState.value.isSending)
+    assertEquals(DisputeStage.LLM_PROPOSAL, vm.uiState.value.stage)
+  }
+
+  @Test
+  fun borrowerCountersRetriesAfterAFailureAndSeesTheLenderAccept() {
+    val vm = viewModel()
+
+    disputes.failure = IOException("offline")
+    vm.counter(50)
+    assertTrue(vm.uiState.value.actionFailed)
+    assertEquals(70, vm.uiState.value.latestProposal?.lenderPercent)
+
+    disputes.failure = null
+    vm.counter(50)
+    assertFalse(vm.uiState.value.actionFailed)
+    assertEquals(ProposalRow(true, 50, now), vm.uiState.value.latestProposal)
+
+    runBlocking { disputes.accept("pump", "ana") }
+
+    assertTrue(vm.uiState.value.isSettled)
   }
 }
