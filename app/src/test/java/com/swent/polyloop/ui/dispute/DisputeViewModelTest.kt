@@ -267,6 +267,31 @@ class DisputeViewModelTest {
   }
 
   @Test
+  fun acceptOfAProposalThatChangedSettlesNothingAndSaysSo() {
+    val vm = viewModel()
+    // Ana's update reaches the server before the screen.
+    disputes.gate = CompletableDeferred()
+    vm.accept()
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+    disputes.gate?.complete(Unit)
+
+    assertFalse(vm.uiState.value.isSettled)
+    assertEquals(DisputeActionError.PROPOSAL_CHANGED, vm.uiState.value.actionError)
+  }
+
+  @Test
+  fun failedAcceptAndEscalateNameTheirAction() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+
+    vm.accept()
+    assertEquals(DisputeActionError.ACCEPT, vm.uiState.value.actionError)
+
+    vm.escalate()
+    assertEquals(DisputeActionError.ESCALATE, vm.uiState.value.actionError)
+  }
+
+  @Test
   fun escalateMovesToTheLlmStageAndRestartsTheCountdown() {
     val vm = viewModel()
 
