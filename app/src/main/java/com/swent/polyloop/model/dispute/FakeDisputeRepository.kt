@@ -55,12 +55,13 @@ class FakeDisputeRepository(
         it.copy(agreedAt = clock())
       }
 
-  override suspend fun escalate(rentalId: String) =
+  override suspend fun escalate(rentalId: String, uid: String) =
       change(rentalId) {
         check(it.stage != DisputeStage.COURT && !it.isSettled) { "The dispute cannot move on" }
         it.copy(
             stage = DisputeStage.entries[it.stage.ordinal + 1],
             escalatesAt = clock() + ESCALATION_PERIOD,
+            escalatedBy = uid,
         )
       }
 

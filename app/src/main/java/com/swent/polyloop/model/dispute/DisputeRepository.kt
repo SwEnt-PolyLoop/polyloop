@@ -31,9 +31,9 @@ interface DisputeRepository {
   suspend fun accept(rentalId: String, uid: String): Result<Unit>
 
   /**
-   * Moves the dispute on to the next stage right away, which restarts the time left before the next
-   * automatic escalation. Fails if the dispute does not exist, is settled, is already in
-   * [DisputeStage.COURT], or cannot be written.
+   * Moves the dispute on to the next stage right away, as [uid], which restarts the time left
+   * before the next automatic escalation. Fails if the dispute does not exist, is settled, is
+   * already in [DisputeStage.COURT], or cannot be written.
    */
-  suspend fun escalate(rentalId: String): Result<Unit>
+  suspend fun escalate(rentalId: String, uid: String): Result<Unit>
 }

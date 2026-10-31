@@ -66,19 +66,22 @@ class FakeDisputeRepositoryTest {
   }
 
   @Test
-  fun escalateMovesOnAndRestartsTheDeadline() = runTest {
+  fun escalateMovesOnRestartsTheDeadlineAndRecordsWhoEscalated() = runTest {
     val repository = repository()
 
-    assertTrue(repository.escalate("rental").isSuccess)
+    assertTrue(repository.escalate("rental", "lender").isSuccess)
 
     val dispute = repository.current()
     assertEquals(DisputeStage.LLM_PROPOSAL, dispute.stage)
     assertEquals(now + FakeDisputeRepository.ESCALATION_PERIOD, dispute.escalatesAt)
+    assertEquals("lender", dispute.escalatedBy)
   }
 
   @Test
   fun escalateFailsInCourt() = runTest {
-    assertTrue(repository(open.copy(stage = DisputeStage.COURT)).escalate("rental").isFailure)
+    assertTrue(
+        repository(open.copy(stage = DisputeStage.COURT)).escalate("rental", "lender").isFailure
+    )
   }
 
   @Test
@@ -91,7 +94,7 @@ class FakeDisputeRepositoryTest {
     val repository = repository()
     repository.failure = IOException("offline")
 
-    assertTrue(repository.escalate("rental").isFailure)
+    assertTrue(repository.escalate("rental", "lender").isFailure)
     try {
       repository.observeDispute("rental").first()
       fail("The observer should throw the failure")

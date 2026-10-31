@@ -145,7 +145,7 @@ class DisputeViewModel(
   /** Moves the dispute on to the next stage. Does nothing unless [DisputeUiState.canEscalate]. */
   fun escalate() {
     if (!_uiState.value.canEscalate) return
-    send { disputeRepository.escalate(rentalId) }
+    send { uid -> disputeRepository.escalate(rentalId, uid) }
   }
 
   /**
