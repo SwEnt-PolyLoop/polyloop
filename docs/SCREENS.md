@@ -151,12 +151,12 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
 
 ## Dispute
 
-The Dispute screen walks both parties through the three settlement stages until the deposit is split. ViewModel: DisputeViewModel, using DisputeRepository, HandoverRepository, RentalRepository and ListingRepository.
+The Dispute screen walks both parties through the three settlement stages until the deposit is split. ViewModel: DisputeViewModel, using DisputeRepository, HandoverRepository and RentalRepository (the item, the other person and the deposit).
 
 - A header with the item, the deposit amount, and the current stage.
 - Pickup and return photos side by side, as evidence.
-- **Stage 1, direct settlement.** Each party proposes a split as a percentage of the deposit (for example 70% to the lender, 30% to the borrower). The other can accept it or counter. The history of proposals is visible. An “Escalate” button moves to stage 2, and escalation happens automatically after 30 days without agreement.
-- **Stage 2, LLM proposal.** A card with the proposed split and the LLM's reasoning, plus “Accept” and “Reject” for each party. If both accept, the split is applied and the rental closes.
+- **Stage 1, direct settlement.** Each party proposes a split as a percentage of the deposit (for example 70% to the lender, 30% to the borrower). The other can accept it or counter. The history of proposals is visible. An “Escalate now” button moves to stage 2 at once; otherwise escalation happens automatically after 30 days without agreement, and the screen shows the days left.
+- **Stage 2, LLM proposal.** A card with the proposed split and the LLM's reasoning, plus “Accept” and “Reject” for each party. If both accept, the split is applied and the rental closes. “Escalate now” stays, to move to stage 3 at once; moving to a new stage restarts the 30 days before automatic escalation.
 - **Stage 3, court ruling.** If either party rejects, the deposit stays frozen. Either party can then upload the court ruling as a PDF. The screen shows its status: “Waiting for review”, then applied or rejected by an admin.
 - The rental chat is disabled while the dispute is open.
 
