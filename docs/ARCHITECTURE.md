@@ -83,8 +83,8 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 - Admins are identified by a Firebase custom claim.
 
 **Money (PolyPoints)**
-- In-app currency: PolyPoints (PP), 1 CHF = 1 PP. Recharge with any CHF amount on the Wallet screen. Payments are simulated. No withdrawals.
-- Sending a request reserves the rental price (price per day × days) from the borrower's balance; the request fails if the balance is too low.
+- In-app currency: PolyPoints (PP), 1 CHF = 1 PP. Recharge on the Wallet screen with a whole CHF amount from 1 to 99,999 (the same cap as a listing price); a recharge that would overflow the balance is refused. Payments are simulated. No withdrawals.
+- Sending a request reserves the rental price (price per day × days) from the borrower's balance; the request fails if the balance is too low. The wallet shows that price as `heldForRentals` and the deposits as `heldAsDeposits`; `reserved` is their sum, computed and never stored, and `available` + `reserved` is the user's total. A missing field reads as 0.
 - The deposit is negotiated in chat before acceptance. The lender enters the agreed deposit when accepting; it is reserved then, and acceptance fails if the balance is too low. The item value is shown as the suggested deposit.
 
 **Listings and booking**
