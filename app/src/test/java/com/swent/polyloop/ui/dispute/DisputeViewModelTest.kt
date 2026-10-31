@@ -422,4 +422,39 @@ class DisputeViewModelTest {
 
     assertTrue(vm.uiState.value.isSettled)
   }
+
+  // ---------- what the other person did ----------
+
+  @Test
+  fun theirNewOfferIsToldUntilMyNextAction() {
+    val vm = viewModel()
+    assertFalse(vm.uiState.value.offerUpdated)
+
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now))))
+    assertTrue(vm.uiState.value.showsOfferUpdated)
+
+    vm.startEditing()
+    assertFalse(vm.uiState.value.offerUpdated)
+  }
+
+  @Test
+  fun myOwnNewOfferIsNotTold() {
+    val vm = viewModel()
+
+    propose(vm, 50)
+
+    assertFalse(vm.uiState.value.offerUpdated)
+  }
+
+  @Test
+  fun aFailedAcceptHidesTheNewOfferItFailedOn() {
+    val vm = viewModel()
+    disputes.gate = CompletableDeferred()
+    vm.accept()
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+    disputes.gate?.complete(Unit)
+
+    assertTrue(vm.uiState.value.offerUpdated)
+    assertFalse(vm.uiState.value.showsOfferUpdated)
+  }
 }
