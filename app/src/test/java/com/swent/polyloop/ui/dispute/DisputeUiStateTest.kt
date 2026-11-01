@@ -64,6 +64,14 @@ class DisputeUiStateTest {
   }
 
   @Test
+  fun loadingOrAFailedLoadAllowsNoAction() {
+    for (state in listOf(open.copy(isLoading = true), open.copy(loadFailed = true))) {
+      assertFalse(state.canPropose)
+      assertFalse(state.canEscalate)
+    }
+  }
+
+  @Test
   fun offlineOrSendingAllowsNoAction() {
     for (state in listOf(open.copy(isOnline = false), open.copy(isSending = true))) {
       assertFalse(state.canPropose)

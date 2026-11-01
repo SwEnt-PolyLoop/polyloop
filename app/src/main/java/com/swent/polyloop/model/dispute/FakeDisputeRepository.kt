@@ -41,6 +41,11 @@ class FakeDisputeRepository(
     stored.value = stored.value + (dispute.rentalId to dispute)
   }
 
+  /** Deletes the dispute of [rentalId] as the server would; observers then see null. */
+  fun remove(rentalId: String) {
+    stored.value = stored.value - rentalId
+  }
+
   override fun observeDispute(rentalId: String): Flow<Dispute?> =
       stored
           .map {

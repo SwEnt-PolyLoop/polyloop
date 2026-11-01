@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.dispute
 
+import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
@@ -222,6 +223,18 @@ class DisputeViewModelTest {
     assertEquals(40, state.latestProposal?.lenderPercent)
   }
 
+  @Test
+  fun aDisputeGoneAfterItWasShownIsARefreshFailure() {
+    val vm = viewModel()
+
+    disputes.remove("pump")
+
+    val state = vm.uiState.value
+    assertTrue(state.refreshFailed)
+    assertFalse(state.loadFailed)
+    assertEquals(70, state.latestProposal?.lenderPercent)
+  }
+
   // ---------- actions ----------
 
   /** Opens the editor of [vm], moves the draft to [lenderPercent] and sends it. */
@@ -249,6 +262,29 @@ class DisputeViewModelTest {
     assertEquals(ProposalRow(true, 55, now), vm.uiState.value.latestProposal)
     assertFalse(vm.uiState.value.isEditing)
     assertFalse(vm.uiState.value.canAccept)
+  }
+
+  @Test
+  fun theDraftDoesNotMoveWhileTheEditorIsClosed() {
+    val vm = viewModel()
+
+    vm.setDraft(50)
+
+    assertNull(vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun aProposalSentAfterSigningOutFailsAndKeepsTheDraft() {
+    val vm = viewModel()
+    vm.startEditing()
+    vm.setDraft(50)
+
+    auth.signedInUser = null
+    vm.sendDraft()
+
+    assertEquals(DisputeActionError.PROPOSE, vm.uiState.value.actionError)
+    assertEquals(50, vm.uiState.value.draftLenderPercent)
+    assertEquals(open, disputes.disputes.single())
   }
 
   @Test
@@ -492,4 +528,23 @@ class DisputeViewModelTest {
 
     assertNull(vm.uiState.value.escalationNotice)
   }
+
+  // ---------- factory ----------
+
+  @Test
+  fun factoryCreatesTheViewModel() {
+    val vm =
+        DisputeViewModel.Factory("pump", disputes, rentals, auth, connectivity)
+            .create(DisputeViewModel::class.java)
+
+    assertEquals("Bike pump", vm.uiState.value.itemTitle)
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun factoryRejectsOtherViewModels() {
+    DisputeViewModel.Factory("pump", disputes, rentals, auth, connectivity)
+        .create(OtherViewModel::class.java)
+  }
+
+  private class OtherViewModel : ViewModel()
 }

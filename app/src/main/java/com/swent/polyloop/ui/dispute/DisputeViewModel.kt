@@ -60,8 +60,8 @@ enum class EscalationNotice {
  * [history] holds every proposal, newest first; the first one is the proposal on the table.
  * [otherPersonName] is "" when the name is missing; the screen then shows a placeholder.
  * [daysUntilEscalation] is the number of days, rounded up, before the dispute moves on to the next
- * stage on its own; 0 means today. [loadFailed] is true when the dispute cannot be loaded (or
- * nobody is signed in, or the user does not take part in the rental) and nothing was shown yet;
+ * stage on its own; 0 once it has passed. [loadFailed] is true when the dispute cannot be loaded
+ * (or nobody is signed in, or the user does not take part in the rental) and nothing was shown yet;
  * [refreshFailed] is true when it could not be loaded again after it was shown, which keeps the
  * last state on screen. [actionError] is what the last proposal, acceptance or escalation could not
  * do; the next one clears it. [draftLenderPercent] is the split the user is editing, as the
@@ -106,9 +106,9 @@ data class DisputeUiState(
   val youGetBackTenths: Int?
     get() = latestProposal?.let { shareInTenths(deposit, it.lenderPercent, isLender) }
 
-  /** True when the user can send a proposal: online, not sending, still settling. */
+  /** True when the user can send a proposal: loaded, online, not sending, still settling. */
   val canPropose: Boolean
-    get() = isOnline && !isSending && !isSettled && stage == DisputeStage.SETTLE
+    get() = isLoaded && isOnline && !isSending && !isSettled && stage == DisputeStage.SETTLE
 
   /** True while the user edits a split. */
   val isEditing: Boolean
@@ -140,9 +140,16 @@ data class DisputeUiState(
   val nextStage: DisputeStage?
     get() = DisputeStage.entries.getOrNull(stage.ordinal + 1)
 
-  /** True when the user can move the dispute on: online, not sending, unsettled, not in court. */
+  /**
+   * True when the user can move the dispute on: loaded, online, not sending, unsettled, not in
+   * court.
+   */
   val canEscalate: Boolean
-    get() = isOnline && !isSending && !isSettled && stage != DisputeStage.COURT
+    get() = isLoaded && isOnline && !isSending && !isSettled && stage != DisputeStage.COURT
+
+  /** True once a dispute is shown: not while it first loads, nor when that load failed. */
+  private val isLoaded: Boolean
+    get() = !isLoading && !loadFailed
 }
 
 /**
