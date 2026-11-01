@@ -411,10 +411,12 @@ class DisputeViewModelTest {
     propose(vm, 50)
     assertEquals(DisputeActionError.PROPOSE, vm.uiState.value.actionError)
     assertEquals(70, vm.uiState.value.latestProposal?.lenderPercent)
-    assertFalse(vm.uiState.value.isEditing)
+    // The editor stays open on the draft, so the same split can be sent again.
+    assertEquals(50, vm.uiState.value.draftLenderPercent)
 
     disputes.failure = null
-    propose(vm, 50)
+    vm.sendDraft()
+    assertFalse(vm.uiState.value.isEditing)
     assertNull(vm.uiState.value.actionError)
     assertEquals(ProposalRow(true, 50, now), vm.uiState.value.latestProposal)
 

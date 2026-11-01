@@ -215,15 +215,17 @@ class DisputeViewModel(
   fun cancelEditing() = _uiState.update { it.copy(draftLenderPercent = null) }
 
   /**
-   * Sends the draft as a first proposal, a counter-proposal or an update of the user's own, and
-   * closes the editor, whether the proposal goes through or not. Does nothing unless
-   * [DisputeUiState.canSend], so the split already on the table is never sent again.
+   * Sends the draft as a first proposal, a counter-proposal or an update of the user's own. The
+   * editor closes once the proposal goes through, and stays open with the draft if it fails, so the
+   * user can send it again. Does nothing unless [DisputeUiState.canSend], so the split already on
+   * the table is never sent again.
    */
   fun sendDraft() {
     val draft = _uiState.value.draftLenderPercent
     if (!_uiState.value.canSend || draft == null) return
-    _uiState.update { it.copy(draftLenderPercent = null) }
-    send(DisputeActionError.PROPOSE) { uid -> disputeRepository.propose(rentalId, uid, draft) }
+    send(DisputeActionError.PROPOSE, closesEditor = true) { uid ->
+      disputeRepository.propose(rentalId, uid, draft)
+    }
   }
 
   /** Accepts the other person's proposal. Does nothing unless [DisputeUiState.canAccept]. */
@@ -260,10 +262,12 @@ class DisputeViewModel(
    * Runs [request] as the signed-in user, with [DisputeUiState.isSending] set meanwhile so no
    * second action starts. The new dispute arrives through the observer; a failure (or nobody signed
    * in) sets [DisputeUiState.actionError] to [error], or to [DisputeActionError.PROPOSAL_CHANGED]
-   * when the proposal accepted was no longer the one on the table.
+   * when the proposal accepted was no longer the one on the table. A success also closes the split
+   * editor if [closesEditor].
    */
   private fun send(
       error: DisputeActionError,
+      closesEditor: Boolean = false,
       request: suspend (uid: String) -> Result<Unit>,
   ) {
     val uid = authRepository.getCurrentUser()?.uid
@@ -276,7 +280,14 @@ class DisputeViewModel(
             uid == null || failure != null -> error
             else -> null
           }
-      _uiState.update { it.copy(isSending = false, actionError = actionError) }
+      _uiState.update {
+        val succeeded = actionError == null
+        it.copy(
+            isSending = false,
+            actionError = actionError,
+            draftLenderPercent = if (closesEditor && succeeded) null else it.draftLenderPercent,
+        )
+      }
     }
   }
 
