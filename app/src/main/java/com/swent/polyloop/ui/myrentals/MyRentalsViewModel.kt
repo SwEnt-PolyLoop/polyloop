@@ -32,9 +32,6 @@ enum class RentalsTab {
  *   name is missing, and the screen then shows a placeholder.
  * @property returnDate the last day of the rental, when the item must be back.
  * @property location the public pickup area until the item is picked up, then the drop-off area.
- * @property isPickupArea true while [location] is the pickup area, false once it is the drop-off
- *   area.
- * @property showReturnDate true while the item still has to come back, so [returnDate] matters.
  * @property totalPrice the rental price in PP, reserved from the borrower while it is requested.
  * @property listingPhotoUrl the listing's first photo; "" for older rentals, and the screen then
  *   shows a grey box.
@@ -47,31 +44,36 @@ data class RentalRow(
     val returnDate: LocalDate,
     val location: String,
     val status: RentalStatus,
-    val isPickupArea: Boolean,
-    val showReturnDate: Boolean,
     val totalPrice: Int = 0,
     val listingPhotoUrl: String = "",
 )
 
 /**
- * State of the My rentals screen. [borrowing] and [lendingRequests] are newest first;
- * [lendingCurrent] puts what needs attention first (overdue, then disputed, frozen and lost, then
- * active, accepted, finished, and declined or cancelled last), newest first within each group. On
- * an error the last rows are kept. [errorMsg] is non-null when the rentals cannot be loaded (or
- * nobody is signed in); it is blank when there is no message to show, and the screen then shows a
- * generic text.
+ * State of the My rentals screen. Both tabs have the same two sections: the requests are newest
+ * first; the current rentals put what needs attention first (overdue, then disputed, frozen and
+ * lost, then active, accepted, finished, and declined or cancelled last), newest first within each
+ * group. On an error the last rows are kept. [errorMsg] is non-null when the rentals cannot be
+ * loaded (or nobody is signed in); it is blank when there is no message to show, and the screen
+ * then shows a generic text.
  *
+ * @property borrowingRequests the user's pending requests on other people's listings.
+ * @property borrowingCurrent every other rental the user borrows.
  * @property lendingRequests the pending requests on the user's own listings.
  * @property lendingCurrent every other rental the user lends.
  */
 data class MyRentalsUiState(
     val selectedTab: RentalsTab = RentalsTab.BORROWING,
-    val borrowing: List<RentalRow> = emptyList(),
+    val borrowingRequests: List<RentalRow> = emptyList(),
+    val borrowingCurrent: List<RentalRow> = emptyList(),
     val lendingRequests: List<RentalRow> = emptyList(),
     val lendingCurrent: List<RentalRow> = emptyList(),
     val isLoading: Boolean = true,
     val errorMsg: String? = null,
 ) {
+  /** Everything the user borrows: the requests, then the current rentals. */
+  val borrowing: List<RentalRow>
+    get() = borrowingRequests + borrowingCurrent
+
   /** Everything the user lends: the requests, then the current rentals. */
   val lending: List<RentalRow>
     get() = lendingRequests + lendingCurrent
@@ -112,7 +114,8 @@ class MyRentalsViewModel(
     if (uid == null) {
       _uiState.update {
         it.copy(
-            borrowing = emptyList(),
+            borrowingRequests = emptyList(),
+            borrowingCurrent = emptyList(),
             lendingRequests = emptyList(),
             lendingCurrent = emptyList(),
             isLoading = false,
@@ -126,21 +129,18 @@ class MyRentalsViewModel(
               rentalRepository.observeRentalsAsBorrower(uid),
               rentalRepository.observeRentalsAsLender(uid),
           ) { borrowed, lent ->
-            // Both lists come newest first, and sortedBy keeps that order within each group.
-            val (requests, current) = lent.partition { it.status == RentalStatus.REQUESTED }
-            Triple(
-                borrowed.map { it.toRow(uid) },
-                requests.map { it.toRow(uid) },
-                current.sortedBy { ATTENTION_ORDER.indexOf(it.status) }.map { it.toRow(uid) },
-            )
+            borrowed.toSections(uid) to lent.toSections(uid)
           }
           .catch { e -> _uiState.update { it.copy(isLoading = false, errorMsg = e.message ?: "") } }
-          .collect { (borrowing, requests, current) ->
+          .collect { (borrowing, lending) ->
+            val (borrowingRequests, borrowingCurrent) = borrowing
+            val (lendingRequests, lendingCurrent) = lending
             _uiState.update {
               it.copy(
-                  borrowing = borrowing,
-                  lendingRequests = requests,
-                  lendingCurrent = current,
+                  borrowingRequests = borrowingRequests,
+                  borrowingCurrent = borrowingCurrent,
+                  lendingRequests = lendingRequests,
+                  lendingCurrent = lendingCurrent,
                   isLoading = false,
                   errorMsg = null,
               )
@@ -173,16 +173,10 @@ class MyRentalsViewModel(
             RentalStatus.CANCELLED,
         )
 
-    /** Statuses in which the item still has to come back, so the return date matters. */
-    val AWAITING_RETURN =
-        setOf(
-            RentalStatus.REQUESTED,
-            RentalStatus.ACCEPTED,
-            RentalStatus.ACTIVE,
-            RentalStatus.OVERDUE,
-        )
-
-    /** The order of lent rentals other than requests: what needs the lender's attention first. */
+    /**
+     * The order of the CURRENT section on both tabs. Lenders and borrowers worry about the same
+     * things first: a late return, a dispute, then what is under way, with what is over last.
+     */
     val ATTENTION_ORDER =
         listOf(
             RentalStatus.OVERDUE,
@@ -197,6 +191,21 @@ class MyRentalsViewModel(
             RentalStatus.CANCELLED,
         )
 
+    /**
+     * Splits rentals, given newest first, into the REQUESTS and CURRENT sections of a tab, as rows
+     * for [uid]. Both tabs go through here, so that they cannot drift apart.
+     *
+     * REQUESTS holds pending requests only: they are the rentals still waiting for an answer, and
+     * once answered a rental is CURRENT, whatever the answer was. (Figma frame 11 shows an Active
+     * card under REQUESTS; that is a confirmed mistake in the frame.)
+     */
+    fun List<Rental>.toSections(uid: String): Pair<List<RentalRow>, List<RentalRow>> {
+      val (requests, current) = partition { it.status == RentalStatus.REQUESTED }
+      // sortedBy is stable, so each status stays newest first.
+      val byAttention = current.sortedBy { ATTENTION_ORDER.indexOf(it.status) }
+      return requests.map { it.toRow(uid) } to byAttention.map { it.toRow(uid) }
+    }
+
     fun Rental.toRow(uid: String) =
         RentalRow(
             rentalId = id,
@@ -206,8 +215,6 @@ class MyRentalsViewModel(
             returnDate = endDate,
             location = if (status in BEFORE_PICKUP) pickupArea else dropOffArea,
             status = status,
-            isPickupArea = status in BEFORE_PICKUP,
-            showReturnDate = status in AWAITING_RETURN,
             totalPrice = totalPrice,
             listingPhotoUrl = listingPhotoUrl,
         )

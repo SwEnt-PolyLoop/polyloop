@@ -98,7 +98,10 @@ class PolyLoopAppTest {
         ): Result<String> = error("Not used in this test")
       }
 
-  /** One rental borrowed by "uid", so My rentals shows a row without reaching Firestore. */
+  /**
+   * One accepted rental borrowed by "uid", so My rentals shows a CURRENT row, which opens Rental
+   * detail, without reaching Firestore.
+   */
   private val rental =
       Rental(
           id = "rental-1",
@@ -110,7 +113,7 @@ class PolyLoopAppTest {
           borrowerName = "John Doe",
           startDate = LocalDate.of(2026, 10, 8),
           endDate = LocalDate.of(2026, 10, 10),
-          status = RentalStatus.REQUESTED,
+          status = RentalStatus.ACCEPTED,
           pricePerDay = 15,
           totalPrice = 45,
           pickupArea = "Ecublens",
