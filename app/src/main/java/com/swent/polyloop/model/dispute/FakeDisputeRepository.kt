@@ -41,7 +41,7 @@ class FakeDisputeRepository(
     stored.value = stored.value + (dispute.rentalId to dispute)
   }
 
-  /** Deletes the dispute of [rentalId] as the server would; observers then see null. */
+  /** Deletes the dispute of [rentalId], to test a missing dispute; observers then see null. */
   fun remove(rentalId: String) {
     stored.value = stored.value - rentalId
   }
@@ -69,8 +69,9 @@ class FakeDisputeRepository(
         it.copy(agreedAt = clock())
       }
 
-  override suspend fun escalate(rentalId: String, uid: String) =
+  override suspend fun escalate(rentalId: String, uid: String, fromStage: DisputeStage) =
       change(rentalId) {
+        if (it.stage != fromStage) throw StageChangedException()
         check(it.stage != DisputeStage.COURT && !it.isSettled) { "The dispute cannot move on" }
         it.copy(
             stage = DisputeStage.entries[it.stage.ordinal + 1],

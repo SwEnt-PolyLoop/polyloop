@@ -11,10 +11,12 @@ import com.swent.polyloop.model.dispute.Dispute
 import com.swent.polyloop.model.dispute.DisputeRepository
 import com.swent.polyloop.model.dispute.DisputeStage
 import com.swent.polyloop.model.dispute.ProposalChangedException
+import com.swent.polyloop.model.dispute.StageChangedException
 import com.swent.polyloop.model.rental.RentalRepository
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,19 +62,22 @@ enum class EscalationNotice {
  * [history] holds every proposal, newest first; the first one is the proposal on the table.
  * [otherPersonName] is "" when the name is missing; the screen then shows a placeholder.
  * [daysUntilEscalation] is the number of days, rounded up, before the dispute moves on to the next
- * stage on its own; 0 once it has passed. [loadFailed] is true when the dispute cannot be loaded
- * (or nobody is signed in, or the user does not take part in the rental) and nothing was shown yet;
- * [refreshFailed] is true when it could not be loaded again after it was shown, which keeps the
- * last state on screen. [actionError] is what the last proposal, acceptance or escalation could not
- * do; the next one clears it. [draftLenderPercent] is the split the user is editing, as the
- * lender's percentage, or null when the editor is closed. [isConfirmingEscalation] is true while
- * the user is asked to confirm moving the dispute on to [nextStage].
+ * stage on its own, kept up to date while the screen is open; 0 once it has passed, and in court or
+ * once settled, where it never moves on by itself. [loadFailed] is true when the dispute cannot be
+ * loaded (or nobody is signed in, or the user does not take part in the rental) and nothing was
+ * shown yet; [refreshFailed] is true when it could not be loaded again after it was shown, which
+ * keeps the last state on screen. [actionError] is what the last proposal, acceptance or escalation
+ * could not do; the next action, or opening the split editor, clears it. [draftLenderPercent] is
+ * the split the user is editing, as the lender's percentage, or null when the editor is closed.
+ * [isConfirmingEscalation] is true while the user is asked to confirm moving the dispute on to
+ * [nextStage].
  *
  * What the other person did while the screen is open, never what the user did or what was there
- * when the screen opened: [offerUpdated] is true when they sent a new proposal, until the user's
- * next action; [acceptedByOther] is true once they accepted the user's proposal, and
- * [escalationNotice] says how the dispute moved on to its current stage, both until the screen is
- * opened again.
+ * when the screen opened: [offerUpdated] is true when they sent a new proposal, until the user
+ * opens the split editor or sends something, or the dispute leaves direct settlement;
+ * [acceptedByOther] is true once they accepted the user's proposal, until the screen is opened
+ * again; and [escalationNotice] says how the dispute moved on to its current stage, until it moves
+ * on again (null when the user moved it on).
  */
 data class DisputeUiState(
     val itemTitle: String = "",
@@ -183,6 +188,9 @@ class DisputeViewModel(
 
   private var observing: Job? = null
 
+  /** Updates [DisputeUiState.daysUntilEscalation] each time it drops by one. */
+  private var ticking: Job? = null
+
   /** The last dispute shown, or null until one is loaded. */
   private var shown: Dispute? = null
 
@@ -237,10 +245,10 @@ class DisputeViewModel(
 
   /** Accepts the other person's proposal. Does nothing unless [DisputeUiState.canAccept]. */
   fun accept() {
-    val shown = _uiState.value.latestProposal
-    if (!_uiState.value.canAccept || shown == null) return
+    val seen = _uiState.value.latestProposal
+    if (!_uiState.value.canAccept || seen == null) return
     send(DisputeActionError.ACCEPT) { uid ->
-      disputeRepository.accept(rentalId, uid, shown.lenderPercent)
+      disputeRepository.accept(rentalId, uid, seen.lenderPercent)
     }
   }
 
@@ -249,28 +257,34 @@ class DisputeViewModel(
    * [DisputeUiState.canEscalate].
    */
   fun askEscalate() {
-    if (_uiState.value.canEscalate) _uiState.update { it.copy(isConfirmingEscalation = true) }
+    if (!_uiState.value.canEscalate) return
+    _uiState.update { it.copy(isConfirmingEscalation = true) }
   }
 
   /** Closes the confirmation without escalating. */
   fun dismissEscalate() = _uiState.update { it.copy(isConfirmingEscalation = false) }
 
   /**
-   * Closes the confirmation and moves the dispute on to the next stage. Does nothing else unless
-   * [DisputeUiState.canEscalate].
+   * Closes the confirmation and moves the dispute on from the stage the user confirmed leaving to
+   * the next one. Does nothing else unless the confirmation is still open (a new stage closes it)
+   * and [DisputeUiState.canEscalate]. If the dispute already moved on meanwhile, nothing changes
+   * and no error is shown: the new stage and its notice are shown instead, after loading the
+   * dispute again if it could not be refreshed.
    */
   fun escalate() {
-    _uiState.update { it.copy(isConfirmingEscalation = false) }
-    if (!_uiState.value.canEscalate) return
-    send(DisputeActionError.ESCALATE) { uid -> disputeRepository.escalate(rentalId, uid) }
+    val from = _uiState.value.stage.takeIf { _uiState.value.isConfirmingEscalation }
+    dismissEscalate()
+    if (from == null || !_uiState.value.canEscalate) return
+    send(DisputeActionError.ESCALATE) { uid -> disputeRepository.escalate(rentalId, uid, from) }
   }
 
   /**
    * Runs [request] as the signed-in user, with [DisputeUiState.isSending] set meanwhile so no
    * second action starts. The new dispute arrives through the observer; a failure (or nobody signed
    * in) sets [DisputeUiState.actionError] to [error], or to [DisputeActionError.PROPOSAL_CHANGED]
-   * when the proposal accepted was no longer the one on the table. A success also closes the split
-   * editor if [closesEditor].
+   * when the proposal accepted was no longer the one on the table. An escalation refused because
+   * the dispute already moved on sets none, and loads the dispute again if it could not be
+   * refreshed, so the new stage shows. A success also closes the split editor if [closesEditor].
    */
   private fun send(
       error: DisputeActionError,
@@ -284,6 +298,7 @@ class DisputeViewModel(
       val actionError =
           when {
             failure is ProposalChangedException -> DisputeActionError.PROPOSAL_CHANGED
+            failure is StageChangedException -> null
             uid == null || failure != null -> error
             else -> null
           }
@@ -295,6 +310,7 @@ class DisputeViewModel(
             draftLenderPercent = if (closesEditor && succeeded) null else it.draftLenderPercent,
         )
       }
+      if (failure is StageChangedException && _uiState.value.refreshFailed) observe()
     }
   }
 
@@ -322,6 +338,7 @@ class DisputeViewModel(
             itemTitle = rental.listingTitle,
             otherPersonName = rental.otherPersonName(uid),
             isLender = uid == rental.ownerId,
+            deposit = PLACEHOLDER_DEPOSIT,
         )
       }
       disputeRepository
@@ -341,6 +358,7 @@ class DisputeViewModel(
             dispute.proposals.size > before.proposals.size &&
             dispute.latestProposal?.authorId != uid
     val stageChanged = before != null && dispute.stage != before.stage
+    val countsDown = !dispute.isSettled && dispute.stage != DisputeStage.COURT
     _uiState.update {
       it.copy(
           offerUpdated = (it.offerUpdated || theirNewOffer) && stillSettling,
@@ -368,18 +386,38 @@ class DisputeViewModel(
                 ProposalRow(p.authorId == uid, p.lenderPercent, p.createdAt)
               },
           isSettled = dispute.isSettled,
-          daysUntilEscalation = daysUntil(dispute.escalatesAt),
+          daysUntilEscalation = if (countsDown) daysUntil(dispute.escalatesAt) else 0,
           isLoading = false,
           loadFailed = false,
           refreshFailed = false,
       )
     }
+    ticking?.cancel()
+    if (countsDown) countDownTo(dispute.escalatesAt)
   }
 
   /** The whole days left until [deadline], rounded up; 0 once it has passed. */
   private fun daysUntil(deadline: Instant): Int {
     val seconds = Duration.between(clock(), deadline).seconds
     return if (seconds <= 0) 0 else ((seconds + SECONDS_PER_DAY - 1) / SECONDS_PER_DAY).toInt()
+  }
+
+  /**
+   * Updates the days left until [deadline] when they drop by one, until the deadline passes. It
+   * checks [clock] at least once a minute, because a delay does not count the time the phone spends
+   * in deep sleep.
+   */
+  private fun countDownTo(deadline: Instant) {
+    ticking = viewModelScope.launch {
+      while (true) {
+        val seconds = Duration.between(clock(), deadline).seconds
+        if (seconds <= 0) break
+        // The days left drop by one when the seconds left reach the next whole day.
+        val untilDrop = seconds - (daysUntil(deadline) - 1) * SECONDS_PER_DAY
+        delay(minOf(untilDrop, SECONDS_PER_MINUTE) * MILLIS_PER_SECOND)
+        _uiState.update { it.copy(daysUntilEscalation = daysUntil(deadline)) }
+      }
+    }
   }
 
   /**
@@ -416,6 +454,11 @@ class DisputeViewModel(
   }
 
   private companion object {
+    /** The deposit shown until rentals have one (#176), in PolyPoints. */
+    const val PLACEHOLDER_DEPOSIT = 100
+
     const val SECONDS_PER_DAY = 86_400L
+    const val SECONDS_PER_MINUTE = 60L
+    const val MILLIS_PER_SECOND = 1_000L
   }
 }

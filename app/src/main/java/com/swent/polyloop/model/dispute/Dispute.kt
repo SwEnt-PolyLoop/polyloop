@@ -53,8 +53,4 @@ data class Proposal(val authorId: String, val lenderPercent: Int, val createdAt:
   init {
     require(lenderPercent in 0..100) { "lenderPercent $lenderPercent is not between 0 and 100" }
   }
-
-  /** The percentage of the deposit that goes back to the borrower. */
-  val borrowerPercent: Int
-    get() = 100 - lenderPercent
 }

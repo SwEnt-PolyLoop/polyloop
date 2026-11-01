@@ -31,11 +31,6 @@ class DisputeTest {
     assertTrue(dispute(emptyList(), agreedAt = at).isSettled)
   }
 
-  @Test
-  fun borrowerGetsTheRestOfTheDeposit() {
-    assertEquals(30, Proposal("lender", 70, at).borrowerPercent)
-  }
-
   @Test(expected = IllegalArgumentException::class)
   fun proposalAboveAHundredPercentIsRejected() {
     Proposal("lender", 101, at)

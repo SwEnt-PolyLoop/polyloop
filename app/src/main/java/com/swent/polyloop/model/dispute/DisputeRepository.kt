@@ -33,12 +33,17 @@ interface DisputeRepository {
   suspend fun accept(rentalId: String, uid: String, lenderPercent: Int): Result<Unit>
 
   /**
-   * Moves the dispute on to the next stage right away, as [uid], which restarts the time left
-   * before the next automatic escalation. Fails if the dispute does not exist, is settled, is
-   * already in [DisputeStage.COURT], or cannot be written.
+   * Moves the dispute on from [fromStage], the stage the user saw, to the next stage right away, as
+   * [uid], which restarts the time left before the next automatic escalation. If the dispute is no
+   * longer in [fromStage] (it moved on meanwhile), nothing changes and the call fails with
+   * [StageChangedException], so two escalations sent at once never skip a stage. Also fails if the
+   * dispute does not exist, is settled, is already in [DisputeStage.COURT], or cannot be written.
    */
-  suspend fun escalate(rentalId: String, uid: String): Result<Unit>
+  suspend fun escalate(rentalId: String, uid: String, fromStage: DisputeStage): Result<Unit>
 }
 
 /** Thrown when the user accepts a proposal that is no longer the one on the table. */
 class ProposalChangedException : IllegalStateException("The proposal on the table changed")
+
+/** Thrown when the user escalates from a stage the dispute is no longer in. */
+class StageChangedException : IllegalStateException("The dispute is no longer at that stage")

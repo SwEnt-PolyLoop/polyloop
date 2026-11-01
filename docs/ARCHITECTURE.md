@@ -51,7 +51,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |
-| Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos); Rental (the item, the other person, the user's role and the deposit) |
+| Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos); Rental (the item, the other person and the user's role; the deposit once rentals have one, #176) |
 | Admin court ruling | AdminCourtRulingViewModel | Dispute; Handover (the photos); Rental (the deposit); Listing (the item); Profile (both parties) |
 | Navigation drawer (every screen) | DrawerViewModel | Profile (the signed-in user's name, photo and rating in the header) |
 
