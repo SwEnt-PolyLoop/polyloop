@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -62,15 +63,15 @@ enum class EscalationNotice {
  * [history] holds every proposal, newest first; the first one is the proposal on the table.
  * [otherPersonName] is "" when the name is missing; the screen then shows a placeholder.
  * [daysUntilEscalation] is the number of days, rounded up, before the dispute moves on to the next
- * stage on its own, kept up to date while the screen is open; 0 once it has passed, and in court or
- * once settled, where it never moves on by itself. [loadFailed] is true when the dispute cannot be
- * loaded (or nobody is signed in, or the user does not take part in the rental) and nothing was
+ * stage on its own, kept up to date while the screen is shown; 0 once it has passed, and in court
+ * or once settled, where it never moves on by itself. [loadFailed] is true when the dispute cannot
+ * be loaded (or nobody is signed in, or the user does not take part in the rental) and nothing was
  * shown yet; [refreshFailed] is true when it could not be loaded again after it was shown, which
  * keeps the last state on screen. [actionError] is what the last proposal, acceptance or escalation
- * could not do; the next action, or opening the split editor, clears it. [draftLenderPercent] is
- * the split the user is editing, as the lender's percentage, or null when the editor is closed.
- * [isConfirmingEscalation] is true while the user is asked to confirm moving the dispute on to
- * [nextStage].
+ * could not do; the next action, opening the split editor, a new stage or an agreement clears it,
+ * since the action it names then no longer applies. [draftLenderPercent] is the split the user is
+ * editing, as the lender's percentage, or null when the editor is closed. [isConfirmingEscalation]
+ * is true while the user is asked to confirm moving the dispute on to [nextStage].
  *
  * What the other person did while the screen is open, never what the user did or what was there
  * when the screen opened: [offerUpdated] is true when they sent a new proposal, until the user
@@ -188,7 +189,7 @@ class DisputeViewModel(
 
   private var observing: Job? = null
 
-  /** Updates [DisputeUiState.daysUntilEscalation] each time it drops by one. */
+  /** Keeps [DisputeUiState.daysUntilEscalation] up to date while the screen is shown. */
   private var ticking: Job? = null
 
   /** The last dispute shown, or null until one is loaded. */
@@ -358,15 +359,15 @@ class DisputeViewModel(
             dispute.proposals.size > before.proposals.size &&
             dispute.latestProposal?.authorId != uid
     val stageChanged = before != null && dispute.stage != before.stage
+    val justSettled = before?.isSettled == false && dispute.isSettled
     val countsDown = !dispute.isSettled && dispute.stage != DisputeStage.COURT
     _uiState.update {
       it.copy(
           offerUpdated = (it.offerUpdated || theirNewOffer) && stillSettling,
           acceptedByOther =
-              it.acceptedByOther ||
-                  (before?.isSettled == false &&
-                      dispute.isSettled &&
-                      dispute.latestProposal?.authorId == uid),
+              it.acceptedByOther || (justSettled && dispute.latestProposal?.authorId == uid),
+          // The failed action was for a stage or an offer that is gone, so retrying it is wrong.
+          actionError = it.actionError.takeUnless { stageChanged || justSettled },
           escalationNotice =
               if (!stageChanged) it.escalationNotice
               else
@@ -403,20 +404,18 @@ class DisputeViewModel(
   }
 
   /**
-   * Updates the days left until [deadline] when they drop by one, until the deadline passes. It
-   * checks [clock] at least once a minute, because a delay does not count the time the phone spends
-   * in deep sleep.
+   * Updates the days left until [deadline] once a minute while the screen collects [uiState], until
+   * the deadline passes. It pauses while nobody collects it (e.g. the screen is in the back stack)
+   * and updates them as soon as the screen is shown again.
    */
   private fun countDownTo(deadline: Instant) {
     ticking = viewModelScope.launch {
-      while (true) {
-        val seconds = Duration.between(clock(), deadline).seconds
-        if (seconds <= 0) break
-        // The days left drop by one when the seconds left reach the next whole day.
-        val untilDrop = seconds - (daysUntil(deadline) - 1) * SECONDS_PER_DAY
-        delay(minOf(untilDrop, SECONDS_PER_MINUTE) * MILLIS_PER_SECOND)
+      while (clock() < deadline) {
+        _uiState.subscriptionCount.first { it > 0 }
         _uiState.update { it.copy(daysUntilEscalation = daysUntil(deadline)) }
+        delay(MILLIS_PER_MINUTE)
       }
+      _uiState.update { it.copy(daysUntilEscalation = 0) }
     }
   }
 
@@ -458,7 +457,6 @@ class DisputeViewModel(
     const val PLACEHOLDER_DEPOSIT = 100
 
     const val SECONDS_PER_DAY = 86_400L
-    const val SECONDS_PER_MINUTE = 60L
-    const val MILLIS_PER_SECOND = 1_000L
+    const val MILLIS_PER_MINUTE = 60_000L
   }
 }

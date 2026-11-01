@@ -51,7 +51,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |
-| Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos); Rental (the item, the other person and the user's role; the deposit once rentals have one, #176) |
+| Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos, not used yet); Rental (the item, the other person and the user's role; the deposit once rentals have one, #176) |
 | Admin court ruling | AdminCourtRulingViewModel | Dispute; Handover (the photos); Rental (the deposit); Listing (the item); Profile (both parties) |
 | Navigation drawer (every screen) | DrawerViewModel | Profile (the signed-in user's name, photo and rating in the header) |
 
@@ -111,7 +111,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 **Disputes**
 1. Direct settlement: parties propose splits in percent; accept or counter. Auto-escalates after 30 days without agreement; either party can escalate sooner. Each new stage restarts the 30 days.
 2. LLM proposal: a Cloud Function sends pickup and return photos to Gemini and gets a split + reasoning. Both parties accept or reject. Either party can escalate to court sooner; otherwise it escalates on its own after 30 days.
-3. Court: if either rejects, the deposit is frozen. Either party uploads the court ruling PDF; Gemini pre-fills the split; an admin reviews it on the Admin court ruling screen and applies or rejects it.
+3. Court: once the dispute reaches court, because either party rejected the LLM proposal or escalated, the deposit is frozen. Either party uploads the court ruling PDF; Gemini pre-fills the split; an admin reviews it on the Admin court ruling screen and applies or rejects it.
 - Chat is disabled while a dispute is open. Reviews (1–5 stars, no text for now) are prompted when a rental closes, however it closed.
 
 ## Technical choices

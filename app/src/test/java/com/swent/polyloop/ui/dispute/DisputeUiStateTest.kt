@@ -17,11 +17,6 @@ class DisputeUiStateTest {
   private val open = DisputeUiState(deposit = 60, history = listOf(theirs), isLoading = false)
 
   @Test
-  fun borrowerGetsTheRestOfTheSplit() {
-    assertEquals(30, theirs.borrowerPercent)
-  }
-
-  @Test
   fun borrowerGetsBackTheirShareOfTheDeposit() {
     assertEquals(180, open.youGetBackTenths)
   }

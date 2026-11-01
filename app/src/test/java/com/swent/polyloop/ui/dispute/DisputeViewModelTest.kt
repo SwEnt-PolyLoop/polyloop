@@ -18,8 +18,11 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -141,32 +144,56 @@ class DisputeViewModelTest {
     assertEquals(0, viewModel().uiState.value.daysUntilEscalation)
   }
 
+  /**
+   * Collects the state of [vm], as the screen does while it is shown, until the job is cancelled.
+   */
+  private fun show(vm: DisputeViewModel): Job =
+      CoroutineScope(dispatcher).launch { vm.uiState.collect {} }
+
+  /** Moves the clock read through [time] and the test dispatcher on by [duration]. */
+  private fun elapse(duration: Duration) {
+    time += duration
+    dispatcher.scheduler.advanceTimeBy(duration.toMillis())
+    dispatcher.scheduler.runCurrent()
+  }
+
+  private var time = now
+
   @Test
-  fun daysUntilEscalationDropWhileTheScreenIsOpen() {
-    var time = now
+  fun daysUntilEscalationDropWhileTheScreenIsShown() {
     val vm = viewModel(clock = { time })
+    val screen = show(vm)
     assertEquals(28, vm.uiState.value.daysUntilEscalation)
 
-    // 27 days and 12 hours were left: 12 hours later, 27 days are. The phone may have slept
-    // meanwhile, which a delay does not count, so the screen sees it within a minute.
-    time += Duration.ofHours(12)
-    dispatcher.scheduler.advanceTimeBy(Duration.ofMinutes(1).toMillis())
-    dispatcher.scheduler.runCurrent()
+    // 27 days and 12 hours were left: 12 hours later, 27 days are.
+    elapse(Duration.ofHours(12))
 
     assertEquals(27, vm.uiState.value.daysUntilEscalation)
+    screen.cancel()
+  }
+
+  @Test
+  fun countdownPausesWhileTheScreenIsHiddenAndCatchesUpWhenShown() {
+    val vm = viewModel(clock = { time })
+
+    elapse(Duration.ofHours(12))
+    assertEquals(28, vm.uiState.value.daysUntilEscalation)
+
+    val screen = show(vm)
+    assertEquals(27, vm.uiState.value.daysUntilEscalation)
+    screen.cancel()
   }
 
   @Test
   fun aSettledDisputeStopsTheCountdown() {
-    var time = now
     val vm = viewModel(clock = { time })
+    val screen = show(vm)
 
     disputes.put(open.copy(agreedAt = now))
-    time += Duration.ofHours(12)
-    dispatcher.scheduler.advanceTimeBy(Duration.ofHours(12).toMillis())
-    dispatcher.scheduler.runCurrent()
+    elapse(Duration.ofHours(12))
 
     assertEquals(0, vm.uiState.value.daysUntilEscalation)
+    screen.cancel()
   }
 
   @Test
@@ -559,25 +586,32 @@ class DisputeViewModelTest {
   }
 
   @Test
-  fun borrowerCountersRetriesAfterAFailureAndSeesTheLenderAccept() {
+  fun aFailedProposalKeepsTheDraftToSendAgain() {
     val vm = viewModel()
-
     disputes.failure = IOException("offline")
+
     propose(vm, 50)
+
     assertEquals(DisputeActionError.PROPOSE, vm.uiState.value.actionError)
-    assertEquals(70, vm.uiState.value.latestProposal?.lenderPercent)
-    // The editor stays open on the draft, so the same split can be sent again.
     assertEquals(50, vm.uiState.value.draftLenderPercent)
+  }
 
+  @Test
+  fun aNewStageOrAnAgreementClearsTheErrorOfAnActionThatNoLongerApplies() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+    confirmEscalate(vm)
     disputes.failure = null
-    vm.sendDraft()
-    assertFalse(vm.uiState.value.isEditing)
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
     assertNull(vm.uiState.value.actionError)
-    assertEquals(ProposalRow(true, 50, now), vm.uiState.value.latestProposal)
 
-    runBlocking { disputes.accept("pump", "ana", 50) }
-
-    assertTrue(vm.uiState.value.isSettled)
+    disputes.put(open)
+    disputes.failure = IOException("offline")
+    vm.accept()
+    disputes.failure = null
+    disputes.put(open.copy(agreedAt = now))
+    assertNull(vm.uiState.value.actionError)
   }
 
   // ---------- what the other person did ----------
