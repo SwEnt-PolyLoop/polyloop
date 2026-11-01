@@ -46,9 +46,9 @@ The profile shows who someone is and how past rentals went. It opens from the pr
 
 The Wallet screen holds the user's in-app balance, which pays for rentals and deposits. ViewModel: WalletViewModel, using WalletRepository. The balance is only ever changed by Cloud Functions; the app sends a request and shows the result.
 
-- The available balance in PolyPoints, plus the amount currently held as deposits.
-- A “Recharge” button: the user enters any Swiss franc amount and receives the same number of PolyPoints. Recharging is simulated; no real payment is made.
-- A transaction history, newest first: recharges, rental payments, late fees, and deposits held, released or split.
+- The available balance in PolyPoints (everything held excluded), plus what is reserved: the deposits held and the rental prices reserved since a request was sent (the deposit only exists once the lender accepts). Available plus reserved is the user's total.
+- A “Recharge” button: the user enters a whole Swiss franc amount from 1 to 99,999 and receives the same number of PolyPoints. Recharging is simulated; no real payment is made.
+- A transaction history, newest first: recharges, rental payments, late fees, and deposits held, released, split or forfeited (the rest of the deposit, paid to the lender once the item is lost). The amounts add up to the available balance; late fees and forfeited deposits show only in the lender's history, and a borrower's late fees appear as a smaller deposit release.
 - PolyPoints cannot be withdrawn back to Swiss francs.
 - Offline: balance and history stay readable from cache; recharging is disabled.
 
