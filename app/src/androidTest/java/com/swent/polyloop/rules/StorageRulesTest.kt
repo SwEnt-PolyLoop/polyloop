@@ -79,6 +79,17 @@ class StorageRulesTest {
     }
   }
 
+  /** Uploads a sparse file of [size] bytes (it takes no space on the device) to [ref]. */
+  private suspend fun uploadSparseFile(ref: StorageReference, size: Long) {
+    val file = File(context.cacheDir, "big-${UUID.randomUUID()}.jpg")
+    try {
+      RandomAccessFile(file, "rw").use { it.setLength(size) }
+      ref.putFile(Uri.fromFile(file), jpeg).await()
+    } finally {
+      file.delete()
+    }
+  }
+
   @Test
   fun photosAreUploadedBeforeTheListingExistsAndReadByAnyVerifiedUser() =
       runBlocking<Unit> {
@@ -116,17 +127,12 @@ class StorageRulesTest {
       }
 
   @Test
-  fun photosOf100MbOrMoreAreRefused() =
-      runBlocking<Unit> {
-        // A sparse file: it takes no space on the device.
-        val file = File(context.cacheDir, "big-${UUID.randomUUID()}.jpg")
-        try {
-          RandomAccessFile(file, "rw").use { it.setLength(100L * 1024 * 1024) }
-          assertDenied { photo().putFile(Uri.fromFile(file), jpeg).await() }
-        } finally {
-          file.delete()
-        }
-      }
+  fun photosJustUnder10MbAreAccepted() =
+      runBlocking<Unit> { uploadSparseFile(photo(), 10L * 1024 * 1024 - 1) }
+
+  @Test
+  fun photosOf10MbOrMoreAreRefused() =
+      runBlocking<Unit> { assertDenied { uploadSparseFile(photo(), 10L * 1024 * 1024) } }
 
   @Test
   fun filesOutsideTheListingFoldersAreRefused() =
@@ -140,17 +146,6 @@ class StorageRulesTest {
 
   private fun profilePhoto(uid: String = ownerUid, name: String = "profile.jpg") =
       Firebase.storage.reference.child("users/$uid/$name")
-
-  /** Uploads a sparse file of [size] bytes (it takes no space on the device) to [ref]. */
-  private suspend fun uploadSparseFile(ref: StorageReference, size: Long) {
-    val file = File(context.cacheDir, "big-${UUID.randomUUID()}.jpg")
-    try {
-      RandomAccessFile(file, "rw").use { it.setLength(size) }
-      ref.putFile(Uri.fromFile(file), jpeg).await()
-    } finally {
-      file.delete()
-    }
-  }
 
   @Test
   fun aUserUploadsTheirProfilePhotoAndAnyVerifiedUserReadsIt() =

@@ -19,9 +19,9 @@ service firebase.storage {
     match /listings/{listingId}/{photo} {
       allow read: if isVerifiedEpfl();
 
-      // Placeholder limit until the camera screen sets the photo size.
+      // The in-app camera takes about 1440 x 1080 JPEGs at quality 80, far under this limit.
       allow create, update: if canChangePhotos(listingId)
-          && request.resource.size < 100 * 1024 * 1024
+          && request.resource.size < 10 * 1024 * 1024
           && request.resource.contentType.matches('image/.*');
 
       allow delete: if canChangePhotos(listingId);
