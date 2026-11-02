@@ -116,17 +116,12 @@ class StorageRulesTest {
       }
 
   @Test
-  fun photosOf100MbOrMoreAreRefused() =
-      runBlocking<Unit> {
-        // A sparse file: it takes no space on the device.
-        val file = File(context.cacheDir, "big-${UUID.randomUUID()}.jpg")
-        try {
-          RandomAccessFile(file, "rw").use { it.setLength(100L * 1024 * 1024) }
-          assertDenied { photo().putFile(Uri.fromFile(file), jpeg).await() }
-        } finally {
-          file.delete()
-        }
-      }
+  fun photosJustUnder10MbAreAccepted() =
+      runBlocking<Unit> { uploadSparseFile(photo(), 10L * 1024 * 1024 - 1) }
+
+  @Test
+  fun photosOf10MbOrMoreAreRefused() =
+      runBlocking<Unit> { assertDenied { uploadSparseFile(photo(), 10L * 1024 * 1024) } }
 
   @Test
   fun filesOutsideTheListingFoldersAreRefused() =
