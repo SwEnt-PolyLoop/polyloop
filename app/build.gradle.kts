@@ -192,6 +192,8 @@ tasks.withType<Test> {
 }
 
 tasks.register("jacocoTestReport", JacocoReport::class) {
+  group = "verification"
+  description = "Builds the Jacoco coverage report of the unit and instrumented tests for Sonar."
   mustRunAfter("testDebugUnitTest", "connectedDebugAndroidTest")
 
   reports {
