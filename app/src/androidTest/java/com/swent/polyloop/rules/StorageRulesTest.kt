@@ -79,6 +79,17 @@ class StorageRulesTest {
     }
   }
 
+  /** Uploads a sparse file of [size] bytes (it takes no space on the device) to [ref]. */
+  private suspend fun uploadSparseFile(ref: StorageReference, size: Long) {
+    val file = File(context.cacheDir, "big-${UUID.randomUUID()}.jpg")
+    try {
+      RandomAccessFile(file, "rw").use { it.setLength(size) }
+      ref.putFile(Uri.fromFile(file), jpeg).await()
+    } finally {
+      file.delete()
+    }
+  }
+
   @Test
   fun photosAreUploadedBeforeTheListingExistsAndReadByAnyVerifiedUser() =
       runBlocking<Unit> {
@@ -135,17 +146,6 @@ class StorageRulesTest {
 
   private fun profilePhoto(uid: String = ownerUid, name: String = "profile.jpg") =
       Firebase.storage.reference.child("users/$uid/$name")
-
-  /** Uploads a sparse file of [size] bytes (it takes no space on the device) to [ref]. */
-  private suspend fun uploadSparseFile(ref: StorageReference, size: Long) {
-    val file = File(context.cacheDir, "big-${UUID.randomUUID()}.jpg")
-    try {
-      RandomAccessFile(file, "rw").use { it.setLength(size) }
-      ref.putFile(Uri.fromFile(file), jpeg).await()
-    } finally {
-      file.delete()
-    }
-  }
 
   @Test
   fun aUserUploadsTheirProfilePhotoAndAnyVerifiedUserReadsIt() =
