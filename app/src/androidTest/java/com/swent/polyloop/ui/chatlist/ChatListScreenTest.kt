@@ -169,7 +169,7 @@ class ChatListScreenTest {
   @Test
   fun screenShowsTheViewModelsConversations() {
     val chat = FakeChatRepository(currentUid = "me")
-    chat.conversations.value =
+    chat.conversations =
         listOf(
             Conversation(
                 "tent",
