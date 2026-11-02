@@ -9,14 +9,16 @@ import org.junit.Test
 
 class DateRangeFormatTest {
 
-  private fun ends(from: LocalDate, to: LocalDate) = formatRangeEnds(from, to, Locale.ENGLISH)
+  // A fixed "today", so the tests do not change with the calendar.
+  private val today2026 = LocalDate.of(2026, 10, 13)
+  private val today2028 = LocalDate.of(2028, 3, 1)
+
+  private fun ends(from: LocalDate, to: LocalDate, today: LocalDate = today2026) =
+      formatRangeEnds(from, to, Locale.ENGLISH, today)
 
   @Test
   fun sameMonthShowsMonthOnlyOnEnd() {
-    assertEquals(
-        "6" to "20 Oct",
-        ends(LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 20)),
-    )
+    assertEquals("6" to "20 Oct", ends(LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 20)))
   }
 
   @Test
@@ -41,5 +43,31 @@ class DateRangeFormatTest {
         "6 Oct 2026" to "20 Oct 2027",
         ends(LocalDate.of(2026, 10, 6), LocalDate.of(2027, 10, 20)),
     )
+  }
+
+  @Test
+  fun currentYearIsNotShownInTheSameMonth() {
+    assertEquals("2" to "6 Oct", ends(LocalDate.of(2026, 10, 2), LocalDate.of(2026, 10, 6)))
+  }
+
+  @Test
+  fun yearIsShownOnTheEndForASameMonthRangeInAnotherYear() {
+    assertEquals(
+        "2" to "6 Oct 2026",
+        ends(LocalDate.of(2026, 10, 2), LocalDate.of(2026, 10, 6), today2028),
+    )
+  }
+
+  @Test
+  fun yearIsShownOnTheEndForARangeAcrossMonthsInAnotherYear() {
+    assertEquals(
+        "28 Oct" to "3 Nov 2026",
+        ends(LocalDate.of(2026, 10, 28), LocalDate.of(2026, 11, 3), today2028),
+    )
+  }
+
+  @Test
+  fun yearIsShownOnTheEndForANextYearRange() {
+    assertEquals("2" to "7 Oct 2027", ends(LocalDate.of(2027, 10, 2), LocalDate.of(2027, 10, 7)))
   }
 }
