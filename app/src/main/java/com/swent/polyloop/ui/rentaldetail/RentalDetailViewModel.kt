@@ -25,7 +25,8 @@ import kotlinx.coroutines.launch
  * rental. [isSupported] is false for a status the screen does not handle yet (anything but
  * Requested): only [itemTitle] is then set, for the placeholder. [isLender] is true when the
  * signed-in user owns the item. [sentAt] is when the request was sent, [endDate] the return day and
- * [rentalPrice] the total price in PolyPoints.
+ * [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the listing's item value in
+ * PolyPoints, or null when the listing is missing or could not be read.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -39,6 +40,7 @@ data class RentalDetailUiState(
     val startDate: LocalDate? = null,
     val endDate: LocalDate? = null,
     val rentalPrice: Int = 0,
+    val suggestedDeposit: Int? = null,
     val pickupArea: String = "",
 )
 
@@ -80,10 +82,14 @@ class RentalDetailViewModel(
       }
       if (rental.status != RentalStatus.REQUESTED) {
         // Only Requested is built so far: the screen shows a placeholder with the title until the
-        // other statuses are, so everything else stays at its default.
+        // other statuses are, so everything else stays at its default and the listing is not read.
         _uiState.value = RentalDetailUiState(isSupported = false, itemTitle = rental.listingTitle)
         return@launch
       }
+      // Only the rental is required: a missing or unreadable listing just leaves the suggested
+      // deposit out instead of failing the screen. Its read finishes before isLoading turns false,
+      // so the screen does not flash a card without its deposit.
+      val suggestedDeposit = listingRepository.getListing(rental.listingId).getOrNull()?.itemValue
       val uid = authRepository.getCurrentUser()?.uid.orEmpty()
       _uiState.value =
           RentalDetailUiState(
@@ -94,6 +100,7 @@ class RentalDetailViewModel(
               startDate = rental.startDate,
               endDate = rental.endDate,
               rentalPrice = rental.totalPrice,
+              suggestedDeposit = suggestedDeposit,
               pickupArea = rental.pickupArea,
           )
     }

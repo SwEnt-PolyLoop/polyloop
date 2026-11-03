@@ -4,6 +4,9 @@ package com.swent.polyloop.ui.rentaldetail
 
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
@@ -47,6 +50,21 @@ class RentalDetailViewModelTest {
           createdAt = Instant.parse("2026-10-01T09:30:00Z"),
       )
 
+  private val listing =
+      Listing(
+          id = "listing1",
+          ownerId = "owner",
+          title = "Camping tent, 2 people",
+          description = "Light 2-person tent, used three times.",
+          category = ListingCategory.SPORTS_OUTDOOR,
+          photoUrls = List(3) { "https://example.com/photo$it.jpg" },
+          pricePerDay = 15,
+          itemValue = 180,
+          availableFrom = LocalDate.of(2026, 10, 6),
+          availableTo = LocalDate.of(2026, 10, 20),
+          status = ListingStatus.PUBLISHED,
+      )
+
   private val owner = AuthUser(uid = "owner", email = "mara@epfl.ch", name = "Mara")
   private val borrower = AuthUser(uid = "borrower", email = "loca@epfl.ch", name = "Loca")
 
@@ -59,7 +77,7 @@ class RentalDetailViewModelTest {
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     rentalRepository = FakeRentalRepository(rentals = listOf(rental))
-    listingRepository = FakeListingRepository()
+    listingRepository = FakeListingRepository(listings = listOf(listing))
     profileRepository = FakeProfileRepository()
     authRepository = FakeAuthRepository(signedInUser = borrower)
   }
@@ -161,5 +179,55 @@ class RentalDetailViewModelTest {
         RentalDetailUiState(isSupported = false, itemTitle = rental.listingTitle),
         state,
     )
+  }
+
+  @Test
+  fun suggestedDepositIsTheListingsItemValue() {
+    assertEquals(180, viewModel().uiState.value.suggestedDeposit)
+  }
+
+  @Test
+  fun missingListingLeavesTheSuggestedDepositOut() {
+    listingRepository.listings = emptyList()
+
+    val state = viewModel().uiState.value
+
+    assertNull(state.suggestedDeposit)
+    assertNull(state.errorMsg)
+    assertFalse(state.isLoading)
+  }
+
+  @Test
+  fun failedListingReadLeavesTheSuggestedDepositOutWithoutError() {
+    listingRepository.failure = IllegalStateException("Network down")
+
+    val state = viewModel().uiState.value
+
+    assertNull(state.suggestedDeposit)
+    assertNull(state.errorMsg)
+    assertFalse(state.isLoading)
+    assertEquals(rental.listingTitle, state.itemTitle)
+  }
+
+  @Test
+  fun staysLoadingUntilTheListingIsRead() {
+    val gate = CompletableDeferred<Unit>()
+    listingRepository.gate = gate
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.isLoading)
+
+    gate.complete(Unit)
+
+    assertFalse(vm.uiState.value.isLoading)
+    assertEquals(180, vm.uiState.value.suggestedDeposit)
+  }
+
+  @Test
+  fun unsupportedRentalDoesNotReadTheListing() {
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACCEPTED)))
+
+    viewModel()
+
+    assertEquals(0, listingRepository.getListingCalls)
   }
 }
