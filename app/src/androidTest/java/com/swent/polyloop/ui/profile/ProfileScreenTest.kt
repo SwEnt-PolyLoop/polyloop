@@ -3,20 +3,27 @@
 package com.swent.polyloop.ui.profile
 
 import android.net.Uri
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.hasAnyAncestor
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
@@ -25,6 +32,7 @@ import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
+import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import com.swent.polyloop.utils.FakePhotoServerRule
@@ -71,19 +79,19 @@ class ProfileScreenTest {
       )
 
   private val tent = listing("tent")
-  private val draft = listing("draft", ListingStatus.DRAFT)
 
   private val ownProfile =
       ProfileUiState(
           isOwnProfile = true,
           profile = john,
-          listings = listOf(tent),
+          listings = listOf(MyListing(tent, ListingRentalState.AVAILABLE)),
           isLoading = false,
       )
 
   private var openedListing: String? = null
   private var signOutClicks = 0
   private var retryClicks = 0
+  private var retryListingsClicks = 0
 
   private fun setContent(state: ProfileUiState) {
     composeTestRule.setContent {
@@ -93,6 +101,7 @@ class ProfileScreenTest {
             onListingClick = { openedListing = it },
             onSignOut = { signOutClicks++ },
             onRetry = { retryClicks++ },
+            onRetryListings = { retryListingsClicks++ },
         )
       }
     }
@@ -111,36 +120,99 @@ class ProfileScreenTest {
     node(C.Tag.profile_rating)
         .assertTextEquals(context.resources.getQuantityString(R.plurals.profile_rating, 2, 4.5, 2))
     node(C.Tag.profile_listings_title).assertIsDisplayed()
-    node(C.Tag.listing_card_ + "tent").assertIsDisplayed()
+    node(C.Tag.profile_listing_ + "tent").assertIsDisplayed()
     node(C.Tag.profile_sign_out_button).performScrollTo().assertIsDisplayed()
   }
 
   @Test
-  fun listingsShowTheirStatusInPlaceOfADistance() {
-    setContent(ownProfile.copy(listings = listOf(tent, draft)))
-
-    fun locationOf(id: String) =
-        // The clickable card merges its texts, so the location is found in the unmerged tree.
-        composeTestRule.onNode(
-            hasTestTag(C.Tag.listing_card_location) and
-                hasAnyAncestor(hasTestTag(C.Tag.listing_card_ + id)),
-            useUnmergedTree = true,
+  fun listingsShowTheirCountAndWhereEachStands() {
+    setContent(
+        ownProfile.copy(
+            listings =
+                listOf(
+                    MyListing(tent, ListingRentalState.ON_LOAN),
+                    MyListing(listing("bike"), ListingRentalState.REQUESTED),
+                )
         )
+    )
 
-    val published = context.getString(R.string.profile_listing_published)
-    val draftLabel = context.getString(R.string.profile_listing_draft)
-    locationOf("tent")
-        .assertTextEquals(context.getString(R.string.listing_card_location, published, "Ecublens"))
-    locationOf("draft")
-        .performScrollTo()
-        .assertTextEquals(context.getString(R.string.listing_card_location, draftLabel, "Ecublens"))
+    // The clickable row merges its texts, so the pill is found in the unmerged tree.
+    fun pillOf(id: String) =
+        composeTestRule.onNodeWithTag(C.Tag.profile_listing_status_ + id, useUnmergedTree = true)
+
+    node(C.Tag.profile_listings_count).assertTextEquals("2")
+    pillOf("tent").assertTextEquals(context.getString(R.string.profile_listing_status_on_loan))
+    pillOf("bike").assertTextEquals(context.getString(R.string.rental_status_requested))
+  }
+
+  @Test
+  fun draftShowsItsLabelInsteadOfAvailableButARentalUnderWayWins() {
+    fun draft(id: String) = listing(id, ListingStatus.DRAFT)
+    setContent(
+        ownProfile.copy(
+            listings =
+                listOf(
+                    MyListing(draft("tent"), ListingRentalState.AVAILABLE),
+                    MyListing(draft("bike"), ListingRentalState.ON_LOAN),
+                )
+        )
+    )
+
+    fun tagged(tag: String) = composeTestRule.onNodeWithTag(tag, useUnmergedTree = true)
+
+    tagged(C.Tag.profile_listing_draft_ + "tent")
+        .assertTextEquals(context.getString(R.string.profile_listing_status_draft))
+    tagged(C.Tag.profile_listing_status_ + "tent").assertDoesNotExist()
+    tagged(C.Tag.profile_listing_draft_ + "bike").assertDoesNotExist()
+    tagged(C.Tag.profile_listing_status_ + "bike")
+        .assertTextEquals(context.getString(R.string.profile_listing_status_on_loan))
+  }
+
+  @Test
+  fun loadingListingsShowsASpinnerUnderTheProfile() {
+    setContent(ownProfile.copy(listings = emptyList(), listingsLoading = true))
+
+    node(C.Tag.profile_name).assertIsDisplayed()
+    node(C.Tag.profile_listings_loading).assertIsDisplayed()
+    node(C.Tag.profile_listings_count).assertDoesNotExist()
+    node(C.Tag.profile_listings_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun listingsErrorShowsAGenericMessageUnderTheProfileAndRetries() {
+    setContent(ownProfile.copy(listings = emptyList(), listingsError = true))
+
+    node(C.Tag.profile_name).assertIsDisplayed()
+    node(C.Tag.profile_listings_error)
+        .assertTextEquals(context.getString(R.string.profile_listings_error))
+    node(C.Tag.profile_listings_retry_button).performClick()
+
+    assertEquals(1, retryListingsClicks)
+    assertEquals(0, retryClicks)
+  }
+
+  @Test
+  fun staleListingsStayShownWithANoteUnderThem() {
+    setContent(ownProfile.copy(listingsStale = true))
+
+    node(C.Tag.profile_listing_ + "tent").assertIsDisplayed()
+    node(C.Tag.profile_listings_stale)
+        .assertTextEquals(context.getString(R.string.profile_listings_stale))
+  }
+
+  @Test
+  fun staleWithNoListingShowsTheNoteUnderTheEmptyText() {
+    setContent(ownProfile.copy(listings = emptyList(), listingsStale = true))
+
+    node(C.Tag.profile_listings_empty).assertIsDisplayed()
+    node(C.Tag.profile_listings_stale).assertIsDisplayed()
   }
 
   @Test
   fun tappingAListingOpensIt() {
     setContent(ownProfile)
 
-    node(C.Tag.listing_card_ + "tent").performClick()
+    node(C.Tag.profile_listing_ + "tent").performClick()
 
     assertEquals("tent", openedListing)
   }
@@ -159,6 +231,7 @@ class ProfileScreenTest {
     setContent(ownProfile.copy(listings = emptyList()))
 
     node(C.Tag.profile_listings_empty).assertIsDisplayed()
+    node(C.Tag.profile_listings_count).assertDoesNotExist()
   }
 
   // ---------- someone else's profile ----------
@@ -240,24 +313,14 @@ class ProfileScreenTest {
             user = null
           }
         }
-    val listings =
-        object : ListingRepository {
-          override suspend fun getAllListings() = Result.success(emptyList<Listing>())
-
-          override suspend fun getListing(id: String) = Result.success<Listing?>(null)
-
-          override suspend fun getListingsByOwner(ownerId: String) = Result.success(listOf(tent))
-
-          override suspend fun getBookedRanges(id: String) =
-              Result.success(emptyList<BookedRange>())
-
-          override suspend fun createListing(
-              listing: Listing,
-              addresses: ListingAddresses,
-              photos: List<Uri>,
-          ): Result<String> = error("Not used in this test")
-        }
-    val viewModel = ProfileViewModel(null, FakeProfileRepository(listOf(john)), listings, auth)
+    val viewModel =
+        ProfileViewModel(
+            null,
+            FakeProfileRepository(listOf(john)),
+            ownListings(),
+            FakeRentalRepository(),
+            auth,
+        )
     composeTestRule.setContent {
       PolyLoopTheme {
         ProfileScreen(
@@ -274,4 +337,67 @@ class ProfileScreenTest {
     assertTrue(signedOut)
     assertEquals(null, auth.getCurrentUser())
   }
+
+  @Test
+  fun comingBackToTheScreenLoadsTheListingsAgain() {
+    var reads = 0
+    val owner =
+        object : LifecycleOwner {
+          override val lifecycle = LifecycleRegistry(this)
+        }
+    composeTestRule.runOnUiThread { owner.lifecycle.currentState = Lifecycle.State.RESUMED }
+    val viewModel =
+        ProfileViewModel(
+            null,
+            FakeProfileRepository(listOf(john)),
+            ownListings(onRead = { reads++ }),
+            FakeRentalRepository(),
+            FakeAuthRepository(
+                signedInUser = AuthUser(uid = "me", email = "john@epfl.ch", name = "John")
+            ),
+        )
+    var shown by mutableStateOf(true)
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+        PolyLoopTheme { if (shown) ProfileScreen(viewModel, onListingClick = {}, onSignedOut = {}) }
+      }
+    }
+    composeTestRule.runOnIdle { assertEquals(1, reads) }
+
+    // Like Navigation opening Listing detail: the screen leaves the composition, then comes back.
+    composeTestRule.runOnUiThread {
+      owner.lifecycle.currentState = Lifecycle.State.CREATED
+      shown = false
+    }
+    composeTestRule.waitForIdle()
+    composeTestRule.runOnUiThread {
+      owner.lifecycle.currentState = Lifecycle.State.RESUMED
+      shown = true
+    }
+
+    composeTestRule.runOnIdle { assertEquals(2, reads) }
+  }
+
+  /**
+   * A listing repository holding only [tent], calling [onRead] at each read of the own listings.
+   */
+  private fun ownListings(onRead: () -> Unit = {}) =
+      object : ListingRepository {
+        override suspend fun getAllListings() = Result.success(emptyList<Listing>())
+
+        override suspend fun getListing(id: String) = Result.success<Listing?>(null)
+
+        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+          onRead()
+          return Result.success(listOf(tent))
+        }
+
+        override suspend fun getBookedRanges(id: String) = Result.success(emptyList<BookedRange>())
+
+        override suspend fun createListing(
+            listing: Listing,
+            addresses: ListingAddresses,
+            photos: List<Uri>,
+        ): Result<String> = error("Not used in these tests")
+      }
 }

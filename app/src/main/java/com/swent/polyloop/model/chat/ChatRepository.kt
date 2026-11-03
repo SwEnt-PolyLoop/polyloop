@@ -32,7 +32,10 @@ interface ChatRepository {
    * Sends [text] as the signed-in user, and makes it the rental's last message in the chat list.
    * Fails with an [IllegalArgumentException] if [text] is blank or [rentalId] is invalid, an
    * [IllegalStateException] if nobody is signed in, or the cause if it cannot be written (e.g. the
-   * rental does not exist). Nothing is written when it fails.
+   * rental does not exist). Nothing is written when it fails. If the server does not confirm the
+   * write within 10 seconds (offline), the message stays queued and is sent later, so the result is
+   * a success: a message the server rejects afterwards is not reported. The team has not yet
+   * decided whether this is the right behaviour.
    */
   suspend fun sendMessage(rentalId: String, text: String): Result<Unit>
 }

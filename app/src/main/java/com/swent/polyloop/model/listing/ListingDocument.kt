@@ -2,8 +2,9 @@
 
 package com.swent.polyloop.model.listing
 
-import java.time.LocalDate
-import java.time.format.DateTimeParseException
+import com.swent.polyloop.model.firestore.dateOrNull
+import com.swent.polyloop.model.firestore.enumOrNull
+import com.swent.polyloop.model.firestore.intOrNull
 
 /**
  * Firestore names for listings, kept in one place so they are easy to change. Proposed in #32, not
@@ -113,21 +114,7 @@ private fun bookedRangesOrEmpty(value: Any?): List<BookedRange> =
       BookedRange(start, end).takeUnless { end.isBefore(start) }
     }
 
-private inline fun <reified T : Enum<T>> enumOrNull(value: Any?): T? =
-    enumValues<T>().firstOrNull { it.name == value }
-
-/** Firestore returns whole numbers as Long; anything else (e.g. 12.5) is rejected. */
-private fun intOrNull(value: Any?): Int? =
-    (value as? Long)?.takeIf { it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() }?.toInt()
-
 private fun stringListOrNull(value: Any?): List<String>? {
   val list = value as? List<*> ?: return null
   return list.filterIsInstance<String>().takeIf { it.size == list.size }
 }
-
-private fun dateOrNull(value: Any?): LocalDate? =
-    try {
-      (value as? String)?.let(LocalDate::parse)
-    } catch (e: DateTimeParseException) {
-      null
-    }

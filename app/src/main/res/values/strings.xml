@@ -53,9 +53,13 @@
     </plurals>
     <string name="profile_no_reviews">No reviews yet</string>
     <string name="profile_my_listings">My listings</string>
-    <string name="profile_no_listings">You haven\'t put anything up for rent yet.</string>
-    <string name="profile_listing_published">Published</string>
-    <string name="profile_listing_draft">Draft</string>
+    <string name="profile_no_listings">You haven\'t listed anything yet</string>
+    <string name="profile_listings_error">Could not load your listings</string>
+    <string name="profile_listings_stale">Could not refresh your listings. These are the last ones loaded.</string>
+    <string name="profile_listing_status_available">Available</string>
+    <string name="profile_listing_status_booked">Booked</string>
+    <string name="profile_listing_status_on_loan">On loan</string>
+    <string name="profile_listing_status_draft">Draft</string>
     <string name="profile_sign_out">Sign out</string>
     <string name="profile_error_fallback">Could not load the profile</string>
     <string name="profile_retry">Retry</string>
@@ -69,12 +73,8 @@
     <string name="my_rentals_empty_lending">Nobody has asked to borrow your items yet.</string>
     <string name="my_rentals_error_fallback">Could not load your rentals</string>
     <string name="my_rentals_retry">Retry</string>
-    <string name="my_rentals_lender">Lender: %1$s</string>
-    <string name="my_rentals_borrower">Borrower: %1$s</string>
     <string name="my_rentals_unknown_person">an unknown user</string>
     <string name="my_rentals_return_by">Return by %1$s</string>
-    <string name="my_rentals_pickup_at">Pickup: %1$s</string>
-    <string name="my_rentals_drop_off_at">Drop-off: %1$s</string>
     <string name="my_rentals_section_requests">REQUESTS</string>
     <string name="my_rentals_section_current">CURRENT</string>
     <string name="my_rentals_badge_new_request">New request</string>
@@ -84,6 +84,8 @@
     <string name="my_rentals_reserved">%1$d PP reserved · waiting for your answer</string>
     <string name="my_rentals_review_request">Review request</string>
     <string name="my_rentals_pickup_on">Pickup %1$s</string>
+    <string name="my_rentals_from">from %1$s</string>
+    <string name="my_rentals_closed_on">Closed %1$s</string>
     <!-- What comes next, then where, e.g. "Return by 9 Oct · EPFL" -->
     <string name="my_rentals_date_and_area">%1$s · %2$s</string>
     <string name="rental_status_requested">Requested</string>
@@ -166,16 +168,18 @@
     <string name="date_picker_confirm_dates">Confirm dates</string>
     <string name="date_picker_send_error_fallback">Could not send the request. Try again.</string>
 
-    <!-- Top-bar menu -->
+    <!-- Top bar and navigation drawer -->
     <string name="menu_browse">Browse</string>
     <string name="menu_create_listing">Create listing</string>
     <string name="menu_my_rentals">My rentals</string>
-    <string name="menu_chat_list">Chat list</string>
+    <string name="menu_chat_list">Chats</string>
     <string name="menu_wallet">Wallet</string>
     <string name="menu_profile">Profile</string>
-    <string name="menu_admin_court_ruling">Admin court ruling</string>
+    <string name="menu_admin_court_ruling">Court rulings</string>
     <string name="top_bar_menu">Menu</string>
     <string name="top_bar_profile">Profile</string>
+    <string name="drawer_admin_badge">Admin</string>
+    <string name="drawer_footer">Screens tied to one listing or rental open from inside the app.</string>
 
     <!-- Authentication -->
     <!-- The wordmark is split so each half can have its own color. -->
@@ -217,7 +221,10 @@
     <string name="auth_error_sign_up_expired">This sign-up expired because the email was not verified in time. Go back to the form and sign up again.</string>
     <string name="auth_check_inbox_title">Check your inbox</string>
     <!-- The email, then the minutes after sign-up the account has to be verified, e.g. "… to ana@epfl.ch. Verify your email within 5 minutes of creating your account, …" -->
-    <string name="auth_check_inbox_body">We sent a verification link to %1$s. Verify your email within %2$d minutes of creating your account, then come back here. Resending the email does not give you more time.</string>
+    <plurals name="auth_check_inbox_body">
+        <item quantity="one">We sent a verification link to %1$s. Verify your email within %2$d minute of creating your account, then come back here. Resending the email does not give you more time.</item>
+        <item quantity="other">We sent a verification link to %1$s. Verify your email within %2$d minutes of creating your account, then come back here. Resending the email does not give you more time.</item>
+    </plurals>
     <string name="auth_verified">I\'ve verified</string>
     <string name="auth_resend_email">Resend email</string>
     <string name="auth_resend_email_countdown">Resend email (%1$d s)</string>

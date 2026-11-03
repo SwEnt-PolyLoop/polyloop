@@ -155,6 +155,17 @@ object C {
     const val profile_rating = "profile_rating"
     const val profile_listings_title = "profile_listings_title"
     const val profile_listings_empty = "profile_listings_empty"
+    const val profile_listings_card = "profile_listings_card"
+    const val profile_listings_count = "profile_listings_count"
+    const val profile_listings_loading = "profile_listings_loading"
+    const val profile_listings_error = "profile_listings_error"
+    const val profile_listings_retry_button = "profile_listings_retry_button"
+    const val profile_listings_stale = "profile_listings_stale"
+    // Prefixes: each row is tagged profile_listing_ + listing.id, its pill
+    // profile_listing_status_ + listing.id, its draft label profile_listing_draft_ + listing.id
+    const val profile_listing_ = "profile_listing_"
+    const val profile_listing_status_ = "profile_listing_status_"
+    const val profile_listing_draft_ = "profile_listing_draft_"
     const val profile_sign_out_button = "profile_sign_out_button"
     const val profile_loading = "profile_loading"
     const val profile_error = "profile_error"
@@ -183,7 +194,17 @@ object C {
     const val top_bar_menu_button = "top_bar_menu_button"
     const val top_bar_profile_button = "top_bar_profile_button"
 
-    fun topBarMenuItem(route: String) = "top_bar_menu_item_$route"
+    const val drawer = "drawer"
+
+    // Each destination's item in the navigation drawer opened by the menu button
+    fun drawerItem(route: String) = "drawer_item_$route"
+
+    const val drawer_avatar_initial = "drawer_avatar_initial"
+    const val drawer_avatar_photo = "drawer_avatar_photo"
+    const val drawer_name = "drawer_name"
+    const val drawer_rating = "drawer_rating"
+    const val drawer_admin_badge = "drawer_admin_badge"
+    const val drawer_footer = "drawer_footer"
 
     const val my_rentals_screen = "my_rentals_screen"
     const val my_rentals_title = "my_rentals_title"
@@ -198,8 +219,6 @@ object C {
     const val my_rentals_row_ = "my_rentals_row_"
     const val my_rentals_row_title = "my_rentals_row_title"
     const val my_rentals_row_person = "my_rentals_row_person"
-    const val my_rentals_row_return = "my_rentals_row_return"
-    const val my_rentals_row_location = "my_rentals_row_location"
     const val my_rentals_row_status = "my_rentals_row_status"
     const val my_rentals_row_reserved = "my_rentals_row_reserved"
     const val my_rentals_row_line = "my_rentals_row_line"

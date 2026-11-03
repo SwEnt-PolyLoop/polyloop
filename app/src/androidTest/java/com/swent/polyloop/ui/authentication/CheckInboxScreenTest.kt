@@ -112,8 +112,9 @@ class CheckInboxScreenTest {
     composeTestRule
         .onNodeWithTag(C.Tag.auth_check_inbox_body)
         .assertTextEquals(
-            context.getString(
-                R.string.auth_check_inbox_body,
+            context.resources.getQuantityString(
+                R.plurals.auth_check_inbox_body,
+                AuthViewModel.SIGN_UP_EXPIRY_MINUTES,
                 email,
                 AuthViewModel.SIGN_UP_EXPIRY_MINUTES,
             )

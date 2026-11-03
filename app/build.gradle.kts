@@ -1,5 +1,6 @@
 // Edited with Claude.
 
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -10,6 +11,15 @@ plugins {
   alias(libs.plugins.googleServices)
   id("jacoco")
 }
+
+// The Maps SDK key, read from MAPS_API_KEY in local.properties so it stays out of git (see the
+// README). Without it, e.g. on CI, the app still builds and the maps show no tiles. The fallback is
+// a placeholder rather than a blank value, because the Maps SDK throws when it finds no key.
+val mapsApiKey: String =
+    Properties()
+        .apply { rootProject.file("local.properties").takeIf { it.isFile }?.reader()?.use(::load) }
+        .getProperty("MAPS_API_KEY")
+        ?.takeIf { it.isNotBlank() } ?: "MAPS_API_KEY_NOT_SET"
 
 android {
   namespace = "com.swent.polyloop"
@@ -23,12 +33,14 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    manifestPlaceholders["mapsApiKey"] = mapsApiKey
     vectorDrawables { useSupportLibrary = true }
   }
 
   buildTypes {
     release {
       isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(
           getDefaultProguardFile("proguard-android-optimize.txt"),
           "proguard-rules.pro",
@@ -159,6 +171,8 @@ dependencies {
   implementation(libs.camera.camera2)
   implementation(libs.camera.lifecycle)
   implementation(libs.camera.view)
+  // Google Maps SDK for Android, through its Compose wrapper (pickup area on Listing detail)
+  implementation(libs.maps.compose)
   // Android Studio Preview support
   implementation(libs.compose.preview)
   debugImplementation(libs.compose.tooling)
@@ -191,6 +205,8 @@ tasks.withType<Test> {
 }
 
 tasks.register("jacocoTestReport", JacocoReport::class) {
+  group = "verification"
+  description = "Builds the Jacoco coverage report of the unit and instrumented tests for Sonar."
   mustRunAfter("testDebugUnitTest", "connectedDebugAndroidTest")
 
   reports {

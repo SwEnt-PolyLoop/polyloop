@@ -9,7 +9,6 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.polyloop.resources.C
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,50 +18,32 @@ class PolyLoopTopBarTest {
 
   @get:Rule val composeTestRule = createComposeRule()
 
-  private val destinations = Screen.topLevelDestinations(isAdmin = true)
-  private val clickedDestinations = mutableListOf<Screen.TopLevel>()
+  private var menuClicks = 0
   private var profileClicks = 0
 
   private fun setTopBar() {
     composeTestRule.setContent {
-      PolyLoopTopBar(
-          destinations = destinations,
-          onDestinationClick = { clickedDestinations += it },
-          onProfileClick = { profileClicks++ },
-      )
+      PolyLoopTopBar(onMenuClick = { menuClicks++ }, onProfileClick = { profileClicks++ })
     }
   }
 
   @Test
-  fun menuIsCollapsedInitially() {
+  fun topBarShowsTheMenuAndProfileButtons() {
     setTopBar()
 
     composeTestRule.onNodeWithTag(C.Tag.top_bar).assertIsDisplayed()
-    destinations.forEach {
-      composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(it.route)).assertDoesNotExist()
-    }
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_profile_button).assertIsDisplayed()
   }
 
   @Test
-  fun menuButtonListsEveryDestination() {
+  fun menuButtonReportsClick() {
     setTopBar()
 
     composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
 
-    destinations.forEach {
-      composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(it.route)).assertIsDisplayed()
-    }
-  }
-
-  @Test
-  fun selectingDestinationReportsItAndClosesMenu() {
-    setTopBar()
-
-    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(Screen.Wallet.route)).performClick()
-
-    assertEquals(listOf<Screen.TopLevel>(Screen.Wallet), clickedDestinations)
-    composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(Screen.Wallet.route)).assertDoesNotExist()
+    assertEquals(1, menuClicks)
+    assertEquals(0, profileClicks)
   }
 
   @Test
@@ -72,6 +53,6 @@ class PolyLoopTopBarTest {
     composeTestRule.onNodeWithTag(C.Tag.top_bar_profile_button).performClick()
 
     assertEquals(1, profileClicks)
-    assertTrue(clickedDestinations.isEmpty())
+    assertEquals(0, menuClicks)
   }
 }

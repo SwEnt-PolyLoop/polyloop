@@ -67,7 +67,7 @@ class ChatListViewModelTest {
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     chat = FakeChatRepository(currentUid = "me", now = at.plusSeconds(60))
-    chat.conversations.value = listOf(borrowed, lent, someoneElses)
+    chat.conversations = listOf(borrowed, lent, someoneElses)
     auth = FakeAuthRepository(signedInUser = me)
   }
 
@@ -104,8 +104,7 @@ class ChatListViewModelTest {
 
   @Test
   fun rowCarriesTheRentalStatus() {
-    chat.conversations.value =
-        listOf(conversation("tent", "vida", "me", status = RentalStatus.ACCEPTED))
+    chat.conversations = listOf(conversation("tent", "vida", "me", status = RentalStatus.ACCEPTED))
 
     assertEquals(RentalStatus.ACCEPTED, viewModel().uiState.value.rows.single().status)
   }
@@ -129,7 +128,7 @@ class ChatListViewModelTest {
 
   @Test
   fun blankNameAndNoMessageYetArePassedOnForThePlaceholders() {
-    chat.conversations.value = listOf(borrowed.copy(ownerName = "", lastMessage = ""))
+    chat.conversations = listOf(borrowed.copy(ownerName = "", lastMessage = ""))
 
     val row = viewModel().uiState.value.rows.single()
 
@@ -139,7 +138,7 @@ class ChatListViewModelTest {
 
   @Test
   fun noConversationsGivesAnEmptyListWithoutError() {
-    chat.conversations.value = emptyList()
+    chat.conversations = emptyList()
 
     val state = viewModel().uiState.value
 

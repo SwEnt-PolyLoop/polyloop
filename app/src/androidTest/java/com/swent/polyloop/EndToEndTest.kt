@@ -227,6 +227,8 @@ class EndToEndTest {
     // The first verified log-in created the profile, with the name typed at sign-up.
     composeTestRule.onNodeWithTag(C.Tag.top_bar_profile_button).performClick()
     waitForText(C.Tag.profile_name, NAME)
+    // The listings load separately from the profile, so they can still be loading here.
+    waitForTag(C.Tag.profile_listings_empty)
     composeTestRule
         .onNodeWithTag(C.Tag.profile_listings_empty)
         .performScrollTo()
@@ -352,15 +354,20 @@ class EndToEndTest {
     waitForTag(row)
     inRow(row, C.Tag.my_rentals_row_title).assertTextEquals(listing.title)
     inRow(row, C.Tag.my_rentals_row_person)
-        .assertTextEquals(context.getString(R.string.my_rentals_lender, LENDER_NAME))
+        .assertTextEquals(context.getString(R.string.my_rentals_from, LENDER_NAME))
     inRow(row, C.Tag.my_rentals_row_status)
         .assertTextEquals(context.getString(R.string.rental_status_requested))
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_tab_lending).performClick()
     waitForTag(C.Tag.my_rentals_empty)
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_tab_borrowing).performClick()
     waitForTag(row)
+
+    // Tapping the request opens its chat; Back returns to My rentals.
     composeTestRule.onNodeWithTag(row).performClick()
-    assertOpenedFor(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
+    waitForText(C.Tag.chat_header_item, listing.title)
+    assertRoute(Screen.Chat)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertRoute(Screen.MyRentals)
 
     // Chat list: the rental's conversation opens its chat, whose header names the lender and the
     // item (a wrong rental would show another title), and links back to Rental detail.
@@ -443,7 +450,7 @@ class EndToEndTest {
 
   private fun openFromMenu(screen: Screen.TopLevel) {
     composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(screen.route)).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.drawerItem(screen.route)).performScrollTo().performClick()
   }
 
   private fun fillField(tag: String, text: String) {
