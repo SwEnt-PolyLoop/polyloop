@@ -10,6 +10,7 @@ import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
+import com.google.firebase.functions.FirebaseFunctions
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.firestore.confirmWrite
 import com.swent.polyloop.model.firestore.isValidDocumentId
@@ -21,9 +22,15 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.tasks.await
 
-/** [RentalRepository] backed by Firestore, one document per rental at `rentals/{id}`. */
-class RentalRepositoryFirestore(private val db: FirebaseFirestore = Firebase.firestore) :
-    RentalRepository {
+/**
+ * [RentalRepository] backed by Firestore, one document per rental at `rentals/{id}`. Answers to a
+ * request go through the Cloud Functions in [REGION], which are the only writers of the status.
+ */
+class RentalRepositoryFirestore(
+    private val db: FirebaseFirestore = Firebase.firestore,
+    // A provider, not an instance: Firebase is only touched when an answer is sent.
+    private val functions: () -> FirebaseFunctions = { FirebaseFunctions.getInstance(REGION) },
+) : RentalRepository {
 
   private val rentals: CollectionReference
     get() = db.collection(RentalFields.COLLECTION)
@@ -63,6 +70,37 @@ class RentalRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fir
   override suspend fun getRental(id: String): Result<Rental?> {
     if (!isValidDocumentId(id)) return Result.success(null)
     return withFirebaseErrors { Result.success(readRental(rentals.document(id))) }
+  }
+
+  override suspend fun acceptRental(
+      rentalId: String,
+      deposit: Int,
+      pickupAddress: String,
+      returnAddress: String,
+  ): Result<Unit> =
+      callAnswer(
+          "acceptRental",
+          mapOf(
+              "rentalId" to rentalId,
+              "deposit" to deposit,
+              "pickupAddress" to pickupAddress,
+              "returnAddress" to returnAddress,
+          ),
+      )
+
+  override suspend fun declineRental(rentalId: String): Result<Unit> =
+      callAnswer("declineRental", mapOf("rentalId" to rentalId))
+
+  /** Calls the Cloud Function [name] with [data]; a refusal or a lost connection is a failure. */
+  private suspend fun callAnswer(name: String, data: Map<String, Any>): Result<Unit> =
+      withFirebaseErrors {
+        functions().getHttpsCallable(name).call(data).await()
+        Result.success(Unit)
+      }
+
+  companion object {
+    /** Region of the Cloud Functions, next to the Firestore database (see docs/ARCHITECTURE.md). */
+    const val REGION = "europe-west1"
   }
 
   /**

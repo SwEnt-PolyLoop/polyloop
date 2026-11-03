@@ -27,6 +27,7 @@ internal object RentalFields {
   const val STATUS = "status"
   const val PRICE_PER_DAY = "pricePerDay"
   const val TOTAL_PRICE = "totalPrice"
+  const val DEPOSIT = "deposit"
   const val PICKUP_AREA = "pickupArea"
   const val DROP_OFF_AREA = "dropOffArea"
   const val PICKUP_ADDRESS = "pickupAddress"
@@ -100,6 +101,7 @@ internal fun rentalFromDocument(id: String, data: Map<String, Any?>): Rental? {
       dropOffArea = data.stringOrEmpty(RentalFields.DROP_OFF_AREA),
       pickupAddress = data.stringOrEmpty(RentalFields.PICKUP_ADDRESS),
       returnAddress = data.stringOrEmpty(RentalFields.RETURN_ADDRESS),
+      deposit = intOrNull(data[RentalFields.DEPOSIT]) ?: 0,
       createdAt = createdAt,
       lastMessage = data.stringOrEmpty(RentalFields.LAST_MESSAGE),
       lastMessageAt = instantOrNull(data[RentalFields.LAST_MESSAGE_AT]) ?: createdAt,

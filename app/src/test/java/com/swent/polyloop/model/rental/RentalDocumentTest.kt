@@ -77,6 +77,14 @@ class RentalDocumentTest {
   }
 
   @Test
+  fun readsTheDepositWhenTheLenderAcceptedAndDefaultsToZeroBefore() {
+    val accepted = rentalFromDocument("rental-1", validData + (RentalFields.DEPOSIT to 60L))
+
+    assertEquals(60, accepted?.deposit)
+    assertEquals(0, rentalFromDocument("rental-1", validData)?.deposit)
+  }
+
+  @Test
   fun missingCopiedTextsReadAsEmptyAndLastMessageAtAsCreatedAt() {
     val optional =
         listOf(

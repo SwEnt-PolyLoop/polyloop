@@ -204,4 +204,86 @@ class FakeRentalRepositoryTest {
 
     assertEquals("", rental.listingPhotoUrl)
   }
+
+  // ---------- acceptRental / declineRental ----------
+
+  /** A rental on [listing] from [start] to [end] (YYYY-MM-DD), by a borrower of its own. */
+  private fun rentalOn(
+      id: String,
+      start: String,
+      end: String,
+      status: RentalStatus = RentalStatus.REQUESTED,
+  ) =
+      Rental(
+          id = id,
+          listingId = listing.id,
+          listingTitle = listing.title,
+          ownerId = listing.ownerId,
+          ownerName = "Owen",
+          borrowerId = "borrower-$id",
+          borrowerName = "Bea",
+          startDate = LocalDate.parse(start),
+          endDate = LocalDate.parse(end),
+          status = status,
+          pricePerDay = 5,
+          totalPrice = 5,
+          pickupArea = "Ecublens",
+          dropOffArea = "Renens",
+          createdAt = Instant.EPOCH,
+      )
+
+  @Test
+  fun acceptRentalStoresTheAnswerAndDeclinesOverlappingRequestsOnly() = runTest {
+    // The accepted request is 10 to 12 October; 13 October is its buffer day.
+    val repository =
+        FakeRentalRepository(
+            rentals =
+                listOf(
+                    rentalOn("accepted", "2026-10-10", "2026-10-12"),
+                    rentalOn("touching", "2026-10-13", "2026-10-14"),
+                    rentalOn("free-day", "2026-10-14", "2026-10-15"),
+                ),
+        )
+
+    repository.acceptRental("accepted", 60, "Route Cantonale 1", "Rue de Lausanne 10").getOrThrow()
+
+    val byId = repository.rentals.associateBy { it.id }
+    assertEquals(RentalStatus.ACCEPTED, byId.getValue("accepted").status)
+    assertEquals(60, byId.getValue("accepted").deposit)
+    assertEquals("Route Cantonale 1", byId.getValue("accepted").pickupAddress)
+    assertEquals(RentalStatus.DECLINED, byId.getValue("touching").status)
+    assertEquals(RentalStatus.REQUESTED, byId.getValue("free-day").status)
+  }
+
+  @Test
+  fun acceptRentalRefusesARequestThatIsNotWaitingOrAZeroDeposit() = runTest {
+    val repository =
+        FakeRentalRepository(
+            rentals = listOf(rentalOn("r1", "2026-10-10", "2026-10-12", RentalStatus.DECLINED))
+        )
+
+    assertTrue(repository.acceptRental("r1", 60, "A", "B").isFailure)
+    assertTrue(repository.acceptRental("missing", 60, "A", "B").isFailure)
+    val waiting = FakeRentalRepository(rentals = listOf(rentalOn("r2", "2026-10-10", "2026-10-12")))
+    assertTrue(waiting.acceptRental("r2", 0, "A", "B").isFailure)
+    assertEquals(RentalStatus.REQUESTED, waiting.rentals.single().status)
+  }
+
+  @Test
+  fun declineRentalMarksTheRequestDeclinedOnly() = runTest {
+    val repository =
+        FakeRentalRepository(
+            rentals =
+                listOf(
+                    rentalOn("r1", "2026-10-10", "2026-10-12"),
+                    rentalOn("r2", "2026-10-10", "2026-10-12"),
+                ),
+        )
+
+    repository.declineRental("r1").getOrThrow()
+
+    val byId = repository.rentals.associateBy { it.id }
+    assertEquals(RentalStatus.DECLINED, byId.getValue("r1").status)
+    assertEquals(RentalStatus.REQUESTED, byId.getValue("r2").status)
+  }
 }

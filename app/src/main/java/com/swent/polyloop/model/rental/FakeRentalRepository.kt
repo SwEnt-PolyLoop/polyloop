@@ -3,7 +3,9 @@
 package com.swent.polyloop.model.rental
 
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.listing.conflictsWithBuffer
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
@@ -85,6 +87,68 @@ class FakeRentalRepository(
   override suspend fun getRental(id: String): Result<Rental?> {
     gate?.await()
     return failure?.let { Result.failure(it) } ?: Result.success(stored.value.find { it.id == id })
+  }
+
+  /**
+   * Same rules as the Cloud Function: only a requested rental can be accepted, with a deposit above
+   * 0; the other requests of its listing whose dates overlap (buffer day included) are declined.
+   */
+  override suspend fun acceptRental(
+      rentalId: String,
+      deposit: Int,
+      pickupAddress: String,
+      returnAddress: String,
+  ): Result<Unit> {
+    gate?.await()
+    failure?.let {
+      return Result.failure(it)
+    }
+    val rental =
+        stored.value.find { it.id == rentalId }
+            ?: return Result.failure(IllegalArgumentException("No rental $rentalId"))
+    if (rental.status != RentalStatus.REQUESTED) {
+      return Result.failure(IllegalStateException("Rental $rentalId is ${rental.status}"))
+    }
+    if (deposit <= 0) {
+      return Result.failure(IllegalArgumentException("The deposit must be above 0"))
+    }
+    val dates = BookedRange(rental.startDate, rental.endDate)
+    stored.update { rentals ->
+      rentals.map { other ->
+        when {
+          other.id == rentalId ->
+              other.copy(
+                  status = RentalStatus.ACCEPTED,
+                  deposit = deposit,
+                  pickupAddress = pickupAddress,
+                  returnAddress = returnAddress,
+              )
+          other.listingId == rental.listingId &&
+              other.status == RentalStatus.REQUESTED &&
+              conflictsWithBuffer(dates, BookedRange(other.startDate, other.endDate)) ->
+              other.copy(status = RentalStatus.DECLINED)
+          else -> other
+        }
+      }
+    }
+    return Result.success(Unit)
+  }
+
+  override suspend fun declineRental(rentalId: String): Result<Unit> {
+    gate?.await()
+    failure?.let {
+      return Result.failure(it)
+    }
+    val rental =
+        stored.value.find { it.id == rentalId }
+            ?: return Result.failure(IllegalArgumentException("No rental $rentalId"))
+    if (rental.status != RentalStatus.REQUESTED) {
+      return Result.failure(IllegalStateException("Rental $rentalId is ${rental.status}"))
+    }
+    stored.update { rentals ->
+      rentals.map { if (it.id == rentalId) it.copy(status = RentalStatus.DECLINED) else it }
+    }
+    return Result.success(Unit)
   }
 
   /** "rental-N" with the smallest N not used yet, so it never clashes with the initial rentals. */

@@ -30,8 +30,9 @@ data class Rental(
     val totalPrice: Int, // in PP: pricePerDay times the number of days
     val pickupArea: String, // public, copied from the listing
     val dropOffArea: String, // public, copied from the listing
-    val pickupAddress: String = "", // exact, set when the lender accepts (later sprint)
-    val returnAddress: String = "", // exact, set when the lender accepts (later sprint)
+    val pickupAddress: String = "", // exact, set when the lender accepts
+    val returnAddress: String = "", // exact, set when the lender accepts
+    val deposit: Int = 0, // in PP, entered by the lender when accepting; 0 until then
     val createdAt: Instant,
     val lastMessage: String = "",
     // Starts at createdAt: the chat list sorts by this field, and Firestore leaves out of a sorted

@@ -46,4 +46,25 @@ interface RentalRepository {
    * cannot be read.
    */
   suspend fun getRental(id: String): Result<Rental?>
+
+  /**
+   * The lender accepts the requested rental [rentalId] with the agreed [deposit] (a whole number of
+   * PP above 0) and the exact [pickupAddress] and [returnAddress]. The server books the rental's
+   * dates on the listing and declines the other requests whose dates overlap (buffer day included).
+   * Done by the `acceptRental` Cloud Function: the app writes nothing itself. Fails with the cause
+   * when the server refuses (not requested, dates booked meanwhile, not the lender) or cannot be
+   * reached.
+   */
+  suspend fun acceptRental(
+      rentalId: String,
+      deposit: Int,
+      pickupAddress: String,
+      returnAddress: String,
+  ): Result<Unit>
+
+  /**
+   * The lender declines the requested rental [rentalId], through the `declineRental` Cloud
+   * Function. Fails with the cause when the server refuses or cannot be reached.
+   */
+  suspend fun declineRental(rentalId: String): Result<Unit>
 }
