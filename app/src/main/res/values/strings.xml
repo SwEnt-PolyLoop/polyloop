@@ -39,6 +39,7 @@
     <string name="listing_detail_date_range">%1$s – %2$s</string>
     <string name="listing_detail_deposit_note">The final deposit is agreed in chat before acceptance.</string>
     <string name="listing_detail_pickup_caption">Pickup area · exact address after acceptance</string>
+    <string name="listing_detail_pickup_map_description">Map of the pickup area</string>
     <string name="listing_detail_request_dates">Request dates</string>
     <string name="listing_detail_error_fallback">Could not load the listing</string>
     <string name="listing_detail_retry">Retry</string>

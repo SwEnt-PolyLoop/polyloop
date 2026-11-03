@@ -27,12 +27,14 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.listing.MapPoint
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.resources.C
@@ -229,6 +231,91 @@ class ListingDetailScreenTest {
         C.Tag.listing_detail_pickup_caption,
         context.getString(R.string.listing_detail_pickup_caption),
     )
+  }
+
+  private val pointNearEpfl = MapPoint(latitude = 46.52, longitude = 6.57)
+
+  /** Scrolls to the pickup area and checks it shows the map, not the placeholder. */
+  private fun assertPickupMapShown() {
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_area).performScrollTo()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_map).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_placeholder).assertDoesNotExist()
+  }
+
+  /** Scrolls to the pickup area and checks it shows the placeholder with [area], not the map. */
+  private fun assertPickupPlaceholderShown(area: String) {
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_area).performScrollTo()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_placeholder).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_map).assertDoesNotExist()
+    assertSectionText(C.Tag.listing_detail_pickup_area_name, area)
+  }
+
+  @Test
+  fun pickupAreaShowsTheMapOnlineWithAPoint() {
+    setContent(listing.copy(pickupPoint = pointNearEpfl))
+
+    assertPickupMapShown()
+    assertSectionText(
+        C.Tag.listing_detail_pickup_caption,
+        context.getString(R.string.listing_detail_pickup_caption),
+    )
+  }
+
+  @Test
+  fun pickupAreaShowsThePlaceholderWithTheAreaNameWithoutAPoint() {
+    setContent(listing)
+
+    assertPickupPlaceholderShown("Ecublens")
+  }
+
+  @Test
+  fun pickupAreaShowsThePlaceholderWithTheAreaNameOffline() {
+    setContent(
+        ListingDetailUiState(listing = listing.copy(pickupPoint = pointNearEpfl), isOffline = true)
+    )
+
+    assertPickupPlaceholderShown("Ecublens")
+    assertSectionText(
+        C.Tag.listing_detail_pickup_caption,
+        context.getString(R.string.listing_detail_pickup_caption),
+    )
+  }
+
+  @Test
+  fun pickupPlaceholderShowsNoAreaNameBeforeGeocoding() {
+    setContent(listing.copy(pickupArea = ""))
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_area).performScrollTo()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_placeholder).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_detail_pickup_area_name, useUnmergedTree = true)
+        .assertDoesNotExist()
+  }
+
+  @Test
+  fun listingDetailScreenSwapsTheMapForThePlaceholderWhenGoingOffline() {
+    val connectivity = FakeConnectivityRepository(online = true)
+    val viewModel =
+        ListingDetailViewModel(
+            "tent",
+            listingRepository(
+                loadListing = { Result.success(listing.copy(pickupPoint = pointNearEpfl)) }
+            ),
+            FakeRentalRepository(),
+            FakeAuthRepository(),
+            FakeProfileRepository(),
+            connectivity,
+        )
+    composeTestRule.setContent {
+      ListingDetailScreen(viewModel = viewModel, onLenderClick = {}, onRequestSent = {})
+    }
+    waitForTag(C.Tag.listing_detail_pickup_area)
+    assertPickupMapShown()
+
+    connectivity.setOnline(false)
+    composeTestRule.waitForIdle()
+
+    assertPickupPlaceholderShown("Ecublens")
   }
 
   @Test
@@ -528,6 +615,7 @@ class ListingDetailScreenTest {
             FakeRentalRepository(),
             FakeAuthRepository(),
             FakeProfileRepository(),
+            FakeConnectivityRepository(),
         )
     var clickedOwnerId: String? = null
     composeTestRule.setContent {
@@ -661,6 +749,7 @@ class ListingDetailScreenTest {
             rentalRepository,
             FakeAuthRepository(signedInUser = AuthUser("me", "loca@epfl.ch", "Loca")),
             FakeProfileRepository(),
+            FakeConnectivityRepository(),
         )
     val sent = mutableListOf<String>()
     composeTestRule.setContent {

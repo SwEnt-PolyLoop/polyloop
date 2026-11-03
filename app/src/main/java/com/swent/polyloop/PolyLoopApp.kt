@@ -240,6 +240,7 @@ private fun PolyLoopScaffold(
                         rentalRepository = RepositoryProvider.rentalRepository,
                         authRepository = RepositoryProvider.authRepository,
                         profileRepository = RepositoryProvider.profileRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
                     )
             )
         ListingDetailScreen(

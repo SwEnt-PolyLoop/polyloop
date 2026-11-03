@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.listingdetail
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
@@ -56,6 +57,7 @@ class ListingDetailViewModelTest {
   private lateinit var rentalRepository: FakeRentalRepository
   private lateinit var authRepository: FakeAuthRepository
   private lateinit var profileRepository: FakeProfileRepository
+  private lateinit var connectivityRepository: FakeConnectivityRepository
 
   @Before
   fun setUp() {
@@ -65,6 +67,7 @@ class ListingDetailViewModelTest {
     authRepository = FakeAuthRepository(signedInUser = me)
     profileRepository =
         FakeProfileRepository(profiles = listOf(UserProfile("owner", "Mara", "mara@epfl.ch")))
+    connectivityRepository = FakeConnectivityRepository()
   }
 
   @After
@@ -79,6 +82,7 @@ class ListingDetailViewModelTest {
           rentalRepository,
           authRepository,
           profileRepository,
+          connectivityRepository,
           today = { today },
       )
 
@@ -89,6 +93,7 @@ class ListingDetailViewModelTest {
           rentalRepository,
           authRepository,
           profileRepository,
+          connectivityRepository,
           today = { today },
       )
 
@@ -444,6 +449,7 @@ class ListingDetailViewModelTest {
                 rentalRepository,
                 authRepository,
                 profileRepository,
+                connectivityRepository,
                 today = { now },
             )
             .also { it.openDatePicker() }
@@ -460,4 +466,26 @@ class ListingDetailViewModelTest {
   }
 
   private class OtherViewModel : ViewModel()
+
+  @Test fun isOnlineAtStartWhenThePhoneIsOnline() = assertFalse(viewModel().uiState.value.isOffline)
+
+  @Test
+  fun isOfflineAtStartWhenThePhoneIsOffline() {
+    connectivityRepository.setOnline(false)
+
+    assertTrue(viewModel().uiState.value.isOffline)
+  }
+
+  @Test
+  fun isOfflineFollowsTheConnectionAndKeepsTheListing() {
+    val vm = viewModel()
+
+    connectivityRepository.setOnline(false)
+    assertTrue(vm.uiState.value.isOffline)
+    assertEquals(listing, vm.uiState.value.listing)
+
+    connectivityRepository.setOnline(true)
+    assertFalse(vm.uiState.value.isOffline)
+    assertEquals(listing, vm.uiState.value.listing)
+  }
 }
