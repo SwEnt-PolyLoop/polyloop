@@ -67,8 +67,8 @@ class ChatViewModelTest {
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     chat = FakeChatRepository(currentUid = "me", now = at.plusSeconds(60))
-    chat.conversations.value = listOf(tent)
-    chat.messages.value = mapOf("tent" to listOf(fromAna, fromMe, fromApp))
+    chat.conversations = listOf(tent)
+    chat.messages = mapOf("tent" to listOf(fromAna, fromMe, fromApp))
     auth = FakeAuthRepository(signedInUser = me)
   }
 
@@ -115,8 +115,7 @@ class ChatViewModelTest {
 
   @Test
   fun systemMessageIsSystemEvenWithMyId() {
-    chat.messages.value =
-        mapOf("tent" to listOf(message("m1", "me", "Accepted", MessageType.SYSTEM)))
+    chat.messages = mapOf("tent" to listOf(message("m1", "me", "Accepted", MessageType.SYSTEM)))
 
     assertEquals(MessageKind.SYSTEM, viewModel().uiState.value.messages.single().kind)
   }
@@ -126,14 +125,14 @@ class ChatViewModelTest {
     val vm = viewModel()
     val fromAnaAgain = message("m4", "ana", "Great", MessageType.USER)
 
-    chat.messages.value = mapOf("tent" to listOf(fromAna, fromMe, fromApp, fromAnaAgain))
+    chat.messages = mapOf("tent" to listOf(fromAna, fromMe, fromApp, fromAnaAgain))
 
     assertEquals("Great", vm.uiState.value.messages.last().text)
   }
 
   @Test
   fun chatWithoutMessagesIsEmptyWithoutError() {
-    chat.messages.value = emptyMap()
+    chat.messages = emptyMap()
 
     val state = viewModel().uiState.value
 

@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -136,8 +137,9 @@ internal fun CheckInboxContent(
         Text(
             text =
                 boldEmail(
-                    stringResource(
-                        R.string.auth_check_inbox_body,
+                    pluralStringResource(
+                        R.plurals.auth_check_inbox_body,
+                        AuthViewModel.SIGN_UP_EXPIRY_MINUTES,
                         email,
                         AuthViewModel.SIGN_UP_EXPIRY_MINUTES,
                     ),

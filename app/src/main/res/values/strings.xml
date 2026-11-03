@@ -221,7 +221,10 @@
     <string name="auth_error_sign_up_expired">This sign-up expired because the email was not verified in time. Go back to the form and sign up again.</string>
     <string name="auth_check_inbox_title">Check your inbox</string>
     <!-- The email, then the minutes after sign-up the account has to be verified, e.g. "… to ana@epfl.ch. Verify your email within 5 minutes of creating your account, …" -->
-    <string name="auth_check_inbox_body">We sent a verification link to %1$s. Verify your email within %2$d minutes of creating your account, then come back here. Resending the email does not give you more time.</string>
+    <plurals name="auth_check_inbox_body">
+        <item quantity="one">We sent a verification link to %1$s. Verify your email within %2$d minute of creating your account, then come back here. Resending the email does not give you more time.</item>
+        <item quantity="other">We sent a verification link to %1$s. Verify your email within %2$d minutes of creating your account, then come back here. Resending the email does not give you more time.</item>
+    </plurals>
     <string name="auth_verified">I\'ve verified</string>
     <string name="auth_resend_email">Resend email</string>
     <string name="auth_resend_email_countdown">Resend email (%1$d s)</string>

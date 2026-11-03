@@ -373,7 +373,7 @@ class PolyLoopAppTest {
 
   @Test
   fun tappingAConversationOpensItsChat() {
-    chatRepository.conversations.value =
+    chatRepository.conversations =
         listOf(
             Conversation(
                 "rental-1",
@@ -403,7 +403,7 @@ class PolyLoopAppTest {
 
   @Test
   fun rentalDetailsInTheChatOpensTheRental() {
-    chatRepository.conversations.value =
+    chatRepository.conversations =
         listOf(
             Conversation(
                 "rental-1",
