@@ -8,6 +8,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
 import com.swent.polyloop.utils.FirebaseEmulator
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.first
@@ -16,6 +17,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -49,7 +51,12 @@ class ChatRepositoryFirestoreEmulatorTest {
    * Writes a rental document with the fields the chat reads, as `requestRental` will (#94). As an
    * admin: the rules let only the borrower create a rental, and only for an existing listing.
    */
-  private fun createRental(owner: String, borrower: String, lastMessageAt: Long): String {
+  private fun createRental(
+      owner: String,
+      borrower: String,
+      lastMessageAt: Long,
+      extra: Map<String, Any> = emptyMap(),
+  ): String {
     val id = "rental-${UUID.randomUUID()}"
     FirebaseEmulator.createDocumentAsAdmin(
         "rentals/$id",
@@ -65,7 +72,7 @@ class ChatRepositoryFirestoreEmulatorTest {
             "status" to "REQUESTED",
             "startDate" to "2026-10-20",
             "endDate" to "2026-10-22",
-        ),
+        ) + extra,
     )
     return id
   }
@@ -115,6 +122,27 @@ class ChatRepositoryFirestoreEmulatorTest {
 
     // The rules hide the messages of a missing rental, so check the batch left no rental either.
     assertEquals(null, repository.getConversation(missing).getOrThrow())
+  }
+
+  @Test
+  fun markAsReadSavesMyTimeKeepsTheOtherPersonsAndMakesTheChatRead() = runBlocking {
+    val rentalId =
+        createRental(
+            owner = "someone",
+            borrower = uid,
+            lastMessageAt = 1_000,
+            extra =
+                mapOf("lastMessage" to "Hi", "lastReadAt" to mapOf("someone" to Timestamp(500, 0))),
+        )
+    assertTrue(repository.getConversation(rentalId).getOrThrow()!!.isUnreadFor(uid))
+
+    assertTrue(repository.markAsRead(rentalId).isSuccess)
+
+    val conversation = repository.getConversation(rentalId).getOrThrow()!!
+    assertEquals(Instant.ofEpochSecond(500), conversation.lastReadAt["someone"])
+    assertTrue(conversation.lastReadAt.getValue(uid) > conversation.lastMessageAt)
+    assertFalse(conversation.isUnreadFor(uid))
+    assertTrue(repository.markAsRead("rental-${UUID.randomUUID()}").isFailure) // no such rental
   }
 
   private companion object {
