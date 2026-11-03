@@ -100,6 +100,8 @@ class FakeChatRepositoryTest {
     assertEquals(listOf("r1", "r2"), conversations.map { it.rentalId })
     assertEquals("Still available?", conversations[0].lastMessage)
     assertEquals(repository.now, conversations[0].lastMessageAt)
+    assertEquals(mapOf("u1" to repository.now), conversations[0].lastReadAt)
+    assertFalse(conversations[0].isUnreadFor("u1"))
     assertEquals(newer, conversations[1])
   }
 

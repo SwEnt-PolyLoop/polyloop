@@ -92,6 +92,9 @@ class ChatRepositoryFirestoreEmulatorTest {
     val rental = Firebase.firestore.collection("rentals").document(rentalId).get().await()
     assertEquals("See you at 5?", rental.getString("lastMessage"))
     assertTrue(rental.getTimestamp("lastMessageAt")!! > Timestamp(1_000, 0))
+    // Saved in the same write as lastMessageAt, so the sender's own message is not unread.
+    assertEquals(rental.getTimestamp("lastMessageAt"), rental.getTimestamp("lastReadAt.$uid"))
+    assertFalse(repository.getConversation(rentalId).getOrThrow()!!.isUnreadFor(uid))
   }
 
   @Test

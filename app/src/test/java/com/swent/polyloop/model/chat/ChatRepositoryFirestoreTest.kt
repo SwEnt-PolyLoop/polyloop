@@ -103,7 +103,11 @@ class ChatRepositoryFirestoreTest {
         messageData.captured,
     )
     assertEquals(
-        mapOf("lastMessage" to " See you at 5? ", "lastMessageAt" to FieldValue.serverTimestamp()),
+        mapOf(
+            "lastMessage" to " See you at 5? ",
+            "lastMessageAt" to FieldValue.serverTimestamp(),
+            "lastReadAt.u1" to FieldValue.serverTimestamp(), // my own message is not unread
+        ),
         rentalUpdate.captured,
     )
     verify(exactly = 1) { batch.commit() }

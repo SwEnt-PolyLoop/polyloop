@@ -67,7 +67,8 @@ class ChatRepositoryFirestore(
     val message = rental.collection(ChatFields.MESSAGES).document() // new random id
     return withFirebaseErrors {
       // A batch writes both or neither, so the chat list never misses a sent message. The update
-      // fails if the rental does not exist, so no message is left without its rental.
+      // fails if the rental does not exist, so no message is left without its rental. It also
+      // saves the sender's read time, equal to lastMessageAt, so their own message is not unread.
       val batch =
           db.batch()
               .set(
@@ -84,6 +85,7 @@ class ChatRepositoryFirestore(
                   mapOf(
                       ChatFields.LAST_MESSAGE to text,
                       ChatFields.LAST_MESSAGE_AT to FieldValue.serverTimestamp(),
+                      readTimeOf(uid) to FieldValue.serverTimestamp(),
                   ),
               )
       // Not confirmed in time (offline): the batch stays queued and Firestore sends it later, so

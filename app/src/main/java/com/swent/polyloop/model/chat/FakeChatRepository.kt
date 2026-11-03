@@ -88,7 +88,16 @@ class FakeChatRepository(
     }
     storedConversations.update { all ->
       all.map {
-        if (it.rentalId == rentalId) it.copy(lastMessage = text, lastMessageAt = now) else it
+        if (it.rentalId == rentalId) {
+          // Like the real repository: the sender's read time is the message's time.
+          it.copy(
+              lastMessage = text,
+              lastMessageAt = now,
+              lastReadAt = it.lastReadAt + (uid to now),
+          )
+        } else {
+          it
+        }
       }
     }
     return Result.success(Unit)
