@@ -12,6 +12,7 @@ import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
+import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.Instant
@@ -19,6 +20,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -351,5 +353,48 @@ class RentalDetailViewModelTest {
     factory().create(OtherViewModel::class.java)
   }
 
+  @Test
+  fun retryCancelsAnOlderLoad() {
+    val firstCall = CompletableDeferred<Rental>()
+    val secondCall = CompletableDeferred<Rental>()
+    val vm =
+        RentalDetailViewModel(
+            rental.id,
+            OneDeferredPerCallRentalRepository(listOf(firstCall, secondCall)),
+            listingRepository,
+            profileRepository,
+            authRepository,
+        )
+    vm.retry()
+
+    secondCall.complete(rental.copy(listingTitle = "New"))
+    // The first load answers last; had it not been cancelled, it would overwrite the newer one.
+    firstCall.complete(rental.copy(listingTitle = "Old"))
+
+    assertEquals("New", vm.uiState.value.itemTitle)
+  }
+
   private class OtherViewModel : ViewModel()
+
+  /** A [RentalRepository] whose n-th getRental call answers with the n-th of [answers]. */
+  private class OneDeferredPerCallRentalRepository(
+      private val answers: List<CompletableDeferred<Rental>>
+  ) : RentalRepository {
+    private var calls = 0
+
+    override suspend fun getRental(id: String): Result<Rental?> =
+        Result.success(answers[calls++].await())
+
+    override suspend fun requestRental(
+        listing: Listing,
+        ownerName: String,
+        borrower: AuthUser,
+        startDate: LocalDate,
+        endDate: LocalDate,
+    ): Result<Rental> = error("Not used")
+
+    override fun observeRentalsAsBorrower(uid: String): Flow<List<Rental>> = error("Not used")
+
+    override fun observeRentalsAsLender(uid: String): Flow<List<Rental>> = error("Not used")
+  }
 }

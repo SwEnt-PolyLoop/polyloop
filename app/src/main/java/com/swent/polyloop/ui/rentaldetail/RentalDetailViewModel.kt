@@ -13,6 +13,7 @@ import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -104,14 +105,17 @@ class RentalDetailViewModel(
         _uiState.value = RentalDetailUiState(isSupported = false, itemTitle = rental.listingTitle)
         return@launch
       }
-      // Only the rental is required: a missing or unreadable listing or profile falls back (no
-      // deposit, the name copied on the rental) instead of failing the screen. Both reads finish
-      // before isLoading turns false, so the screen does not flash a half-filled card.
-      val suggestedDeposit = listingRepository.getListing(rental.listingId).getOrNull()?.itemValue
       val uid = authRepository.getCurrentUser()?.uid.orEmpty()
       val isLender = uid == rental.ownerId
       val otherUid = if (isLender) rental.borrowerId else rental.ownerId
-      val profile = profileRepository.getProfile(otherUid).getOrNull()
+      // Only the rental is required: a missing or unreadable listing or profile falls back (no
+      // deposit, the name copied on the rental) instead of failing the screen. The two reads need
+      // nothing from each other, so they run at the same time; both are awaited before isLoading
+      // turns false, so the screen does not flash a half-filled card.
+      val listing = async { listingRepository.getListing(rental.listingId).getOrNull() }
+      val profileRead = async { profileRepository.getProfile(otherUid).getOrNull() }
+      val suggestedDeposit = listing.await()?.itemValue
+      val profile = profileRead.await()
       val otherPerson =
           OtherPerson(
               uid = otherUid,
