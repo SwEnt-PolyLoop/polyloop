@@ -5,7 +5,7 @@ One section per screen: what it shows and what it lets the user do. Mock-ups: ht
 
 ## Conventions
 
-PolyLoop has 13 screens, each backed by its own ViewModel, which uses the repositories it needs (see the table in ARCHITECTURE.md). Each section below lists what a screen shows and what it lets the user do.
+PolyLoop has 14 screens, each backed by its own ViewModel, which uses the repositories it needs (see the table in ARCHITECTURE.md). Each section below lists what a screen shows and what it lets the user do.
 
 Elements shared across screens:
 
