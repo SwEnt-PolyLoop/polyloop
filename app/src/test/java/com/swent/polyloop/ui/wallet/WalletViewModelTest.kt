@@ -146,6 +146,22 @@ class WalletViewModelTest {
   }
 
   @Test
+  fun theLastWalletAndHistoryAreKeptWhenALaterReadFails() {
+    val kept = listOf(tx("tx-1", noon))
+    wallets.emit(Wallet(available = 50, heldAsDeposits = 20), kept)
+    val viewModel = viewModel()
+    wallets.failure = IllegalStateException("unreadable")
+
+    wallets.emit(Wallet(available = 999), listOf(tx("tx-2", noon)))
+
+    val state = viewModel.uiState.value
+    assertEquals("", state.errorMsg)
+    assertFalse(state.isLoading)
+    assertEquals(Wallet(available = 50, heldAsDeposits = 20), state.wallet)
+    assertEquals(kept, state.history)
+  }
+
+  @Test
   fun theSignedInUsersUidIsTheOneTheRepositoryReceives() {
     val viewModel = viewModel()
 

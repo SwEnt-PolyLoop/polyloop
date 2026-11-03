@@ -140,10 +140,12 @@ class WalletViewModel(
       _uiState.update { it.copy(isLoading = false, errorMsg = "") }
       return
     }
-    val wallet = walletRepository.observeWallet(uid)
-    val history = walletRepository.observeHistory(uid)
+    val walletFlow = walletRepository.observeWallet(uid)
+    val historyFlow = walletRepository.observeHistory(uid)
     observing = viewModelScope.launch {
-      combine(wallet, history) { w, h -> w to h.sortedWith(NEWEST_FIRST) }
+      combine(walletFlow, historyFlow) { wallet, history ->
+            wallet to history.sortedWith(NEWEST_FIRST)
+          }
           .catch { _uiState.update { it.copy(isLoading = false, errorMsg = "") } }
           .collect { (wallet, history) ->
             _uiState.update {
