@@ -15,16 +15,22 @@ service firebase.storage {
           && request.auth.token.email.lower().matches('^[a-z0-9._-]+@epfl[.]ch$');
     }
 
-    // Listing photos, uploaded by ListingRepositoryFirestore.
+    // Listing photos, uploaded by ListingRepositoryFirestore as 0.jpg to 9.jpg (a listing has at
+    // most 10), each tagged with the uid of the user who uploaded it.
     match /listings/{listingId}/{photo} {
       allow read: if isVerifiedEpfl();
 
-      // The in-app camera takes about 1440 x 1080 JPEGs at quality 80, far under this limit.
-      allow create, update: if canChangePhotos(listingId)
-          && request.resource.size < 10 * 1024 * 1024
-          && request.resource.contentType.matches('image/.*');
+      // In Storage rules, create covers every upload, even over a photo already stored here, and
+      // update covers only metadata changes. Only the user who uploaded a photo may replace it,
+      // change its metadata or delete it, even once its listing is deleted and its folder is open
+      // again.
+      allow create: if canChangePhotos(listingId)
+          && (resource == null || isUploader())
+          && isValidPhoto(photo);
 
-      allow delete: if canChangePhotos(listingId);
+      allow update: if canChangePhotos(listingId) && isUploader() && isValidPhoto(photo);
+
+      allow delete: if canChangePhotos(listingId) && isUploader();
 
       // The photos are uploaded before the listing document is written, so a folder whose listing
       // does not exist yet is open to any verified user (its random id is not public yet). Once the
@@ -34,6 +40,22 @@ service firebase.storage {
         return isVerifiedEpfl()
             && (!firestore.exists(listing)
                 || firestore.get(listing).data.ownerId == request.auth.uid);
+      }
+
+      // The signed-in user uploaded the photo stored here. A photo without the tag (uploaded
+      // before it existed) matches nobody.
+      function isUploader() {
+        return resource.metadata.uploader == request.auth.uid;
+      }
+
+      // The photo being written: named 0.jpg to 9.jpg, tagged with the uid of the user writing it,
+      // and an image. The in-app camera takes about 1440 x 1080 JPEGs at quality 80, far under this
+      // limit.
+      function isValidPhoto(name) {
+        return name.matches('[0-9][.]jpg')
+            && request.resource.metadata.uploader == request.auth.uid
+            && request.resource.size < 10 * 1024 * 1024
+            && request.resource.contentType.matches('image/.*');
       }
     }
 
