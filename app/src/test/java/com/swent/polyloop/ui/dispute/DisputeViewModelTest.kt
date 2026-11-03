@@ -597,6 +597,34 @@ class DisputeViewModelTest {
   }
 
   @Test
+  fun cancellingAfterAFailedProposalClearsItsError() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+    propose(vm, 50)
+
+    vm.cancelEditing()
+
+    assertFalse(vm.uiState.value.isEditing)
+    assertNull(vm.uiState.value.actionError)
+  }
+
+  @Test
+  fun cancellingWhileTheProposalIsSentKeepsTheEditorToShowItsError() {
+    val gate = CompletableDeferred<Unit>()
+    val vm = viewModel()
+    disputes.gate = gate
+    disputes.failure = IOException("offline")
+    propose(vm, 50)
+
+    vm.cancelEditing()
+    assertTrue(vm.uiState.value.isEditing)
+    gate.complete(Unit)
+
+    assertEquals(DisputeActionError.PROPOSE, vm.uiState.value.actionError)
+    assertEquals(50, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
   fun aNewStageOrAnAgreementClearsTheErrorOfAnActionThatNoLongerApplies() {
     val vm = viewModel()
     disputes.failure = IOException("offline")

@@ -227,8 +227,20 @@ class DisputeViewModel(
     if (it.isEditing) it.copy(draftLenderPercent = lenderPercent.coerceIn(0, 100)) else it
   }
 
-  /** Closes the split editor without sending the draft. */
-  fun cancelEditing() = _uiState.update { it.copy(draftLenderPercent = null) }
+  /**
+   * Closes the split editor without sending the draft, and drops the error of a proposal that
+   * failed, which no longer applies once the draft is gone. Does nothing while a proposal is being
+   * sent, so the editor stays open to show whether it went through.
+   */
+  fun cancelEditing() {
+    if (_uiState.value.isSending) return
+    _uiState.update {
+      it.copy(
+          draftLenderPercent = null,
+          actionError = it.actionError.takeUnless { error -> error == DisputeActionError.PROPOSE },
+      )
+    }
+  }
 
   /**
    * Sends the draft as a first proposal, a counter-proposal or an update of the user's own. The
