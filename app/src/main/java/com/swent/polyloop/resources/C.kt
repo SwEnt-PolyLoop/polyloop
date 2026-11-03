@@ -148,6 +148,7 @@ object C {
     const val chat_list_row_time = "chat_list_row_time"
     const val chat_list_row_item = "chat_list_row_item"
     const val chat_list_row_message = "chat_list_row_message"
+    const val chat_list_row_unread = "chat_list_row_unread"
 
     const val profile_screen = "profile_screen"
     const val profile_avatar = "profile_avatar"
