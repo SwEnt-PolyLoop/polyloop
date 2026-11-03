@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.listing
 
+import com.google.firebase.firestore.GeoPoint
 import com.swent.polyloop.model.firestore.dateOrNull
 import com.swent.polyloop.model.firestore.enumOrNull
 import com.swent.polyloop.model.firestore.intOrNull
@@ -24,6 +25,7 @@ internal object ListingFields {
   const val STATUS = "status"
   const val PICKUP_AREA = "pickupArea"
   const val DROP_OFF_AREA = "dropOffArea"
+  const val PICKUP_POINT = "pickupPoint"
   const val BOOKED_RANGES = "bookedRanges"
   const val RANGE_START = "start"
   const val RANGE_END = "end"
@@ -42,8 +44,8 @@ internal object ListingAddressFields {
 
 /**
  * The Firestore fields of [listing], the reverse of [listingFromDocument]; the id is the key.
- * Amounts are Long, the type Firestore returns them as. The booked ranges are left out: only Cloud
- * Functions write them.
+ * Amounts are Long, the type Firestore returns them as. The pickup point and the booked ranges are
+ * left out: only Cloud Functions write them.
  */
 internal fun listingToDocument(listing: Listing): Map<String, Any> =
     mapOf(
@@ -70,8 +72,9 @@ internal fun addressesToDocument(addresses: ListingAddresses): Map<String, Any> 
 
 /**
  * Builds a [Listing] from a Firestore document, or returns null if a required field is missing or
- * has the wrong type. The areas default to empty because a Cloud Function fills them in later, and
- * the booked ranges because listings saved before them do not have the field.
+ * has the wrong type. The areas default to empty and the pickup point to null because a Cloud
+ * Function fills them in later (a point that is not a GeoPoint also reads as null), and the booked
+ * ranges default to empty because listings saved before them do not have the field.
  */
 internal fun listingFromDocument(id: String, data: Map<String, Any?>): Listing? {
   return Listing(
@@ -88,6 +91,7 @@ internal fun listingFromDocument(id: String, data: Map<String, Any?>): Listing? 
       status = enumOrNull<ListingStatus>(data[ListingFields.STATUS]) ?: return null,
       pickupArea = data[ListingFields.PICKUP_AREA] as? String ?: "",
       dropOffArea = data[ListingFields.DROP_OFF_AREA] as? String ?: "",
+      pickupPoint = (data[ListingFields.PICKUP_POINT] as? GeoPoint)?.toMapPoint(),
       bookedRanges = bookedRangesOrEmpty(data[ListingFields.BOOKED_RANGES]),
   )
 }
@@ -113,6 +117,9 @@ private fun bookedRangesOrEmpty(value: Any?): List<BookedRange> =
       val end = dateOrNull(range[ListingFields.RANGE_END]) ?: return@mapNotNull null
       BookedRange(start, end).takeUnless { end.isBefore(start) }
     }
+
+/** This GeoPoint as a [MapPoint], so that code outside `model/` never sees Firebase types. */
+private fun GeoPoint.toMapPoint(): MapPoint = MapPoint(latitude, longitude)
 
 private fun stringListOrNull(value: Any?): List<String>? {
   val list = value as? List<*> ?: return null

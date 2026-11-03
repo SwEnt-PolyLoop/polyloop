@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.listing
 
+import com.google.firebase.firestore.GeoPoint
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -102,6 +103,34 @@ class ListingDocumentTest {
           expected.copy(pickupArea = "", dropOffArea = ""),
           fromDocument(validData - listOf(ListingFields.PICKUP_AREA, ListingFields.DROP_OFF_AREA)),
       )
+
+  @Test
+  fun pickupPointIsRead() =
+      assertEquals(
+          expected.copy(pickupPoint = MapPoint(latitude = 46.52, longitude = 6.57)),
+          fromDocument(validData + (ListingFields.PICKUP_POINT to GeoPoint(46.52, 6.57))),
+      )
+
+  @Test
+  fun missingPickupPointReadsAsNull() =
+      assertNull(fromDocument(validData - ListingFields.PICKUP_POINT)!!.pickupPoint)
+
+  @Test
+  fun pickupPointOfWrongTypeReadsAsNullAndKeepsTheListing() {
+    val wrongTypes =
+        listOf(
+            mapOf("latitude" to 46.52, "longitude" to 6.57),
+            "46.52, 6.57",
+            listOf(46.52, 6.57),
+        )
+    for (value in wrongTypes) {
+      assertEquals(
+          "Point stored as $value",
+          expected,
+          fromDocument(validData + (ListingFields.PICKUP_POINT to value)),
+      )
+    }
+  }
 
   @Test
   fun decimalPriceIsRejected() =
