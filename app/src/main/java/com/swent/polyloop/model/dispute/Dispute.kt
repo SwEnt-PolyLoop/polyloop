@@ -11,8 +11,8 @@ import java.time.Instant
  * proposals and requests.
  *
  * @property proposals every split proposed so far, oldest first.
- * @property escalatesAt when the dispute moves on to the next stage on its own if nobody agrees. It
- *   is set again each time the dispute moves on to a new stage.
+ * @property escalatesAt when the dispute moves on from direct settlement to the LLM proposal on its
+ *   own if nobody agrees; it no longer applies once the dispute left [DisputeStage.SETTLE].
  * @property agreedAt when one party accepted the other's latest proposal, or null while they
  *   disagree.
  * @property escalatedBy the user who moved the dispute on to its current [stage], or null when it

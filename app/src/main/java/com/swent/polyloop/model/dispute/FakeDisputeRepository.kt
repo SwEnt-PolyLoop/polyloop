@@ -2,7 +2,6 @@
 
 package com.swent.polyloop.model.dispute
 
-import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -15,9 +14,9 @@ import kotlinx.coroutines.flow.map
  * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
  *
  * Holds the disputes in memory and plays the part of the Cloud Functions: accepting settles the
- * dispute, and escalating moves it on and gives it [ESCALATION_PERIOD] more. When [failure] is set,
- * every call fails with it; an observer throws it when it subscribes or at the next change. When
- * [gate] is set, the suspending calls wait for it to complete, so tests can see a request in
+ * dispute, and escalating moves it on from direct settlement to the LLM proposal. When [failure] is
+ * set, every call fails with it; an observer throws it when it subscribes or at the next change.
+ * When [gate] is set, the suspending calls wait for it to complete, so tests can see a request in
  * progress. [clock] gives the time of new proposals, agreements and escalations.
  */
 class FakeDisputeRepository(
@@ -69,15 +68,11 @@ class FakeDisputeRepository(
         it.copy(agreedAt = clock())
       }
 
-  override suspend fun escalate(rentalId: String, uid: String, fromStage: DisputeStage) =
+  override suspend fun escalate(rentalId: String, uid: String) =
       change(rentalId) {
-        if (it.stage != fromStage) throw StageChangedException()
-        check(it.stage != DisputeStage.COURT && !it.isSettled) { "The dispute cannot move on" }
-        it.copy(
-            stage = DisputeStage.entries[it.stage.ordinal + 1],
-            escalatesAt = clock() + ESCALATION_PERIOD,
-            escalatedBy = uid,
-        )
+        if (it.stage != DisputeStage.SETTLE) throw StageChangedException()
+        check(!it.isSettled) { "The dispute cannot move on" }
+        it.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = uid)
       }
 
   /** Applies [update] to the dispute of [rentalId], or fails like the real repository would. */
@@ -90,12 +85,5 @@ class FakeDisputeRepository(
       val dispute = checkNotNull(stored.value[rentalId]) { "No dispute for rental $rentalId" }
       stored.value = stored.value + (rentalId to update(dispute))
     }
-  }
-
-  companion object {
-    /**
-     * How long a stage lasts before escalating on its own (the Cloud Function decides for real).
-     */
-    val ESCALATION_PERIOD: Duration = Duration.ofDays(30)
   }
 }

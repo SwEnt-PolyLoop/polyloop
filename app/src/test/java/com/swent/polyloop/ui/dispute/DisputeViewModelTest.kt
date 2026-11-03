@@ -459,22 +459,22 @@ class DisputeViewModelTest {
   }
 
   @Test
-  fun escalateMovesToTheLlmStageAndRestartsTheCountdown() {
+  fun escalateMovesToTheLlmStageWhereNothingEscalatesAnymore() {
     val vm = viewModel()
 
     confirmEscalate(vm)
 
     assertEquals(DisputeStage.LLM_PROPOSAL, vm.uiState.value.stage)
-    assertEquals(30, vm.uiState.value.daysUntilEscalation)
+    assertFalse(vm.uiState.value.canEscalate)
+    assertEquals(0, vm.uiState.value.daysUntilEscalation)
   }
 
   @Test
-  fun escalatingAsksForAConfirmationNamingTheNextStage() {
+  fun escalatingAsksForAConfirmation() {
     val vm = viewModel()
 
     vm.askEscalate()
     assertTrue(vm.uiState.value.isConfirmingEscalation)
-    assertEquals(DisputeStage.LLM_PROPOSAL, vm.uiState.value.nextStage)
 
     vm.dismissEscalate()
     assertFalse(vm.uiState.value.isConfirmingEscalation)
@@ -544,18 +544,6 @@ class DisputeViewModelTest {
     assertEquals(DisputeStage.LLM_PROPOSAL, disputes.disputes.single().stage)
     assertNull(vm.uiState.value.actionError)
     assertEquals(EscalationNotice.BY_OTHER, vm.uiState.value.escalationNotice)
-  }
-
-  @Test
-  fun escalateFromTheLlmStageMovesToCourt() {
-    val vm = viewModel()
-
-    confirmEscalate(vm)
-    confirmEscalate(vm)
-
-    assertEquals(DisputeStage.COURT, vm.uiState.value.stage)
-    // Nothing escalates on its own in court.
-    assertEquals(0, vm.uiState.value.daysUntilEscalation)
   }
 
   @Test
@@ -696,17 +684,6 @@ class DisputeViewModelTest {
 
     disputes.put(open.copy(stage = DisputeStage.COURT))
     assertEquals(EscalationNotice.AUTOMATIC, vm.uiState.value.escalationNotice)
-  }
-
-  @Test
-  fun myOwnEscalationClearsTheNoticeOfTheirs() {
-    val vm = viewModel()
-    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
-
-    confirmEscalate(vm)
-
-    assertEquals(DisputeStage.COURT, vm.uiState.value.stage)
-    assertNull(vm.uiState.value.escalationNotice)
   }
 
   @Test

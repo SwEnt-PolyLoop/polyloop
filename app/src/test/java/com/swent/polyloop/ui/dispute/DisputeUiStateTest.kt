@@ -55,11 +55,12 @@ class DisputeUiStateTest {
   }
 
   @Test
-  fun llmStageCanOnlyEscalateAndCourtNothing() {
+  fun onlyDirectSettlementCanBeEscalated() {
     val llm = open.copy(stage = DisputeStage.LLM_PROPOSAL)
 
+    assertTrue(open.canEscalate)
     assertFalse(llm.canPropose)
-    assertTrue(llm.canEscalate)
+    assertFalse(llm.canEscalate)
     assertFalse(open.copy(stage = DisputeStage.COURT).canEscalate)
   }
 

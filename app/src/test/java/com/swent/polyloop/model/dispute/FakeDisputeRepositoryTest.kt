@@ -76,43 +76,24 @@ class FakeDisputeRepositoryTest {
   }
 
   @Test
-  fun escalateMovesOnRestartsTheDeadlineAndRecordsWhoEscalated() = runTest {
+  fun escalateMovesOnToTheLlmProposalAndRecordsWhoEscalated() = runTest {
     val repository = repository()
 
-    assertTrue(repository.escalate("rental", "lender", DisputeStage.SETTLE).isSuccess)
+    assertTrue(repository.escalate("rental", "lender").isSuccess)
 
     val dispute = repository.current()
     assertEquals(DisputeStage.LLM_PROPOSAL, dispute.stage)
-    assertEquals(now + FakeDisputeRepository.ESCALATION_PERIOD, dispute.escalatesAt)
     assertEquals("lender", dispute.escalatedBy)
   }
 
   @Test
-  fun escalateFailsInCourt() = runTest {
-    assertTrue(
-        repository(open.copy(stage = DisputeStage.COURT))
-            .escalate("rental", "lender", DisputeStage.COURT)
-            .isFailure
-    )
-  }
-
-  @Test
-  fun escalateFailsAndChangesNothingWhenTheStageChanged() = runTest {
+  fun escalateOutsideDirectSettlementIsAStageChangeAndChangesNothing() = runTest {
     val repository = repository(open.copy(stage = DisputeStage.LLM_PROPOSAL))
 
-    val result = repository.escalate("rental", "lender", DisputeStage.SETTLE)
+    val result = repository.escalate("rental", "lender")
 
     assertTrue(result.exceptionOrNull() is StageChangedException)
     assertEquals(DisputeStage.LLM_PROPOSAL, repository.current().stage)
-  }
-
-  @Test
-  fun escalateFromAStageLeftForCourtIsAStageChange() = runTest {
-    val repository = repository(open.copy(stage = DisputeStage.COURT))
-
-    val result = repository.escalate("rental", "lender", DisputeStage.LLM_PROPOSAL)
-
-    assertTrue(result.exceptionOrNull() is StageChangedException)
   }
 
   @Test
@@ -125,7 +106,7 @@ class FakeDisputeRepositoryTest {
     val repository = repository()
     repository.failure = IOException("offline")
 
-    assertTrue(repository.escalate("rental", "lender", DisputeStage.SETTLE).isFailure)
+    assertTrue(repository.escalate("rental", "lender").isFailure)
     try {
       repository.observeDispute("rental").first()
       fail("The observer should throw the failure")

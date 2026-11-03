@@ -63,15 +63,16 @@ enum class EscalationNotice {
  * [history] holds every proposal, newest first; the first one is the proposal on the table.
  * [otherPersonName] is "" when the name is missing; the screen then shows a placeholder.
  * [daysUntilEscalation] is the number of days, rounded up, before the dispute moves on to the next
- * stage on its own, kept up to date while the screen is shown; 0 once it has passed, and in court
- * or once settled, where it never moves on by itself. [loadFailed] is true when the dispute cannot
- * be loaded (or nobody is signed in, or the user does not take part in the rental) and nothing was
- * shown yet; [refreshFailed] is true when it could not be loaded again after it was shown, which
- * keeps the last state on screen. [actionError] is what the last proposal, acceptance or escalation
- * could not do; the next action, opening the split editor, a new stage or an agreement clears it,
- * since the action it names then no longer applies. [draftLenderPercent] is the split the user is
- * editing, as the lender's percentage, or null when the editor is closed. [isConfirmingEscalation]
- * is true while the user is asked to confirm moving the dispute on to [nextStage].
+ * stage on its own, kept up to date while the screen is shown; 0 once it has passed, and after
+ * direct settlement or once settled, where it never moves on by itself. [loadFailed] is true when
+ * the dispute cannot be loaded (or nobody is signed in, or the user does not take part in the
+ * rental) and nothing was shown yet; [refreshFailed] is true when it could not be loaded again
+ * after it was shown, which keeps the last state on screen. [actionError] is what the last
+ * proposal, acceptance or escalation could not do; the next action, opening the split editor, a new
+ * stage or an agreement clears it, since the action it names then no longer applies.
+ * [draftLenderPercent] is the split the user is editing, as the lender's percentage, or null when
+ * the editor is closed. [isConfirmingEscalation] is true while the user is asked to confirm moving
+ * the dispute on to the LLM proposal.
  *
  * What the other person did while the screen is open, never what the user did or what was there
  * when the screen opened: [offerUpdated] is true when they sent a new proposal, until the user
@@ -142,16 +143,12 @@ data class DisputeUiState(
   val showsOfferUpdated: Boolean
     get() = offerUpdated && actionError != DisputeActionError.PROPOSAL_CHANGED
 
-  /** The stage that escalating moves the dispute on to, or null in court. */
-  val nextStage: DisputeStage?
-    get() = DisputeStage.entries.getOrNull(stage.ordinal + 1)
-
   /**
-   * True when the user can move the dispute on: loaded, online, not sending, unsettled, not in
-   * court.
+   * True when the user can move the dispute on to the LLM proposal: loaded, online, not sending,
+   * unsettled, and in direct settlement, the only stage that can be escalated.
    */
   val canEscalate: Boolean
-    get() = isLoaded && isOnline && !isSending && !isSettled && stage != DisputeStage.COURT
+    get() = isLoaded && isOnline && !isSending && !isSettled && stage == DisputeStage.SETTLE
 
   /** True once a dispute is shown: not while it first loads, nor when that load failed. */
   private val isLoaded: Boolean
@@ -266,7 +263,7 @@ class DisputeViewModel(
   }
 
   /**
-   * Asks the user to confirm moving the dispute on to the next stage. Does nothing unless
+   * Asks the user to confirm moving the dispute on to the LLM proposal. Does nothing unless
    * [DisputeUiState.canEscalate].
    */
   fun askEscalate() {
@@ -278,17 +275,16 @@ class DisputeViewModel(
   fun dismissEscalate() = _uiState.update { it.copy(isConfirmingEscalation = false) }
 
   /**
-   * Closes the confirmation and moves the dispute on from the stage the user confirmed leaving to
-   * the next one. Does nothing else unless the confirmation is still open (a new stage closes it)
-   * and [DisputeUiState.canEscalate]. If the dispute already moved on meanwhile, nothing changes
-   * and no error is shown: the new stage and its notice are shown instead, after loading the
-   * dispute again if it could not be refreshed.
+   * Closes the confirmation and moves the dispute on to the LLM proposal. Does nothing else unless
+   * the confirmation is still open (a new stage closes it) and [DisputeUiState.canEscalate]. If the
+   * dispute already moved on meanwhile, nothing changes and no error is shown: the new stage and
+   * its notice are shown instead, after loading the dispute again if it could not be refreshed.
    */
   fun escalate() {
-    val from = _uiState.value.stage.takeIf { _uiState.value.isConfirmingEscalation }
+    val confirmed = _uiState.value.isConfirmingEscalation
     dismissEscalate()
-    if (from == null || !_uiState.value.canEscalate) return
-    send(DisputeActionError.ESCALATE) { uid -> disputeRepository.escalate(rentalId, uid, from) }
+    if (!confirmed || !_uiState.value.canEscalate) return
+    send(DisputeActionError.ESCALATE) { uid -> disputeRepository.escalate(rentalId, uid) }
   }
 
   /**
@@ -372,7 +368,6 @@ class DisputeViewModel(
             dispute.latestProposal?.authorId != uid
     val stageChanged = before != null && dispute.stage != before.stage
     val justSettled = before?.isSettled == false && dispute.isSettled
-    val countsDown = !dispute.isSettled && dispute.stage != DisputeStage.COURT
     _uiState.update {
       it.copy(
           offerUpdated = (it.offerUpdated || theirNewOffer) && stillSettling,
@@ -399,14 +394,14 @@ class DisputeViewModel(
                 ProposalRow(p.authorId == uid, p.lenderPercent, p.createdAt)
               },
           isSettled = dispute.isSettled,
-          daysUntilEscalation = if (countsDown) daysUntil(dispute.escalatesAt) else 0,
+          daysUntilEscalation = if (stillSettling) daysUntil(dispute.escalatesAt) else 0,
           isLoading = false,
           loadFailed = false,
           refreshFailed = false,
       )
     }
     ticking?.cancel()
-    if (countsDown) countDownTo(dispute.escalatesAt)
+    if (stillSettling) countDownTo(dispute.escalatesAt)
   }
 
   /** The whole days left until [deadline], rounded up; 0 once it has passed. */
