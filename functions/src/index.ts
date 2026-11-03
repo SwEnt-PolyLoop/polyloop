@@ -11,3 +11,5 @@ initializeApp();
 
 export { deleteExpiredSignUpsEvery5Minutes } from "./deleteExpiredSignUps";
 export { geocodeListingAddresses } from "./geocodeListingAddresses";
+export { acceptRental } from "./acceptRental";
+export { declineRental } from "./declineRental";
