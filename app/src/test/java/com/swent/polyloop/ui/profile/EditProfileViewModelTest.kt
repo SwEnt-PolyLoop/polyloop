@@ -109,6 +109,16 @@ class EditProfileViewModelTest {
     assertEquals("John", vm.uiState.value.name)
   }
 
+  @Test
+  fun retryAfterASuccessfulLoadKeepsTheTypedName() {
+    val vm = viewModel()
+    vm.onNameChange("Johnny")
+
+    vm.retry()
+
+    assertEquals("Johnny", vm.uiState.value.name)
+  }
+
   // ---------- name ----------
 
   @Test

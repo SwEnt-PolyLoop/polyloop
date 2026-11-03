@@ -64,8 +64,13 @@ class EditProfileViewModel(
     load()
   }
 
-  /** Loads the profile again, after it failed to load. */
-  fun retry() = load()
+  /**
+   * Loads the profile again, after it failed to load. Ignored otherwise, so it never replaces a
+   * name being typed with the saved one.
+   */
+  fun retry() {
+    if (_uiState.value.loadFailed) load()
+  }
 
   fun onNameChange(name: String) = _uiState.update {
     it.copy(name = name, nameError = false, saveFailed = false)
