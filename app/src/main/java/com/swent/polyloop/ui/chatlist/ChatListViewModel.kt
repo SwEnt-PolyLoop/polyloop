@@ -26,6 +26,8 @@ import kotlinx.coroutines.launch
  *   screen then shows a placeholder.
  * @property lastMessage "" until the first message is sent; the screen then shows a placeholder.
  * @property lastMessageAt when the last message was sent, or when the rental was created.
+ * @property isUnread true if the user has not opened the chat since its last message; the screen
+ *   then shows a red dot.
  */
 data class ChatListRow(
     val rentalId: String,
@@ -34,6 +36,7 @@ data class ChatListRow(
     val lastMessage: String,
     val lastMessageAt: Instant,
     val status: RentalStatus,
+    val isUnread: Boolean = false,
 )
 
 /**
@@ -110,6 +113,7 @@ class ChatListViewModel(
             lastMessage = lastMessage,
             lastMessageAt = lastMessageAt,
             status = status,
+            isUnread = isUnreadFor(uid),
         )
   }
 }
