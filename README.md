@@ -19,6 +19,12 @@ PolyLoop turns every campus into a shared closet.
 ## Designs 
 [Figma mockups](https://www.figma.com/design/zIY3U7Iz20RxrVlxwa0fzB/SwEnt-PolyLoop?node-id=0-1&t=kkSRvAukBZsD3PTr-1)
 
+## Google Maps key
+
+The maps use the Maps SDK for Android, which needs an API key. The key stays out of git: put it in `local.properties` (already ignored), as `MAPS_API_KEY=<your key>`. Without it the app still builds and the tests pass, but the maps show no tiles. This is how CI builds the app.
+
+To get a key, once, in the project's Google Cloud console (the same project as Firebase): enable the **Maps SDK for Android**, then create an API key restricted to Android apps, with the package `com.swent.polyloop` and the SHA-1 of your debug certificate (shown by `./gradlew signingReport`). Each teammate adds their own SHA-1 to the key.
+
 ## Firebase emulator (local testing)
 
 Tests that need Firebase run against the **Firebase Emulator Suite**, a local, in-memory copy of Auth, Firestore and Cloud Storage. They never touch the real project, and all data is wiped when the emulators stop.
