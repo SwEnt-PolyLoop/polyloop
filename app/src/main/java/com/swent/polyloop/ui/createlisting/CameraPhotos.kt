@@ -11,7 +11,11 @@ import java.io.File
 import java.net.URI
 import java.util.UUID
 
-/** Folder inside the app's files directory where the in-app camera saves listing photos. */
+/**
+ * Folder inside the app's files directory where the in-app camera saves its photos, listing and
+ * profile photos alike (the files are named `listing_*.jpg` either way). Keeping them in one folder
+ * lets [deleteStalePhotos] remove a profile photo left behind, as it does for listings.
+ */
 internal const val LISTING_PHOTOS_DIR = "listing_photos"
 
 /** Long side of the size listing photos are shot at, in pixels (4:3). */
