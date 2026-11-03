@@ -8,6 +8,7 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
@@ -68,6 +69,23 @@ class RentalDetailViewModelTest {
   private val owner = AuthUser(uid = "owner", email = "mara@epfl.ch", name = "Mara")
   private val borrower = AuthUser(uid = "borrower", email = "loca@epfl.ch", name = "Loca")
 
+  private val ownerProfile =
+      UserProfile(
+          uid = "owner",
+          name = "Mara Rossi",
+          email = "mara@epfl.ch",
+          averageRating = 4.5,
+          reviewCount = 12,
+      )
+  private val borrowerProfile =
+      UserProfile(
+          uid = "borrower",
+          name = "Loca Meier",
+          email = "loca@epfl.ch",
+          averageRating = 3.0,
+          reviewCount = 2,
+      )
+
   private lateinit var rentalRepository: FakeRentalRepository
   private lateinit var listingRepository: FakeListingRepository
   private lateinit var profileRepository: FakeProfileRepository
@@ -78,7 +96,7 @@ class RentalDetailViewModelTest {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     listingRepository = FakeListingRepository(listings = listOf(listing))
-    profileRepository = FakeProfileRepository()
+    profileRepository = FakeProfileRepository(profiles = listOf(ownerProfile, borrowerProfile))
     authRepository = FakeAuthRepository(signedInUser = borrower)
   }
 
@@ -229,5 +247,85 @@ class RentalDetailViewModelTest {
     viewModel()
 
     assertEquals(0, listingRepository.getListingCalls)
+  }
+
+  @Test
+  fun borrowerSeesTheOwnerWithTheirRating() {
+    assertEquals(
+        OtherPerson(uid = "owner", name = "Mara Rossi", averageRating = 4.5, reviewCount = 12),
+        viewModel().uiState.value.otherPerson,
+    )
+  }
+
+  @Test
+  fun lenderSeesTheBorrowerWithTheirRating() {
+    authRepository.signedInUser = owner
+
+    assertEquals(
+        OtherPerson(uid = "borrower", name = "Loca Meier", averageRating = 3.0, reviewCount = 2),
+        viewModel().uiState.value.otherPerson,
+    )
+  }
+
+  @Test
+  fun profileWithNoReviewsKeepsZeroRatingAndCount() {
+    profileRepository =
+        FakeProfileRepository(listOf(ownerProfile.copy(averageRating = 0.0, reviewCount = 0)))
+
+    val person = viewModel().uiState.value.otherPerson
+
+    // 0 means no reviews yet; only an unreadable profile gives null.
+    assertEquals(0.0, person?.averageRating)
+    assertEquals(0, person?.reviewCount)
+  }
+
+  @Test
+  fun missingProfileFallsBackToTheRentalsNameWithoutRating() {
+    profileRepository = FakeProfileRepository()
+
+    val state = viewModel().uiState.value
+
+    assertEquals(
+        OtherPerson(uid = "owner", name = "Mara", averageRating = null, reviewCount = null),
+        state.otherPerson,
+    )
+    assertNull(state.errorMsg)
+  }
+
+  @Test
+  fun failedProfileReadFallsBackToTheRentalsNameWithoutError() {
+    profileRepository.failure = IllegalStateException("Network down")
+
+    val state = viewModel().uiState.value
+
+    assertEquals(
+        OtherPerson(uid = "owner", name = "Mara", averageRating = null, reviewCount = null),
+        state.otherPerson,
+    )
+    assertNull(state.errorMsg)
+    assertFalse(state.isLoading)
+  }
+
+  @Test
+  fun blankProfileNameFallsBackToTheRentalsCopy() {
+    profileRepository = FakeProfileRepository(listOf(ownerProfile.copy(name = " ")))
+
+    val person = viewModel().uiState.value.otherPerson
+
+    assertEquals("Mara", person?.name)
+    assertEquals(4.5, person?.averageRating)
+  }
+
+  @Test
+  fun staysLoadingUntilTheProfileIsRead() {
+    val gate = CompletableDeferred<Unit>()
+    profileRepository.gate = gate
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.isLoading)
+
+    gate.complete(Unit)
+
+    assertFalse(vm.uiState.value.isLoading)
+    assertEquals("Mara Rossi", vm.uiState.value.otherPerson?.name)
   }
 }

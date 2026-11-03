@@ -26,7 +26,8 @@ import kotlinx.coroutines.launch
  * Requested): only [itemTitle] is then set, for the placeholder. [isLender] is true when the
  * signed-in user owns the item. [sentAt] is when the request was sent, [endDate] the return day and
  * [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the listing's item value in
- * PolyPoints, or null when the listing is missing or could not be read.
+ * PolyPoints, or null when the listing is missing or could not be read. [otherPerson] is the
+ * borrower for the lender and the owner for the borrower.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -42,6 +43,21 @@ data class RentalDetailUiState(
     val rentalPrice: Int = 0,
     val suggestedDeposit: Int? = null,
     val pickupArea: String = "",
+    val otherPerson: OtherPerson? = null,
+)
+
+/**
+ * The other side of the rental, shown on the person card with their initial. [name] comes from
+ * their profile, or from the copy on the rental when the profile has none; it can still be blank,
+ * and the screen then shows a placeholder. [averageRating] and [reviewCount] are null when the
+ * profile is missing or could not be read (the rating is unknown), while 0.0 and 0 mean the person
+ * has no reviews yet.
+ */
+data class OtherPerson(
+    val uid: String,
+    val name: String,
+    val averageRating: Double?,
+    val reviewCount: Int?,
 )
 
 /** Shows one rental, read once, as seen by the signed-in user. Only Requested is handled so far. */
@@ -82,18 +98,29 @@ class RentalDetailViewModel(
       }
       if (rental.status != RentalStatus.REQUESTED) {
         // Only Requested is built so far: the screen shows a placeholder with the title until the
-        // other statuses are, so everything else stays at its default and the listing is not read.
+        // other statuses are, so everything else stays at its default and neither the listing nor
+        // the other person's profile is read.
         _uiState.value = RentalDetailUiState(isSupported = false, itemTitle = rental.listingTitle)
         return@launch
       }
-      // Only the rental is required: a missing or unreadable listing just leaves the suggested
-      // deposit out instead of failing the screen. Its read finishes before isLoading turns false,
-      // so the screen does not flash a card without its deposit.
+      // Only the rental is required: a missing or unreadable listing or profile falls back (no
+      // deposit, the name copied on the rental) instead of failing the screen. Both reads finish
+      // before isLoading turns false, so the screen does not flash a half-filled card.
       val suggestedDeposit = listingRepository.getListing(rental.listingId).getOrNull()?.itemValue
       val uid = authRepository.getCurrentUser()?.uid.orEmpty()
+      val isLender = uid == rental.ownerId
+      val otherUid = if (isLender) rental.borrowerId else rental.ownerId
+      val profile = profileRepository.getProfile(otherUid).getOrNull()
+      val otherPerson =
+          OtherPerson(
+              uid = otherUid,
+              name = profile?.name.orEmpty().ifBlank { rental.otherPersonName(uid) },
+              averageRating = profile?.averageRating,
+              reviewCount = profile?.reviewCount,
+          )
       _uiState.value =
           RentalDetailUiState(
-              isLender = uid == rental.ownerId,
+              isLender = isLender,
               itemTitle = rental.listingTitle,
               status = rental.status,
               sentAt = rental.createdAt,
@@ -102,6 +129,7 @@ class RentalDetailViewModel(
               rentalPrice = rental.totalPrice,
               suggestedDeposit = suggestedDeposit,
               pickupArea = rental.pickupArea,
+              otherPerson = otherPerson,
           )
     }
   }
