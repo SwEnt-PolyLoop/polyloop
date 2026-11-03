@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.rentaldetail
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.listing.ListingRepository
@@ -131,6 +132,30 @@ class RentalDetailViewModel(
               pickupArea = rental.pickupArea,
               otherPerson = otherPerson,
           )
+    }
+  }
+
+  /** Builds the ViewModel with its dependencies (manual constructor injection). */
+  class Factory(
+      private val rentalId: String,
+      private val rentalRepository: RentalRepository,
+      private val listingRepository: ListingRepository,
+      private val profileRepository: ProfileRepository,
+      private val authRepository: AuthRepository,
+  ) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+      require(modelClass.isAssignableFrom(RentalDetailViewModel::class.java)) {
+        "Unknown ViewModel class: ${modelClass.name}"
+      }
+      @Suppress("UNCHECKED_CAST")
+      return RentalDetailViewModel(
+          rentalId,
+          rentalRepository,
+          listingRepository,
+          profileRepository,
+          authRepository,
+      )
+          as T
     }
   }
 }

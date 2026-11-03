@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.rentaldetail
 
+import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
@@ -108,6 +109,15 @@ class RentalDetailViewModelTest {
   private fun viewModel(id: String = rental.id) =
       RentalDetailViewModel(
           id,
+          rentalRepository,
+          listingRepository,
+          profileRepository,
+          authRepository,
+      )
+
+  private fun factory() =
+      RentalDetailViewModel.Factory(
+          rental.id,
           rentalRepository,
           listingRepository,
           profileRepository,
@@ -328,4 +338,18 @@ class RentalDetailViewModelTest {
     assertFalse(vm.uiState.value.isLoading)
     assertEquals("Mara Rossi", vm.uiState.value.otherPerson?.name)
   }
+
+  @Test
+  fun factoryCreatesViewModelForTheRental() {
+    val vm = factory().create(RentalDetailViewModel::class.java)
+
+    assertEquals(rental.listingTitle, vm.uiState.value.itemTitle)
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun factoryRejectsOtherViewModels() {
+    factory().create(OtherViewModel::class.java)
+  }
+
+  private class OtherViewModel : ViewModel()
 }
