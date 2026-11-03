@@ -93,6 +93,21 @@ class ChatRepositoryFirestore(
     }
   }
 
+  override suspend fun markAsRead(rentalId: String): Result<Unit> {
+    if (!isValidDocumentId(rentalId)) {
+      return Result.failure(IllegalArgumentException("Invalid rental id"))
+    }
+    val uid = auth.currentUser?.uid ?: return Result.failure(IllegalStateException("Signed out"))
+    return withFirebaseErrors {
+      // Not confirmed in time (offline): queued, and the cache already counts the chat as read.
+      confirmWrite { rental(rentalId).update(readTimeOf(uid), FieldValue.serverTimestamp()) }
+      Result.success(Unit)
+    }
+  }
+
+  /** The path of [uid]'s entry in the rental's lastReadAt map; the other entries are kept. */
+  private fun readTimeOf(uid: String): String = "${ChatFields.LAST_READ_AT}.$uid"
+
   private fun rental(rentalId: String): DocumentReference =
       db.collection(ChatFields.RENTALS).document(rentalId)
 

@@ -180,6 +180,36 @@ class FakeChatRepositoryTest {
     assertEquals(1, repository.observeMessages("r1").first().size)
   }
 
+  // ---------- markAsRead ----------
+
+  @Test
+  fun markAsReadSavesOnlyTheSignedInUsersTime() = runTest {
+    repository.conversations = listOf(older.copy(lastReadAt = mapOf("u2" to Instant.EPOCH)), newer)
+
+    assertTrue(repository.markAsRead("r1").isSuccess)
+
+    assertEquals(
+        mapOf("u2" to Instant.EPOCH, "u1" to repository.now),
+        repository.conversations[0].lastReadAt,
+    )
+    assertEquals(newer, repository.conversations[1])
+    assertEquals(1, repository.markAsReadCalls)
+  }
+
+  @Test
+  fun markAsReadIsRefusedWhenSignedOutForAnUnknownRentalOrOnFailure() = runTest {
+    repository.conversations = listOf(older)
+    assertTrue(repository.markAsRead("nope").exceptionOrNull() is NoSuchElementException)
+    repository.currentUid = null
+    assertTrue(repository.markAsRead("r1").exceptionOrNull() is IllegalStateException)
+    val error = IllegalStateException("offline")
+    repository.failure = error
+    assertSame(error, repository.markAsRead("r1").exceptionOrNull())
+
+    assertEquals(emptyMap<String, Instant>(), repository.conversations[0].lastReadAt)
+    assertEquals(3, repository.markAsReadCalls)
+  }
+
   // ---------- getConversation ----------
 
   @Test
