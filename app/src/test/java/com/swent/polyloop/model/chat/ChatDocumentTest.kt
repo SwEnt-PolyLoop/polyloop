@@ -203,4 +203,45 @@ class ChatDocumentTest {
   @Test
   fun dateStoredAsTimestampIsRejected() =
       assertNull(conversation(rentalData + (ChatFields.START_DATE to timestamp)))
+
+  // ---------- lastReadAt ----------
+
+  @Test
+  fun rentalWithoutReadTimesHasNone() =
+      assertEquals(emptyMap<String, Instant>(), conversation(rentalData)?.lastReadAt)
+
+  @Test
+  fun readTimesAreMappedByUid() =
+      assertEquals(
+          mapOf("u1" to sentAt, "u2" to Instant.EPOCH),
+          conversation(
+                  rentalData +
+                      (ChatFields.LAST_READ_AT to mapOf("u1" to timestamp, "u2" to Timestamp(0, 0)))
+              )
+              ?.lastReadAt,
+      )
+
+  @Test
+  fun readTimesThatAreNotTimesAreSkipped() =
+      assertEquals(
+          mapOf("u1" to sentAt),
+          conversation(
+                  rentalData +
+                      (ChatFields.LAST_READ_AT to
+                          mapOf(
+                              "u1" to timestamp,
+                              "u2" to "2026-10-13",
+                              "u3" to null,
+                              4L to timestamp,
+                          ))
+              )
+              ?.lastReadAt,
+      )
+
+  @Test
+  fun readTimesThatAreNotAMapAreIgnored() =
+      assertEquals(
+          expectedConversation,
+          conversation(rentalData + (ChatFields.LAST_READ_AT to "yesterday")),
+      )
 }
