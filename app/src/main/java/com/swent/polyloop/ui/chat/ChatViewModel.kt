@@ -149,8 +149,20 @@ class ChatViewModel(
           .catch { e -> showError(e.message ?: "") }
           .collect { rows ->
             _uiState.update { it.copy(messages = rows, isLoading = false, errorMsg = null) }
+            markAsRead()
           }
     }
+  }
+
+  /**
+   * Saves that the user has seen the messages on screen, each time they change while the chat is
+   * open, so a message received meanwhile does not leave a red dot in the chat list. Launched on
+   * its own, since offline the save waits up to 10 seconds and must not hold back the next
+   * messages. A failure is ignored: it only leaves the dot, which is not worth an error on the
+   * chat.
+   */
+  private fun markAsRead() {
+    viewModelScope.launch { chatRepository.markAsRead(rentalId) }
   }
 
   private fun showError(message: String) = _uiState.update {
