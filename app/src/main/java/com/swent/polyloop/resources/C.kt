@@ -28,6 +28,21 @@ object C {
 
     const val offline_banner = "offline_banner"
 
+    const val rental_detail_screen = "rental_detail_screen"
+    const val rental_detail_loading = "rental_detail_loading"
+    const val rental_detail_load_error = "rental_detail_load_error"
+    const val rental_detail_retry_button = "rental_detail_retry_button"
+    const val rental_detail_not_found = "rental_detail_not_found"
+    const val rental_detail_not_lender = "rental_detail_not_lender"
+    const val rental_detail_answered = "rental_detail_answered"
+    const val rental_detail_deposit_field = "rental_detail_deposit_field"
+    const val rental_detail_pickup_field = "rental_detail_pickup_field"
+    const val rental_detail_return_field = "rental_detail_return_field"
+    const val rental_detail_overlap = "rental_detail_overlap"
+    const val rental_detail_action_error = "rental_detail_action_error"
+    const val rental_detail_accept_button = "rental_detail_accept_button"
+    const val rental_detail_decline_button = "rental_detail_decline_button"
+
     fun browseCategoryChip(category: ListingCategory) = "browse_category_chip_${category.name}"
 
     // Prefix: each card is tagged listing_card_ + listing.id

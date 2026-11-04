@@ -251,4 +251,25 @@
     <string name="chat_system_message">%1$s · %2$s</string>
     <string name="chat_send_failed">Message not sent. Press send to try again.</string>
 
+    <string name="rental_detail_title">Review request</string>
+    <string name="rental_detail_load_error">Could not load this request</string>
+    <string name="rental_detail_retry">Retry</string>
+    <string name="rental_detail_not_found">This request no longer exists.</string>
+    <string name="rental_detail_not_lender">Only the lender can answer this request.</string>
+    <string name="rental_detail_answered">This request has already been answered.</string>
+    <string name="rental_detail_total">Total %1$d PP</string>
+    <string name="rental_detail_borrower_label">Borrower</string>
+    <string name="rental_detail_borrower_placeholder">Borrower name</string>
+    <string name="rental_detail_deposit_label">Deposit (PP)</string>
+    <string name="rental_detail_deposit_hint">Agreed with the borrower in chat. The suggested deposit is the item\'s value.</string>
+    <string name="rental_detail_pickup_label">Pickup address</string>
+    <string name="rental_detail_return_label">Drop-off address</string>
+    <string name="rental_detail_accept">Accept</string>
+    <string name="rental_detail_decline">Decline</string>
+    <plurals name="rental_detail_overlap">
+        <item quantity="one">Accepting declines %d other request with overlapping dates.</item>
+        <item quantity="other">Accepting declines %d other requests with overlapping dates.</item>
+    </plurals>
+    <string name="rental_detail_action_error">Could not send your answer. Try again.</string>
+
 </resources>

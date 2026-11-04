@@ -396,5 +396,14 @@ class RentalDetailViewModelTest {
     override fun observeRentalsAsBorrower(uid: String): Flow<List<Rental>> = error("Not used")
 
     override fun observeRentalsAsLender(uid: String): Flow<List<Rental>> = error("Not used")
+
+    override suspend fun acceptRental(
+        rentalId: String,
+        deposit: Int,
+        pickupAddress: String,
+        returnAddress: String,
+    ): Result<Unit> = error("Not used")
+
+    override suspend fun declineRental(rentalId: String): Result<Unit> = error("Not used")
   }
 }

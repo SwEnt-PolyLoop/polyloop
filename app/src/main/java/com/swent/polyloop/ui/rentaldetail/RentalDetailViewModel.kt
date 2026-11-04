@@ -6,8 +6,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.ListingRepository
+import com.swent.polyloop.model.listing.conflictsWithBuffer
 import com.swent.polyloop.model.profile.ProfileRepository
+import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
@@ -17,6 +20,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -30,6 +34,13 @@ import kotlinx.coroutines.launch
  * [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the listing's item value in
  * PolyPoints, or null when the listing is missing or could not be read. [otherPerson] is the
  * borrower for the lender and the owner for the borrower.
+ *
+ * The lender's answer: [depositInput] starts with [suggestedDeposit] and is what the lender types,
+ * [pickupAddress] and [returnAddress] are the exact addresses, and [overlapCount] is how many other
+ * requests on the listing accepting this one would decline. [actionError] is non-null when
+ * accepting or declining failed (blank means the generic text), [isSubmitting] is true while the
+ * answer is sent, and [answered] is true once it was accepted or declined, until the screen has
+ * left.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -46,7 +57,30 @@ data class RentalDetailUiState(
     val suggestedDeposit: Int? = null,
     val pickupArea: String = "",
     val otherPerson: OtherPerson? = null,
-)
+    val depositInput: String = "",
+    val pickupAddress: String = "",
+    val returnAddress: String = "",
+    val overlapCount: Int = 0,
+    val isSubmitting: Boolean = false,
+    val actionError: String? = null,
+    val answered: Boolean = false,
+) {
+  /** The deposit typed, if it is a whole number above 0; otherwise null. */
+  val deposit: Int?
+    get() = depositInput.trim().toIntOrNull()?.takeIf { it > 0 }
+
+  /** True when the lender can answer: the request is waiting and nothing is being sent. */
+  private val canAnswer: Boolean
+    get() = isLender && status == RentalStatus.REQUESTED && !isSubmitting
+
+  /** Accepting needs a valid deposit and both addresses, on top of [canAnswer]. */
+  val canAccept: Boolean
+    get() = canAnswer && deposit != null && pickupAddress.isNotBlank() && returnAddress.isNotBlank()
+
+  /** Declining needs nothing else than [canAnswer]. */
+  val canDecline: Boolean
+    get() = canAnswer
+}
 
 /**
  * The other side of the rental, shown on the person card with their initial. [name] comes from
@@ -62,7 +96,12 @@ data class OtherPerson(
     val reviewCount: Int?,
 )
 
-/** Shows one rental, read once, as seen by the signed-in user. Only Requested is handled so far. */
+/**
+ * Shows one rental, read once, as seen by the signed-in user, and lets the lender answer a
+ * requested rental: accept it with the deposit and both addresses, or decline it. The answer is
+ * made by Cloud Functions through [RentalRepository]; this ViewModel only checks what the lender
+ * typed and reports the result. Only Requested is handled so far.
+ */
 class RentalDetailViewModel(
     private val rentalId: String,
     private val rentalRepository: RentalRepository,
@@ -75,6 +114,7 @@ class RentalDetailViewModel(
   val uiState: StateFlow<RentalDetailUiState> = _uiState.asStateFlow()
 
   private var loading: Job? = null
+  private var overlaps: Job? = null
 
   init {
     load()
@@ -87,6 +127,7 @@ class RentalDetailViewModel(
     // A retry while an earlier load is still running would otherwise let the older, slower result
     // overwrite the newer one.
     loading?.cancel()
+    overlaps?.cancel()
     _uiState.update { it.copy(isLoading = true, errorMsg = null, notFound = false) }
     loading = viewModelScope.launch {
       val rental =
@@ -123,20 +164,101 @@ class RentalDetailViewModel(
               averageRating = profile?.averageRating,
               reviewCount = profile?.reviewCount,
           )
-      _uiState.value =
-          RentalDetailUiState(
-              isLender = isLender,
-              itemTitle = rental.listingTitle,
-              status = rental.status,
-              sentAt = rental.createdAt,
-              startDate = rental.startDate,
-              endDate = rental.endDate,
-              rentalPrice = rental.totalPrice,
-              suggestedDeposit = suggestedDeposit,
-              pickupArea = rental.pickupArea,
-              otherPerson = otherPerson,
-          )
+      // update, not a fresh state: the lender may already have typed in the form while this loaded.
+      _uiState.update {
+        it.copy(
+            isLoading = false,
+            isLender = isLender,
+            itemTitle = rental.listingTitle,
+            status = rental.status,
+            sentAt = rental.createdAt,
+            startDate = rental.startDate,
+            endDate = rental.endDate,
+            rentalPrice = rental.totalPrice,
+            suggestedDeposit = suggestedDeposit,
+            pickupArea = rental.pickupArea,
+            otherPerson = otherPerson,
+            depositInput =
+                if (it.depositInput.isEmpty()) suggestedDeposit?.toString().orEmpty()
+                else it.depositInput,
+        )
+      }
+      if (isLender) observeOverlaps(rental)
     }
+  }
+
+  /**
+   * Counts, as the lender's requests change, the other requests on the same listing that accepting
+   * [rental] would decline: their dates overlap, buffer day included.
+   */
+  private fun observeOverlaps(rental: Rental) {
+    val dates = BookedRange(rental.startDate, rental.endDate)
+    overlaps = viewModelScope.launch {
+      rentalRepository
+          .observeRentalsAsLender(rental.ownerId)
+          .catch {
+            // Keep the last count: the lender can still answer without it.
+          }
+          .collect { rentals ->
+            val count = rentals.count { other ->
+              other.id != rental.id &&
+                  other.listingId == rental.listingId &&
+                  other.status == RentalStatus.REQUESTED &&
+                  conflictsWithBuffer(dates, BookedRange(other.startDate, other.endDate))
+            }
+            _uiState.update { it.copy(overlapCount = count) }
+          }
+    }
+  }
+
+  /** Sets the deposit the lender types. */
+  fun updateDeposit(text: String) {
+    _uiState.update { it.copy(depositInput = text) }
+  }
+
+  /** Sets the exact pickup address the lender types. */
+  fun updatePickupAddress(text: String) {
+    _uiState.update { it.copy(pickupAddress = text) }
+  }
+
+  /** Sets the exact return address the lender types. */
+  fun updateReturnAddress(text: String) {
+    _uiState.update { it.copy(returnAddress = text) }
+  }
+
+  /** Accepts the request with the typed deposit and addresses. Ignored unless canAccept. */
+  fun accept() {
+    val state = _uiState.value
+    val deposit = state.deposit
+    if (!state.canAccept || deposit == null) return
+    _uiState.update { it.copy(isSubmitting = true, actionError = null) }
+    viewModelScope.launch {
+      rentalRepository
+          .acceptRental(rentalId, deposit, state.pickupAddress.trim(), state.returnAddress.trim())
+          .onSuccess { _uiState.update { it.copy(isSubmitting = false, answered = true) } }
+          .onFailure { e ->
+            _uiState.update { it.copy(isSubmitting = false, actionError = e.message ?: "") }
+          }
+    }
+  }
+
+  /** Declines the request. Ignored unless canDecline. */
+  fun decline() {
+    if (!_uiState.value.canDecline) return
+    _uiState.update { it.copy(isSubmitting = true, actionError = null) }
+    viewModelScope.launch {
+      rentalRepository
+          .declineRental(rentalId)
+          .onSuccess { _uiState.update { it.copy(isSubmitting = false, answered = true) } }
+          .onFailure { e ->
+            _uiState.update { it.copy(isSubmitting = false, actionError = e.message ?: "") }
+          }
+    }
+  }
+
+  /** Clears the answered flag once the screen has left. */
+  fun onAnsweredHandled() {
+    _uiState.update { it.copy(answered = false) }
   }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */

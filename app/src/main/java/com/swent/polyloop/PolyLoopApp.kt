@@ -49,6 +49,8 @@ import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.ui.profile.ProfileScreen
 import com.swent.polyloop.ui.profile.ProfileViewModel
+import com.swent.polyloop.ui.rentaldetail.RentalDetailScreen
+import com.swent.polyloop.ui.rentaldetail.RentalDetailViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -205,6 +207,7 @@ private fun PolyLoopScaffold(
         MyRentalsScreen(
             viewModel = myRentalsViewModel,
             onRentalClick = { id -> navController.navigate(Screen.RentalDetail.createRoute(id)) },
+            onReviewRequest = { id -> navController.navigate(Screen.RentalDetail.createRoute(id)) },
             onOpenChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
         )
       }
@@ -254,7 +257,26 @@ private fun PolyLoopScaffold(
         DummyScreen(Screen.EditListing.createRoute(entry.stringArg(Screen.ARG_LISTING_ID)))
       }
       composable(Screen.RentalDetail.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
-        DummyScreen(Screen.RentalDetail.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
+        val rentalDetailViewModel: RentalDetailViewModel =
+            viewModel(
+                factory =
+                    RentalDetailViewModel.Factory(
+                        rentalId = entry.stringArg(Screen.ARG_RENTAL_ID),
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        listingRepository = RepositoryProvider.listingRepository,
+                        profileRepository = RepositoryProvider.profileRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                    )
+            )
+        RentalDetailScreen(
+            viewModel = rentalDetailViewModel,
+            // Back to My rentals, where the lender's requests are in Lending.
+            onAnswered = {
+              if (!navController.popBackStack(Screen.MyRentals.route, inclusive = false)) {
+                navController.navigate(Screen.MyRentals.route)
+              }
+            },
+        )
       }
       composable(Screen.Chat.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
         val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)

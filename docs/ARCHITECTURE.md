@@ -145,9 +145,9 @@ Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoi
 | Path | Fields | Notes |
 | --- | --- | --- |
 | `users/{uid}` | `name`, `email`, `photoUrl`, `averageRating`, `reviewCount` | Missing fields read as `""` or 0. `photoUrl` is the download URL of the profile photo in Storage, or `""` without one. |
-| `listings/{listingId}` | `ownerId`, `title`, `description`, `category`, `photoUrls`, `pricePerDay`, `itemValue`, `availableFrom`, `availableTo`, `status`, `pickupArea`, `dropOffArea`, `pickupPoint`, `dropOffPoint`, `bookedRanges` | Public. `bookedRanges` is a list of `{start, end}` (`YYYY-MM-DD`, both days booked, the buffer days around it not included); missing reads as an empty list. It holds accepted rentals only: a pending request blocks no day. Each range copies the `startDate` and `endDate` of an accepted rental, which stay in `rentals/{rentalId}` to tell who has the item and when; the copy on the listing is public so that anyone can see which days are free without reading other people's rentals. Only Cloud Functions write it; the app never does, so it stays empty until the Function that accepts rentals exists. The areas and points: see below. |
+| `listings/{listingId}` | `ownerId`, `title`, `description`, `category`, `photoUrls`, `pricePerDay`, `itemValue`, `availableFrom`, `availableTo`, `status`, `pickupArea`, `dropOffArea`, `pickupPoint`, `dropOffPoint`, `bookedRanges` | Public. `bookedRanges` is a list of `{start, end}` (`YYYY-MM-DD`, both days booked, the buffer days around it not included); missing reads as an empty list. It holds accepted rentals only: a pending request blocks no day. Each range copies the `startDate` and `endDate` of an accepted rental, which stay in `rentals/{rentalId}` to tell who has the item and when; the copy on the listing is public so that anyone can see which days are free without reading other people's rentals. Only the `acceptRental` Cloud Function writes it; the app never does. The areas and points: see below. |
 | `listings/{listingId}/private/addresses` | `pickup`, `dropOff` | Exact addresses, readable only by the owner. |
-| `rentals/{rentalId}` | `listingId`, `listingTitle`, `listingPhotoUrl`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. |
+| `rentals/{rentalId}` | `listingId`, `listingTitle`, `listingPhotoUrl`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `deposit`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. `deposit` is a whole number of PP, 0 until the lender accepts. |
 | `rentals/{rentalId}/messages/{messageId}` | `senderId`, `text`, `sentAt`, `type` (`USER` or `SYSTEM`) | One conversation per rental. |
 
 Listings:
@@ -159,7 +159,11 @@ Rentals:
 - `participants` is `[ownerId, borrowerId]`; the chat list queries it with `array-contains` only and sorts by `lastMessageAt` in the app, so it needs no composite index.
 - My rentals queries `borrowerId` or `ownerId` only and sorts newest first in the app (a user has few rentals), so it needs no index.
 - `lastMessageAt` is set to the same server timestamp as `createdAt` when the rental is created: the chat list sorts by it, and leaves out a rental that lacks it.
-- `pickupAddress` and `returnAddress` stay empty until the lender accepts; the borrower cannot read the listing's exact addresses before that.
+- `pickupAddress` and `returnAddress` stay empty until the lender accepts; the borrower cannot read the listing's exact addresses before that. `deposit` stays 0 until then.
+- **Answering a request** (callables in `europe-west1`, see `functions/src/rentalAnswers.ts`). Both need a verified `@epfl.ch` caller who owns the listing, and the rental must still be `REQUESTED`.
+    - `acceptRental({rentalId, deposit, pickupAddress, returnAddress})`: in one transaction, sets the rental to `ACCEPTED` with the deposit and both addresses, adds its dates to the listing's `bookedRanges`, and sets to `DECLINED` every other `REQUESTED` rental of the listing whose dates overlap (buffer day included). It refuses dates that are already booked. The deposit must be a whole number above 0; the addresses must not be blank.
+    - `declineRental({rentalId})`: sets the rental to `DECLINED`.
+    - Not done yet: reserving the deposit from the borrower's balance. There is no wallet, so `acceptRental` only records the deposit.
 - **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants. Until then, the dates are checked against `bookedRanges` only in the app (Listing detail reads them again from the server just before sending), so a client that skips this check is not stopped.
 
 Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, so the Storage rules can check the owner. Photos added before this rule live in `listing_images/` and keep working through their download URLs. A profile photo goes to `users/{uid}/profile.jpg`, one file per user that each new photo replaces; replacing it gives a new download URL, so the new photo is not hidden by an image cache.
@@ -177,6 +181,6 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 ## Not decided yet — ask before implementing
 
 - Security rules for collections not listed in the schema above
-- Cloud Function names and signatures, apart from `geocodeListingAddresses` (see "Firestore schema")
+- Cloud Function names and signatures, apart from `geocodeListingAddresses`, `acceptRental` and `declineRental` (see "Firestore schema")
 - Whether the auto-cancel waits until a set time on the pickup day (e.g. noon) so offline return scans can sync first
 - The exact list of push notifications
