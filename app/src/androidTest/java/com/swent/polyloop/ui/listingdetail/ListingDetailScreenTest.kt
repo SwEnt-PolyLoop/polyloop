@@ -238,16 +238,16 @@ class ListingDetailScreenTest {
   /** Scrolls to the pickup area and checks it shows the map, not the placeholder. */
   private fun assertPickupMapShown() {
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_area).performScrollTo()
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_map).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_placeholder).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertDoesNotExist()
   }
 
   /** Scrolls to the pickup area and checks it shows the placeholder with [area], not the map. */
   private fun assertPickupPlaceholderShown(area: String) {
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_area).performScrollTo()
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_placeholder).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_map).assertDoesNotExist()
-    assertSectionText(C.Tag.listing_detail_pickup_area_name, area)
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map).assertDoesNotExist()
+    assertSectionText(C.Tag.pickup_map_area_name, area)
   }
 
   @Test
@@ -286,9 +286,9 @@ class ListingDetailScreenTest {
     setContent(listing.copy(pickupArea = ""))
 
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_area).performScrollTo()
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_placeholder).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertIsDisplayed()
     composeTestRule
-        .onNodeWithTag(C.Tag.listing_detail_pickup_area_name, useUnmergedTree = true)
+        .onNodeWithTag(C.Tag.pickup_map_area_name, useUnmergedTree = true)
         .assertDoesNotExist()
   }
 
