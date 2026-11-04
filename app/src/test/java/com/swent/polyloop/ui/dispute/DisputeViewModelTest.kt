@@ -643,6 +643,74 @@ class DisputeViewModelTest {
     assertNull(vm.uiState.value.actionError)
   }
 
+  // ---------- what the other person did ----------
+
+  @Test
+  fun theirNewOfferIsToldUntilMyNextAction() {
+    val vm = viewModel()
+    assertFalse(vm.uiState.value.offerUpdated)
+
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now))))
+    assertTrue(vm.uiState.value.showsOfferUpdated)
+
+    vm.startEditing()
+    assertFalse(vm.uiState.value.offerUpdated)
+  }
+
+  @Test
+  fun myOwnNewOfferIsNotTold() {
+    val vm = viewModel()
+
+    propose(vm, 50)
+
+    assertFalse(vm.uiState.value.offerUpdated)
+  }
+
+  @Test
+  fun aFailedAcceptHidesTheNewOfferItFailedOn() {
+    val vm = viewModel()
+    disputes.gate = CompletableDeferred()
+    vm.accept()
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+    disputes.gate?.complete(Unit)
+
+    assertTrue(vm.uiState.value.offerUpdated)
+    assertFalse(vm.uiState.value.showsOfferUpdated)
+  }
+
+  @Test
+  fun theirAcceptanceOfMyProposalIsTold() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+
+    runBlocking { disputes.accept("pump", "ana", 40) }
+
+    assertTrue(vm.uiState.value.acceptedByOther)
+  }
+
+  @Test
+  fun anEscalationTellsWhetherTheOtherPersonOrNobodyDidIt() {
+    val vm = viewModel()
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    assertEquals(EscalationNotice.BY_OTHER, vm.uiState.value.escalationNotice)
+
+    disputes.put(open.copy(stage = DisputeStage.COURT))
+    assertEquals(EscalationNotice.AUTOMATIC, vm.uiState.value.escalationNotice)
+  }
+
+  @Test
+  fun myOwnEscalationAndADisputeAlreadySettledAreNotTold() {
+    disputes = FakeDisputeRepository(listOf(open.copy(agreedAt = now)))
+    assertFalse(viewModel().uiState.value.acceptedByOther)
+
+    disputes = FakeDisputeRepository(listOf(open), clock = { now })
+    val vm = viewModel()
+    confirmEscalate(vm)
+
+    assertNull(vm.uiState.value.escalationNotice)
+  }
+
   // ---------- factory ----------
 
   @Test
