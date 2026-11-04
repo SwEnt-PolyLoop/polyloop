@@ -9,7 +9,7 @@ Durable rules for any AI agent (and human) working in this repository. Read this
 
 - Android, Kotlin, Jetpack Compose, Material 3. minSdk 28.
 - Backend is Firebase: Auth (email/password, verified `@epfl.ch` only), Firestore, Cloud Storage (photos, court-ruling PDFs), Cloud Functions (trusted logic; Gemini for dispute proposals and reading court rulings), Cloud Messaging.
-- Rental flow: request (rental price reserved) -> lender accepts and enters the deposit agreed in chat (deposit reserved) -> pickup: condition photos + QR scan -> return: condition photos + QR scan -> lender confirms or flags damage -> direct settlement (auto-escalates after 30 days) -> Gemini proposes a split -> court ruling uploaded as PDF, reviewed by an admin. Late items are lost after a 3-day grace period.
+- Rental flow: request (rental price reserved) -> lender offers a deposit and gives the addresses -> borrower accepts, declines or counters once -> lender answers a counteroffer -> accepted (deposit reserved) -> pickup: condition photos + QR scan -> return: condition photos + QR scan -> lender confirms or flags damage -> direct settlement (auto-escalates after 30 days) -> Gemini proposes a split -> court ruling uploaded as PDF, reviewed by an admin. Late items are lost after a 3-day grace period.
 
 Before writing any code, read `docs/ARCHITECTURE.md` and `docs/SCREENS.md`. They are the source of truth for the architecture, the product rules and every screen.
 
@@ -19,7 +19,7 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 
 1. **Do not make design or technical decisions on your own.** If something you need is not in `docs/`, or the docs are ambiguous, stop and ask. The "Not decided yet" list in ARCHITECTURE.md names known gaps.
 2. **Respect the layers.** Each screen (Compose) only talks to its own ViewModel. ViewModels call the repositories they need directly; they never call each other, and there is no domain/use-case layer.
-3. **One ViewModel per screen, one repository per feature.** There are 14 screens, each with its own ViewModel (plus DrawerViewModel for the navigation drawer shared by every screen), and 10 repositories, one per type of data (Auth, Profile, Listing, Rental, Chat, Handover, Dispute, Wallet, Location, Connectivity). `docs/ARCHITECTURE.md` lists the repositories each ViewModel uses; keep that list up to date. Do not create new ViewModels or repositories without asking.
+3. **One ViewModel per screen, one repository per feature.** There are 15 screens, each with its own ViewModel (plus DrawerViewModel for the navigation drawer shared by every screen), and 10 repositories, one per type of data (Auth, Profile, Listing, Rental, Chat, Handover, Dispute, Wallet, Location, Connectivity). `docs/ARCHITECTURE.md` lists the repositories each ViewModel uses; keep that list up to date. Do not create new ViewModels or repositories without asking.
 4. **If the architecture changes**, update `docs/ARCHITECTURE.md`, `docs/SCREENS.md`, the diagram and, if a rule changes, this file in the same pull request as the code.
 
 ## Rules that must never be broken

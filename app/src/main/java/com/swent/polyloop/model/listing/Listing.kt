@@ -68,5 +68,28 @@ fun bookedDays(ranges: List<BookedRange>): Set<LocalDate> =
         }
         .toSet()
 
+/**
+ * The days right before and right after each booked stretch, unless they are booked too. The day
+ * before could only end a range with no free day after it, so it is blocked like the day after.
+ * Shared by the date picker and the rule that declines overlapping requests.
+ */
+fun bufferDays(disabledDates: Set<LocalDate>): Set<LocalDate> =
+    disabledDates
+        .flatMap { listOf(it.minusDays(1), it.plusDays(1)) }
+        .filterNot { it in disabledDates }
+        .toSet()
+
+/**
+ * True if the stays [a] and [b] cannot both be booked: a day of [a] is a day of [b] or one of its
+ * buffer days. Two stays with one free day between them do not conflict; two stays that touch
+ * through a buffer day do. Same rule as the Cloud Function `acceptRental`
+ * (functions/src/rentalRules.ts).
+ */
+fun conflictsWithBuffer(a: BookedRange, b: BookedRange): Boolean {
+  val stayB = bookedDays(listOf(b))
+  val blockedByB = stayB + bufferDays(stayB)
+  return bookedDays(listOf(a)).any { it in blockedByB }
+}
+
 /** Exact addresses, kept out of the public listing document. */
 data class ListingAddresses(val pickup: String, val dropOff: String)
