@@ -49,5 +49,26 @@ service firebase.storage {
 
       allow delete: if isVerifiedEpfl() && request.auth.uid == uid;
     }
+
+    // Pickup photos, uploaded by HandoverRepositoryFirestore while the rental is Accepted. Only its
+    // two participants read and add them; nobody replaces or deletes one, since they are evidence.
+    match /rentals/{rentalId}/photos/{photo} {
+      allow read: if isParticipant(rentalId);
+
+      allow create: if isParticipant(rentalId)
+          && resource == null // no file there yet: create alone also let a photo be replaced
+          && firestore.get(rentalDoc(rentalId)).data.status == 'ACCEPTED'
+          && request.resource.size < 10 * 1024 * 1024
+          && request.resource.contentType.matches('image/.*');
+
+      function rentalDoc(rentalId) {
+        return /databases/(default)/documents/rentals/$(rentalId);
+      }
+
+      function isParticipant(rentalId) {
+        return isVerifiedEpfl()
+            && request.auth.uid in firestore.get(rentalDoc(rentalId)).data.participants;
+      }
+    }
   }
 }
