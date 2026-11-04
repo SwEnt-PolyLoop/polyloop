@@ -297,5 +297,6 @@
     <!-- The total rental price in PolyPoints, e.g. "120 PP · reserved" -->
     <string name="rental_detail_price">%1$d PP · reserved</string>
     <string name="rental_detail_deposit_label">Suggested deposit</string>
+    <string name="rental_detail_chat">Chat</string>
 
 </resources>

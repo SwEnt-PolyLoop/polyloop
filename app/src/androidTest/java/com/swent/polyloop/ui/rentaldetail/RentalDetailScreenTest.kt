@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.rentaldetail
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -11,6 +12,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
@@ -134,6 +136,7 @@ class RentalDetailScreenTest {
     assertAbsent(C.Tag.rental_detail_stage_strip)
     assertAbsent(C.Tag.rental_detail_status)
     assertAbsent(C.Tag.rental_detail_price)
+    assertAbsent(C.Tag.rental_detail_person_card)
   }
 
   @Test
@@ -236,5 +239,86 @@ class RentalDetailScreenTest {
 
     assertShown(C.Tag.rental_detail_price, context.getString(R.string.rental_detail_price, 120))
     assertAbsent(C.Tag.rental_detail_deposit)
+  }
+
+  private fun withPerson(name: String = "Léa", averageRating: Double? = 4.6, reviewCount: Int? = 5) =
+      requested.copy(otherPerson = OtherPerson("lea", name, averageRating, reviewCount))
+
+  @Test
+  fun personCardShowsTheInitialAndName() {
+    setContent()
+
+    assertShown(C.Tag.rental_detail_person_initial, "L")
+    assertShown(C.Tag.rental_detail_person_name, "Léa")
+  }
+
+  @Test
+  fun blankNameShowsThePlaceholderAndAQuestionMark() {
+    setContent(withPerson(name = "  "))
+
+    assertShown(C.Tag.rental_detail_person_initial, "?")
+    assertShown(
+        C.Tag.rental_detail_person_name,
+        context.getString(R.string.profile_name_placeholder),
+    )
+  }
+
+  @Test
+  fun ratingShowsTheAverageAndReviewCount() {
+    setContent()
+
+    assertShown(C.Tag.rental_detail_person_rating, "4.6 · 5 reviews")
+  }
+
+  @Test
+  fun noReviewsShowsNoReviewsYet() {
+    setContent(withPerson(averageRating = 0.0, reviewCount = 0))
+
+    assertShown(
+        C.Tag.rental_detail_person_rating,
+        context.getString(R.string.profile_no_reviews),
+    )
+  }
+
+  @Test
+  fun unknownRatingHidesTheRatingLine() {
+    setContent(withPerson(averageRating = null, reviewCount = null))
+
+    assertShown(C.Tag.rental_detail_person_name, "Léa")
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_person_rating, useUnmergedTree = true)
+        .assertDoesNotExist()
+  }
+
+  @Test
+  fun noOtherPersonShowsNoCard() {
+    setContent(requested.copy(otherPerson = null))
+
+    assertAbsent(C.Tag.rental_detail_person_card)
+    assertAbsent(C.Tag.rental_detail_chat_button)
+  }
+
+  @Test
+  fun tappingThePersonCardCallsOnPersonClickWithTheUid() {
+    setContent()
+
+    // The left edge is the avatar side, away from the Chat button.
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_person_card)
+        .performScrollTo()
+        .performTouchInput { click(centerLeft + Offset(8f, 0f)) }
+
+    assertEquals(listOf("lea"), personClicks)
+    assertEquals(0, chatClicks)
+  }
+
+  @Test
+  fun tappingChatCallsOnChatClickOnly() {
+    setContent()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
+
+    assertEquals(1, chatClicks)
+    assertEquals(emptyList<String>(), personClicks)
   }
 }

@@ -7,16 +7,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,6 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -119,6 +129,13 @@ fun RentalDetailContent(
             StageStrip()
             StatusCard(status = uiState.status, sentAt = uiState.sentAt, today = today, zone = zone)
             DetailsCard(uiState = uiState, today = today)
+            uiState.otherPerson?.let { person ->
+              PersonCard(
+                  person = person,
+                  onClick = { onPersonClick(person.uid) },
+                  onChatClick = onChatClick,
+              )
+            }
           }
     }
   }
@@ -245,6 +262,89 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
         )
       }
     }
+  }
+}
+
+/**
+ * The other person, built like the Profile header: their initial, their name and their rating. The
+ * card opens their profile; the Chat button opens the chat and, being its own clickable, does not
+ * also open the profile.
+ */
+@Composable
+private fun PersonCard(person: OtherPerson, onClick: () -> Unit, onChatClick: () -> Unit) {
+  OutlinedCard(
+      onClick = onClick,
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.rental_detail_person_card),
+  ) {
+    Row(
+        modifier = Modifier.padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Box(
+          modifier =
+              Modifier.size(40.dp)
+                  .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+          contentAlignment = Alignment.Center,
+      ) {
+        Text(
+            text = person.name.trim().firstOrNull()?.uppercase() ?: "?",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.testTag(C.Tag.rental_detail_person_initial),
+        )
+      }
+      Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = person.name.ifBlank { stringResource(R.string.profile_name_placeholder) },
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.testTag(C.Tag.rental_detail_person_name),
+        )
+        // Null means their profile could not be read, so the rating is unknown: "No reviews yet"
+        // would be a claim we cannot make. 0 reviews is known, and says so.
+        if (person.averageRating != null && person.reviewCount != null) {
+          RatingLine(averageRating = person.averageRating, reviewCount = person.reviewCount)
+        }
+      }
+      OutlinedButton(
+          onClick = onChatClick,
+          modifier = Modifier.testTag(C.Tag.rental_detail_chat_button),
+      ) {
+        Icon(
+            painterResource(R.drawable.ic_chat),
+            contentDescription = null,
+            modifier = Modifier.size(ButtonDefaults.IconSize),
+        )
+        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+        Text(stringResource(R.string.rental_detail_chat))
+      }
+    }
+  }
+}
+
+/** A star and "4.6 · 5 reviews", or "No reviews yet" when [reviewCount] is 0. */
+@Composable
+private fun RatingLine(averageRating: Double, reviewCount: Int) {
+  Row(verticalAlignment = Alignment.CenterVertically) {
+    if (reviewCount > 0) {
+      Icon(
+          Icons.Default.Star,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.tertiary,
+          modifier = Modifier.size(14.dp),
+      )
+      Spacer(Modifier.width(4.dp))
+    }
+    Text(
+        text =
+            if (reviewCount > 0)
+                pluralStringResource(R.plurals.profile_rating, reviewCount, averageRating, reviewCount)
+            else stringResource(R.string.profile_no_reviews),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(C.Tag.rental_detail_person_rating),
+    )
   }
 }
 
