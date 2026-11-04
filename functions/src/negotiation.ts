@@ -26,11 +26,6 @@ const LISTINGS = "listings";
 const REQUESTED = "REQUESTED";
 const DECLINED = "DECLINED";
 
-/** What an answer did: the other requests an acceptance declined because their dates overlapped. */
-export interface AnswerResult {
-  declinedRentalIds: string[];
-}
-
 /** The offer stored on a rental, once read back. */
 interface StoredOffer {
   amount: number;
@@ -98,7 +93,6 @@ export async function makeOffer(
  * @param callerId the participant answering.
  * @param answer the answer, already checked by `parseOfferAnswer`.
  * @param now the current time, passed so that tests can set it.
- * @returns the requests declined by an acceptance; empty for any other answer.
  * @throws RequestError `not-found`, `permission-denied` (not a participant, or the offer's author)
  *   or `failed-precondition` (no offer waiting, expired, already countered, or dates no longer
  *   free). Nothing is written then.
@@ -108,18 +102,19 @@ export async function respondToOffer(
   callerId: string,
   answer: OfferAnswer,
   now: Date = new Date(),
-): Promise<AnswerResult> {
+): Promise<void> {
   const rentalRef = db.collection(RENTALS).doc(answer.rentalId);
-  return db.runTransaction(async (tx) => {
+  await db.runTransaction(async (tx) => {
     const rental = await requireAnswerableRental(tx, rentalRef, callerId);
     const offer = requireLiveOffer(rental, callerId, now);
 
     switch (answer.action) {
       case "ACCEPT":
-        return accept(tx, rentalRef, rental, offer);
+        await accept(tx, rentalRef, rental, offer);
+        return;
       case "DECLINE":
         decline(tx, rentalRef, "Offer declined");
-        return { declinedRentalIds: [] };
+        return;
       case "COUNTER":
         if (offer.isCounter) {
           throw new RequestError("failed-precondition", "A counteroffer cannot be countered.");
@@ -134,7 +129,6 @@ export async function respondToOffer(
             expiresAt: Timestamp.fromDate(offerExpiry(now, requireDates(rental).start)),
           },
         });
-        return { declinedRentalIds: [] };
     }
   });
 }
@@ -171,7 +165,7 @@ async function accept(
   rentalRef: DocumentReference,
   rental: DocumentData,
   offer: StoredOffer,
-): Promise<AnswerResult> {
+): Promise<void> {
   const dates = requireDates(rental);
   const db = rentalRef.firestore;
 
@@ -207,14 +201,13 @@ async function accept(
   for (const doc of overlapping) {
     decline(tx, doc.ref, "Dates booked · request declined");
   }
-  return { declinedRentalIds: overlapping.map((doc) => doc.id) };
 }
 
 /**
  * Ends a negotiation with no rental: DECLINED, with no offer and no addresses left, and [text] in
  * the chat. Runs inside the caller's transaction, after its reads.
  */
-export function decline(tx: Transaction, rentalRef: DocumentReference, text: string): void {
+function decline(tx: Transaction, rentalRef: DocumentReference, text: string): void {
   tx.delete(addressesRef(rentalRef));
   writeWithSystemMessage(tx, rentalRef, text, { status: DECLINED, offer: FieldValue.delete() });
 }
