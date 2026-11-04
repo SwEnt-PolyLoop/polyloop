@@ -11,6 +11,7 @@ import com.swent.polyloop.model.dispute.Dispute
 import com.swent.polyloop.model.dispute.DisputeRepository
 import com.swent.polyloop.model.dispute.DisputeStage
 import com.swent.polyloop.model.dispute.ProposalChangedException
+import com.swent.polyloop.model.dispute.StageChangedException
 import com.swent.polyloop.model.rental.RentalRepository
 import java.time.Duration
 import java.time.Instant
@@ -44,6 +45,8 @@ enum class DisputeActionError {
   ACCEPT,
   /** The proposal changed just before the user accepted it, so nothing was accepted. */
   PROPOSAL_CHANGED,
+  /** The dispute could not be moved on to the next stage. */
+  ESCALATE,
 }
 
 /**
@@ -56,10 +59,12 @@ enum class DisputeActionError {
  * direct settlement or once settled, where it never moves on by itself. [loadFailed] is true when
  * the dispute cannot be loaded (or nobody is signed in, or the user does not take part in the
  * rental) and nothing was shown yet; [refreshFailed] is true when it could not be loaded again
- * after it was shown, which keeps the last state on screen. [actionError] is what the last proposal
- * or acceptance could not do; the next action, opening the split editor, a new stage or an
- * agreement clears it, since the action it names then no longer applies. [draftLenderPercent] is
- * the split the user is editing, as the lender's percentage, or null when the editor is closed.
+ * after it was shown, which keeps the last state on screen. [actionError] is what the last
+ * proposal, acceptance or escalation could not do; the next action, opening the split editor, a new
+ * stage or an agreement clears it, since the action it names then no longer applies.
+ * [draftLenderPercent] is the split the user is editing, as the lender's percentage, or null when
+ * the editor is closed. [isConfirmingEscalation] is true while the user is asked to confirm moving
+ * the dispute on to the LLM proposal.
  */
 data class DisputeUiState(
     val itemTitle: String = "",
@@ -73,6 +78,7 @@ data class DisputeUiState(
     val isOnline: Boolean = true,
     val isSending: Boolean = false,
     val draftLenderPercent: Int? = null,
+    val isConfirmingEscalation: Boolean = false,
     val actionError: DisputeActionError? = null,
     val isLoading: Boolean = true,
     val loadFailed: Boolean = false,
@@ -231,11 +237,37 @@ class DisputeViewModel(
   }
 
   /**
+   * Asks the user to confirm moving the dispute on to the LLM proposal. Does nothing unless
+   * [DisputeUiState.canEscalate].
+   */
+  fun askEscalate() {
+    if (!_uiState.value.canEscalate) return
+    _uiState.update { it.copy(isConfirmingEscalation = true) }
+  }
+
+  /** Closes the confirmation without escalating. */
+  fun dismissEscalate() = _uiState.update { it.copy(isConfirmingEscalation = false) }
+
+  /**
+   * Closes the confirmation and moves the dispute on to the LLM proposal. Does nothing else unless
+   * the confirmation is still open (a new stage closes it) and [DisputeUiState.canEscalate]. If the
+   * dispute already moved on meanwhile, nothing changes and no error is shown: the new stage is
+   * shown instead, after loading the dispute again if it could not be refreshed.
+   */
+  fun escalate() {
+    val confirmed = _uiState.value.isConfirmingEscalation
+    dismissEscalate()
+    if (!confirmed || !_uiState.value.canEscalate) return
+    send(DisputeActionError.ESCALATE) { uid -> disputeRepository.escalate(rentalId, uid) }
+  }
+
+  /**
    * Runs [request] as the signed-in user, with [DisputeUiState.isSending] set meanwhile so no
    * second action starts. The new dispute arrives through the observer; a failure (or nobody signed
    * in) sets [DisputeUiState.actionError] to [error], or to [DisputeActionError.PROPOSAL_CHANGED]
-   * when the proposal accepted was no longer the one on the table. A success also closes the split
-   * editor if [closesEditor].
+   * when the proposal accepted was no longer the one on the table. An escalation refused because
+   * the dispute already moved on sets none, and loads the dispute again if it could not be
+   * refreshed, so the new stage shows. A success also closes the split editor if [closesEditor].
    */
   private fun send(
       error: DisputeActionError,
@@ -249,6 +281,7 @@ class DisputeViewModel(
       val actionError =
           when {
             failure is ProposalChangedException -> DisputeActionError.PROPOSAL_CHANGED
+            failure is StageChangedException -> null
             uid == null || failure != null -> error
             else -> null
           }
@@ -260,6 +293,7 @@ class DisputeViewModel(
             draftLenderPercent = if (closesEditor && succeeded) null else it.draftLenderPercent,
         )
       }
+      if (failure is StageChangedException && _uiState.value.refreshFailed) observe()
     }
   }
 
@@ -308,6 +342,10 @@ class DisputeViewModel(
           // The failed action was for a stage or an offer that is gone, so retrying it is wrong.
           actionError = it.actionError.takeUnless { stageChanged || justSettled },
           stage = dispute.stage,
+          // An agreement or a new stage ends the editing and the confirmation, which was for
+          // another stage.
+          isConfirmingEscalation =
+              it.isConfirmingEscalation && !dispute.isSettled && dispute.stage == it.stage,
           draftLenderPercent = it.draftLenderPercent.takeIf { stillSettling },
           history =
               dispute.proposals.reversed().map { p ->
