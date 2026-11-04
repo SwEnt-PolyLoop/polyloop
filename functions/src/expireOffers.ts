@@ -3,7 +3,7 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions/v2";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { expireOverdueOffers } from "./expiredOffers";
+import { expireOverdueOffers } from "./negotiation";
 
 /** Runs the sweep every hour; `respondToOffer` also refuses an expired offer between two runs. */
 export const expireOffers = onSchedule(

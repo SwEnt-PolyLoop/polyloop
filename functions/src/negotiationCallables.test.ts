@@ -138,7 +138,8 @@ describe("the whole negotiation", () => {
     await respondToOffer.run(asUser(BORROWER, { rentalId: id, action: "COUNTER", deposit: 150 }));
     const result = await respondToOffer.run(asUser(LENDER, { rentalId: id, action: "ACCEPT" }));
 
-    expect(result).toEqual({ declinedRentalIds: [overlapping] });
+    // Nothing about the other person's request reaches the caller.
+    expect(result).toEqual({});
     const accepted = await rental(id);
     expect(accepted).toMatchObject({
       status: "ACCEPTED",
