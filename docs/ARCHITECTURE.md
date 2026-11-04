@@ -131,7 +131,7 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 | Offline cache | Firestore's built-in offline persistence |
 | Upload queue | WorkManager, for offline photos and QR scans |
 | Camera and QR | CameraX for photos; ML Kit code scanner to scan, ZXing to generate QR codes |
-| Maps | Google Maps SDK for Android in the app, through Maps Compose (`maps-compose`). Its key comes from `MAPS_API_KEY` in `local.properties` (see the README); without it, as on CI, the maps show no tiles |
+| Maps | Google Maps SDK for Android in the app, through Maps Compose (`maps-compose`). Its key comes from `MAPS_API_KEY` in `local.properties`, or in the environment for the Build APK workflow (see the README); without it, as on CI, the maps show no tiles |
 | Geocoding | Cloud Function `geocodeListingAddresses`, when a listing's exact addresses are written (Geocoding API, key `GEOCODING_API_KEY`) |
 | "Near me" | Geohash queries with the GeoFire utilities |
 | LLM | Gemini API, called only from Cloud Functions (dispute proposals, court-ruling reading) |

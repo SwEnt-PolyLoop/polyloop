@@ -25,6 +25,8 @@ The maps use the Maps SDK for Android, which needs an API key. The key stays out
 
 To get a key, once, in the project's Google Cloud console (the same project as Firebase): enable the **Maps SDK for Android**, then create an API key restricted to Android apps, with the package `com.swent.polyloop` and the SHA-1 of your debug certificate (shown by `./gradlew signingReport`). Each teammate adds their own SHA-1 to the key.
 
+The **Build APK** workflow (`.github/workflows/apk.yml`) reads two repository secrets, so its APK shows the maps: `MAPS_API_KEY`, the key, and `DEBUG_KEYSTORE`, a debug keystore encoded in base64, so that every run signs with the same certificate. Its SHA-1 must be on the key too. Without these secrets the workflow still builds an APK, with a warning, and its maps show no tiles.
+
 ## Firebase emulator (local testing)
 
 Tests that need Firebase run against the **Firebase Emulator Suite**, a local, in-memory copy of Auth, Firestore and Cloud Storage. They never touch the real project, and all data is wiped when the emulators stop.
