@@ -7,8 +7,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
+import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.ListingRepository
+import com.swent.polyloop.model.listing.conflictsWithBuffer
 import com.swent.polyloop.model.profile.ProfileRepository
+import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.ui.createlisting.isWholeNumberAboveZero
@@ -19,6 +22,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -42,6 +48,10 @@ enum class ReviewOutcome {
  * @property endDate the rental's last day.
  * @property rentalPrice the total price in PolyPoints.
  * @property borrower the person asking; a blank name means the screen shows a placeholder.
+ * @property suggestedDeposit the item's value in PolyPoints, or null when the listing is missing or
+ *   could not be read.
+ * @property overlappingRequests how many other requests an acceptance would decline; 0 also when
+ *   they could not be read, since this is only a warning.
  * @property deposit the deposit field, filled in with the item's value when the listing can be
  *   read.
  * @property pickupAddress the pickup address field.
@@ -62,6 +72,8 @@ data class ReviewRequestUiState(
     val endDate: LocalDate? = null,
     val rentalPrice: Int = 0,
     val borrower: OtherPerson? = null,
+    val suggestedDeposit: Int? = null,
+    val overlappingRequests: Int = 0,
     val deposit: String = "",
     val pickupAddress: String = "",
     val returnAddress: String = "",
@@ -179,12 +191,21 @@ class ReviewRequestViewModel(
         _uiState.update { it.copy(isLoading = false, itemTitle = rental.listingTitle) }
         return@launch
       }
-      // Only the rental is required: an unreadable listing leaves the deposit empty, and an
-      // unreadable profile falls back to the name copied on the rental.
+      // Only the rental is required: an unreadable listing leaves the deposit empty, an unreadable
+      // profile falls back to the name copied on the rental, and unreadable rentals give no
+      // warning about overlapping requests.
       val listing = async { listingRepository.getListing(rental.listingId).getOrNull() }
       val profileRead = async { profileRepository.getProfile(rental.borrowerId).getOrNull() }
+      val overlaps = async {
+        rentalRepository
+            .observeRentalsAsLender(rental.ownerId)
+            .map { rentals -> rentals.count { it.overlapsWith(rental) } }
+            .catch { emit(0) }
+            .first()
+      }
       val itemValue = listing.await()?.itemValue
       val profile = profileRead.await()
+      val overlappingRequests = overlaps.await()
       _uiState.update {
         it.copy(
             isLoading = false,
@@ -200,11 +221,23 @@ class ReviewRequestViewModel(
                     averageRating = profile?.averageRating,
                     reviewCount = profile?.reviewCount,
                 ),
+            suggestedDeposit = itemValue,
+            overlappingRequests = overlappingRequests,
             deposit = itemValue?.toString().orEmpty(),
         )
       }
     }
   }
+
+  /** True for another pending request of the same listing whose dates conflict with [request]. */
+  private fun Rental.overlapsWith(request: Rental): Boolean =
+      id != request.id &&
+          listingId == request.listingId &&
+          status == RentalStatus.REQUESTED &&
+          conflictsWithBuffer(
+              BookedRange(startDate, endDate),
+              BookedRange(request.startDate, request.endDate),
+          )
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */
   class Factory(

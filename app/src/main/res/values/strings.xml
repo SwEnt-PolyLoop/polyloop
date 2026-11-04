@@ -313,4 +313,29 @@
     <string name="rental_detail_cancel_until">You can cancel until %1$s</string>
     <string name="rental_detail_cancel_request">Cancel request</string>
 
+    <!-- Review request: the lender's answer to a request. -->
+    <string name="review_request_title">Review request</string>
+    <string name="review_request_role">You lend</string>
+    <!-- e.g. "Camping tent · 15 – 17 Oct · 3 days" -->
+    <string name="review_request_summary">%1$s · %2$s · %3$s</string>
+    <plurals name="review_request_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="review_request_deposit_label">Deposit offer</string>
+    <string name="review_request_deposit_suffix">PP</string>
+    <string name="review_request_deposit_hint">The borrower can accept, decline or counter once.</string>
+    <string name="review_request_pickup_label">Pickup address</string>
+    <string name="review_request_return_label">Drop-off address</string>
+    <string name="review_request_address_placeholder">Street, number, town</string>
+    <string name="review_request_address_hint">The borrower sees the addresses once the rental is accepted.</string>
+    <plurals name="review_request_overlapping">
+        <item quantity="one">If accepted, %1$d request with overlapping dates is declined.</item>
+        <item quantity="other">If accepted, %1$d requests with overlapping dates are declined.</item>
+    </plurals>
+    <string name="review_request_decline">Decline</string>
+    <string name="review_request_send">Send offer</string>
+    <string name="review_request_action_error">Could not send your answer. Try again.</string>
+    <string name="review_request_not_answerable">This request can no longer be answered here.</string>
+
 </resources>
