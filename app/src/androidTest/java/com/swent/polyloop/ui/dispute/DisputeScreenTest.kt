@@ -164,6 +164,42 @@ class DisputeScreenTest {
     rows[1].onChildAt(0).assertTextEquals("You · ${formatDay(LocalDate.of(2026, 10, 1))}")
   }
 
+  // ---------- editing the split ----------
+
+  @Test
+  fun editorShowsTheDraftAndPassesOnTypingTappingSendAndCancel() {
+    setContent(open.copy(draftLenderPercent = 25))
+
+    node(C.Tag.dispute_proposal_title).assertTextEquals("Your proposal")
+    node(C.Tag.dispute_split_lender_field)
+        .assertTextEquals("25")
+        .assert(hasContentDescription(context.getString(R.string.dispute_lender_share_description)))
+    node(C.Tag.dispute_split_borrower_field)
+        .assertTextEquals("75")
+        .assert(
+            hasContentDescription(context.getString(R.string.dispute_borrower_share_description))
+        )
+    textIn(C.Tag.dispute_get_back, "45 PP").assertIsDisplayed()
+    node(C.Tag.dispute_split_borrower_field).performTextClearance()
+    node(C.Tag.dispute_split_borrower_field).performTextInput("40")
+    node(C.Tag.dispute_split_slider).performTouchInput { click(center) }
+    node(C.Tag.dispute_split_send).performClick()
+    node(C.Tag.dispute_split_cancel).performClick()
+
+    assertEquals(listOf("draft 60", "draft 50", "send", "cancel"), calls)
+  }
+
+  @Test
+  fun emptiedFieldDisablesSendUntilTheUserLeavesIt() {
+    setContent(open.copy(draftLenderPercent = 60))
+    node(C.Tag.dispute_split_send).assertIsEnabled()
+
+    node(C.Tag.dispute_split_lender_field).performTextClearance()
+
+    node(C.Tag.dispute_split_send).assertIsNotEnabled()
+    node(C.Tag.dispute_split_lender_field).assertTextEquals("")
+  }
+
   // ---------- stages and escalation ----------
 
   @Test
