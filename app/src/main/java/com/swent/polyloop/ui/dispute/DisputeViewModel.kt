@@ -57,6 +57,7 @@ data class DisputeUiState(
     val isSettled: Boolean = false,
     val daysUntilEscalation: Int = 0,
     val isOnline: Boolean = true,
+    val isSending: Boolean = false,
     val isLoading: Boolean = true,
     val loadFailed: Boolean = false,
     val refreshFailed: Boolean = false,
@@ -71,6 +72,25 @@ data class DisputeUiState(
    */
   val youGetBackTenths: Int?
     get() = latestProposal?.let { shareInTenths(deposit, it.lenderPercent, isLender) }
+
+  /** True when the user can send a proposal: loaded, online, not sending, still settling. */
+  val canPropose: Boolean
+    get() = isLoaded && isOnline && !isSending && !isSettled && stage == DisputeStage.SETTLE
+
+  /** True when the user can accept the proposal on the table: it exists and is the other's. */
+  val canAccept: Boolean
+    get() = canPropose && latestProposal?.byMe == false
+
+  /**
+   * True when the user can move the dispute on to the LLM proposal: loaded, online, not sending,
+   * unsettled, and in direct settlement, the only stage that can be escalated.
+   */
+  val canEscalate: Boolean
+    get() = isLoaded && isOnline && !isSending && !isSettled && stage == DisputeStage.SETTLE
+
+  /** True once a dispute is shown: not while it first loads, nor when that load failed. */
+  private val isLoaded: Boolean
+    get() = !isLoading && !loadFailed
 }
 
 /**
