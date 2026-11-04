@@ -362,10 +362,11 @@ class EndToEndTest {
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_tab_borrowing).performClick()
     waitForTag(row)
 
-    // Tapping the request opens its chat; Back returns to My rentals.
+    // Tapping the request opens its Rental detail (a wrong rental would show another title); Back
+    // returns to My rentals.
     composeTestRule.onNodeWithTag(row).performClick()
-    waitForText(C.Tag.chat_header_item, listing.title)
-    assertRoute(Screen.Chat)
+    waitForText(C.Tag.rental_detail_title, listing.title)
+    assertRoute(Screen.RentalDetail)
     composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
     assertRoute(Screen.MyRentals)
 
