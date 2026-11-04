@@ -49,8 +49,8 @@ interface StoredOffer {
  * @param input the rental, the deposit and both addresses, already checked by `parseOfferInput`.
  * @param now the current time, passed so that tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not the lender) or `failed-precondition`
- *   (not requested, an offer already exists, or the rental's first day has come). Nothing is
- *   written then.
+ *   (not requested, an offer already exists, the rental's first day has come, or the dates are no
+ *   longer free). Nothing is written then.
  */
 export async function makeOffer(
   db: Firestore,
@@ -65,10 +65,12 @@ export async function makeOffer(
     if (rental.offer) {
       throw new RequestError("failed-precondition", "An offer was already sent for this request.");
     }
-    const expiresAt = offerExpiry(now, requireDates(rental).start);
+    const dates = requireDates(rental);
+    const expiresAt = offerExpiry(now, dates.start);
     if (expiresAt.getTime() <= now.getTime()) {
       throw new RequestError("failed-precondition", "This rental's first day has already come.");
     }
+    await requireFreeListing(tx, rentalRef, rental, dates);
 
     tx.set(addressesRef(rentalRef), { pickup: input.pickupAddress, dropOff: input.returnAddress });
     writeWithSystemMessage(tx, rentalRef, `Offer sent · ${input.deposit} PP deposit`, {
@@ -173,14 +175,7 @@ async function accept(
   const dates = requireDates(rental);
   const db = rentalRef.firestore;
 
-  const listingRef = db.collection(LISTINGS).doc(rental.listingId);
-  const listingSnap = await tx.get(listingRef);
-  if (!listingSnap.exists) {
-    throw new RequestError("not-found", "The listing of this rental does not exist.");
-  }
-  if (bookedRanges(listingSnap.get("bookedRanges")).some((range) => conflicts(range, dates))) {
-    throw new RequestError("failed-precondition", "These dates are no longer free.");
-  }
+  const listingRef = await requireFreeListing(tx, rentalRef, rental, dates);
 
   const addresses = (await tx.get(addressesRef(rentalRef))).data();
   if (!addresses) {
@@ -288,6 +283,24 @@ function requireDates(rental: DocumentData): DateRange {
     throw new RequestError("internal", "The rental has no valid dates.");
   }
   return dates;
+}
+
+/** The listing of [rental], or a refusal if it is gone or [dates] conflict with a booking. */
+async function requireFreeListing(
+  tx: Transaction,
+  rentalRef: DocumentReference,
+  rental: DocumentData,
+  dates: DateRange,
+): Promise<DocumentReference> {
+  const listingRef = rentalRef.firestore.collection(LISTINGS).doc(rental.listingId);
+  const listing = await tx.get(listingRef);
+  if (!listing.exists) {
+    throw new RequestError("not-found", "The listing of this rental does not exist.");
+  }
+  if (bookedRanges(listing.get("bookedRanges")).some((range) => conflicts(range, dates))) {
+    throw new RequestError("failed-precondition", "These dates are no longer free.");
+  }
+  return listingRef;
 }
 
 /** The offer that [callerId] may answer at [now], or a refusal. */

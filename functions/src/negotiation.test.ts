@@ -127,6 +127,34 @@ describe("makeOffer", () => {
     expect(await addresses(id)).toBeUndefined();
   });
 
+  it("refuses dates already booked, buffer day included, and writes nothing", async () => {
+    const id = await request(await listing([{ start: "2026-12-04", end: "2026-12-05" }]));
+
+    await expect(
+      makeOffer(db, LENDER, { rentalId: id, deposit: 180, ...ADDRESSES }, NOW),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+    expect((await rental(id))?.offer).toBeUndefined();
+    expect(await addresses(id)).toBeUndefined();
+    expect(await systemMessages(id)).toEqual([]);
+  });
+
+  it("accepts dates with one free day before the next booking", async () => {
+    const id = await request(await listing([{ start: "2026-12-05", end: "2026-12-06" }]));
+
+    await makeOffer(db, LENDER, { rentalId: id, deposit: 180, ...ADDRESSES }, NOW);
+
+    expect((await rental(id))?.offer.amount).toBe(180);
+  });
+
+  it("refuses a request whose listing is gone, and writes nothing", async () => {
+    const id = await request(randomUUID());
+
+    await expect(
+      makeOffer(db, LENDER, { rentalId: id, deposit: 180, ...ADDRESSES }, NOW),
+    ).rejects.toMatchObject({ code: "not-found" });
+    expect((await rental(id))?.offer).toBeUndefined();
+  });
+
   it("refuses the borrower", async () => {
     const id = await request(await listing());
 
@@ -225,8 +253,13 @@ describe("respondToOffer: accepting", () => {
     expect((await rental(elsewhere))?.status).toBe("REQUESTED");
   });
 
-  it("refuses dates already booked, and writes nothing", async () => {
-    const id = await offered(await listing([{ start: "2026-12-04", end: "2026-12-05" }]));
+  it("refuses dates booked since the offer, and writes nothing", async () => {
+    const listingId = await listing();
+    const id = await offered(listingId);
+    await db
+      .collection("listings")
+      .doc(listingId)
+      .update({ bookedRanges: [{ start: "2026-12-04", end: "2026-12-05" }] });
 
     await expect(
       respondToOffer(db, BORROWER, { rentalId: id, action: "ACCEPT" }, NOW),
