@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.handover
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.handover.HandoverPhase
@@ -154,6 +155,22 @@ class HandoverViewModel(
           .observeMyPhotos(rentalId, phase)
           .catch { _uiState.update { it.copy(photosFailed = true) } }
           .collect { photos -> _uiState.update { it.copy(photos = photos) } }
+    }
+  }
+
+  /** Builds the ViewModel with its dependencies (manual constructor injection). */
+  class Factory(
+      private val rentalId: String,
+      private val rentalRepository: RentalRepository,
+      private val handoverRepository: HandoverRepository,
+      private val authRepository: AuthRepository,
+  ) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+      require(modelClass.isAssignableFrom(HandoverViewModel::class.java)) {
+        "Unknown ViewModel class: ${modelClass.name}"
+      }
+      @Suppress("UNCHECKED_CAST")
+      return HandoverViewModel(rentalId, rentalRepository, handoverRepository, authRepository) as T
     }
   }
 }

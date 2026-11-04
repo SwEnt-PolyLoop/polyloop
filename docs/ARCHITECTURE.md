@@ -26,13 +26,13 @@ One repository per type of data, shared by every ViewModel that needs it. ViewMo
 | Chat | ChatRepository | Firestore; Firebase Auth (the sender of a message) |
 | Listing | ListingRepository | Firestore, Cloud Storage |
 | Rental | RentalRepository | Firestore, Cloud Functions, Local upload queue → Cloud Storage (mid-rental photos) |
-| Handover | HandoverRepository | Local upload queue → Cloud Storage, Cloud Functions |
+| Handover | HandoverRepository | Firestore, Cloud Storage (directly until the local upload queue exists), Cloud Functions; Firebase Auth (who takes a photo) |
 | Dispute | DisputeRepository | Firestore, Cloud Storage, Cloud Functions |
 | Wallet | WalletRepository | Firestore, Cloud Functions |
 | Location | LocationRepository | The phone's GPS |
 | Connectivity | ConnectivityRepository | The phone's network status |
 
-`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing, Profile, Chat, Rental, Connectivity); add each new repository to it when it is implemented. It also exposes the shared `FirebaseStorage` instance, for the repositories that upload photos and PDFs. Repositories that read the phone (Connectivity, later Location) need the app context: `PolyLoopApplication` passes it to `RepositoryProvider.init` at startup.
+`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing, Profile, Chat, Rental, Handover, Connectivity); add each new repository to it when it is implemented. It also exposes the shared `FirebaseStorage` instance, for the repositories that upload photos and PDFs. Repositories that read the phone (Connectivity, later Location) need the app context: `PolyLoopApplication` passes it to `RepositoryProvider.init` at startup.
 
 ## ViewModels: one per screen
 
@@ -117,7 +117,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 ## Technical choices
 
-Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase. New Firestore repositories use the shared helpers in `model/firestore/FirestoreHelpers.kt` (reading fields, errors, write timeout, listening to a query) instead of copying them; Rental, Listing, Profile and Chat use them.
+Packages: `model/` (data and repositories), `ui/` (screens and their ViewModels), `ui/theme/` (theme). ViewModels depend on repository interfaces and never import Firebase. New Firestore repositories use the shared helpers in `model/firestore/FirestoreHelpers.kt` (reading fields, errors, write timeout, listening to a query) instead of copying them; Rental, Listing, Profile, Chat and Handover use them.
 
 Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `firebase-functions` v2, Jest). `src/index.ts` exports every function and sets the region, `europe-west1`, next to the Firestore database (`eur3`). In `functions/`: `npm ci` installs, `npm run lint` type-checks, `firebase emulators:exec --only firestore "npm test"` runs the tests on the Firestore emulator (external APIs are faked), and `firebase deploy --only functions` deploys (needs the Blaze plan). API keys live in Secret Manager. CI runs the install, lint, build and test steps in its own job.
 
@@ -141,7 +141,7 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 
 ## Firestore schema
 
-Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoints. Date-times (`createdAt`, `lastMessageAt`, `sentAt`) are Firestore Timestamps, set with `FieldValue.serverTimestamp()`; reads use `ServerTimestampBehavior.ESTIMATE`, because until the server confirms a write a listener otherwise sees these fields as null. When a new field is added to an existing collection, reading must give it a default value: documents written before it do not have it.
+Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoints. Date-times (`createdAt`, `lastMessageAt`, `sentAt`, `takenAt`) are Firestore Timestamps, set with `FieldValue.serverTimestamp()`; reads use `ServerTimestampBehavior.ESTIMATE`, because until the server confirms a write a listener otherwise sees these fields as null. When a new field is added to an existing collection, reading must give it a default value: documents written before it do not have it.
 
 | Path | Fields | Notes |
 | --- | --- | --- |
@@ -150,6 +150,7 @@ Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoi
 | `listings/{listingId}/private/addresses` | `pickup`, `dropOff` | Exact addresses, readable only by the owner. |
 | `rentals/{rentalId}` | `listingId`, `listingTitle`, `listingPhotoUrl`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. |
 | `rentals/{rentalId}/messages/{messageId}` | `senderId`, `text`, `sentAt`, `type` (`USER` or `SYSTEM`) | One conversation per rental. |
+| `rentals/{rentalId}/photos/{photoId}` | `takenBy`, `phase` (`PICKUP` or `RETURN`), `takenAt`, `url` | Condition photos, readable by both participants; the app shows each person only their own. Each adds only their own, pickup photos only while the rental is Accepted; nobody edits or deletes one. |
 
 Listings:
 - `pickupArea` and `dropOffArea` are area names (e.g. "Ecublens"); `pickupPoint` and `dropOffPoint` are GeoPoints. The app creates a listing with empty names and no points; the `geocodeListingAddresses` Cloud Function fills them in. Each time `listings/{listingId}/private/addresses` is written, it geocodes each changed address (in Switzerland only) and stores its area name and its point rounded to a 0.01° grid (about 1.1 × 0.8 km around EPFL). The exact address and point never reach the public listing. A lookup that fails (e.g. the Geocoding API is down or takes more than 10 seconds) is retried for up to a day, and a result is written only if its address has not changed since, so the newest edit wins even if its run finishes first.
@@ -163,7 +164,7 @@ Rentals:
 - `pickupAddress` and `returnAddress` stay empty until the lender accepts; the borrower cannot read the listing's exact addresses before that.
 - **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants. Until then, the dates are checked against `bookedRanges` only in the app (Listing detail reads them again from the server just before sending), so a client that skips this check is not stopped.
 
-Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, so the Storage rules can check the owner. Photos added before this rule live in `listing_images/` and keep working through their download URLs. A profile photo goes to `users/{uid}/profile.jpg`, one file per user that each new photo replaces; replacing it gives a new download URL, so the new photo is not hidden by an image cache.
+Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, so the Storage rules can check the owner. Photos added before this rule live in `listing_images/` and keep working through their download URLs. Condition photos go to `rentals/{rentalId}/photos/{photoId}.jpg`, named after their Firestore document. A profile photo goes to `users/{uid}/profile.jpg`, one file per user that each new photo replaces; replacing it gives a new download URL, so the new photo is not hidden by an image cache.
 
 ## Security rules
 
@@ -173,7 +174,8 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 - Profiles: a user creates and edits only their own, with their own email; `averageRating` and `reviewCount` are left to Cloud Functions.
 - Storage: listing photos must be images under 10 MB (the in-app camera takes about 1440 × 1080 JPEGs at quality 80). They are uploaded before the listing document exists, so a folder whose listing does not exist yet is open to any verified user; once it exists, only the owner may change it. These rules read Firestore, so the first deploy asks to let Storage read Firestore.
 - Storage: a profile photo can be read by any verified user and changed or deleted only by its user; it must be an image under 5 MB, and no other file is allowed under `users/`. The in-app camera takes photos at 1440 × 1080 with JPEG quality 80, a few hundred KB, well under this limit.
-- Not enforced yet: locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; a profile's `photoUrl` pointing at its own photo in Storage; Storage writes to folders with no listing (any verified user, so made-up and deleted ids too); a limit on the requests one borrower sends for a listing (left to `requestRental`).
+- Storage: condition photos are read and added only by the rental's two participants while it is Accepted, as images under 10 MB; they are never replaced or deleted.
+- Not enforced yet: the 20-photo cap and the pickup day of condition photos (checked in the app); locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; a profile's `photoUrl` pointing at its own photo in Storage; Storage writes to folders with no listing (any verified user, so made-up and deleted ids too); a limit on the requests one borrower sends for a listing (left to `requestRental`).
 
 ## Not decided yet — ask before implementing
 

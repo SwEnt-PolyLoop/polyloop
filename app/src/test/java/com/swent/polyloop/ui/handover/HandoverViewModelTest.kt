@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.handover
 
+import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository
@@ -266,4 +267,23 @@ class HandoverViewModelTest {
     assertEquals(listOf("file1"), deleted)
     assertEquals(0, handoverRepository.addPhotoCalls)
   }
+
+  // ---------- factory ----------
+
+  private fun factory() =
+      HandoverViewModel.Factory(rental.id, rentalRepository, handoverRepository, authRepository)
+
+  @Test
+  fun factoryCreatesTheViewModelForTheRental() {
+    val vm = factory().create(HandoverViewModel::class.java)
+
+    assertEquals("Camping tent", vm.uiState.value.itemTitle)
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun factoryRejectsOtherViewModels() {
+    factory().create(OtherViewModel::class.java)
+  }
+
+  private class OtherViewModel : ViewModel()
 }
