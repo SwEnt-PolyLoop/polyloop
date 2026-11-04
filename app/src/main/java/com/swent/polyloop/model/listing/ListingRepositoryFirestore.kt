@@ -98,8 +98,8 @@ class ListingRepositoryFirestore(
 
   /**
    * Uploads the photo at [uri] as listings/{listingId}/{index}.jpg and returns its URL. The photo
-   * is tagged with the uid of its [uploader], the signed-in user: the Storage rules refuse it
-   * otherwise, and let only that user change it.
+   * is tagged with the uid of its [uploader], the listing's owner (the signed-in user): the Storage
+   * rules refuse it otherwise, and let only that user change it.
    */
   private suspend fun uploadPhoto(
       listingId: String,
