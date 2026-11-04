@@ -162,6 +162,7 @@ object C {
     const val profile_listings_error = "profile_listings_error"
     const val profile_listings_retry_button = "profile_listings_retry_button"
     const val profile_listings_stale = "profile_listings_stale"
+    const val profile_listings_offline = "profile_listings_offline"
     // Prefixes: each row is tagged profile_listing_ + listing.id, its pill
     // profile_listing_status_ + listing.id, its draft label profile_listing_draft_ + listing.id
     const val profile_listing_ = "profile_listing_"

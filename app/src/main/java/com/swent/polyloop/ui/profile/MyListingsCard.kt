@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.profile
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,14 +40,16 @@ import com.swent.polyloop.ui.components.badgeColors
  * The listings card of a profile, "My listings" on the own profile and "Listings" on someone
  * else's: the title with the number of listings, then a spinner while they load, the error with
  * "Retry", an empty text, or one row per listing; after a failed refresh, a note under the empty
- * text or the rows says they are the ones loaded before.
+ * text or the rows says so.
  *
  * @param isOwnProfile true on the signed-in user's own profile, false on someone else's; it picks
  *   the title and the texts.
  * @param ownerName the name of the profile's user, in the empty text of someone else's profile.
  * @param hasError true when the listings could not be loaded; the card then shows a generic text.
  * @param isStale true when the last refresh failed; a note under the listings, or under the empty
- *   text, then says they are the ones loaded before.
+ *   text, then says they could not be refreshed.
+ * @param isOffline true when the listings are unavailable because the phone is offline; the card
+ *   then shows only a text saying so.
  */
 @Composable
 fun MyListingsCard(
@@ -56,6 +59,7 @@ fun MyListingsCard(
     isLoading: Boolean,
     hasError: Boolean,
     isStale: Boolean,
+    isOffline: Boolean,
     onListingClick: (listingId: String) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -76,7 +80,7 @@ fun MyListingsCard(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f).testTag(C.Tag.profile_listings_title),
         )
-        if (!isLoading && !hasError && listings.isNotEmpty()) {
+        if (!isOffline && !isLoading && !hasError && listings.isNotEmpty()) {
           Text(
               text = listings.size.toString(),
               style = MaterialTheme.typography.bodyMedium,
@@ -86,6 +90,13 @@ fun MyListingsCard(
         }
       }
       when {
+        isOffline ->
+            Text(
+                text = stringResource(R.string.profile_other_listings_offline),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag(C.Tag.profile_listings_offline),
+            )
         isLoading ->
             CircularProgressIndicator(
                 modifier =
@@ -122,11 +133,7 @@ fun MyListingsCard(
       }
       if (isStale) {
         Text(
-            text =
-                stringResource(
-                    if (isOwnProfile) R.string.profile_listings_stale
-                    else R.string.profile_other_listings_stale
-                ),
+            text = stringResource(staleNote(isOwnProfile, hasListings = listings.isNotEmpty())),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag(C.Tag.profile_listings_stale),
@@ -135,6 +142,19 @@ fun MyListingsCard(
     }
   }
 }
+
+/**
+ * The note after a failed refresh. It mentions the listings loaded before only when there are some:
+ * under an empty text, "the last ones loaded" would contradict it.
+ */
+@StringRes
+private fun staleNote(isOwnProfile: Boolean, hasListings: Boolean): Int =
+    when {
+      isOwnProfile && hasListings -> R.string.profile_listings_stale
+      isOwnProfile -> R.string.profile_listings_stale_empty
+      hasListings -> R.string.profile_other_listings_stale
+      else -> R.string.profile_other_listings_stale_empty
+    }
 
 @Composable
 private fun ListingsError(message: String, onRetry: () -> Unit) {

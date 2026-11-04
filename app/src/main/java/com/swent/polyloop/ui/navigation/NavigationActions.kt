@@ -28,6 +28,16 @@ class NavigationActions(private val navController: NavHostController) {
     navController.navigate(route)
   }
 
+  /**
+   * Goes back to [route], built with a destination's `createRoute(...)`, if it is already in the
+   * back stack, dropping the screens on top of it; opens it otherwise. So going back and forth
+   * between two screens that open each other does not pile up entries, each keeping its ViewModel
+   * alive.
+   */
+  fun navigateToOrBackTo(route: String) {
+    if (!navController.popBackStack(route, inclusive = false)) navController.navigate(route)
+  }
+
   /** Leaves sign-in for Browse. Sign-in is removed from the back stack so Back exits the app. */
   fun navigateAfterSignIn() {
     navController.navigate(Screen.Browse.route) { popUpTo(Screen.Auth.route) { inclusive = true } }

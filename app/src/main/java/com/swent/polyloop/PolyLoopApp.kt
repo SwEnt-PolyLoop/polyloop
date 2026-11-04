@@ -276,8 +276,9 @@ private fun PolyLoopScaffold(
             )
         ListingDetailScreen(
             viewModel = listingDetailViewModel,
+            // Their profile opens this screen too, so the two must not pile up in the back stack.
             onLenderClick = { ownerId ->
-              navController.navigate(Screen.UserProfile.createRoute(ownerId))
+              navigationActions.navigateToOrBackTo(Screen.UserProfile.createRoute(ownerId))
             },
             onRequestSent = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
         )
@@ -352,6 +353,7 @@ private fun ProfileRoute(
                   listingRepository = RepositoryProvider.listingRepository,
                   rentalRepository = RepositoryProvider.rentalRepository,
                   authRepository = RepositoryProvider.authRepository,
+                  connectivityRepository = RepositoryProvider.connectivityRepository,
               )
       )
   ProfileScreen(
