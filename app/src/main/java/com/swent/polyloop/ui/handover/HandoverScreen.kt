@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -24,11 +25,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -51,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
@@ -113,6 +118,8 @@ fun HandoverContent(
     onCloseCamera: () -> Unit = {},
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
+  // The photo shown full screen after a tap, by id; null when none is.
+  var enlargedId by rememberSaveable { mutableStateOf<String?>(null) }
   Box(
       modifier =
           modifier
@@ -156,11 +163,14 @@ fun HandoverContent(
           ) {
             HandoverHeader(uiState)
             if (!uiState.isPickupDay) NotPickupDayNote(uiState.pickupDate)
-            PhotosCard(uiState, zone, onAddPhoto, onRetryUpload)
+            PhotosCard(uiState, zone, onAddPhoto, onRetryUpload, onPhotoClick = { enlargedId = it })
             CameraPermissionMessage(cameraPermissionGranted)
           }
     }
   }
+  uiState.photos
+      .find { it.id == enlargedId }
+      ?.let { PhotoViewer(it, zone, onClose = { enlargedId = null }) }
   if (isCameraOpen) {
     // Its own window, so the camera covers the whole screen, the top bar too; Back closes it.
     Dialog(
@@ -273,9 +283,12 @@ private fun PhotosCard(
     zone: ZoneId,
     onAddPhoto: () -> Unit,
     onRetryUpload: () -> Unit,
+    onPhotoClick: (id: String) -> Unit,
 ) {
   val photoTiles: List<@Composable () -> Unit> =
-      uiState.photos.map { photo -> { PhotoTile(photo, zone) } }
+      uiState.photos.map { photo ->
+        { PhotoTile(photo, zone, onClick = { onPhotoClick(photo.id) }) }
+      }
   val pendingTiles: List<@Composable () -> Unit> = buildList {
     if (uiState.isUploading) add { UploadingTile() }
     uiState.failedPhotoUri?.let { add { FailedTile(it, onRetryUpload) } }
@@ -415,15 +428,21 @@ private fun TileGrid(tiles: List<@Composable () -> Unit>) {
   }
 }
 
-/** A photo, cropped to fill its tile, with the time it was taken. */
+/** A photo, cropped to fill its tile, with the time it was taken; tapping it calls [onClick]. */
 @Composable
-private fun PhotoTile(photo: HandoverPhoto, zone: ZoneId) {
+private fun PhotoTile(photo: HandoverPhoto, zone: ZoneId, onClick: () -> Unit) {
   val time = PHOTO_TIME.format(photo.takenAt.atZone(zone))
-  Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(TILE_CORNER))) {
+  Box(
+      modifier =
+          Modifier.fillMaxSize()
+              .clip(RoundedCornerShape(TILE_CORNER))
+              .clickable(onClick = onClick)
+              .testTag(C.Tag.handover_photo)
+  ) {
     ListingPhoto(
         url = photo.url,
         contentDescription = stringResource(R.string.handover_photo_description, time),
-        modifier = Modifier.fillMaxSize().testTag(C.Tag.handover_photo),
+        modifier = Modifier.fillMaxSize(),
     )
     Text(
         text = time,
@@ -455,5 +474,51 @@ private fun EmptyTile(enabled: Boolean, onClick: () -> Unit) {
         contentDescription = stringResource(R.string.handover_take_photo),
         tint = MaterialTheme.colorScheme.primary,
     )
+  }
+}
+
+/**
+ * [photo] full screen on black, whole (not cropped), with "Pickup · 14:02"; ✕ or Back closes it.
+ */
+@Composable
+private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit) {
+  val label =
+      stringResource(R.string.handover_photo_label, PHOTO_TIME.format(photo.takenAt.atZone(zone)))
+  Dialog(
+      onDismissRequest = onClose,
+      properties =
+          DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+  ) {
+    Box(
+        modifier =
+            Modifier.fillMaxSize().background(Color.Black).testTag(C.Tag.handover_photo_viewer)
+    ) {
+      AsyncImage(
+          model = photo.url,
+          contentDescription = label,
+          contentScale = ContentScale.Fit,
+          modifier = Modifier.fillMaxSize(),
+      )
+      IconButton(
+          onClick = onClose,
+          modifier =
+              Modifier.align(Alignment.TopEnd)
+                  .safeDrawingPadding()
+                  .padding(8.dp)
+                  .testTag(C.Tag.handover_photo_viewer_close),
+      ) {
+        Icon(
+            Icons.Default.Close,
+            contentDescription = stringResource(R.string.handover_close_photo),
+            tint = Color.White,
+        )
+      }
+      Text(
+          text = label,
+          style = MaterialTheme.typography.bodyMedium,
+          color = Color.White,
+          modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(16.dp),
+      )
+    }
   }
 }

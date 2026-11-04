@@ -326,5 +326,8 @@
     <string name="handover_upload_failed">Photo not uploaded. Tap to try again.</string>
     <!-- Shown on Handover outside the pickup day, e.g. "Pickup is on 15 Oct" -->
     <string name="handover_not_pickup_day">Pickup is on %1$s</string>
+    <!-- Under a pickup photo shown full screen, e.g. "Pickup · 14:02" -->
+    <string name="handover_photo_label">Pickup · %1$s</string>
+    <string name="handover_close_photo">Close the photo</string>
 
 </resources>

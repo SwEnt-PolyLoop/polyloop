@@ -212,6 +212,18 @@ class HandoverScreenTest {
   }
 
   @Test
+  fun tappingAPhotoShowsItFullScreenUntilItIsClosed() {
+    setContent(pickup.copy(photos = photos(2)))
+
+    composeTestRule.onAllNodesWithTag(C.Tag.handover_photo)[1].performClick()
+    assertShown(C.Tag.handover_photo_viewer)
+    composeTestRule.onNodeWithText("Pickup · 14:03").assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag(C.Tag.handover_photo_viewer_close).performClick()
+    assertAbsent(C.Tag.handover_photo_viewer)
+  }
+
+  @Test
   fun aRefusedCameraPermissionExplainsHowToAllowIt() {
     composeTestRule.setContent {
       HandoverContent(
