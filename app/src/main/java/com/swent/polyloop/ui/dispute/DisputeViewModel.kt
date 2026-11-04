@@ -13,10 +13,12 @@ import com.swent.polyloop.model.rental.RentalRepository
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -101,6 +103,9 @@ class DisputeViewModel(
 
   private var observing: Job? = null
 
+  /** Keeps [DisputeUiState.daysUntilEscalation] up to date while the screen is shown. */
+  private var ticking: Job? = null
+
   /** The last dispute shown, or null until one is loaded. */
   private var shown: Dispute? = null
 
@@ -167,12 +172,30 @@ class DisputeViewModel(
           refreshFailed = false,
       )
     }
+    ticking?.cancel()
+    if (stillSettling) countDownTo(dispute.escalatesAt)
   }
 
   /** The whole days left until [deadline], rounded up; 0 once it has passed. */
   private fun daysUntil(deadline: Instant): Int {
     val seconds = Duration.between(clock(), deadline).seconds
     return if (seconds <= 0) 0 else ((seconds + SECONDS_PER_DAY - 1) / SECONDS_PER_DAY).toInt()
+  }
+
+  /**
+   * Updates the days left until [deadline] once a minute while the screen collects [uiState], until
+   * the deadline passes. It pauses while nobody collects it (e.g. the screen is in the back stack)
+   * and updates them as soon as the screen is shown again.
+   */
+  private fun countDownTo(deadline: Instant) {
+    ticking = viewModelScope.launch {
+      while (clock() < deadline) {
+        _uiState.subscriptionCount.first { it > 0 }
+        _uiState.update { it.copy(daysUntilEscalation = daysUntil(deadline)) }
+        delay(MILLIS_PER_MINUTE)
+      }
+      _uiState.update { it.copy(daysUntilEscalation = 0) }
+    }
   }
 
   /**
@@ -189,5 +212,6 @@ class DisputeViewModel(
     const val PLACEHOLDER_DEPOSIT = 100
 
     const val SECONDS_PER_DAY = 86_400L
+    const val MILLIS_PER_MINUTE = 60_000L
   }
 }
