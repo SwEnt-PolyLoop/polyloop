@@ -175,7 +175,7 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
 
 ## Dispute
 
-The Dispute screen walks both parties through the three settlement stages until the deposit is split. ViewModel: DisputeViewModel, using DisputeRepository, HandoverRepository, RentalRepository and ListingRepository.
+The Dispute screen walks both parties through the three settlement stages until the deposit is split. ViewModel: DisputeViewModel, using DisputeRepository, HandoverRepository (the photos, not used yet) and RentalRepository (the item, the other person and, once rentals have one (#176), the deposit; a placeholder of 100 PolyPoints until then).
 
 - A header with the item, the deposit amount, and the current stage.
 - Pickup and return photos side by side, as evidence.
