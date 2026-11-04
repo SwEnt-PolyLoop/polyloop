@@ -297,5 +297,12 @@
     <!-- The total rental price in PolyPoints, e.g. "120 PP · reserved" -->
     <string name="rental_detail_price">%1$d PP · reserved</string>
     <string name="rental_detail_deposit_label">Suggested deposit</string>
+    <string name="rental_detail_chat">Chat</string>
+    <string name="rental_detail_pickup_label">PICKUP AREA</string>
+    <string name="rental_detail_area_placeholder">Area not known yet</string>
+    <string name="rental_detail_pickup_note">Only the area is shown for now. The exact address appears once the request is accepted.</string>
+    <!-- The last day the rental can be cancelled, e.g. "You can cancel until Wed 30 Sep" -->
+    <string name="rental_detail_cancel_until">You can cancel until %1$s</string>
+    <string name="rental_detail_cancel_request">Cancel request</string>
 
 </resources>

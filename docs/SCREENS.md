@@ -111,13 +111,15 @@ My rentals is the user's overview of everything they borrow and lend, and it wor
 - Two tabs: “Borrowing” and “Lending”, each with the same two sections, “REQUESTS” and “CURRENT”. A section shows only when it has rows.
 - “REQUESTS” holds pending requests only, newest first. “CURRENT” holds every other rental, what needs attention first (overdue, then disputed, frozen and lost, then active, accepted, finished, and declined or cancelled last), newest first within each status.
 - Each card shows the listing photo, the item, the other person (“from [Lender name]” on Borrowing), a status label, and one “what comes next” line: the dates while requested, “Pickup 15 Oct · area” once accepted, “Return by 8 Oct · area” while active or overdue, the area while disputed, frozen or lost, and “Closed 2 Oct” once closed. Returned, declined and cancelled rentals have no line. The area is the public one; the closed date is the rental's last day for now.
-- On “Lending”, a request shows the borrower, the dates and the reserved price, and only its “Review request” button reacts. On “Borrowing”, tapping a request opens its Chat. Tapping a row in “CURRENT” opens Rental detail.
+- On “Lending”, a request shows the borrower, the dates and the reserved price, and only its “Review request” button reacts. On “Borrowing”, tapping a request opens Rental detail. Tapping a row in “CURRENT” opens Rental detail.
 - Offline: the whole list, deadlines and meeting points stay available from cache.
 - The items the user has put up for rent are listed in Profile, not here.
 
 ## Rental detail
 
 Rental detail is the hub for one rental: what it is, where it stands, and the next action. ViewModel: RentalDetailViewModel, using RentalRepository, ListingRepository and ProfileRepository.
+
+So far only the Requested state is built (other statuses show the item's title and a short “not available yet” text), and its map is a grey placeholder until the map is added.
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
 - The deposit, entered by the lender when accepting, and its state: held, released, or frozen.
