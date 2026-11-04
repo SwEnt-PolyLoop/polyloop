@@ -14,10 +14,10 @@ import kotlinx.coroutines.flow.map
  * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
  *
  * Holds the disputes in memory and plays the part of the Cloud Functions: accepting settles the
- * dispute. When [failure] is set, every call fails with it; an observer throws it when it
- * subscribes or at the next change. When [gate] is set, the suspending calls wait for it to
- * complete, so tests can see a request in progress. [clock] gives the time of new proposals and
- * agreements.
+ * dispute, and escalating moves it on from direct settlement to the LLM proposal. When [failure] is
+ * set, every call fails with it; an observer throws it when it subscribes or at the next change.
+ * When [gate] is set, the suspending calls wait for it to complete, so tests can see a request in
+ * progress. [clock] gives the time of new proposals, agreements and escalations.
  */
 class FakeDisputeRepository(
     disputes: List<Dispute> = emptyList(),
@@ -66,6 +66,13 @@ class FakeDisputeRepository(
         check(latest.authorId != uid) { "$uid cannot accept their own proposal" }
         if (latest.lenderPercent != lenderPercent) throw ProposalChangedException()
         it.copy(agreedAt = clock())
+      }
+
+  override suspend fun escalate(rentalId: String, uid: String) =
+      change(rentalId) {
+        if (it.stage != DisputeStage.SETTLE) throw StageChangedException()
+        check(!it.isSettled) { "The dispute cannot move on" }
+        it.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = uid)
       }
 
   /** Applies [update] to the dispute of [rentalId], or fails like the real repository would. */

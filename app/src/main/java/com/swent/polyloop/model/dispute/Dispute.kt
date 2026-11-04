@@ -7,13 +7,16 @@ import java.time.Instant
 /**
  * A disagreement about how to split a rental's deposit, opened when the lender flags damage after
  * the return. There is at most one per rental, so it is identified by [rentalId]. Only Cloud
- * Functions change its [stage], [escalatesAt] and [agreedAt].
+ * Functions change its [stage], [escalatesAt], [agreedAt] and [escalatedBy]; the app sends
+ * proposals and requests.
  *
  * @property proposals every split proposed so far, oldest first.
  * @property escalatesAt when the dispute moves on from direct settlement to the LLM proposal on its
  *   own if nobody agrees; it no longer applies once the dispute left [DisputeStage.SETTLE].
  * @property agreedAt when one party accepted the other's latest proposal, or null while they
  *   disagree.
+ * @property escalatedBy the user who moved the dispute on to its current [stage], or null when it
+ *   moved on by itself (and in [DisputeStage.SETTLE], where nobody escalated yet).
  */
 data class Dispute(
     val rentalId: String,
@@ -21,6 +24,7 @@ data class Dispute(
     val proposals: List<Proposal>,
     val escalatesAt: Instant,
     val agreedAt: Instant? = null,
+    val escalatedBy: String? = null,
 ) {
   /** The proposal on the table: the last one sent, or null when nobody has proposed yet. */
   val latestProposal: Proposal?
