@@ -144,11 +144,10 @@ fun RentalDetailContent(
               )
             }
             PickupArea(area = uiState.pickupArea)
-            val start = uiState.startDate
-            // Either party can cancel until the day before pickup; from the pickup day on the
-            // rental is locked, so the row is gone. Only the borrower's side is built here.
-            if (!uiState.isLender && start != null && !today.isAfter(start.minusDays(1))) {
-              CancelRow(lastCancelDay = start.minusDays(1), today = today)
+            // A request that was never accepted can always be withdrawn, even after its pickup day,
+            // so the borrower keeps the button for as long as the rental is Requested.
+            if (!uiState.isLender && uiState.status == RentalStatus.REQUESTED) {
+              CancelRow(lastCancelDay = uiState.startDate?.minusDays(1), today = today)
             }
           }
     }
@@ -405,24 +404,31 @@ private fun PickupArea(area: String) {
 }
 
 /**
- * The last day the borrower can cancel, written "Wed 30 Sep" (with the year when it is not
- * [today]'s), and a "Cancel request" button.
+ * A "Cancel request" button, on the right, and on its left the last day before pickup, written
+ * "Wed 30 Sep" (with the year when it is not [today]'s). [lastCancelDay] is null when the rental
+ * has no start date.
  */
 @Composable
-private fun CancelRow(lastCancelDay: LocalDate, today: LocalDate) {
+private fun CancelRow(lastCancelDay: LocalDate?, today: LocalDate) {
   val locale = LocalConfiguration.current.locales[0]
-  val pattern = if (lastCancelDay.year != today.year) "EEE d MMM yyyy" else "EEE d MMM"
   Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-    Text(
-        text =
-            stringResource(
-                R.string.rental_detail_cancel_until,
-                lastCancelDay.format(DateTimeFormatter.ofPattern(pattern, locale)),
-            ),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.weight(1f).testTag(C.Tag.rental_detail_cancel_until),
-    )
+    // After the last cancel day the date would be in the past, so only the button is left.
+    if (lastCancelDay != null && !today.isAfter(lastCancelDay)) {
+      val pattern = if (lastCancelDay.year != today.year) "EEE d MMM yyyy" else "EEE d MMM"
+      Text(
+          text =
+              stringResource(
+                  R.string.rental_detail_cancel_until,
+                  lastCancelDay.format(DateTimeFormatter.ofPattern(pattern, locale)),
+              ),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.weight(1f).testTag(C.Tag.rental_detail_cancel_until),
+      )
+    } else {
+      // Keeps the button on the right when the text is left out.
+      Spacer(Modifier.weight(1f))
+    }
     // Does nothing on purpose: cancelling needs a repository call and a rules change, which the
     // cancel issue adds. Until then the button is only shown.
     TextButton(onClick = {}, modifier = Modifier.testTag(C.Tag.rental_detail_cancel_button)) {

@@ -362,13 +362,13 @@ class RentalDetailScreenTest {
 
   @Test
   fun cancelRowShowsOnTheLastCancelDay() {
-    // Pickup tomorrow: today is the last day to cancel.
+    // Pickup tomorrow: today (Mon 28 Sep) is the last day to cancel, so its date still shows.
     setContent(requested.copy(startDate = today.plusDays(1)))
 
-    composeTestRule
-        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
-        .performScrollTo()
-        .assertIsDisplayed()
+    assertShown(
+        C.Tag.rental_detail_cancel_until,
+        context.getString(R.string.rental_detail_cancel_until, "Mon 28 Sep"),
+    )
   }
 
   @Test
@@ -393,12 +393,26 @@ class RentalDetailScreenTest {
   }
 
   @Test
-  fun noCancelRowOnThePickupDay() {
+  fun onlyTheCancelButtonShowsOnThePickupDay() {
     setContent(requested.copy(startDate = today))
 
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_map).performScrollTo()
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
+        .performScrollTo()
+        .assertIsDisplayed()
     assertAbsent(C.Tag.rental_detail_cancel_until)
-    assertAbsent(C.Tag.rental_detail_cancel_button)
+  }
+
+  @Test
+  fun onlyTheCancelButtonShowsAfterThePickupDay() {
+    // A request never accepted can still be withdrawn once its dates have passed.
+    setContent(requested.copy(startDate = today.minusDays(3), endDate = today.minusDays(1)))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
+        .performScrollTo()
+        .assertIsDisplayed()
+    assertAbsent(C.Tag.rental_detail_cancel_until)
   }
 
   @Test
