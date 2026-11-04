@@ -2,18 +2,27 @@
 
 package com.swent.polyloop.ui.dispute
 
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthUser
@@ -27,11 +36,14 @@ import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.formatDay
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.io.IOException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -42,7 +54,9 @@ class DisputeScreenTest {
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
+  // Noon UTC, so the day is the same in every time zone the emulator may use.
   private val at = Instant.parse("2026-10-02T12:00:00Z")
+  private val today = LocalDate.of(2026, 10, 31)
   private val theirs = ProposalRow(byMe = false, lenderPercent = 70, createdAt = at)
   private val mine =
       ProposalRow(byMe = true, lenderPercent = 40, createdAt = at.minusSeconds(86_400))
@@ -68,11 +82,17 @@ class DisputeScreenTest {
             uiState = uiState,
             actions =
                 DisputeActions(
+                    onStartEditing = { calls += "startEditing" },
+                    onDraft = { calls += "draft $it" },
+                    onCancelEditing = { calls += "cancel" },
+                    onSendDraft = { calls += "send" },
+                    onAccept = { calls += "accept" },
                     onAskEscalate = { calls += "askEscalate" },
                     onDismissEscalate = { calls += "dismissEscalate" },
                     onEscalate = { calls += "escalate" },
                     onRetry = { calls += "retry" },
                 ),
+            today = today,
         )
       }
     }
@@ -83,25 +103,68 @@ class DisputeScreenTest {
   private fun textIn(tag: String, text: String, substring: Boolean = false) =
       composeTestRule.onNode(hasText(text, substring) and hasAnyAncestor(hasTestTag(tag)))
 
-  // ---------- header and stages ----------
+  // ---------- proposal card ----------
 
   @Test
-  fun headerShowsTheItemTheDepositAndMyRole() {
+  fun theirProposalShowsTheSplitWhatIGetBackCounterAndAccept() {
     setContent(open)
 
     node(C.Tag.dispute_role_pill)
         .assertTextEquals(context.getString(R.string.dispute_role_borrower))
     node(C.Tag.dispute_item_deposit).assertTextEquals("Bike pump · deposit 60 PP")
+    node(C.Tag.dispute_proposal_title).assertTextEquals("Ana proposes")
+    textIn(C.Tag.dispute_proposal_card, "70").assertIsDisplayed()
+    textIn(C.Tag.dispute_proposal_card, "30").assertIsDisplayed()
+    textIn(C.Tag.dispute_get_back, "18 PP").assertIsDisplayed()
+    node(C.Tag.dispute_counter_button).assertTextEquals("Counter").performClick()
+    node(C.Tag.dispute_accept_button).performClick()
+    assertEquals(listOf("startEditing", "accept"), calls)
   }
 
   @Test
-  fun settledDisputeShowsThePillAndTheFooterWithoutEscalation() {
+  fun myProposalShowsUpdateAndWhoItWaitsForWithoutAccept() {
+    setContent(open.copy(history = listOf(mine)))
+
+    node(C.Tag.dispute_proposal_title).assertTextEquals("You propose")
+    node(C.Tag.dispute_counter_button).assertTextEquals("Update")
+    node(C.Tag.dispute_waiting).assertTextEquals("Waiting for Ana")
+    node(C.Tag.dispute_accept_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun noProposalOffersToProposeASplitWithoutHistory() {
+    setContent(open.copy(history = emptyList()))
+
+    node(C.Tag.dispute_proposal_title).assertTextEquals("No proposal yet")
+    node(C.Tag.dispute_counter_button).assertTextEquals("Propose a split")
+    node(C.Tag.dispute_history_card).assertDoesNotExist()
+  }
+
+  @Test
+  fun settledDisputeShowsThePillTheAgreedSplitAndNoAction() {
     setContent(open.copy(isSettled = true))
 
     node(C.Tag.dispute_settled_pill).assertIsDisplayed()
+    node(C.Tag.dispute_proposal_title).assertTextEquals("Agreed split")
+    textIn(C.Tag.dispute_get_back, "You get back").assertIsDisplayed()
+    node(C.Tag.dispute_counter_button).assertDoesNotExist()
+    node(C.Tag.dispute_accept_button).assertDoesNotExist()
     node(C.Tag.dispute_escalate_button).assertDoesNotExist()
     node(C.Tag.dispute_settled_footer).performScrollTo().assertIsDisplayed()
   }
+
+  @Test
+  fun historyIsNewestFirstWithAuthorDayAndSplit() {
+    setContent(open)
+
+    // The day follows the phone's language: "2 Oct" in English, "2 oct." in French.
+    val rows = composeTestRule.onAllNodesWithTag(C.Tag.dispute_history_row)
+    rows[0].onChildAt(0).assertTextEquals("Ana · ${formatDay(LocalDate.of(2026, 10, 2))}")
+    rows[0].onChildAt(1).assertTextEquals("70% / 30%")
+    rows[1].onChildAt(0).assertTextEquals("You · ${formatDay(LocalDate.of(2026, 10, 1))}")
+  }
+
+  // ---------- stages and escalation ----------
 
   @Test
   fun escalateNowShowsTheDaysLeftAndAsksToConfirm() {
@@ -137,7 +200,7 @@ class DisputeScreenTest {
     setContent(open.copy(stage = DisputeStage.LLM_PROPOSAL))
 
     node(C.Tag.dispute_coming_soon).assertIsDisplayed()
-    node(C.Tag.dispute_evidence_card).assertDoesNotExist()
+    node(C.Tag.dispute_proposal_card).assertDoesNotExist()
     node(C.Tag.dispute_escalation).assertDoesNotExist()
     node(C.Tag.dispute_escalate_button).assertDoesNotExist()
   }
@@ -149,7 +212,18 @@ class DisputeScreenTest {
     setContent(open.copy(isOnline = false))
 
     node(C.Tag.offline_banner).assertIsDisplayed()
+    node(C.Tag.dispute_accept_button).assertIsNotEnabled()
+    node(C.Tag.dispute_counter_button).assertIsNotEnabled()
     node(C.Tag.dispute_escalate_button).performScrollTo().assertIsNotEnabled()
+  }
+
+  @Test
+  fun aProposalThatChangedIsToldInTheProposalCard() {
+    setContent(open.copy(actionError = DisputeActionError.PROPOSAL_CHANGED))
+
+    textIn(C.Tag.dispute_proposal_card, context.getString(R.string.dispute_proposal_changed))
+        .assertIsDisplayed()
+    node(C.Tag.dispute_escalate_error).assertDoesNotExist()
   }
 
   @Test
@@ -157,7 +231,7 @@ class DisputeScreenTest {
     setContent(DisputeUiState(isLoading = true))
 
     node(C.Tag.dispute_loading).assertIsDisplayed()
-    node(C.Tag.dispute_evidence_card).assertDoesNotExist()
+    node(C.Tag.dispute_proposal_card).assertDoesNotExist()
     node(C.Tag.dispute_error).assertDoesNotExist()
   }
 
@@ -175,12 +249,27 @@ class DisputeScreenTest {
     setContent(open.copy(refreshFailed = true))
 
     node(C.Tag.dispute_refresh_failed).assertIsDisplayed()
-    node(C.Tag.dispute_evidence_card).assertIsDisplayed()
+    node(C.Tag.dispute_proposal_card).assertIsDisplayed()
     node(C.Tag.dispute_retry_button).performClick()
     assertEquals(listOf("retry"), calls)
   }
 
   // ---------- what the other person did ----------
+
+  @Test
+  fun theirNewOfferIsToldWithItsSplitWhileEditing() {
+    setContent(open.copy(offerUpdated = true, draftLenderPercent = 50))
+
+    node(C.Tag.dispute_proposal_notice)
+        .assertTextEquals("Ana just changed their offer to 70% / 30%.")
+  }
+
+  @Test
+  fun theirAcceptanceIsToldInTheCard() {
+    setContent(open.copy(history = listOf(mine), isSettled = true, acceptedByOther = true))
+
+    node(C.Tag.dispute_proposal_notice).assertTextEquals("Ana accepted your proposal.")
+  }
 
   @Test
   fun theirEscalationIsToldUnderComingSoon() {
