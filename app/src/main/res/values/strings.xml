@@ -298,4 +298,39 @@
     <string name="rental_detail_price">%1$d PP · reserved</string>
     <string name="rental_detail_deposit_label">Suggested deposit</string>
 
+    <!-- Handover -->
+    <string name="handover_error">Could not load this rental.</string>
+    <string name="handover_retry">Retry</string>
+    <string name="handover_not_found">This rental no longer exists.</string>
+    <string name="handover_nothing">Nothing to hand over right now.</string>
+    <string name="handover_pickup_title">Pickup</string>
+    <string name="handover_you_lend">You lend</string>
+    <string name="handover_you_borrow">You borrow</string>
+    <!-- The other person on Handover: "with Loca" for the lender, "from Mara" for the borrower -->
+    <string name="handover_with">with %1$s</string>
+    <string name="handover_from">from %1$s</string>
+    <string name="handover_with_the_borrower">with the borrower</string>
+    <string name="handover_from_the_lender">from the lender</string>
+    <string name="handover_photos_title">Condition photos</string>
+    <!-- The number of photos each person takes, e.g. "3–20 photos" -->
+    <string name="handover_photos_range">%1$d–%2$d photos</string>
+    <!-- Read by screen readers for a pickup photo, e.g. "Pickup photo, 14:02" -->
+    <string name="handover_photo_description">Pickup photo, %1$s</string>
+    <string name="handover_take_photo">Take a photo</string>
+    <string name="handover_photos_done">Pickup photos done</string>
+    <plurals name="handover_photos_missing">
+        <item quantity="one">Take %1$d more photo</item>
+        <item quantity="other">Take %1$d more photos</item>
+    </plurals>
+    <string name="handover_photos_error">Could not load your photos.</string>
+    <string name="handover_upload_failed">Photo not uploaded. Tap to try again.</string>
+    <!-- Shown on Handover outside the pickup day, e.g. "Pickup is on 15 Oct" -->
+    <string name="handover_not_pickup_day">Pickup is on %1$s</string>
+    <!-- Under a pickup photo shown full screen, e.g. "Pickup · 14:02" -->
+    <string name="handover_photo_label">Pickup · %1$s</string>
+    <string name="handover_close_photo">Close the photo</string>
+    <string name="handover_deposit_held">Deposit held</string>
+    <!-- The deposit held on Handover, in PolyPoints, e.g. "80 PP" -->
+    <string name="handover_deposit_amount">%1$d PP</string>
+
 </resources>
