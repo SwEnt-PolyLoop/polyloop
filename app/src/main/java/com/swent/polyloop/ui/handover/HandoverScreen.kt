@@ -2,6 +2,9 @@
 
 package com.swent.polyloop.ui.handover
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,6 +34,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +48,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhoto
@@ -49,20 +57,39 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
 import com.swent.polyloop.ui.components.dashedOutline
 import com.swent.polyloop.ui.components.formatDay
+import com.swent.polyloop.ui.createlisting.CameraPermissionMessage
+import com.swent.polyloop.ui.createlisting.PolyLoopCamera
 import com.swent.polyloop.ui.theme.PositiveGreen
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** The Handover screen of one rental, backed by [viewModel]. */
+/**
+ * The Handover screen of one rental, backed by [viewModel]. An empty tile asks for the camera
+ * permission, then opens the in-app camera for one photo, which [viewModel] uploads.
+ */
 @Composable
 fun HandoverScreen(viewModel: HandoverViewModel) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  var isCameraOpen by rememberSaveable { mutableStateOf(false) }
+  var cameraPermissionGranted by rememberSaveable { mutableStateOf<Boolean?>(null) }
+  val cameraPermissionLauncher =
+      rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        cameraPermissionGranted = granted
+        if (granted) isCameraOpen = true
+      }
   HandoverContent(
       uiState = uiState,
       onRetry = viewModel::retry,
-      onAddPhoto = {},
+      onAddPhoto = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
       onRetryUpload = viewModel::retryUpload,
+      isCameraOpen = isCameraOpen,
+      cameraPermissionGranted = cameraPermissionGranted,
+      onPhotoTaken = { uri ->
+        isCameraOpen = false
+        viewModel.addPhoto(uri)
+      },
+      onCloseCamera = { isCameraOpen = false },
   )
 }
 
@@ -70,7 +97,8 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
  * The Handover screen drawn from [uiState]: a spinner while loading, an error with Retry, a missing
  * rental, a rental that takes no photos, or the pickup itself. [onAddPhoto] is called when an empty
  * photo tile is tapped, [onRetryUpload] when the photo that failed to upload is; photo times are
- * shown in [zone].
+ * shown in [zone]. While [isCameraOpen], the in-app camera fills the screen for one photo, given to
+ * [onPhotoTaken]; [cameraPermissionGranted] false shows how to allow the camera.
  */
 @Composable
 fun HandoverContent(
@@ -79,6 +107,10 @@ fun HandoverContent(
     onAddPhoto: () -> Unit,
     onRetryUpload: () -> Unit,
     modifier: Modifier = Modifier,
+    isCameraOpen: Boolean = false,
+    cameraPermissionGranted: Boolean? = null,
+    onPhotoTaken: (uri: String) -> Unit = {},
+    onCloseCamera: () -> Unit = {},
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
   Box(
@@ -125,7 +157,23 @@ fun HandoverContent(
             HandoverHeader(uiState)
             if (!uiState.isPickupDay) NotPickupDayNote(uiState.pickupDate)
             PhotosCard(uiState, zone, onAddPhoto, onRetryUpload)
+            CameraPermissionMessage(cameraPermissionGranted)
           }
+    }
+  }
+  if (isCameraOpen) {
+    // Its own window, so the camera covers the whole screen, the top bar too; Back closes it.
+    Dialog(
+        onDismissRequest = onCloseCamera,
+        properties =
+            DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+      PolyLoopCamera(
+          photoCount = 0,
+          onPhotoTaken = onPhotoTaken,
+          onClose = onCloseCamera,
+          maxPhotos = 1,
+      )
     }
   }
 }

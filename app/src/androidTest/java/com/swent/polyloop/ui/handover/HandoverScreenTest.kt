@@ -212,6 +212,21 @@ class HandoverScreenTest {
   }
 
   @Test
+  fun aRefusedCameraPermissionExplainsHowToAllowIt() {
+    composeTestRule.setContent {
+      HandoverContent(
+          uiState = pickup,
+          onRetry = {},
+          onAddPhoto = {},
+          onRetryUpload = {},
+          cameraPermissionGranted = false,
+      )
+    }
+
+    assertShown(C.Tag.create_listing_camera_permission_message)
+  }
+
+  @Test
   fun photosThatCannotBeLoadedShowAnErrorInsteadOfTheTiles() {
     setContent(pickup.copy(photosFailed = true))
 
