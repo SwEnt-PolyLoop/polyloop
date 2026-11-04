@@ -187,6 +187,7 @@ The Dispute screen walks both parties through the three settlement stages until 
 - Accepting accepts only the split the user saw: if the offer changed just before, nothing is accepted and the card asks to check the new one.
 - **Errors.** Each part says when it failed, with “Try again”: a dispute that cannot be loaded fills the screen with Retry; a dispute that cannot be loaded again keeps the last version shown, with a note and Retry under the header; a proposal or an acceptance that fails shows its error in the proposal card; a failed proposal keeps the split being edited, so it can be sent again, and its error goes away if the user cancels the editor (Cancel is disabled while something is being sent); a failed escalation shows its error under “Escalate now”. An error goes away once the dispute moves on or settles, since its action no longer applies. Offline, the banner shows and every action that sends something is disabled.
 - The rental chat is disabled while the dispute is open.
+- For now, the evidence card has no photos, and the LLM proposal and court stages show “Coming soon”.
 
 ## Admin court ruling
 
