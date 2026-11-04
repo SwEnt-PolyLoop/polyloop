@@ -528,6 +528,64 @@ class DisputeViewModelTest {
     assertFalse(vm.uiState.value.isSending)
   }
 
+  @Test
+  fun anEscalationRefusedWhileTheDisputeCannotBeRefreshedLoadsTheNewStage() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+    disputes.put(open.copy(proposals = listOf(mine)))
+    disputes.failure = null
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+
+    confirmEscalate(vm)
+
+    val state = vm.uiState.value
+    assertEquals(DisputeStage.LLM_PROPOSAL, state.stage)
+    assertFalse(state.refreshFailed)
+    assertNull(state.actionError)
+    assertEquals(EscalationNotice.BY_OTHER, state.escalationNotice)
+  }
+
+  @Test
+  fun anEscalationSentAsTheOtherPersonEscalatesSkipsNoStage() {
+    disputes.gate = CompletableDeferred()
+    val vm = viewModel()
+
+    confirmEscalate(vm)
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    disputes.gate?.complete(Unit)
+
+    assertEquals(DisputeStage.LLM_PROPOSAL, disputes.disputes.single().stage)
+    assertNull(vm.uiState.value.actionError)
+    assertEquals(EscalationNotice.BY_OTHER, vm.uiState.value.escalationNotice)
+  }
+
+  @Test
+  fun actionsDoNothingOffline() {
+    connectivity.setOnline(false)
+    val vm = viewModel()
+
+    propose(vm, 50)
+    vm.accept()
+    confirmEscalate(vm)
+
+    assertEquals(open, disputes.disputes.single())
+  }
+
+  @Test
+  fun noSecondActionWhileOneIsSending() {
+    val gate = CompletableDeferred<Unit>()
+    disputes.gate = gate
+    val vm = viewModel()
+
+    confirmEscalate(vm)
+    assertTrue(vm.uiState.value.isSending)
+    confirmEscalate(vm)
+    gate.complete(Unit)
+
+    assertFalse(vm.uiState.value.isSending)
+    assertEquals(DisputeStage.LLM_PROPOSAL, vm.uiState.value.stage)
+  }
+
   // ---------- factory ----------
 
   @Test
