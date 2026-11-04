@@ -37,9 +37,15 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
+import java.time.LocalDate
 
 /** What the user can do on the Dispute screen; each one is a [DisputeViewModel] method. */
 class DisputeActions(
+    val onStartEditing: () -> Unit = {},
+    val onDraft: (lenderPercent: Int) -> Unit = {},
+    val onCancelEditing: () -> Unit = {},
+    val onSendDraft: () -> Unit = {},
+    val onAccept: () -> Unit = {},
     val onAskEscalate: () -> Unit = {},
     val onDismissEscalate: () -> Unit = {},
     val onEscalate: () -> Unit = {},
@@ -53,6 +59,11 @@ fun DisputeScreen(viewModel: DisputeViewModel) {
   val actions =
       remember(viewModel) {
         DisputeActions(
+            onStartEditing = viewModel::startEditing,
+            onDraft = viewModel::setDraft,
+            onCancelEditing = viewModel::cancelEditing,
+            onSendDraft = viewModel::sendDraft,
+            onAccept = viewModel::accept,
             onAskEscalate = viewModel::askEscalate,
             onDismissEscalate = viewModel::dismissEscalate,
             onEscalate = viewModel::escalate,
@@ -64,14 +75,16 @@ fun DisputeScreen(viewModel: DisputeViewModel) {
 
 /**
  * Stateless Dispute content: the offline banner, then a loading indicator, an error with a Retry
- * button, or the header and the current stage. The settle stage shows the evidence; the later
- * stages show "Coming soon" for now, then how the dispute got there when the user did not move it
- * on. A failed refresh is told under the header.
+ * button, or the header and the current stage. The settle stage shows the evidence, the proposal
+ * and the history; the later stages show "Coming soon" for now, then how the dispute got there when
+ * the user did not move it on. A failed refresh is told under the header. [today] decides which
+ * dates show their year.
  */
 @Composable
 fun DisputeContent(
     uiState: DisputeUiState,
     actions: DisputeActions,
+    today: LocalDate = LocalDate.now(),
 ) {
   Column(
       modifier =
@@ -104,6 +117,15 @@ fun DisputeContent(
               if (uiState.refreshFailed) RefreshFailed(actions.onRetry)
               if (uiState.stage == DisputeStage.SETTLE) {
                 EvidenceCard()
+                ProposalCard(
+                    uiState,
+                    onStartEditing = actions.onStartEditing,
+                    onDraft = actions.onDraft,
+                    onCancel = actions.onCancelEditing,
+                    onSend = actions.onSendDraft,
+                    onAccept = actions.onAccept,
+                )
+                if (uiState.history.isNotEmpty()) HistoryCard(uiState, today)
               } else {
                 ComingSoonCard()
                 EscalationNoticeText(uiState)
