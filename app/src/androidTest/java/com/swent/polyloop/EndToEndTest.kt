@@ -379,7 +379,8 @@ class EndToEndTest {
     assertRoute(Screen.Chat)
     composeTestRule.onNodeWithTag(C.Tag.chat_header_name).assertTextEquals(LENDER_NAME)
     composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
-    assertOpenedFor(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
+    waitForText(C.Tag.rental_detail_title, listing.title)
+    assertRoute(Screen.RentalDetail)
   }
 
   @Test
@@ -577,15 +578,6 @@ class EndToEndTest {
   private fun assertRoute(screen: Screen) {
     composeTestRule.waitForIdle()
     assertEquals(screen.route, navController.currentDestination?.route)
-  }
-
-  /**
-   * Checks that [screen] is open for the rental of [route]. It is still a stand-in, which shows the
-   * route it was opened with: a wrong rental id would show here.
-   */
-  private fun assertOpenedFor(screen: Screen, route: String) {
-    assertRoute(screen)
-    composeTestRule.onNodeWithTag(C.Tag.dummy_screen_text).assertTextEquals(route)
   }
 
   /** Waits for [tag] to be shown; Firebase calls take longer than in-memory fakes. */

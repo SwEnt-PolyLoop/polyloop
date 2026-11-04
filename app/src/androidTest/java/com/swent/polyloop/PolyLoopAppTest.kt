@@ -100,7 +100,8 @@ class PolyLoopAppTest {
 
   /**
    * One accepted rental borrowed by "uid", so My rentals shows a CURRENT row, which opens Rental
-   * detail, without reaching Firestore.
+   * detail, without reaching Firestore. Rental detail shows only its title, as for every status but
+   * Requested.
    */
   private val rental =
       Rental(
@@ -236,6 +237,7 @@ class PolyLoopAppTest {
           Screen.MyRentals -> C.Tag.my_rentals_screen
           Screen.ChatList -> C.Tag.chat_list_screen
           Screen.Chat -> C.Tag.chat_screen
+          Screen.RentalDetail -> C.Tag.rental_detail_screen
           Screen.Wallet -> C.Tag.wallet_screen
           Screen.Profile,
           Screen.UserProfile -> C.Tag.profile_screen
@@ -429,9 +431,30 @@ class PolyLoopAppTest {
     waitForTag(C.Tag.chat_rental_details)
     composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
 
-    assertCurrentScreen(
-        Screen.RentalDetail,
-        shownRoute = Screen.RentalDetail.createRoute("rental-1"),
+    assertCurrentScreen(Screen.RentalDetail)
+    // The tapped rental is open: its title is the one of rental-1.
+    waitForTag(C.Tag.rental_detail_title)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_title).assertTextEquals(rental.listingTitle)
+  }
+
+  @Test
+  fun chatOnRentalDetailOpensTheRentalsChat() {
+    // Only a Requested rental shows the person card and its Chat button.
+    RepositoryProvider.rentalRepository =
+        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED)))
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+
+    waitForTag(C.Tag.rental_detail_chat_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
+
+    assertCurrentScreen(Screen.Chat)
+    assertEquals(
+        rental.id,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
     )
   }
 

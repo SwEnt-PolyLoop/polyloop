@@ -49,6 +49,8 @@ import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.ui.profile.ProfileScreen
 import com.swent.polyloop.ui.profile.ProfileViewModel
+import com.swent.polyloop.ui.rentaldetail.RentalDetailScreen
+import com.swent.polyloop.ui.rentaldetail.RentalDetailViewModel
 import com.swent.polyloop.ui.wallet.WalletScreen
 import com.swent.polyloop.ui.wallet.WalletViewModel
 import kotlinx.coroutines.launch
@@ -267,7 +269,23 @@ private fun PolyLoopScaffold(
         DummyScreen(Screen.EditListing.createRoute(entry.stringArg(Screen.ARG_LISTING_ID)))
       }
       composable(Screen.RentalDetail.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
-        DummyScreen(Screen.RentalDetail.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
+        val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)
+        val rentalDetailViewModel: RentalDetailViewModel =
+            viewModel(
+                factory =
+                    RentalDetailViewModel.Factory(
+                        rentalId = rentalId,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        listingRepository = RepositoryProvider.listingRepository,
+                        profileRepository = RepositoryProvider.profileRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                    )
+            )
+        RentalDetailScreen(
+            viewModel = rentalDetailViewModel,
+            onChatClick = { navController.navigate(Screen.Chat.createRoute(rentalId)) },
+            onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
+        )
       }
       composable(Screen.Chat.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
         val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)
