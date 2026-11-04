@@ -170,4 +170,25 @@ class ListingRepositoryFirestoreEmulatorTest {
       assertEquals(0, listingCountForOwner())
     }
   }
+
+  @Test
+  fun listingsByOwnerAreTheOnesTheyCreated() {
+    runBlocking {
+      val first = create(photos(Listing.MIN_PHOTOS)).getOrThrow()
+      val second = create(photos(Listing.MIN_PHOTOS)).getOrThrow()
+
+      val owned = repository.getListingsByOwner(ownerId).getOrThrow()
+
+      assertEquals(setOf(first, second), owned.map { it.id }.toSet())
+    }
+  }
+
+  @Test
+  fun ownerWithoutListingsGetsAnEmptyList() {
+    runBlocking {
+      val owned = repository.getListingsByOwner("test-${UUID.randomUUID()}").getOrThrow()
+
+      assertTrue(owned.isEmpty())
+    }
+  }
 }

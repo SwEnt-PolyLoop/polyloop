@@ -33,6 +33,8 @@ private val LightColorScheme =
         surfaceVariant = Sand,
         onSurfaceVariant = Stone,
         surfaceContainer = Color.White,
+        // The navigation drawer and bottom sheets; Material's default is tinted.
+        surfaceContainerLow = Color.White,
         outline = Border,
         outlineVariant = Border,
     )

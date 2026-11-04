@@ -65,7 +65,8 @@ import kotlinx.coroutines.CancellationException
  * [maxPhotos] (10 for a listing). With [maxPhotos] 1, e.g. for a profile photo, the count is
  * hidden. A camera or capture error shows a short message and keeps the camera open.
  *
- * This is the only source of listing photos: no gallery picker and no system camera app.
+ * This is the only source of listing and profile photos: no gallery picker and no system camera
+ * app.
  */
 @Composable
 fun PolyLoopCamera(

@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
@@ -35,13 +34,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
-import com.swent.polyloop.model.listing.Listing
-import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
-import com.swent.polyloop.ui.browse.ListingCard
 import com.swent.polyloop.ui.components.ProfileAvatar
 
 /**
@@ -60,12 +58,15 @@ fun ProfileScreen(
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   LaunchedEffect(uiState.isSignedOut) { if (uiState.isSignedOut) onSignedOut() }
+  // Back from Listing detail, a listing may have been edited or deleted.
+  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onScreenResumed() }
   ProfileContent(
       uiState = uiState,
       onListingClick = onListingClick,
       onEditProfile = onEditProfile,
       onSignOut = viewModel::signOut,
       onRetry = viewModel::retry,
+      onRetryListings = viewModel::refreshListings,
   )
 }
 
@@ -77,6 +78,7 @@ fun ProfileContent(
     onEditProfile: () -> Unit,
     onSignOut: () -> Unit,
     onRetry: () -> Unit,
+    onRetryListings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
   Box(
@@ -104,11 +106,11 @@ fun ProfileContent(
       else ->
           ProfileLoaded(
               profile = profile,
-              isOwnProfile = uiState.isOwnProfile,
-              listings = uiState.listings,
+              uiState = uiState,
               onListingClick = onListingClick,
               onEditProfile = onEditProfile,
               onSignOut = onSignOut,
+              onRetryListings = onRetryListings,
           )
     }
   }
@@ -134,17 +136,17 @@ private fun ProfileError(errorMsg: String, onRetry: () -> Unit) {
 }
 
 /**
- * The header, then, on the own profile only, "Edit profile" and "Sign out" side by side, then the
- * listings.
+ * The header of [profile], then, on the own profile only, "Edit profile" and "Sign out" side by
+ * side, then the "My listings" card.
  */
 @Composable
 private fun ProfileLoaded(
     profile: UserProfile,
-    isOwnProfile: Boolean,
-    listings: List<Listing>,
+    uiState: ProfileUiState,
     onListingClick: (listingId: String) -> Unit,
     onEditProfile: () -> Unit,
     onSignOut: () -> Unit,
+    onRetryListings: () -> Unit,
 ) {
   LazyColumn(
       modifier = Modifier.fillMaxSize(),
@@ -152,36 +154,17 @@ private fun ProfileLoaded(
       verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
     item { ProfileHeader(profile) }
-    if (isOwnProfile) {
+    if (uiState.isOwnProfile) {
       item { ProfileActions(onEditProfile = onEditProfile, onSignOut = onSignOut) }
       item {
-        Text(
-            text = stringResource(R.string.profile_my_listings),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 12.dp).testTag(C.Tag.profile_listings_title),
-        )
-      }
-      if (listings.isEmpty()) {
-        item {
-          Text(
-              text = stringResource(R.string.profile_no_listings),
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.testTag(C.Tag.profile_listings_empty),
-          )
-        }
-      }
-      items(listings, key = { it.id }) { listing ->
-        ListingCard(
-            listing = listing,
-            // My listings have no distance; their status takes its place.
-            distanceText =
-                stringResource(
-                    if (listing.status == ListingStatus.DRAFT) R.string.profile_listing_draft
-                    else R.string.profile_listing_published
-                ),
-            onClick = { onListingClick(listing.id) },
+        MyListingsCard(
+            listings = uiState.listings,
+            isLoading = uiState.listingsLoading,
+            hasError = uiState.listingsError,
+            isStale = uiState.listingsStale,
+            onListingClick = onListingClick,
+            onRetry = onRetryListings,
+            modifier = Modifier.padding(top = 12.dp),
         )
       }
     }

@@ -156,6 +156,17 @@ object C {
     const val profile_rating = "profile_rating"
     const val profile_listings_title = "profile_listings_title"
     const val profile_listings_empty = "profile_listings_empty"
+    const val profile_listings_card = "profile_listings_card"
+    const val profile_listings_count = "profile_listings_count"
+    const val profile_listings_loading = "profile_listings_loading"
+    const val profile_listings_error = "profile_listings_error"
+    const val profile_listings_retry_button = "profile_listings_retry_button"
+    const val profile_listings_stale = "profile_listings_stale"
+    // Prefixes: each row is tagged profile_listing_ + listing.id, its pill
+    // profile_listing_status_ + listing.id, its draft label profile_listing_draft_ + listing.id
+    const val profile_listing_ = "profile_listing_"
+    const val profile_listing_status_ = "profile_listing_status_"
+    const val profile_listing_draft_ = "profile_listing_draft_"
     const val profile_sign_out_button = "profile_sign_out_button"
     const val profile_edit_button = "profile_edit_button"
     const val profile_loading = "profile_loading"
@@ -191,11 +202,37 @@ object C {
     const val chat_send_button = "chat_send_button"
     const val chat_send_failed = "chat_send_failed"
 
+    const val rental_detail_screen = "rental_detail_screen"
+    const val rental_detail_title = "rental_detail_title"
+    const val rental_detail_unsupported = "rental_detail_unsupported"
+    const val rental_detail_stage_strip = "rental_detail_stage_strip"
+    const val rental_detail_status = "rental_detail_status"
+    const val rental_detail_status_headline = "rental_detail_status_headline"
+    const val rental_detail_status_body = "rental_detail_status_body"
+    const val rental_detail_dates = "rental_detail_dates"
+    const val rental_detail_return = "rental_detail_return"
+    const val rental_detail_price = "rental_detail_price"
+    const val rental_detail_deposit = "rental_detail_deposit"
+    const val rental_detail_loading = "rental_detail_loading"
+    const val rental_detail_error = "rental_detail_error"
+    const val rental_detail_retry_button = "rental_detail_retry_button"
+    const val rental_detail_not_found = "rental_detail_not_found"
+
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
     const val top_bar_profile_button = "top_bar_profile_button"
 
-    fun topBarMenuItem(route: String) = "top_bar_menu_item_$route"
+    const val drawer = "drawer"
+
+    // Each destination's item in the navigation drawer opened by the menu button
+    fun drawerItem(route: String) = "drawer_item_$route"
+
+    const val drawer_avatar_initial = "drawer_avatar_initial"
+    const val drawer_avatar_photo = "drawer_avatar_photo"
+    const val drawer_name = "drawer_name"
+    const val drawer_rating = "drawer_rating"
+    const val drawer_admin_badge = "drawer_admin_badge"
+    const val drawer_footer = "drawer_footer"
 
     const val my_rentals_screen = "my_rentals_screen"
     const val my_rentals_title = "my_rentals_title"
@@ -210,8 +247,6 @@ object C {
     const val my_rentals_row_ = "my_rentals_row_"
     const val my_rentals_row_title = "my_rentals_row_title"
     const val my_rentals_row_person = "my_rentals_row_person"
-    const val my_rentals_row_return = "my_rentals_row_return"
-    const val my_rentals_row_location = "my_rentals_row_location"
     const val my_rentals_row_status = "my_rentals_row_status"
     const val my_rentals_row_reserved = "my_rentals_row_reserved"
     const val my_rentals_row_line = "my_rentals_row_line"
@@ -220,6 +255,22 @@ object C {
     // Prefix: each request card on Lending is tagged my_rentals_request_ + rental id
     const val my_rentals_request_ = "my_rentals_request_"
     const val my_rentals_review_request_button = "my_rentals_review_request_button"
+
+    const val wallet_screen = "wallet_screen"
+    const val wallet_title = "wallet_title"
+    const val wallet_available = "wallet_available"
+    const val wallet_held_deposits = "wallet_held_deposits"
+    const val wallet_held_rentals = "wallet_held_rentals"
+    const val wallet_recharge_button = "wallet_recharge_button"
+    const val wallet_loading = "wallet_loading"
+    const val wallet_error = "wallet_error"
+    const val wallet_retry_button = "wallet_retry_button"
+    const val wallet_history_empty = "wallet_history_empty"
+    // Prefix: each history row is tagged wallet_row_ + transaction id
+    const val wallet_row_ = "wallet_row_"
+    const val wallet_row_title = "wallet_row_title"
+    const val wallet_row_amount = "wallet_row_amount"
+    const val wallet_footer = "wallet_footer"
 
     const val dummy_screen = "dummy_screen"
     const val dummy_screen_text = "dummy_screen_text"

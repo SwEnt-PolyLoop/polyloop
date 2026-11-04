@@ -19,7 +19,7 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 
 1. **Do not make design or technical decisions on your own.** If something you need is not in `docs/`, or the docs are ambiguous, stop and ask. The "Not decided yet" list in ARCHITECTURE.md names known gaps.
 2. **Respect the layers.** Each screen (Compose) only talks to its own ViewModel. ViewModels call the repositories they need directly; they never call each other, and there is no domain/use-case layer.
-3. **One ViewModel per screen, one repository per feature.** There are 14 screens, each with its own ViewModel, and 10 repositories, one per type of data (Auth, Profile, Listing, Rental, Chat, Handover, Dispute, Wallet, Location, Connectivity). `docs/ARCHITECTURE.md` lists the repositories each ViewModel uses; keep that list up to date. Do not create new ViewModels or repositories without asking.
+3. **One ViewModel per screen, one repository per feature.** There are 14 screens, each with its own ViewModel (plus DrawerViewModel for the navigation drawer shared by every screen), and 10 repositories, one per type of data (Auth, Profile, Listing, Rental, Chat, Handover, Dispute, Wallet, Location, Connectivity). `docs/ARCHITECTURE.md` lists the repositories each ViewModel uses; keep that list up to date. Do not create new ViewModels or repositories without asking.
 4. **If the architecture changes**, update `docs/ARCHITECTURE.md`, `docs/SCREENS.md`, the diagram and, if a rule changes, this file in the same pull request as the code.
 
 ## Rules that must never be broken
@@ -55,7 +55,8 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 - Compose tests use `v2.createComposeRule()` with `@get:Rule val composeTestRule`, find nodes by test tag (constants in `resources/C.kt`, object `C.Tag`) and use descriptive camelCase names like `displayHasCorrectDefaultValue`.
 - Changes to Firestore or Storage Security Rules come with tests.
 - ViewModel tests use fake repositories (`Fake<Name>Repository`, implementing the repository interface), not mocks. Mocks are only for APIs we don't own, such as Firebase in repository tests.
-- Fakes shared by unit tests, Compose tests and previews live in `main`, next to their interface (e.g. `model/profile/FakeProfileRepository`), because `androidTest` cannot see `app/src/test`. The app itself never uses them.
+- Fakes shared by unit tests, Compose tests and previews live in `main`, next to their interface (e.g. `model/profile/FakeProfileRepository`), because `androidTest` cannot see `app/src/test`. The app itself never uses them, with one temporary exception: `FakeWalletRepository` is the default wallet in `RepositoryProvider` until a Firestore implementation exists.
+- Cloud Functions tests sit next to their code in `functions/src` (`<thing>.test.ts`). They run on the Firestore emulator (`firebase emulators:exec --only firestore "npm test"` in `functions/`), and external APIs such as Geocoding are faked, never called.
 
 ## How to work
 

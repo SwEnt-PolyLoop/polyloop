@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -98,7 +99,10 @@ class PolyLoopAppTest {
         ): Result<String> = error("Not used in this test")
       }
 
-  /** One rental borrowed by "uid", so My rentals shows a row without reaching Firestore. */
+  /**
+   * One accepted rental borrowed by "uid", so My rentals shows a CURRENT row, which opens Rental
+   * detail, without reaching Firestore.
+   */
   private val rental =
       Rental(
           id = "rental-1",
@@ -110,7 +114,7 @@ class PolyLoopAppTest {
           borrowerName = "John Doe",
           startDate = LocalDate.of(2026, 10, 8),
           endDate = LocalDate.of(2026, 10, 10),
-          status = RentalStatus.REQUESTED,
+          status = RentalStatus.ACCEPTED,
           pricePerDay = 15,
           totalPrice = 45,
           pickupArea = "Ecublens",
@@ -218,7 +222,7 @@ class PolyLoopAppTest {
 
   private fun openFromMenu(screen: Screen.TopLevel) {
     composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(screen.route)).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.drawerItem(screen.route)).performScrollTo().performClick()
   }
 
   private fun assertCurrentScreen(screen: Screen, shownRoute: String = screen.route) {
@@ -233,6 +237,7 @@ class PolyLoopAppTest {
           Screen.MyRentals -> C.Tag.my_rentals_screen
           Screen.ChatList -> C.Tag.chat_list_screen
           Screen.Chat -> C.Tag.chat_screen
+          Screen.Wallet -> C.Tag.wallet_screen
           Screen.Profile,
           Screen.UserProfile -> C.Tag.profile_screen
           Screen.EditProfile -> C.Tag.edit_profile_screen
@@ -371,7 +376,7 @@ class PolyLoopAppTest {
 
   @Test
   fun tappingAConversationOpensItsChat() {
-    chatRepository.conversations.value =
+    chatRepository.conversations =
         listOf(
             Conversation(
                 "rental-1",
@@ -401,7 +406,7 @@ class PolyLoopAppTest {
 
   @Test
   fun rentalDetailsInTheChatOpensTheRental() {
-    chatRepository.conversations.value =
+    chatRepository.conversations =
         listOf(
             Conversation(
                 "rental-1",
@@ -438,10 +443,58 @@ class PolyLoopAppTest {
 
     composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
 
-    composeTestRule.onNodeWithTag(C.Tag.topBarMenuItem(Screen.Wallet.route)).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.drawerItem(Screen.Wallet.route)).assertIsDisplayed()
     composeTestRule
-        .onNodeWithTag(C.Tag.topBarMenuItem(Screen.AdminCourtRuling.route))
+        .onNodeWithTag(C.Tag.drawerItem(Screen.AdminCourtRuling.route))
         .assertDoesNotExist()
+  }
+
+  @Test
+  fun menuOpensTheDrawerWithTheSignedInUsersHeader() {
+    setAppSignedIn()
+
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.drawer_name).assertTextEquals("Me")
+  }
+
+  @Test
+  fun tappingADrawerItemClosesTheDrawer() {
+    setAppSignedIn()
+
+    openFromMenu(Screen.Wallet)
+
+    assertCurrentScreen(Screen.Wallet)
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsNotDisplayed()
+  }
+
+  @Test
+  fun backClosesTheDrawerAndStaysOnTheScreen() {
+    setAppSignedIn()
+    // Not on Browse: there the NavHost has nothing to pop, so it would not compete for Back.
+    openFromMenu(Screen.Wallet)
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsDisplayed()
+
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsNotDisplayed()
+    assertCurrentScreen(Screen.Wallet)
+  }
+
+  @Test
+  fun drawerHeaderFollowsTheUserWhoSignsIn() {
+    signInResult = AuthResult.Success(me)
+    setApp()
+    // Started signed out; Firebase knows the user once they log in.
+    currentUser = me
+
+    logIn()
+    waitForTag(C.Tag.browse_screen)
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.drawer_name).assertTextEquals("Me")
   }
 
   @Test

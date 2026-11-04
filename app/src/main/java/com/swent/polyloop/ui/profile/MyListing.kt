@@ -1,0 +1,47 @@
+// Made with Claude.
+
+package com.swent.polyloop.ui.profile
+
+import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.rental.Rental
+import com.swent.polyloop.model.rental.RentalStatus
+
+/**
+ * Where one of the user's listings stands right now, from its rentals.
+ *
+ * @property rentalStatus the rental status that gives this state; null for [AVAILABLE].
+ * @property priority when several rentals apply, the state with the highest priority wins.
+ */
+enum class ListingRentalState(val rentalStatus: RentalStatus?, val priority: Int) {
+  /** No rental waiting, booked or under way. */
+  AVAILABLE(null, priority = 0),
+  /** A request waits for the lender's answer. */
+  REQUESTED(RentalStatus.REQUESTED, priority = 1),
+  /** A request was accepted; the item has not been handed over yet. */
+  BOOKED(RentalStatus.ACCEPTED, priority = 2),
+  /** The item is with a borrower. */
+  ON_LOAN(RentalStatus.ACTIVE, priority = 3),
+  /** The item is with a borrower and the return date has passed. */
+  OVERDUE(RentalStatus.OVERDUE, priority = 4),
+  /** A dispute about a rental is open. */
+  DISPUTED(RentalStatus.DISPUTED, priority = 5),
+  /** A dispute went to court: the deposit is frozen until an admin applies the ruling. */
+  FROZEN(RentalStatus.FROZEN, priority = 6),
+  /** A borrower never gave the item back. */
+  LOST(RentalStatus.LOST, priority = 7),
+}
+
+/** One of the signed-in user's listings, with where it stands right now. */
+data class MyListing(val listing: Listing, val rentalState: ListingRentalState)
+
+/**
+ * The state of the listing [listingId], from the most important of its [rentals]. Rentals of other
+ * listings, and finished or refused ones, are ignored.
+ */
+fun rentalStateOf(listingId: String, rentals: List<Rental>): ListingRentalState =
+    rentals
+        .filter { it.listingId == listingId }
+        .mapNotNull { rental ->
+          ListingRentalState.entries.find { it.rentalStatus == rental.status }
+        }
+        .maxByOrNull { it.priority } ?: ListingRentalState.AVAILABLE

@@ -172,6 +172,19 @@ class ListingRepositoryFirestoreTest {
   }
 
   @Test
+  fun getListingReturnsFailureWhenFirebaseCancelsTheRead() = runTest {
+    every { collection.document("listing1") } returns documentRef
+    every { documentRef.get() } returns Tasks.forCanceled()
+    assertTrue(repository.getListing("listing1").isFailure)
+  }
+
+  @Test
+  fun getAllListingsReturnsFailureWhenFirebaseCancelsTheRead() = runTest {
+    every { publishedQuery.get() } returns Tasks.forCanceled()
+    assertTrue(repository.getAllListings().isFailure)
+  }
+
+  @Test
   fun getListingReturnsNullForBlankIdWithoutCallingFirestore() = runTest {
     val result = repository.getListing("  ")
 

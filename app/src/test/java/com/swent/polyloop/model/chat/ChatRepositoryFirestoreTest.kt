@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.chat
 
+import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
@@ -134,6 +135,20 @@ class ChatRepositoryFirestoreTest {
   fun firestoreErrorIsReturnedAsAFailure() = runTest {
     every { batch.commit() } returns Tasks.forException(notFound)
     assertSame(notFound, repository.sendMessage("r1", "Hi").exceptionOrNull())
+  }
+
+  @Test
+  fun aTaskCancelledByFirebaseIsReturnedAsAFailure() = runTest {
+    every { batch.commit() } returns Tasks.forCanceled()
+    assertTrue(repository.sendMessage("r1", "Hi").isFailure)
+  }
+
+  @Test
+  fun sendIsASuccessEvenWhenTheServerNeverConfirms() = runTest {
+    every { batch.commit() } returns TaskCompletionSource<Void>().task
+    // Queued offline: Firestore sends it later, so the caller must not see a failure.
+    assertTrue(repository.sendMessage("r1", "Hi").isSuccess)
+    verify(exactly = 1) { batch.commit() }
   }
 
   // ---------- observeMessages ----------
