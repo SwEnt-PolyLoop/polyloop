@@ -471,6 +471,63 @@ class DisputeViewModelTest {
     assertEquals(DisputeActionError.ESCALATE, vm.uiState.value.actionError)
   }
 
+  @Test
+  fun escalateMovesToTheLlmStageWhereNothingEscalatesAnymore() {
+    val vm = viewModel()
+
+    confirmEscalate(vm)
+
+    assertEquals(DisputeStage.LLM_PROPOSAL, vm.uiState.value.stage)
+    assertFalse(vm.uiState.value.canEscalate)
+    assertEquals(0, vm.uiState.value.daysUntilEscalation)
+  }
+
+  @Test
+  fun escalatingAsksForAConfirmation() {
+    val vm = viewModel()
+
+    vm.askEscalate()
+    assertTrue(vm.uiState.value.isConfirmingEscalation)
+
+    vm.dismissEscalate()
+    assertFalse(vm.uiState.value.isConfirmingEscalation)
+    assertEquals(DisputeStage.SETTLE, vm.uiState.value.stage)
+  }
+
+  @Test
+  fun confirmationClosesWhenTheDisputeMovesOnMeanwhile() {
+    val vm = viewModel()
+    vm.askEscalate()
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL))
+
+    assertFalse(vm.uiState.value.isConfirmingEscalation)
+  }
+
+  @Test
+  fun confirmationClosesWhenAnAgreementIsReachedMeanwhile() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+    vm.askEscalate()
+
+    runBlocking { disputes.accept("pump", "ana", 40) }
+
+    assertFalse(vm.uiState.value.isConfirmingEscalation)
+  }
+
+  @Test
+  fun aConfirmationLeftOpenAfterTheDisputeMovedOnEscalatesNothing() {
+    disputes.gate = CompletableDeferred()
+    val vm = viewModel()
+    vm.askEscalate()
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    vm.escalate()
+
+    // Nothing is sent: a request would wait for the gate.
+    assertFalse(vm.uiState.value.isSending)
+  }
+
   // ---------- factory ----------
 
   @Test
