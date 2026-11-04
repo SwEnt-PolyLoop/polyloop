@@ -64,6 +64,7 @@ class ProfileViewModelTest {
   private val myTent = listing("tent", ownerId = "me")
   private val myDraft = listing("draft", ownerId = "me", status = ListingStatus.DRAFT)
   private val janesBike = listing("bike", ownerId = "jane")
+  private val janesDraft = listing("lamp", ownerId = "jane", status = ListingStatus.DRAFT)
 
   private lateinit var profiles: FakeProfileRepository
   private lateinit var listings: FakeListingRepository
@@ -74,7 +75,7 @@ class ProfileViewModelTest {
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     profiles = FakeProfileRepository(listOf(me, jane))
-    listings = FakeListingRepository(listings = listOf(myTent, myDraft, janesBike))
+    listings = FakeListingRepository(listings = listOf(myTent, myDraft, janesBike, janesDraft))
     rentals = FakeRentalRepository()
     auth =
         FakeAuthRepository(
@@ -170,12 +171,99 @@ class ProfileViewModelTest {
   // ---------- someone else's profile ----------
 
   @Test
-  fun otherProfileShowsTheirProfileWithoutListings() {
-    val state = viewModel(userId = "jane").uiState.value
+  fun otherProfileShowsOnlyTheirPublishedListingsWithoutWhereTheyStand() {
+    val gate = CompletableDeferred<Unit>()
+    listings.gate = gate
+    val vm = viewModel(userId = "jane")
+    assertTrue(vm.uiState.value.listingsLoading)
 
+    gate.complete(Unit)
+
+    val state = vm.uiState.value
     assertFalse(state.isOwnProfile)
     assertEquals(jane, state.profile)
+    assertFalse(state.listingsLoading)
+    // Her draft is left out, and her rentals are not read.
+    assertEquals(listOf(MyListing(janesBike, rentalState = null)), state.listings)
+  }
+
+  @Test
+  fun otherProfileNeverReadsRentals() {
+    val reads = mutableListOf<String>()
+    val recorded =
+        object : RentalRepository by rentals {
+          override fun observeRentalsAsLender(uid: String): Flow<List<Rental>> {
+            reads += "as lender: $uid"
+            return rentals.observeRentalsAsLender(uid)
+          }
+
+          override fun observeRentalsAsBorrower(uid: String): Flow<List<Rental>> {
+            reads += "as borrower: $uid"
+            return rentals.observeRentalsAsBorrower(uid)
+          }
+
+          override suspend fun getRental(id: String): Result<Rental?> {
+            reads += "rental: $id"
+            return rentals.getRental(id)
+          }
+        }
+    val vm = ProfileViewModel("jane", profiles, listings, recorded, auth)
+
+    vm.onScreenResumed()
+    vm.onScreenResumed()
+    vm.refreshListings()
+
+    assertEquals(emptyList<String>(), reads)
+    assertEquals(listOf(MyListing(janesBike, rentalState = null)), vm.uiState.value.listings)
+  }
+
+  @Test
+  fun otherProfileWithOnlyDraftsShowsNoListing() {
+    listings.listings = listOf(janesDraft, myTent)
+
+    val state = viewModel(userId = "jane").uiState.value
+
     assertTrue(state.listings.isEmpty())
+    assertFalse(state.listingsLoading)
+    assertFalse(state.listingsError)
+  }
+
+  @Test
+  fun otherProfileListingsErrorKeepsTheProfileAndRetryLoadsThem() {
+    listings.failure = IllegalStateException("No connection")
+    val vm = viewModel(userId = "jane")
+    assertTrue(vm.uiState.value.listingsError)
+    assertEquals(jane, vm.uiState.value.profile)
+
+    listings.failure = null
+    vm.refreshListings()
+
+    assertFalse(vm.uiState.value.listingsError)
+    assertEquals(listOf(MyListing(janesBike, rentalState = null)), vm.uiState.value.listings)
+  }
+
+  @Test
+  fun comingBackToSomeoneElsesProfileShowsTheirListingsAsTheyAreNow() {
+    val vm = viewModel(userId = "jane")
+    vm.onScreenResumed()
+
+    // e.g. Jane unpublished her bike while it was open on Listing detail
+    listings.listings = listOf(janesBike.copy(status = ListingStatus.DRAFT))
+    vm.onScreenResumed()
+
+    assertTrue(vm.uiState.value.listings.isEmpty())
+  }
+
+  @Test
+  fun otherProfileRefreshThatFailsKeepsTheirListingsAsStale() {
+    val vm = viewModel(userId = "jane")
+
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+
+    assertFalse(vm.uiState.value.listingsError)
+    assertTrue(vm.uiState.value.listingsStale)
+    assertEquals(listOf(MyListing(janesBike, rentalState = null)), vm.uiState.value.listings)
   }
 
   @Test
@@ -406,16 +494,6 @@ class ProfileViewModelTest {
 
     assertTrue(state.listingsError)
     assertEquals(me, state.profile)
-  }
-
-  @Test
-  fun otherProfileNeverLoadsListings() {
-    val vm = viewModel(userId = "jane")
-
-    vm.refreshListings()
-
-    assertFalse(vm.uiState.value.listingsLoading)
-    assertTrue(vm.uiState.value.listings.isEmpty())
   }
 
   @Test

@@ -36,10 +36,14 @@ import com.swent.polyloop.ui.components.PriceText
 import com.swent.polyloop.ui.components.badgeColors
 
 /**
- * The "My listings" card of the own profile: the title with the number of listings, then a spinner
- * while they load, the error with "Retry", an empty text, or one row per listing; after a failed
- * refresh, a note under the empty text or the rows says they are the ones loaded before.
+ * The listings card of a profile, "My listings" on the own profile and "Listings" on someone
+ * else's: the title with the number of listings, then a spinner while they load, the error with
+ * "Retry", an empty text, or one row per listing; after a failed refresh, a note under the empty
+ * text or the rows says they are the ones loaded before.
  *
+ * @param isOwnProfile true on the signed-in user's own profile, false on someone else's; it picks
+ *   the title and the texts.
+ * @param ownerName the name of the profile's user, in the empty text of someone else's profile.
  * @param hasError true when the listings could not be loaded; the card then shows a generic text.
  * @param isStale true when the last refresh failed; a note under the listings, or under the empty
  *   text, then says they are the ones loaded before.
@@ -47,6 +51,8 @@ import com.swent.polyloop.ui.components.badgeColors
 @Composable
 fun MyListingsCard(
     listings: List<MyListing>,
+    isOwnProfile: Boolean,
+    ownerName: String,
     isLoading: Boolean,
     hasError: Boolean,
     isStale: Boolean,
@@ -61,7 +67,11 @@ fun MyListingsCard(
     ) {
       Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = stringResource(R.string.profile_my_listings),
+            text =
+                stringResource(
+                    if (isOwnProfile) R.string.profile_my_listings
+                    else R.string.profile_other_listings
+                ),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f).testTag(C.Tag.profile_listings_title),
@@ -83,10 +93,24 @@ fun MyListingsCard(
                         .size(24.dp)
                         .testTag(C.Tag.profile_listings_loading)
             )
-        hasError -> ListingsError(onRetry = onRetry)
+        hasError ->
+            ListingsError(
+                message =
+                    stringResource(
+                        if (isOwnProfile) R.string.profile_listings_error
+                        else R.string.profile_other_listings_error
+                    ),
+                onRetry = onRetry,
+            )
         listings.isEmpty() ->
             Text(
-                text = stringResource(R.string.profile_no_listings),
+                text =
+                    when {
+                      isOwnProfile -> stringResource(R.string.profile_no_listings)
+                      ownerName.isBlank() ->
+                          stringResource(R.string.profile_other_no_listings_unnamed)
+                      else -> stringResource(R.string.profile_other_no_listings, ownerName)
+                    },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.testTag(C.Tag.profile_listings_empty),
@@ -98,7 +122,11 @@ fun MyListingsCard(
       }
       if (isStale) {
         Text(
-            text = stringResource(R.string.profile_listings_stale),
+            text =
+                stringResource(
+                    if (isOwnProfile) R.string.profile_listings_stale
+                    else R.string.profile_other_listings_stale
+                ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag(C.Tag.profile_listings_stale),
@@ -109,10 +137,10 @@ fun MyListingsCard(
 }
 
 @Composable
-private fun ListingsError(onRetry: () -> Unit) {
+private fun ListingsError(message: String, onRetry: () -> Unit) {
   Row(verticalAlignment = Alignment.CenterVertically) {
     Text(
-        text = stringResource(R.string.profile_listings_error),
+        text = message,
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.weight(1f).testTag(C.Tag.profile_listings_error),
     )
@@ -125,7 +153,10 @@ private fun ListingsError(onRetry: () -> Unit) {
   }
 }
 
-/** One listing: its first photo, title and price, and where it stands. Tapping it opens it. */
+/**
+ * One listing: its first photo, title and price, and where it stands unless that is not known (on
+ * someone else's profile). Tapping it opens it.
+ */
 @Composable
 private fun MyListingRow(myListing: MyListing, onClick: () -> Unit) {
   val listing = myListing.listing
@@ -153,14 +184,14 @@ private fun MyListingRow(myListing: MyListing, onClick: () -> Unit) {
       )
       PriceText(pricePerDay = listing.pricePerDay, style = MaterialTheme.typography.bodyMedium)
     }
-    // A rental still under way matters more than the draft, but "Available" would be wrong.
-    if (
-        listing.status == ListingStatus.DRAFT &&
-            myListing.rentalState == ListingRentalState.AVAILABLE
-    ) {
-      DraftPill(listingId = listing.id)
-    } else {
-      StatusPill(state = myListing.rentalState, listingId = listing.id)
+    val state = myListing.rentalState
+    when {
+      // Someone else's listing: its rentals are not read, so no pill.
+      state == null -> Unit
+      // A rental still under way matters more than the draft, but "Available" would be wrong.
+      listing.status == ListingStatus.DRAFT && state == ListingRentalState.AVAILABLE ->
+          DraftPill(listingId = listing.id)
+      else -> StatusPill(state = state, listingId = listing.id)
     }
   }
 }

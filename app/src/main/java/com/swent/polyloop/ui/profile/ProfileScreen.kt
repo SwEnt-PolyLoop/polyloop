@@ -45,7 +45,7 @@ import com.swent.polyloop.ui.components.ProfileAvatar
 /**
  * The Profile screen, for the signed-in user's own profile or someone else's.
  *
- * @param onListingClick opens one of the own listings.
+ * @param onListingClick opens one of the listings on the card.
  * @param onEditProfile opens Edit profile, from the own profile.
  * @param onSignedOut called once the user signed out, to leave the screen for sign-in.
  */
@@ -137,7 +137,7 @@ private fun ProfileError(errorMsg: String, onRetry: () -> Unit) {
 
 /**
  * The header of [profile], then, on the own profile only, "Edit profile" and "Sign out" side by
- * side, then the "My listings" card.
+ * side, then the listings card ("My listings" on the own profile, "Listings" on someone else's).
  */
 @Composable
 private fun ProfileLoaded(
@@ -156,17 +156,19 @@ private fun ProfileLoaded(
     item { ProfileHeader(profile) }
     if (uiState.isOwnProfile) {
       item { ProfileActions(onEditProfile = onEditProfile, onSignOut = onSignOut) }
-      item {
-        MyListingsCard(
-            listings = uiState.listings,
-            isLoading = uiState.listingsLoading,
-            hasError = uiState.listingsError,
-            isStale = uiState.listingsStale,
-            onListingClick = onListingClick,
-            onRetry = onRetryListings,
-            modifier = Modifier.padding(top = 12.dp),
-        )
-      }
+    }
+    item {
+      MyListingsCard(
+          listings = uiState.listings,
+          isOwnProfile = uiState.isOwnProfile,
+          ownerName = profile.name,
+          isLoading = uiState.listingsLoading,
+          hasError = uiState.listingsError,
+          isStale = uiState.listingsStale,
+          onListingClick = onListingClick,
+          onRetry = onRetryListings,
+          modifier = Modifier.padding(top = 12.dp),
+      )
     }
   }
 }

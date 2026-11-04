@@ -82,7 +82,7 @@ class PolyLoopAppTest {
   private val listingRepository =
       object : ListingRepository {
         override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-            Result.success(emptyList())
+            Result.success(listOf(listing).filter { it.ownerId == ownerId })
 
         override suspend fun getAllListings(): Result<List<Listing>> =
             Result.success(listOf(listing))
@@ -690,6 +690,27 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo().performClick()
 
     assertCurrentScreen(Screen.UserProfile, shownRoute = Screen.UserProfile.createRoute("owner-1"))
+  }
+
+  @Test
+  fun listingOnSomeoneElsesProfileOpensListingDetail() {
+    setAppSignedIn()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.UserProfile.createRoute(listing.ownerId))
+    }
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.profile_listing_ + listing.id)
+        .performScrollTo()
+        .performClick()
+
+    waitForTag(C.Tag.listing_detail_screen)
+    assertEquals(Screen.ListingDetail.route, navController.currentDestination?.route)
+    assertEquals(
+        listing.id,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_LISTING_ID),
+    )
   }
 
   @Test

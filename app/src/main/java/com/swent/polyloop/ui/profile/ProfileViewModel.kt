@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingRepository
+import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.RentalRepository
@@ -24,20 +25,20 @@ import kotlinx.coroutines.launch
 /**
  * State of the Profile screen, for the signed-in user's own profile or someone else's.
  *
- * @property isOwnProfile true on the signed-in user's profile, which also shows their listings and
- *   "Sign out".
+ * @property isOwnProfile true on the signed-in user's profile, which also shows "Edit profile",
+ *   "Sign out", their drafts and where each listing stands.
  * @property profile null while loading, or when the user has no profile ([profileNotFound]).
- * @property listings the signed-in user's listings with where each stands; always empty on someone
- *   else's profile.
+ * @property listings on the own profile, all the user's listings with where each stands; on someone
+ *   else's, only their published ones, whose rentals are not read (their rentalState is null).
  * @property isLoading true while the profile loads; the listings have their own [listingsLoading].
  * @property errorMsg non-null when the profile cannot be loaded (or nobody is signed in); blank
  *   when there is no message to show, and the screen then shows a generic text.
- * @property listingsLoading true while the own listings load; false on someone else's profile.
- * @property listingsError true when the own listings cannot be loaded; the profile still shows, and
- *   the card shows a generic text whatever the cause.
- * @property listingsStale true when the last refresh of the own listings failed, so [listings] are
- *   the ones read before, even when that read found none; false while they load, on
- *   [listingsError], and before a first read succeeded, as there is then nothing read before.
+ * @property listingsLoading true while the listings load.
+ * @property listingsError true when the listings cannot be loaded; the profile still shows, and the
+ *   card shows a generic text whatever the cause.
+ * @property listingsStale true when the last refresh of the listings failed, so [listings] are the
+ *   ones read before, even when that read found none; false while they load, on [listingsError],
+ *   and before a first read succeeded, as there is then nothing read before.
  * @property isSignedOut true once the user signed out; the app then goes back to sign-in.
  */
 data class ProfileUiState(
@@ -55,9 +56,10 @@ data class ProfileUiState(
 
 /**
  * Shows a profile: the signed-in user's own when [userId] is null (or is their id), someone else's
- * otherwise. The profile follows the repository live. The own listings are loaded separately, again
- * each time the screen comes back ([onScreenResumed]), and their rentals are followed live, so the
- * state of each listing updates by itself.
+ * otherwise. The profile follows the repository live. The listings are loaded separately, again
+ * each time the screen comes back ([onScreenResumed]). On the own profile their rentals are
+ * followed live, so the state of each listing updates by itself; someone else's rentals are never
+ * read, and their drafts are left out.
  */
 class ProfileViewModel(
     private val userId: String?,
@@ -84,9 +86,10 @@ class ProfileViewModel(
   fun retry() = load()
 
   /**
-   * Loads the own listings again, after an error or when the screen comes back (they may have been
+   * Loads the listings again, after an error or when the screen comes back (they may have been
    * edited or deleted meanwhile); the profile stays as it is. Ignored while they are loading. The
-   * rentals stay followed, so only the listings are read again, without showing the spinner.
+   * rentals of the own listings stay followed, so only the listings are read again, without showing
+   * the spinner.
    */
   fun refreshListings() {
     val uid = listingsOwner ?: return
@@ -153,15 +156,17 @@ class ProfileViewModel(
             }
           }
     }
-    if (isOwnProfile) loadListings(uid)
+    loadListings(uid)
   }
 
   /**
-   * Loads the own listings, again at each [listingsRefresh], and follows their rentals live. Called
-   * for the first load and after an error only, so the spinner always shows: a retry never shows
-   * the old listings as if they were current. A refresh that fails (e.g. a network error) keeps the
-   * listings already shown, marked as stale until a refresh succeeds (even when there are none, so
-   * the user knows why a new listing is missing), and their rentals stay followed.
+   * Loads the listings of [uid], again at each [listingsRefresh]: on the own profile all of them,
+   * whose rentals are followed live; on someone else's only the published ones (their drafts are
+   * left out), without reading their rentals, which belong to other people. Called for the first
+   * load and after an error only, so the spinner always shows: a retry never shows the old listings
+   * as if they were current. A refresh that fails (e.g. a network error) keeps the listings already
+   * shown, marked as stale until a refresh succeeds (even when there are none, so the user knows
+   * why a new listing is missing), and the rentals of the own listings stay followed.
    */
   private fun loadListings(uid: String) {
     loadingListings?.cancel()
@@ -179,19 +184,30 @@ class ProfileViewModel(
               onFailure = { e -> (shown ?: throw e) to true },
           )
     }
-    loadingListings = viewModelScope.launch {
-      combine(listings, rentalRepository.observeRentalsAsLender(uid)) { (owned, stale), rentals ->
+    // isOwnProfile is set by load() before it loads the listings, and changes only there.
+    val rows =
+        if (_uiState.value.isOwnProfile) {
+          val lent = rentalRepository.observeRentalsAsLender(uid)
+          combine(listings, lent) { (owned, stale), rentals ->
             owned.map { MyListing(it, rentalStateOf(it.id, rentals)) } to stale
           }
+        } else {
+          listings.map { (theirs, stale) ->
+            val published = theirs.filter { it.status == ListingStatus.PUBLISHED }
+            published.map { MyListing(it, rentalState = null) } to stale
+          }
+        }
+    loadingListings = viewModelScope.launch {
+      rows
           .catch {
             _uiState.update {
               it.copy(listingsLoading = false, listingsError = true, listingsStale = false)
             }
           }
-          .collect { (mine, stale) ->
+          .collect { (shownRows, stale) ->
             _uiState.update {
               it.copy(
-                  listings = mine,
+                  listings = shownRows,
                   listingsLoading = false,
                   listingsError = false,
                   listingsStale = stale,

@@ -65,10 +65,14 @@ class ProfileScreenTest {
           reviewCount = 2,
       )
 
-  private fun listing(id: String, status: ListingStatus = ListingStatus.PUBLISHED) =
+  private fun listing(
+      id: String,
+      status: ListingStatus = ListingStatus.PUBLISHED,
+      ownerId: String = "me",
+  ) =
       Listing(
           id = id,
-          ownerId = "me",
+          ownerId = ownerId,
           title = "Item $id",
           description = "Description of $id",
           category = ListingCategory.OTHER,
@@ -88,6 +92,17 @@ class ProfileScreenTest {
           isOwnProfile = true,
           profile = john,
           listings = listOf(MyListing(tent, ListingRentalState.AVAILABLE)),
+          isLoading = false,
+      )
+
+  private val jane = UserProfile(uid = "jane", name = "Jane", email = "jane@epfl.ch")
+
+  // Someone else's rentals are not read, so their listings do not know where they stand.
+  private val janesProfile =
+      ProfileUiState(
+          isOwnProfile = false,
+          profile = jane,
+          listings = listOf(MyListing(listing("bike", ownerId = "jane"), rentalState = null)),
           isLoading = false,
       )
 
@@ -242,14 +257,70 @@ class ProfileScreenTest {
   // ---------- someone else's profile ----------
 
   @Test
-  fun otherProfileShowsTheHeaderWithoutListingsOrSignOut() {
-    setContent(ownProfile.copy(isOwnProfile = false, listings = emptyList()))
+  fun otherProfileShowsTheirListingsWithoutPillsEditOrSignOut() {
+    setContent(janesProfile)
 
-    node(C.Tag.profile_name).assertTextEquals("John")
-    node(C.Tag.profile_listings_title).assertDoesNotExist()
-    node(C.Tag.profile_listings_empty).assertDoesNotExist()
+    node(C.Tag.profile_name).assertTextEquals("Jane")
+    node(C.Tag.profile_listings_title)
+        .assertTextEquals(context.getString(R.string.profile_other_listings))
+    node(C.Tag.profile_listings_count).assertTextEquals("1")
+    node(C.Tag.profile_listing_ + "bike").assertIsDisplayed()
+    // The clickable row merges its texts, so the pills are looked for in the unmerged tree.
+    composeTestRule
+        .onNodeWithTag(C.Tag.profile_listing_status_ + "bike", useUnmergedTree = true)
+        .assertDoesNotExist()
+    composeTestRule
+        .onNodeWithTag(C.Tag.profile_listing_draft_ + "bike", useUnmergedTree = true)
+        .assertDoesNotExist()
     node(C.Tag.profile_sign_out_button).assertDoesNotExist()
     node(C.Tag.profile_edit_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun tappingAListingOnSomeoneElsesProfileOpensIt() {
+    setContent(janesProfile)
+
+    node(C.Tag.profile_listing_ + "bike").performClick()
+
+    assertEquals("bike", openedListing)
+  }
+
+  @Test
+  fun otherProfileWithoutListingsSaysTheyHaveNone() {
+    setContent(janesProfile.copy(listings = emptyList()))
+
+    node(C.Tag.profile_listings_empty)
+        .assertTextEquals(context.getString(R.string.profile_other_no_listings, "Jane"))
+    node(C.Tag.profile_listings_count).assertDoesNotExist()
+  }
+
+  @Test
+  fun otherProfileWithoutNameOrListingsSaysThisUserHasNone() {
+    setContent(janesProfile.copy(profile = jane.copy(name = " "), listings = emptyList()))
+
+    node(C.Tag.profile_listings_empty)
+        .assertTextEquals(context.getString(R.string.profile_other_no_listings_unnamed))
+  }
+
+  @Test
+  fun otherProfileListingsErrorIsNotAboutYourListingsAndRetries() {
+    setContent(janesProfile.copy(listings = emptyList(), listingsError = true))
+
+    node(C.Tag.profile_listings_error)
+        .assertTextEquals(context.getString(R.string.profile_other_listings_error))
+    node(C.Tag.profile_listings_retry_button).performClick()
+
+    assertEquals(1, retryListingsClicks)
+    assertEquals(0, retryClicks)
+  }
+
+  @Test
+  fun otherProfileStaleListingsStayShownWithTheirNote() {
+    setContent(janesProfile.copy(listingsStale = true))
+
+    node(C.Tag.profile_listing_ + "bike").assertIsDisplayed()
+    node(C.Tag.profile_listings_stale)
+        .assertTextEquals(context.getString(R.string.profile_other_listings_stale))
   }
 
   @Test
