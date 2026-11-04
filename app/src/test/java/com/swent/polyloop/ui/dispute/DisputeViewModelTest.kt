@@ -15,8 +15,11 @@ import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -124,6 +127,67 @@ class DisputeViewModelTest {
         ),
         viewModel().uiState.value.history,
     )
+  }
+
+  @Test
+  fun daysUntilEscalationAreRoundedUpAndZeroOncePassed() {
+    assertEquals(28, viewModel().uiState.value.daysUntilEscalation)
+
+    disputes = FakeDisputeRepository(listOf(open.copy(escalatesAt = now.minusSeconds(1))))
+
+    assertEquals(0, viewModel().uiState.value.daysUntilEscalation)
+  }
+
+  /**
+   * Collects the state of [vm], as the screen does while it is shown, until the job is cancelled.
+   */
+  private fun show(vm: DisputeViewModel): Job =
+      CoroutineScope(dispatcher).launch { vm.uiState.collect {} }
+
+  /** Moves the clock read through [time] and the test dispatcher on by [duration]. */
+  private fun elapse(duration: Duration) {
+    time += duration
+    dispatcher.scheduler.advanceTimeBy(duration.toMillis())
+    dispatcher.scheduler.runCurrent()
+  }
+
+  private var time = now
+
+  @Test
+  fun daysUntilEscalationDropWhileTheScreenIsShown() {
+    val vm = viewModel(clock = { time })
+    val screen = show(vm)
+    assertEquals(28, vm.uiState.value.daysUntilEscalation)
+
+    // 27 days and 12 hours were left: 12 hours later, 27 days are.
+    elapse(Duration.ofHours(12))
+
+    assertEquals(27, vm.uiState.value.daysUntilEscalation)
+    screen.cancel()
+  }
+
+  @Test
+  fun countdownPausesWhileTheScreenIsHiddenAndCatchesUpWhenShown() {
+    val vm = viewModel(clock = { time })
+
+    elapse(Duration.ofHours(12))
+    assertEquals(28, vm.uiState.value.daysUntilEscalation)
+
+    val screen = show(vm)
+    assertEquals(27, vm.uiState.value.daysUntilEscalation)
+    screen.cancel()
+  }
+
+  @Test
+  fun aSettledDisputeStopsTheCountdown() {
+    val vm = viewModel(clock = { time })
+    val screen = show(vm)
+
+    disputes.put(open.copy(agreedAt = now))
+    elapse(Duration.ofHours(12))
+
+    assertEquals(0, vm.uiState.value.daysUntilEscalation)
+    screen.cancel()
   }
 
   @Test
