@@ -283,5 +283,12 @@
     <string name="rental_detail_retry">Retry</string>
     <string name="rental_detail_not_found">This rental no longer exists.</string>
     <string name="rental_detail_unsupported">This rental\'s details aren\'t available yet.</string>
+    <string name="rental_detail_stage_accepted">Accepted</string>
+    <string name="rental_detail_stage_in_use">In use</string>
+    <string name="rental_detail_stage_returned">Returned</string>
+    <string name="rental_detail_stage_closed">Closed</string>
+    <string name="rental_detail_status_headline">Waiting for agreement</string>
+    <!-- The day the request was sent, e.g. "Sent 28 Sep. The rental price is reserved. …" -->
+    <string name="rental_detail_status_body">Sent %1$s. The rental price is reserved. Agree on the deposit in chat.</string>
 
 </resources>

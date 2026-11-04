@@ -3,6 +3,9 @@
 package com.swent.polyloop.ui.rentaldetail
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -119,6 +122,8 @@ class RentalDetailScreenTest {
     assertAbsent(C.Tag.rental_detail_loading)
     assertAbsent(C.Tag.rental_detail_error)
     assertAbsent(C.Tag.rental_detail_not_found)
+    assertAbsent(C.Tag.rental_detail_stage_strip)
+    assertAbsent(C.Tag.rental_detail_status)
   }
 
   @Test
@@ -130,5 +135,59 @@ class RentalDetailScreenTest {
         .assertIsDisplayed()
         .assertTextEquals("Ski helmet, size M")
     assertAbsent(C.Tag.rental_detail_unsupported)
+  }
+
+  @Test
+  fun stageStripShowsItsFourLabels() {
+    setContent()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_stage_strip).assertIsDisplayed()
+    listOf(
+            R.string.rental_detail_stage_accepted,
+            R.string.rental_detail_stage_in_use,
+            R.string.rental_detail_stage_returned,
+            R.string.rental_detail_stage_closed,
+        )
+        .forEach { label ->
+          composeTestRule
+              .onNode(
+                  hasText(context.getString(label)) and
+                      hasAnyAncestor(hasTestTag(C.Tag.rental_detail_stage_strip))
+              )
+              .assertIsDisplayed()
+        }
+  }
+
+  @Test
+  fun statusCardShowsTheBadgeAndHeadline() {
+    setContent()
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_status)
+        .assertIsDisplayed()
+        .assertTextEquals(context.getString(R.string.rental_status_requested))
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_status_headline)
+        .assertIsDisplayed()
+        .assertTextEquals(context.getString(R.string.rental_detail_status_headline))
+  }
+
+  @Test
+  fun statusBodyShowsTheSentDayWithoutTheYear() {
+    setContent()
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_status_body)
+        .assertIsDisplayed()
+        .assertTextEquals(context.getString(R.string.rental_detail_status_body, "28 Sep"))
+  }
+
+  @Test
+  fun statusBodyShowsTheYearWhenSentInAnotherYear() {
+    setContent(requested.copy(sentAt = Instant.parse("2025-12-30T10:00:00Z")))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_status_body)
+        .assertTextEquals(context.getString(R.string.rental_detail_status_body, "30 Dec 2025"))
   }
 }
