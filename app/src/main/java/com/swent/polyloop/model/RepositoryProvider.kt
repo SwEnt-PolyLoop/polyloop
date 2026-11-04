@@ -18,6 +18,8 @@ import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalRepositoryFirestore
+import com.swent.polyloop.model.wallet.FakeWalletRepository
+import com.swent.polyloop.model.wallet.WalletRepository
 
 /**
  * The single place that creates the app's repositories, so screens and ViewModels share one
@@ -40,6 +42,7 @@ object RepositoryProvider {
   private var profile: ProfileRepository? = null
   private var rental: RentalRepository? = null
   private var connectivity: ConnectivityRepository? = null
+  private var wallet: WalletRepository? = null
 
   /** Keeps the app context for the repositories that need one. Called once at app startup. */
   fun init(context: Context) {
@@ -88,6 +91,17 @@ object RepositoryProvider {
     }
 
   /**
+   * The wallet repository. There is no Firestore implementation yet, so until there is one the
+   * default is an in-memory [FakeWalletRepository]: it starts empty, keeps nothing between runs and
+   * is NOT the user's real wallet. Replace the default when the real repository exists.
+   */
+  var walletRepository: WalletRepository
+    get() = wallet ?: FakeWalletRepository().also { wallet = it }
+    set(value) {
+      wallet = value
+    }
+
+  /**
    * The Cloud Storage instance that repositories upload photos and PDFs to. Read on each access, so
    * Storage is not touched until a repository needs it. Repositories should take it as a lazy
    * provider defaulting to `{ RepositoryProvider.storage }` and read it through `by lazy`, so
@@ -108,6 +122,7 @@ object RepositoryProvider {
     profile = null
     rental = null
     connectivity = null
+    wallet = null
   }
 
   /**
