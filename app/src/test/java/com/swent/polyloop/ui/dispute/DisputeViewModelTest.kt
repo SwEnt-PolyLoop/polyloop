@@ -12,6 +12,7 @@ import com.swent.polyloop.model.dispute.Proposal
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
+import java.io.IOException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -197,5 +198,45 @@ class DisputeViewModelTest {
     connectivity.setOnline(false)
 
     assertFalse(vm.uiState.value.isOnline)
+  }
+
+  @Test
+  fun errorWhenNobodyIsSignedIn() {
+    auth.signedInUser = null
+
+    assertTrue(viewModel().uiState.value.loadFailed)
+  }
+
+  @Test
+  fun errorWhenTheRentalIsMissingOrNotTheUsers() {
+    assertTrue(viewModel(rentalId = "other").uiState.value.loadFailed)
+
+    auth.signedInUser = AuthUser(uid = "eve", email = "eve@epfl.ch", name = "Eve")
+
+    assertTrue(viewModel().uiState.value.loadFailed)
+  }
+
+  @Test
+  fun errorWhenTheRentalHasNoDispute() {
+    disputes = FakeDisputeRepository()
+
+    assertTrue(viewModel().uiState.value.loadFailed)
+  }
+
+  @Test
+  fun errorWhenTheRentalCannotBeRead() {
+    rentals.failure = IOException("offline")
+
+    val state = viewModel().uiState.value
+
+    assertFalse(state.isLoading)
+    assertTrue(state.loadFailed)
+  }
+
+  @Test
+  fun errorWhenTheDisputeCannotBeRead() {
+    disputes.failure = IOException("denied")
+
+    assertTrue(viewModel().uiState.value.loadFailed)
   }
 }
