@@ -354,6 +354,13 @@
     <string name="rental_detail_counter_body_answer">Counteroffer: %1$d PP. Expires %2$s. Answer in the chat.</string>
     <string name="rental_detail_counter_body_waiting">Counteroffer: %1$d PP. Expires %2$s. Waiting for the answer.</string>
     <string name="rental_detail_offer_label">Deposit offer</string>
+    <!-- The headline of an accepted rental, e.g. "Pickup on 1 Oct" -->
+    <string name="rental_detail_accepted_headline">Pickup on %1$s</string>
+    <string name="rental_detail_accepted_body">Meet at the pickup point.</string>
+    <string name="rental_detail_accepted_deposit_label">Deposit</string>
+    <string name="rental_detail_pickup_point_label">PICKUP POINT</string>
+    <string name="rental_detail_return_address">Drop-off: %1$s</string>
+    <string name="rental_detail_address_placeholder">Address not known yet</string>
     <string name="rental_detail_details_title">Details</string>
     <string name="rental_detail_dates_label">Dates</string>
     <string name="rental_detail_return_label">Return</string>
