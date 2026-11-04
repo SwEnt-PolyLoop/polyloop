@@ -27,6 +27,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -238,5 +239,56 @@ class DisputeViewModelTest {
     disputes.failure = IOException("denied")
 
     assertTrue(viewModel().uiState.value.loadFailed)
+  }
+
+  @Test
+  fun retryLoadsTheDisputeAfterAnError() {
+    rentals.failure = IOException("offline")
+    val vm = viewModel()
+
+    rentals.failure = null
+    vm.retry()
+
+    assertFalse(vm.uiState.value.loadFailed)
+    assertNotNull(vm.uiState.value.latestProposal)
+  }
+
+  @Test
+  fun refreshFailureKeepsTheDisputeShown() {
+    val vm = viewModel()
+
+    disputes.failure = IOException("offline")
+    disputes.put(open.copy(proposals = listOf(mine)))
+
+    val state = vm.uiState.value
+    assertTrue(state.refreshFailed)
+    assertFalse(state.loadFailed)
+    assertEquals(70, state.latestProposal?.lenderPercent)
+  }
+
+  @Test
+  fun retryAfterARefreshFailureShowsTheNewDispute() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+    disputes.put(open.copy(proposals = listOf(mine)))
+
+    disputes.failure = null
+    vm.retry()
+
+    val state = vm.uiState.value
+    assertFalse(state.refreshFailed)
+    assertEquals(40, state.latestProposal?.lenderPercent)
+  }
+
+  @Test
+  fun aDisputeGoneAfterItWasShownIsARefreshFailure() {
+    val vm = viewModel()
+
+    disputes.remove("pump")
+
+    val state = vm.uiState.value
+    assertTrue(state.refreshFailed)
+    assertFalse(state.loadFailed)
+    assertEquals(70, state.latestProposal?.lenderPercent)
   }
 }
