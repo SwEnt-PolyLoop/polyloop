@@ -4,7 +4,10 @@ package com.swent.polyloop.ui.handover
 
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.handover.FakeHandoverRepository
+import com.swent.polyloop.model.handover.FakeHandoverRepository.StoredPhoto
 import com.swent.polyloop.model.handover.HandoverPhase
+import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
@@ -51,6 +54,7 @@ class HandoverViewModelTest {
   private val borrower = AuthUser(uid = "borrower", email = "loca@epfl.ch", name = "Loca")
 
   private lateinit var rentalRepository: FakeRentalRepository
+  private lateinit var handoverRepository: FakeHandoverRepository
   private lateinit var authRepository: FakeAuthRepository
   private var today = pickupDay
 
@@ -58,6 +62,7 @@ class HandoverViewModelTest {
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     rentalRepository = FakeRentalRepository(rentals = listOf(rental))
+    handoverRepository = FakeHandoverRepository(currentUid = "borrower")
     authRepository = FakeAuthRepository(signedInUser = borrower)
   }
 
@@ -67,7 +72,7 @@ class HandoverViewModelTest {
   }
 
   private fun viewModel(id: String = rental.id) =
-      HandoverViewModel(id, rentalRepository, authRepository, today = { today })
+      HandoverViewModel(id, rentalRepository, handoverRepository, authRepository, today = { today })
 
   @Test
   fun theBorrowerSeesTheItemTheLenderAndThePickupPhaseOnceLoaded() {
@@ -132,5 +137,50 @@ class HandoverViewModelTest {
     rentalRepository.gate = CompletableDeferred() // a new read would hang on it
     vm.retry()
     assertFalse(vm.uiState.value.isLoading)
+  }
+
+  // ---------- photos ----------
+
+  /** [count] pickup photos of the rental by [takenBy], one second apart. */
+  private fun photos(count: Int, takenBy: String = "borrower", rentalId: String = rental.id) =
+      List(count) {
+        val photo =
+            HandoverPhoto(
+                "$takenBy$it",
+                HandoverPhase.PICKUP,
+                Instant.ofEpochSecond(it.toLong()),
+                "url$it",
+            )
+        StoredPhoto(rentalId, takenBy, photo)
+      }
+
+  @Test
+  fun followsMyPickupPhotosAndCountsTheOnesStillNeeded() {
+    handoverRepository.photos = photos(5, takenBy = "owner") + photos(5, rentalId = "other")
+    val vm = viewModel()
+    assertEquals(emptyList<HandoverPhoto>(), vm.uiState.value.photos)
+    assertEquals(3, vm.uiState.value.photosNeeded)
+
+    handoverRepository.photos = photos(2)
+    assertEquals(listOf("borrower0", "borrower1"), vm.uiState.value.photos.map { it.id })
+    assertEquals(1, vm.uiState.value.photosNeeded)
+
+    handoverRepository.photos = photos(HandoverPhoto.MAX_PHOTOS)
+    assertEquals(0, vm.uiState.value.photosNeeded)
+  }
+
+  @Test
+  fun photosThatCannotBeLoadedAreReported() {
+    handoverRepository.failure = RuntimeException("offline")
+
+    assertTrue(viewModel().uiState.value.photosFailed)
+  }
+
+  @Test
+  fun noPhotosAreReadWhenTheRentalTakesNone() {
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
+    handoverRepository.failure = RuntimeException("would be reported if read")
+
+    assertFalse(viewModel().uiState.value.photosFailed)
   }
 }
