@@ -4,10 +4,10 @@ package com.swent.polyloop.ui.rentaldetail
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -243,8 +243,11 @@ class RentalDetailScreenTest {
     assertAbsent(C.Tag.rental_detail_deposit)
   }
 
-  private fun withPerson(name: String = "Léa", averageRating: Double? = 4.6, reviewCount: Int? = 5) =
-      requested.copy(otherPerson = OtherPerson("lea", name, averageRating, reviewCount))
+  private fun withPerson(
+      name: String = "Léa",
+      averageRating: Double? = 4.6,
+      reviewCount: Int? = 5,
+  ) = requested.copy(otherPerson = OtherPerson("lea", name, averageRating, reviewCount))
 
   @Test
   fun personCardShowsTheInitialAndName() {
@@ -419,7 +422,10 @@ class RentalDetailScreenTest {
   fun tappingCancelRequestChangesNothing() {
     setContent()
 
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).performScrollTo().performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
+        .performScrollTo()
+        .performClick()
 
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).assertIsDisplayed()
     assertShown(C.Tag.rental_detail_title, "Ski helmet, size M")

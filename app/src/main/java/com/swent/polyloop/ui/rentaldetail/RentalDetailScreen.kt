@@ -84,8 +84,8 @@ fun RentalDetailScreen(
 /**
  * Stateless Rental detail content: a loading indicator, an error with a Retry button, a not-found
  * message, a placeholder for a status not built yet, or the Requested rental, depending on
- * [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is shown); tests
- * pass fixed values so their expected texts do not depend on the day they run.
+ * [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is shown);
+ * tests pass fixed values so their expected texts do not depend on the day they run.
  */
 @Composable
 fun RentalDetailContent(
@@ -129,7 +129,8 @@ fun RentalDetailContent(
           }
       else ->
           Column(
-              modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+              modifier =
+                  Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
               verticalArrangement = Arrangement.spacedBy(16.dp),
           ) {
             RentalTitle(title = uiState.itemTitle)
@@ -352,7 +353,12 @@ private fun RatingLine(averageRating: Double, reviewCount: Int) {
     Text(
         text =
             if (reviewCount > 0)
-                pluralStringResource(R.plurals.profile_rating, reviewCount, averageRating, reviewCount)
+                pluralStringResource(
+                    R.plurals.profile_rating,
+                    reviewCount,
+                    averageRating,
+                    reviewCount,
+                )
             else stringResource(R.string.profile_no_reviews),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -404,9 +410,9 @@ private fun PickupArea(area: String) {
 }
 
 /**
- * A "Cancel request" button, on the right, and on its left the last day before pickup, written
- * "Wed 30 Sep" (with the year when it is not [today]'s). [lastCancelDay] is null when the rental
- * has no start date.
+ * A "Cancel request" button, on the right, and on its left the last day before pickup, written "Wed
+ * 30 Sep" (with the year when it is not [today]'s). [lastCancelDay] is null when the rental has no
+ * start date.
  */
 @Composable
 private fun CancelRow(lastCancelDay: LocalDate?, today: LocalDate) {
