@@ -278,4 +278,10 @@
     <string name="chat_system_message">%1$s · %2$s</string>
     <string name="chat_send_failed">Message not sent. Press send to try again.</string>
 
+    <!-- Rental detail -->
+    <string name="rental_detail_error_fallback">Could not load the rental</string>
+    <string name="rental_detail_retry">Retry</string>
+    <string name="rental_detail_not_found">This rental no longer exists.</string>
+    <string name="rental_detail_unsupported">This rental\'s details aren\'t available yet.</string>
+
 </resources>

@@ -190,6 +190,14 @@ object C {
     const val chat_send_button = "chat_send_button"
     const val chat_send_failed = "chat_send_failed"
 
+    const val rental_detail_screen = "rental_detail_screen"
+    const val rental_detail_title = "rental_detail_title"
+    const val rental_detail_unsupported = "rental_detail_unsupported"
+    const val rental_detail_loading = "rental_detail_loading"
+    const val rental_detail_error = "rental_detail_error"
+    const val rental_detail_retry_button = "rental_detail_retry_button"
+    const val rental_detail_not_found = "rental_detail_not_found"
+
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
     const val top_bar_profile_button = "top_bar_profile_button"
