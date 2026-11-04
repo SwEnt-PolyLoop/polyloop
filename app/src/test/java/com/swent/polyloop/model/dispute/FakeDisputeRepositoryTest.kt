@@ -51,6 +51,38 @@ class FakeDisputeRepositoryTest {
   }
 
   @Test
+  fun acceptSettlesTheDispute() = runTest {
+    val repository = repository()
+
+    assertTrue(repository.accept("rental", "borrower", 70).isSuccess)
+
+    assertEquals(now, repository.current().agreedAt)
+  }
+
+  @Test
+  fun acceptFailsOnTheUsersOwnProposal() = runTest {
+    val repository = repository()
+
+    assertTrue(repository.accept("rental", "lender", 70).isFailure)
+    assertNull(repository.current().agreedAt)
+  }
+
+  @Test
+  fun acceptFailsAndSettlesNothingWhenTheProposalChanged() = runTest {
+    val repository = repository()
+
+    val result = repository.accept("rental", "borrower", 60)
+
+    assertTrue(result.exceptionOrNull() is ProposalChangedException)
+    assertNull(repository.current().agreedAt)
+  }
+
+  @Test
+  fun acceptFailsWithoutAProposal() = runTest {
+    assertTrue(repository(open.copy(proposals = emptyList())).accept("rental", "x", 70).isFailure)
+  }
+
+  @Test
   fun proposeFailsOnceSettled() = runTest {
     assertTrue(repository(open.copy(agreedAt = now)).propose("rental", "lender", 50).isFailure)
   }
