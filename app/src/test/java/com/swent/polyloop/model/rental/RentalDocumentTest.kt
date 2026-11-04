@@ -18,6 +18,79 @@ import org.junit.Test
 
 class RentalDocumentTest {
 
+  private val expiresAt = Instant.parse("2026-10-21T10:00:00Z")
+
+  /** The stored rental with [offer] and a deposit of 60. */
+  private fun withOffer(offer: Any?) =
+      validData + (RentalFields.OFFER to offer) + (RentalFields.DEPOSIT to 60L)
+
+  @Test
+  fun readsTheDepositAndAFirstOffer() {
+    val rental =
+        rentalFromDocument(
+            "rental-1",
+            withOffer(
+                mapOf(
+                    RentalFields.OFFER_AMOUNT to 180L,
+                    RentalFields.OFFER_AUTHOR_ID to "owner",
+                    RentalFields.OFFER_IS_COUNTER to false,
+                    RentalFields.OFFER_EXPIRES_AT to Timestamp(expiresAt),
+                )
+            ),
+        )
+
+    assertEquals(60, rental?.deposit)
+    assertEquals(DepositOffer(180, "owner", false, null, expiresAt), rental?.offer)
+  }
+
+  @Test
+  fun readsACounterofferWithThePreviousAmount() {
+    val rental =
+        rentalFromDocument(
+            "rental-1",
+            withOffer(
+                mapOf(
+                    RentalFields.OFFER_AMOUNT to 120L,
+                    RentalFields.OFFER_AUTHOR_ID to "borrower",
+                    RentalFields.OFFER_IS_COUNTER to true,
+                    RentalFields.OFFER_PREVIOUS_AMOUNT to 180L,
+                    RentalFields.OFFER_EXPIRES_AT to Timestamp(expiresAt),
+                )
+            ),
+        )
+
+    assertEquals(DepositOffer(120, "borrower", true, 180, expiresAt), rental?.offer)
+  }
+
+  @Test
+  fun aMissingDepositAndOfferReadAsNone() {
+    val rental = rentalFromDocument("rental-1", validData)
+
+    assertEquals(0, rental?.deposit)
+    assertNull(rental?.offer)
+  }
+
+  @Test
+  fun aMalformedOfferReadsAsNoOfferAndKeepsTheRental() {
+    val complete =
+        mapOf(
+            RentalFields.OFFER_AMOUNT to 180L,
+            RentalFields.OFFER_AUTHOR_ID to "owner",
+            RentalFields.OFFER_IS_COUNTER to false,
+            RentalFields.OFFER_EXPIRES_AT to Timestamp(expiresAt),
+        )
+    val malformed =
+        listOf<Any>("not a map") +
+            complete.keys.map { field -> complete - field } +
+            listOf(complete + (RentalFields.OFFER_AMOUNT to 1.5))
+
+    for (offer in malformed) {
+      val rental = rentalFromDocument("rental-1", withOffer(offer))
+      assertEquals("rental-1", rental?.id)
+      assertNull(rental?.offer)
+    }
+  }
+
   private val createdAt = Instant.parse("2026-10-14T10:00:00Z")
   private val lastMessageAt = Instant.parse("2026-10-14T12:30:00Z")
 

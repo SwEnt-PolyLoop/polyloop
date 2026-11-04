@@ -192,6 +192,7 @@ dependencies {
   implementation(libs.firebase.auth)
   implementation(libs.firebase.firestore)
   implementation(libs.firebase.storage)
+  implementation(libs.firebase.functions)
   // Lets us call .await() on Firebase Tasks inside coroutines
   implementation(libs.kotlinx.coroutines.play.services)
 }
