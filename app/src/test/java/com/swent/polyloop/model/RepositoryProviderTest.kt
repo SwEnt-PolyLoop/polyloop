@@ -14,6 +14,8 @@ import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepositoryAndroid
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.handover.FakeHandoverRepository
+import com.swent.polyloop.model.handover.HandoverRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
@@ -170,6 +172,7 @@ class RepositoryProviderTest {
     RepositoryProvider.listingRepository
     RepositoryProvider.profileRepository
     RepositoryProvider.chatRepository
+    RepositoryProvider.handoverRepository
 
     verify(exactly = 0) { FirebaseStorage.getInstance() }
   }
@@ -224,11 +227,30 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- handoverRepository ----------
+
+  @Test
+  fun handoverRepositoryDefaultsToFirestoreImplementation() {
+    assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)
+    assertSame(RepositoryProvider.handoverRepository, RepositoryProvider.handoverRepository)
+  }
+
+  @Test
+  fun handoverRepositoryReturnsAssignedRepository() {
+    val fake = FakeHandoverRepository()
+
+    RepositoryProvider.handoverRepository = fake
+
+    assertSame(fake, RepositoryProvider.handoverRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+  }
+
   // ---------- connectivityRepository ----------
 
   @Test
   fun connectivityRepositoryDefaultsToAndroidImplementation() {
     assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
+    assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)
   }
 
   @Test
@@ -289,6 +311,7 @@ class RepositoryProviderTest {
     RepositoryProvider.profileRepository = FakeProfileRepository()
     RepositoryProvider.rentalRepository = FakeRentalRepository()
     RepositoryProvider.connectivityRepository = FakeConnectivityRepository()
+    RepositoryProvider.handoverRepository = FakeHandoverRepository()
 
     RepositoryProvider.reset()
 
@@ -298,6 +321,7 @@ class RepositoryProviderTest {
     assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
     assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
     assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
+    assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)
   }
 
   @Test
