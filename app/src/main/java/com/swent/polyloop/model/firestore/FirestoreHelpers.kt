@@ -8,9 +8,11 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import com.swent.polyloop.model.location.MapPoint
 import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
@@ -54,6 +56,13 @@ internal fun dateOrNull(value: Any?): LocalDate? =
  * confirmed yet reads as null.
  */
 internal fun instantOrNull(value: Any?): Instant? = (value as? Timestamp)?.toInstant()
+
+/**
+ * A point stored as a Firestore GeoPoint, or null if it is missing or has another type. It comes
+ * back as a [MapPoint], so that code outside `model/` never sees Firebase types.
+ */
+internal fun mapPointOrNull(value: Any?): MapPoint? =
+    (value as? GeoPoint)?.let { MapPoint(it.latitude, it.longitude) }
 
 /**
  * Runs [block] and returns Firebase errors as failures. A cancellation is rethrown only if the

@@ -3,8 +3,10 @@
 package com.swent.polyloop.model.listing
 
 import com.google.firebase.firestore.GeoPoint
+import com.swent.polyloop.model.location.MapPoint
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -26,6 +28,7 @@ class ListingDocumentTest {
           ListingFields.STATUS to "PUBLISHED",
           ListingFields.PICKUP_AREA to "Ecublens",
           ListingFields.DROP_OFF_AREA to "Ecublens",
+          ListingFields.PICKUP_POINT to GeoPoint(46.52, 6.57),
       )
 
   private val expected =
@@ -43,6 +46,7 @@ class ListingDocumentTest {
           status = ListingStatus.PUBLISHED,
           pickupArea = "Ecublens",
           dropOffArea = "Ecublens",
+          pickupPoint = MapPoint(latitude = 46.52, longitude = 6.57),
       )
 
   private fun fromDocument(data: Map<String, Any?>) = listingFromDocument("listing1", data)
@@ -50,8 +54,15 @@ class ListingDocumentTest {
   @Test fun validDocumentIsMapped() = assertEquals(expected, fromDocument(validData))
 
   @Test
-  fun listingToDocumentIsReadBackUnchanged() =
-      assertEquals(expected, fromDocument(listingToDocument(expected)))
+  fun listingToDocumentIsReadBackUnchanged() {
+    val notGeocoded = expected.copy(pickupPoint = null)
+
+    assertEquals(notGeocoded, fromDocument(listingToDocument(notGeocoded)))
+  }
+
+  @Test
+  fun listingToDocumentLeavesOutThePickupPoint() =
+      assertFalse(ListingFields.PICKUP_POINT in listingToDocument(expected))
 
   @Test
   fun addressesToDocumentKeepsBothAddresses() =
@@ -105,15 +116,11 @@ class ListingDocumentTest {
       )
 
   @Test
-  fun pickupPointIsRead() =
-      assertEquals(
-          expected.copy(pickupPoint = MapPoint(latitude = 46.52, longitude = 6.57)),
-          fromDocument(validData + (ListingFields.PICKUP_POINT to GeoPoint(46.52, 6.57))),
-      )
-
-  @Test
   fun missingPickupPointReadsAsNull() =
-      assertNull(fromDocument(validData - ListingFields.PICKUP_POINT)!!.pickupPoint)
+      assertEquals(
+          expected.copy(pickupPoint = null),
+          fromDocument(validData - ListingFields.PICKUP_POINT),
+      )
 
   @Test
   fun pickupPointOfWrongTypeReadsAsNullAndKeepsTheListing() {
@@ -126,7 +133,7 @@ class ListingDocumentTest {
     for (value in wrongTypes) {
       assertEquals(
           "Point stored as $value",
-          expected,
+          expected.copy(pickupPoint = null),
           fromDocument(validData + (ListingFields.PICKUP_POINT to value)),
       )
     }

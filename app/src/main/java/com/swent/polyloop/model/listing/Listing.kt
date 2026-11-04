@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.listing
 
+import com.swent.polyloop.model.location.MapPoint
 import java.time.LocalDate
 
 data class Listing(
@@ -18,7 +19,10 @@ data class Listing(
     val status: ListingStatus,
     val pickupArea: String = "", // public, set by a Cloud Function when the listing is saved
     val dropOffArea: String = "", // public, set by a Cloud Function when the listing is saved
-    // Public and rounded to about 1 km by a Cloud Function; null until the address is geocoded
+    // Public and rounded to about 1 km by a Cloud Function. Null until the address is geocoded, and
+    // for good if it is blank, not found or keeps failing to geocode, so null does not always mean
+    // "in progress". Right after an address edit, it is still the old address's point until the
+    // Cloud Function has run.
     val pickupPoint: MapPoint? = null,
     // Accepted rentals, written only by Cloud Functions; the buffer days are not included
     val bookedRanges: List<BookedRange> = emptyList(),
@@ -69,12 +73,6 @@ fun bookedDays(ranges: List<BookedRange>): Set<LocalDate> =
           generateSequence(range.start) { it.plusDays(1) }.takeWhile { it <= range.end }.toList()
         }
         .toSet()
-
-/**
- * A point on the map, in degrees: [latitude] from -90 to 90 and [longitude] from -180 to 180. It
- * does not depend on Firebase, so that ViewModels and screens can use it.
- */
-data class MapPoint(val latitude: Double, val longitude: Double)
 
 /** Exact addresses, kept out of the public listing document. */
 data class ListingAddresses(val pickup: String, val dropOff: String)

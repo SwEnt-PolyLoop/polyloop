@@ -2,10 +2,10 @@
 
 package com.swent.polyloop.model.listing
 
-import com.google.firebase.firestore.GeoPoint
 import com.swent.polyloop.model.firestore.dateOrNull
 import com.swent.polyloop.model.firestore.enumOrNull
 import com.swent.polyloop.model.firestore.intOrNull
+import com.swent.polyloop.model.firestore.mapPointOrNull
 
 /**
  * Firestore names for listings, kept in one place so they are easy to change. Proposed in #32, not
@@ -43,9 +43,11 @@ internal object ListingAddressFields {
 }
 
 /**
- * The Firestore fields of [listing], the reverse of [listingFromDocument]; the id is the key.
- * Amounts are Long, the type Firestore returns them as. The pickup point and the booked ranges are
- * left out: only Cloud Functions write them.
+ * The Firestore fields of [listing] that the app writes; the id is the key. Amounts are Long, the
+ * type Firestore returns them as. The pickup point and the booked ranges are left out: only Cloud
+ * Functions write them, so [listingFromDocument] reads more than this writes. To save an edit, use
+ * `update()` or `SetOptions.merge()`: a plain `set()` would remove those fields, which the security
+ * rules refuse.
  */
 internal fun listingToDocument(listing: Listing): Map<String, Any> =
     mapOf(
@@ -91,7 +93,7 @@ internal fun listingFromDocument(id: String, data: Map<String, Any?>): Listing? 
       status = enumOrNull<ListingStatus>(data[ListingFields.STATUS]) ?: return null,
       pickupArea = data[ListingFields.PICKUP_AREA] as? String ?: "",
       dropOffArea = data[ListingFields.DROP_OFF_AREA] as? String ?: "",
-      pickupPoint = (data[ListingFields.PICKUP_POINT] as? GeoPoint)?.toMapPoint(),
+      pickupPoint = mapPointOrNull(data[ListingFields.PICKUP_POINT]),
       bookedRanges = bookedRangesOrEmpty(data[ListingFields.BOOKED_RANGES]),
   )
 }
@@ -117,9 +119,6 @@ private fun bookedRangesOrEmpty(value: Any?): List<BookedRange> =
       val end = dateOrNull(range[ListingFields.RANGE_END]) ?: return@mapNotNull null
       BookedRange(start, end).takeUnless { end.isBefore(start) }
     }
-
-/** This GeoPoint as a [MapPoint], so that code outside `model/` never sees Firebase types. */
-private fun GeoPoint.toMapPoint(): MapPoint = MapPoint(latitude, longitude)
 
 private fun stringListOrNull(value: Any?): List<String>? {
   val list = value as? List<*> ?: return null
