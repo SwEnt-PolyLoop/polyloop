@@ -88,15 +88,37 @@ class FakeDisputeRepositoryTest {
   }
 
   @Test
+  fun escalateMovesOnToTheLlmProposalAndRecordsWhoEscalated() = runTest {
+    val repository = repository()
+
+    assertTrue(repository.escalate("rental", "lender").isSuccess)
+
+    val dispute = repository.current()
+    assertEquals(DisputeStage.LLM_PROPOSAL, dispute.stage)
+    assertEquals("lender", dispute.escalatedBy)
+  }
+
+  @Test
+  fun escalateOutsideDirectSettlementIsAStageChangeAndChangesNothing() = runTest {
+    val repository = repository(open.copy(stage = DisputeStage.LLM_PROPOSAL))
+
+    val result = repository.escalate("rental", "lender")
+
+    assertTrue(result.exceptionOrNull() is StageChangedException)
+    assertEquals(DisputeStage.LLM_PROPOSAL, repository.current().stage)
+  }
+
+  @Test
   fun callsFailForAMissingDispute() = runTest {
     assertTrue(repository().propose("other", "lender", 50).isFailure)
   }
 
   @Test
-  fun failureMakesObserversFail() = runTest {
+  fun failureMakesCallsAndObserversFail() = runTest {
     val repository = repository()
     repository.failure = IOException("offline")
 
+    assertTrue(repository.escalate("rental", "lender").isFailure)
     try {
       repository.observeDispute("rental").first()
       fail("The observer should throw the failure")
