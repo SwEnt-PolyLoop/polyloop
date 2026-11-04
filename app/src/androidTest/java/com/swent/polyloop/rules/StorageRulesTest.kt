@@ -157,6 +157,7 @@ class StorageRulesTest {
 
         assertDenied { photo().putBytes(bytes, photoMetadata(uploader = OTHER_UID)).await() }
         assertDenied { photo().updateMetadata(photoMetadata(uploader = OTHER_UID)).await() }
+        photo().updateMetadata(jpeg).await()
       }
 
   @Test
