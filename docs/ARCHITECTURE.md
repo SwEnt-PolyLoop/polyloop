@@ -4,9 +4,9 @@
 ## Layers
 
 ```
-UI layer        Compose screens (14 screens, see SCREENS.md)
+UI layer        Compose screens (15 screens, see SCREENS.md)
                   │  observe state / send user actions
-ViewModel layer 14 screen ViewModels (one per screen) + DrawerViewModel (navigation drawer)
+ViewModel layer 15 screen ViewModels (one per screen) + DrawerViewModel (navigation drawer)
                   │  call the repositories they need (no domain layer)
 Data layer      10 repositories + local upload queue (WorkManager)
                   │
@@ -45,11 +45,12 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Edit profile | EditProfileViewModel | Profile (loads the profile, uploads the new photo, saves the name and the photo's URL) |
 | Wallet | WalletViewModel | Wallet |
 | Chat list | ChatListViewModel | Chat (the item and the other person are copied on each rental, see "Firestore schema") |
-| Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
+| Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute, the offer card and its answers); Profile (the other person); Listing (the item) |
 | Browse | BrowseViewModel | Listing; Location (distance and map position) |
 | Listing detail | ListingDetailViewModel | Listing (the item and its booked days); Rental (sending the request); Profile (the owner's name and rating); Auth (the borrower sending the request) |
 | Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active); Auth (the owner publishing the listing) |
 | My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
+| Review request | ReviewRequestViewModel | Rental (the request, sending the offer, declining); Listing (the item value, shown as the suggested deposit); Profile (the borrower's rating) |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |
 | Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos); Rental (the deposit); Listing (the item) |
@@ -65,6 +66,7 @@ DrawerViewModel is the one ViewModel not tied to a screen: the navigation drawer
 The app writes only content it owns (listings, profile fields, chat messages, photos). Anything that moves money or changes who holds an item is done by Cloud Functions, called from repositories:
 
 - rental status changes (request, accept, decline, cancel, pickup, return, close)
+- deposit offers and counteroffers
 - reserving and releasing the rental price and the deposit
 - wallet balance changes (recharge, payments, late fees, refunds)
 - dispute outcomes and applying court rulings
@@ -86,7 +88,13 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 **Money (PolyPoints)**
 - In-app currency: PolyPoints (PP), 1 CHF = 1 PP. Recharge on the Wallet screen with a whole CHF amount from 1 to 99,999 (the same cap as a listing price); a recharge that would overflow the balance is refused. Payments are simulated. No withdrawals.
 - Sending a request reserves the rental price (price per day × days) from the borrower's balance; the request fails if the balance is too low. The wallet shows that price as `heldForRentals` and the deposits as `heldAsDeposits`; `reserved` is their sum, computed and never stored, and `available` + `reserved` is the user's total. A missing field reads as 0.
-- The deposit is negotiated in chat before acceptance. The lender enters the agreed deposit when accepting; it is reserved then, and acceptance fails if the balance is too low. The item value is shown as the suggested deposit.
+- The deposit is negotiated before acceptance, and only the deposit: the rental price is fixed. The item value is shown as the suggested deposit. An offer or a counteroffer is a whole amount from 1 to 99,999 PP (the same cap as a listing price).
+    1. On a request without an offer, the lender either sends an offer (the deposit and both exact addresses) or declines.
+    2. On the lender's offer, the borrower accepts, declines or sends one counteroffer.
+    3. On a counteroffer, the lender accepts or declines. There is no further round.
+- The rental stays `REQUESTED` during the negotiation. Accepting makes it `ACCEPTED`; the deposit is reserved then, and acceptance fails if the balance is too low. Declining an offer or a counteroffer makes it `DECLINED`.
+- An offer or a counteroffer expires after 1 week without an answer, or on the rental's first day if that comes sooner, and the rental becomes `DECLINED`. It cannot be accepted after that. A request without an offer does not expire.
+- Until the wallet has a Firestore implementation, no amount is actually reserved and the balance is not checked.
 
 **Listings and booking**
 - Price per day. The lender sets an availability window; the borrower picks dates inside it with a date picker.
@@ -123,7 +131,7 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 
 | Area | Choice |
 | --- | --- |
-| Architecture | MVVM without a domain layer: 14 screen ViewModels, each calling the repositories it needs |
+| Architecture | MVVM without a domain layer: 15 screen ViewModels, each calling the repositories it needs |
 | UI state | Each ViewModel exposes its screen state as a `StateFlow`, collected with `collectAsStateWithLifecycle()`; user actions are method calls (unidirectional data flow) |
 | Navigation | Single activity, Navigation 2 (`navigation-compose`). Navigation 3 is Google's newer option, not adopted for now |
 | Dependency injection | Manual constructor injection: repositories and ViewModels receive their dependencies in the constructor (ViewModels through a `ViewModelProvider.Factory`), so tests can pass fakes. `RepositoryProvider` creates the shared repository instances |
@@ -135,7 +143,7 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 | Geocoding | Cloud Function `geocodeListingAddresses`, when a listing's exact addresses are written (Geocoding API, key `GEOCODING_API_KEY`) |
 | "Near me" | Geohash queries with the GeoFire utilities |
 | LLM | Gemini API, called only from Cloud Functions (dispute proposals, court-ruling reading) |
-| Scheduled jobs | Every 5 minutes: deleting accounts not verified in time (`deleteExpiredSignUpsEvery5Minutes`). Hourly Cloud Function: 30-day escalation, deadline reminders, late fees, lost items, auto-cancelling rentals blocked by a late return |
+| Scheduled jobs | Every 5 minutes: deleting accounts not verified in time (`deleteExpiredSignUpsEvery5Minutes`). Hourly: expiring deposit offers (`expireOffers`). Hourly Cloud Function: 30-day escalation, deadline reminders, late fees, lost items, auto-cancelling rentals blocked by a late return |
 | Notifications | FCM |
 | Admins | Firebase custom claim |
 
@@ -148,7 +156,8 @@ Dates without a time are stored as `YYYY-MM-DD` strings, prices as whole PolyPoi
 | `users/{uid}` | `name`, `email`, `photoUrl`, `averageRating`, `reviewCount` | Missing fields read as `""` or 0. `photoUrl` is the download URL of the profile photo in Storage, or `""` without one. |
 | `listings/{listingId}` | `ownerId`, `title`, `description`, `category`, `photoUrls`, `pricePerDay`, `itemValue`, `availableFrom`, `availableTo`, `status`, `pickupArea`, `dropOffArea`, `pickupPoint`, `dropOffPoint`, `bookedRanges` | Public. `bookedRanges` is a list of `{start, end}` (`YYYY-MM-DD`, both days booked, the buffer days around it not included); missing reads as an empty list. It holds accepted rentals only: a pending request blocks no day. Each range copies the `startDate` and `endDate` of an accepted rental, which stay in `rentals/{rentalId}` to tell who has the item and when; the copy on the listing is public so that anyone can see which days are free without reading other people's rentals. Only Cloud Functions write it; the app never does, so it stays empty until the Function that accepts rentals exists. The areas and points: see below. |
 | `listings/{listingId}/private/addresses` | `pickup`, `dropOff` | Exact addresses, readable only by the owner. |
-| `rentals/{rentalId}` | `listingId`, `listingTitle`, `listingPhotoUrl`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. |
+| `rentals/{rentalId}` | `listingId`, `listingTitle`, `listingPhotoUrl`, `ownerId`, `ownerName`, `borrowerId`, `borrowerName`, `participants`, `startDate`, `endDate`, `status`, `pricePerDay`, `totalPrice`, `pickupArea`, `dropOffArea`, `pickupAddress`, `returnAddress`, `deposit`, `offer`, `createdAt`, `lastMessage`, `lastMessageAt` | See below. |
+| `rentals/{rentalId}/private/addresses` | `pickup`, `dropOff` | The exact addresses of an offer, no client access. |
 | `rentals/{rentalId}/messages/{messageId}` | `senderId`, `text`, `sentAt`, `type` (`USER` or `SYSTEM`) | One conversation per rental. |
 
 Listings:
@@ -160,7 +169,10 @@ Rentals:
 - `participants` is `[ownerId, borrowerId]`; the chat list queries it with `array-contains` only and sorts by `lastMessageAt` in the app, so it needs no composite index.
 - My rentals queries `borrowerId` or `ownerId` only and sorts newest first in the app (a user has few rentals), so it needs no index.
 - `lastMessageAt` is set to the same server timestamp as `createdAt` when the rental is created: the chat list sorts by it, and leaves out a rental that lacks it.
-- `pickupAddress` and `returnAddress` stay empty until the lender accepts; the borrower cannot read the listing's exact addresses before that.
+- `pickupAddress` and `returnAddress` stay empty until the rental is accepted; the borrower cannot read the exact addresses before that. The lender's offer stores them in `private/addresses`, and acceptance copies them onto the rental.
+- `deposit` is the accepted amount in PolyPoints; missing reads as 0.
+- `offer` is the offer waiting for an answer: `amount`, `authorId`, `isCounter`, `createdAt`, `expiresAt`. It is missing when no offer is waiting, and removed when the negotiation ends. `expireOffers` queries `offer.expiresAt` alone, so it needs no composite index, and answering also refuses an expired offer, in case `expireOffers` has not run yet.
+- Each step of the negotiation adds a `SYSTEM` message to the chat, written by the Cloud Functions; the chat's offer card reads `offer`, so there is no new message type.
 - **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants. Until then, the dates are checked against `bookedRanges` only in the app (Listing detail reads them again from the server just before sending), so a client that skips this check is not stopped.
 
 Listing photos uploaded by the app go to Cloud Storage under `listings/{listingId}/`, as `0.jpg` to `9.jpg`, each tagged with the uid of the user who uploaded it (custom metadata `uploader`), so the Storage rules can check the owner and the uploader. Photos added before this rule live in `listing_images/` and keep working through their download URLs. A profile photo goes to `users/{uid}/profile.jpg`, one file per user that each new photo replaces; replacing it gives a new download URL, so the new photo is not hidden by an image cache.
@@ -170,6 +182,7 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 `firestore.rules` and `storage.rules` are listed in `firebase.json`, so the emulators enforce them; `FirestoreRulesTest` and `StorageRulesTest` (in `androidTest/.../rules/`) check them. Every read and write needs a verified `@epfl.ch` account. Beyond the notes in the schema above:
 - A listing must pass the same checks as `Listing.canPublish` (3 to 10 photo URLs, all strings, prices from 1 to 99,999 PP, `availableFrom` before `availableTo`, a known category and status). Clients never write `bookedRanges` (a Cloud Function will, on acceptance) and never change `ownerId`. They create `pickupArea` and `dropOffArea` empty, never write `pickupPoint` or `dropOffPoint`, and never change any of the four afterwards (`geocodeListingAddresses` does). A listing cannot be created at an id whose `private/addresses` is left over from a deleted listing.
 - A rental request must match its listing, which must be `PUBLISHED`: same owner, title, first photo (`""` if the listing has none), price per day and areas, dates inside the availability window, and `totalPrice` equal to the price per day × the number of days.
+- Clients never write a rental's `deposit`, `offer`, `pickupAddress` or `returnAddress`, and have no access to `rentals/{rentalId}/private/addresses`.
 - Profiles: a user creates and edits only their own, with their own email; `averageRating` and `reviewCount` are left to Cloud Functions.
 - Storage: listing photos must be images under 10 MB (the in-app camera takes about 1440 × 1080 JPEGs at quality 80), named `0.jpg` to `9.jpg` and tagged with the uid of the user writing them. They are uploaded before the listing document exists, so a folder whose listing does not exist yet is open to any verified user; once it exists, only the owner may change it. A photo can be replaced or deleted only by the user who uploaded it, even once its listing is deleted; photos uploaded before the tag existed have none, so only an admin can change or delete them. These rules read Firestore, so the first deploy asks to let Storage read Firestore.
 - Storage: a profile photo can be read by any verified user and changed or deleted only by its user; it must be an image under 5 MB, and no other file is allowed under `users/`. The in-app camera takes photos at 1440 × 1080 with JPEG quality 80, a few hundred KB, well under this limit.
@@ -178,6 +191,6 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 ## Not decided yet — ask before implementing
 
 - Security rules for collections not listed in the schema above
-- Cloud Function names and signatures, apart from `geocodeListingAddresses` (see "Firestore schema")
+- Cloud Function names and signatures, apart from `geocodeListingAddresses` (see "Firestore schema") and the negotiation's: `makeOffer({rentalId, deposit, pickupAddress, returnAddress})`, `respondToOffer({rentalId, action, deposit})` (`action` is `ACCEPT`, `DECLINE` or `COUNTER`; `deposit` only for `COUNTER`), `declineRequest({rentalId})`, and the scheduled `expireOffers`
 - Whether the auto-cancel waits until a set time on the pickup day (e.g. noon) so offline return scans can sync first
 - The exact list of push notifications
