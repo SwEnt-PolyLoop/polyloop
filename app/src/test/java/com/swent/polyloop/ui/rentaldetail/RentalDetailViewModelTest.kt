@@ -5,9 +5,11 @@ package com.swent.polyloop.ui.rentaldetail
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
@@ -93,6 +95,7 @@ class RentalDetailViewModelTest {
   private lateinit var listingRepository: FakeListingRepository
   private lateinit var profileRepository: FakeProfileRepository
   private lateinit var authRepository: FakeAuthRepository
+  private lateinit var connectivityRepository: FakeConnectivityRepository
 
   @Before
   fun setUp() {
@@ -101,6 +104,7 @@ class RentalDetailViewModelTest {
     listingRepository = FakeListingRepository(listings = listOf(listing))
     profileRepository = FakeProfileRepository(profiles = listOf(ownerProfile, borrowerProfile))
     authRepository = FakeAuthRepository(signedInUser = borrower)
+    connectivityRepository = FakeConnectivityRepository()
   }
 
   @After
@@ -115,6 +119,7 @@ class RentalDetailViewModelTest {
           listingRepository,
           profileRepository,
           authRepository,
+          connectivityRepository,
       )
 
   private fun factory() =
@@ -124,6 +129,7 @@ class RentalDetailViewModelTest {
           listingRepository,
           profileRepository,
           authRepository,
+          connectivityRepository,
       )
 
   @Test
@@ -240,6 +246,33 @@ class RentalDetailViewModelTest {
   }
 
   @Test
+  fun pickupPointIsTheListings() {
+    val point = MapPoint(latitude = 46.52, longitude = 6.57)
+    listingRepository.listings = listOf(listing.copy(pickupPoint = point))
+
+    assertEquals(point, viewModel().uiState.value.pickupPoint)
+  }
+
+  @Test
+  fun listingNotGeocodedYetLeavesThePickupPointOut() {
+    assertNull(viewModel().uiState.value.pickupPoint)
+  }
+
+  @Test
+  fun missingListingLeavesThePickupPointOut() {
+    listingRepository.listings = emptyList()
+
+    assertNull(viewModel().uiState.value.pickupPoint)
+  }
+
+  @Test
+  fun failedListingReadLeavesThePickupPointOut() {
+    listingRepository.failure = IllegalStateException("Network down")
+
+    assertNull(viewModel().uiState.value.pickupPoint)
+  }
+
+  @Test
   fun staysLoadingUntilTheListingIsRead() {
     val gate = CompletableDeferred<Unit>()
     listingRepository.gate = gate
@@ -348,6 +381,51 @@ class RentalDetailViewModelTest {
     assertEquals(rental.listingTitle, vm.uiState.value.itemTitle)
   }
 
+  @Test fun isOnlineAtStartWhenThePhoneIsOnline() = assertFalse(viewModel().uiState.value.isOffline)
+
+  @Test
+  fun isOfflineAtStartWhenThePhoneIsOffline() {
+    connectivityRepository.setOnline(false)
+
+    assertTrue(viewModel().uiState.value.isOffline)
+  }
+
+  @Test
+  fun isOfflineFollowsTheConnectionAndKeepsTheRental() {
+    val vm = viewModel()
+
+    connectivityRepository.setOnline(false)
+    assertTrue(vm.uiState.value.isOffline)
+    assertEquals(rental.listingTitle, vm.uiState.value.itemTitle)
+
+    connectivityRepository.setOnline(true)
+    assertFalse(vm.uiState.value.isOffline)
+    assertEquals(rental.listingTitle, vm.uiState.value.itemTitle)
+  }
+
+  @Test
+  fun retryKeepsTheOfflineState() {
+    val vm = viewModel()
+    connectivityRepository.setOnline(false)
+
+    vm.retry()
+
+    assertTrue(vm.uiState.value.isOffline)
+    assertEquals(rental.listingTitle, vm.uiState.value.itemTitle)
+  }
+
+  @Test
+  fun retryOfAnUnsupportedRentalKeepsTheOfflineState() {
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACCEPTED)))
+    val vm = viewModel()
+    connectivityRepository.setOnline(false)
+
+    vm.retry()
+
+    assertTrue(vm.uiState.value.isOffline)
+    assertFalse(vm.uiState.value.isSupported)
+  }
+
   @Test(expected = IllegalArgumentException::class)
   fun factoryRejectsOtherViewModels() {
     factory().create(OtherViewModel::class.java)
@@ -364,6 +442,7 @@ class RentalDetailViewModelTest {
             listingRepository,
             profileRepository,
             authRepository,
+            connectivityRepository,
         )
     vm.retry()
 

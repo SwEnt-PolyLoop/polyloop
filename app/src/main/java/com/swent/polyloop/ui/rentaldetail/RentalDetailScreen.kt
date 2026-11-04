@@ -46,8 +46,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.PickupMap
 import com.swent.polyloop.ui.components.badgeColors
 import com.swent.polyloop.ui.components.formatDay
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
@@ -144,7 +146,11 @@ fun RentalDetailContent(
                   onChatClick = onChatClick,
               )
             }
-            PickupArea(area = uiState.pickupArea)
+            PickupArea(
+                area = uiState.pickupArea,
+                point = uiState.pickupPoint,
+                showMap = !uiState.isOffline,
+            )
             // A request that was never accepted can always be withdrawn, even after its pickup day,
             // so the borrower keeps the button for as long as the rental is Requested.
             if (!uiState.isLender && uiState.status == RentalStatus.REQUESTED) {
@@ -368,19 +374,18 @@ private fun RatingLine(averageRating: Double, reviewCount: Int) {
 }
 
 /**
- * The public pickup area: a map box, the area's name (or a placeholder until the listing is
- * geocoded), and a note that the exact address comes after acceptance.
+ * The public pickup area: a small map centered on [point] (see [PickupMap] for when [showMap] and a
+ * missing [point] replace it), the [area] name (or a placeholder until the listing is geocoded),
+ * and a note that the exact address comes after acceptance.
  */
 @Composable
-private fun PickupArea(area: String) {
+private fun PickupArea(area: String, point: MapPoint?, showMap: Boolean) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Text(
         text = stringResource(R.string.rental_detail_pickup_label),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    // A placeholder for the map, which the map issue draws here. Keep the tag: its tests and the
-    // map's will find the box by it.
     Box(
         modifier =
             Modifier.fillMaxWidth()
@@ -388,7 +393,9 @@ private fun PickupArea(area: String) {
                 .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .testTag(C.Tag.rental_detail_map)
-    )
+    ) {
+      PickupMap(area = area, point = point, showMap = showMap)
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),

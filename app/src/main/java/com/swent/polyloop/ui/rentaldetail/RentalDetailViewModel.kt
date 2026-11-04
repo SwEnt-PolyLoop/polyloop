@@ -6,7 +6,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.listing.ListingRepository
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
@@ -28,8 +30,11 @@ import kotlinx.coroutines.launch
  * Requested): only [itemTitle] is then set, for the placeholder. [isLender] is true when the
  * signed-in user owns the item. [sentAt] is when the request was sent, [endDate] the return day and
  * [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the listing's item value in
- * PolyPoints, or null when the listing is missing or could not be read. [otherPerson] is the
- * borrower for the lender and the owner for the borrower.
+ * PolyPoints, or null when the listing is missing or could not be read. [pickupPoint] is the
+ * listing's public point, or null when the listing is missing, could not be read or is not geocoded
+ * yet. [otherPerson] is the borrower for the lender and the owner for the borrower. [isOffline] is
+ * true while the phone has no connection; the screen then shows the pickup area as a placeholder
+ * instead of the map.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -45,7 +50,9 @@ data class RentalDetailUiState(
     val rentalPrice: Int = 0,
     val suggestedDeposit: Int? = null,
     val pickupArea: String = "",
+    val pickupPoint: MapPoint? = null,
     val otherPerson: OtherPerson? = null,
+    val isOffline: Boolean = false,
 )
 
 /**
@@ -62,13 +69,18 @@ data class OtherPerson(
     val reviewCount: Int?,
 )
 
-/** Shows one rental, read once, as seen by the signed-in user. Only Requested is handled so far. */
+/**
+ * Shows one rental, read once, as seen by the signed-in user. Only Requested is handled so far. It
+ * follows the network status from [connectivityRepository], so the screen knows when to replace the
+ * map.
+ */
 class RentalDetailViewModel(
     private val rentalId: String,
     private val rentalRepository: RentalRepository,
     private val listingRepository: ListingRepository,
     private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
+    private val connectivityRepository: ConnectivityRepository,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(RentalDetailUiState())
@@ -78,6 +90,11 @@ class RentalDetailViewModel(
 
   init {
     load()
+    viewModelScope.launch {
+      connectivityRepository.isOnline.collect { online ->
+        _uiState.update { it.copy(isOffline = !online) }
+      }
+    }
   }
 
   /** Loads the rental again, e.g. after an error. */
@@ -102,7 +119,13 @@ class RentalDetailViewModel(
         // Only Requested is built so far: the screen shows a placeholder with the title until the
         // other statuses are, so everything else stays at its default and neither the listing nor
         // the other person's profile is read.
-        _uiState.value = RentalDetailUiState(isSupported = false, itemTitle = rental.listingTitle)
+        _uiState.update {
+          RentalDetailUiState(
+              isSupported = false,
+              itemTitle = rental.listingTitle,
+              isOffline = it.isOffline,
+          )
+        }
         return@launch
       }
       val uid = authRepository.getCurrentUser()?.uid.orEmpty()
@@ -112,9 +135,9 @@ class RentalDetailViewModel(
       // deposit, the name copied on the rental) instead of failing the screen. The two reads need
       // nothing from each other, so they run at the same time; both are awaited before isLoading
       // turns false, so the screen does not flash a half-filled card.
-      val listing = async { listingRepository.getListing(rental.listingId).getOrNull() }
+      val listingRead = async { listingRepository.getListing(rental.listingId).getOrNull() }
       val profileRead = async { profileRepository.getProfile(otherUid).getOrNull() }
-      val suggestedDeposit = listing.await()?.itemValue
+      val listing = listingRead.await()
       val profile = profileRead.await()
       val otherPerson =
           OtherPerson(
@@ -123,19 +146,22 @@ class RentalDetailViewModel(
               averageRating = profile?.averageRating,
               reviewCount = profile?.reviewCount,
           )
-      _uiState.value =
-          RentalDetailUiState(
-              isLender = isLender,
-              itemTitle = rental.listingTitle,
-              status = rental.status,
-              sentAt = rental.createdAt,
-              startDate = rental.startDate,
-              endDate = rental.endDate,
-              rentalPrice = rental.totalPrice,
-              suggestedDeposit = suggestedDeposit,
-              pickupArea = rental.pickupArea,
-              otherPerson = otherPerson,
-          )
+      _uiState.update {
+        RentalDetailUiState(
+            isLender = isLender,
+            itemTitle = rental.listingTitle,
+            status = rental.status,
+            sentAt = rental.createdAt,
+            startDate = rental.startDate,
+            endDate = rental.endDate,
+            rentalPrice = rental.totalPrice,
+            suggestedDeposit = listing?.itemValue,
+            pickupArea = rental.pickupArea,
+            pickupPoint = listing?.pickupPoint,
+            otherPerson = otherPerson,
+            isOffline = it.isOffline,
+        )
+      }
     }
   }
 
@@ -146,6 +172,7 @@ class RentalDetailViewModel(
       private val listingRepository: ListingRepository,
       private val profileRepository: ProfileRepository,
       private val authRepository: AuthRepository,
+      private val connectivityRepository: ConnectivityRepository,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass.isAssignableFrom(RentalDetailViewModel::class.java)) {
@@ -158,6 +185,7 @@ class RentalDetailViewModel(
           listingRepository,
           profileRepository,
           authRepository,
+          connectivityRepository,
       )
           as T
     }
