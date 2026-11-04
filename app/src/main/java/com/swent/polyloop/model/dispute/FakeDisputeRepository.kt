@@ -13,10 +13,11 @@ import kotlinx.coroutines.flow.map
  * In-memory [DisputeRepository] for tests and previews; the app itself never uses it. It lives in
  * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
  *
- * Holds the disputes in memory and plays the part of the Cloud Functions. When [failure] is set,
- * every call fails with it; an observer throws it when it subscribes or at the next change. When
- * [gate] is set, the suspending calls wait for it to complete, so tests can see a request in
- * progress. [clock] gives the time of new proposals.
+ * Holds the disputes in memory and plays the part of the Cloud Functions: accepting settles the
+ * dispute. When [failure] is set, every call fails with it; an observer throws it when it
+ * subscribes or at the next change. When [gate] is set, the suspending calls wait for it to
+ * complete, so tests can see a request in progress. [clock] gives the time of new proposals and
+ * agreements.
  */
 class FakeDisputeRepository(
     disputes: List<Dispute> = emptyList(),
@@ -56,6 +57,15 @@ class FakeDisputeRepository(
       change(rentalId) {
         check(it.stage == DisputeStage.SETTLE && !it.isSettled) { "Proposals are closed" }
         it.copy(proposals = it.proposals + Proposal(authorId, lenderPercent, clock()))
+      }
+
+  override suspend fun accept(rentalId: String, uid: String, lenderPercent: Int) =
+      change(rentalId) {
+        check(it.stage == DisputeStage.SETTLE && !it.isSettled) { "Proposals are closed" }
+        val latest = checkNotNull(it.latestProposal) { "There is no proposal to accept" }
+        check(latest.authorId != uid) { "$uid cannot accept their own proposal" }
+        if (latest.lenderPercent != lenderPercent) throw ProposalChangedException()
+        it.copy(agreedAt = clock())
       }
 
   /** Applies [update] to the dispute of [rentalId], or fails like the real repository would. */
