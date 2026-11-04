@@ -137,6 +137,8 @@ class RentalDetailScreenTest {
     assertAbsent(C.Tag.rental_detail_status)
     assertAbsent(C.Tag.rental_detail_price)
     assertAbsent(C.Tag.rental_detail_person_card)
+    assertAbsent(C.Tag.rental_detail_map)
+    assertAbsent(C.Tag.rental_detail_cancel_button)
   }
 
   @Test
@@ -319,6 +321,96 @@ class RentalDetailScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
 
     assertEquals(1, chatClicks)
+    assertEquals(emptyList<String>(), personClicks)
+  }
+
+  @Test
+  fun pickupAreaShowsTheMapBoxTheAreaAndTheNote() {
+    setContent()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_map).performScrollTo().assertIsDisplayed()
+    assertShown(C.Tag.rental_detail_pickup_area, "Ecublens")
+    assertShown(
+        C.Tag.rental_detail_pickup_note,
+        context.getString(R.string.rental_detail_pickup_note),
+    )
+  }
+
+  @Test
+  fun blankPickupAreaShowsThePlaceholder() {
+    setContent(requested.copy(pickupArea = ""))
+
+    assertShown(
+        C.Tag.rental_detail_pickup_area,
+        context.getString(R.string.rental_detail_area_placeholder),
+    )
+  }
+
+  @Test
+  fun borrowerSeesTheCancelRow() {
+    setContent()
+
+    assertShown(
+        C.Tag.rental_detail_cancel_until,
+        context.getString(R.string.rental_detail_cancel_until, "Wed 30 Sep"),
+    )
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
+        .performScrollTo()
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun cancelRowShowsOnTheLastCancelDay() {
+    // Pickup tomorrow: today is the last day to cancel.
+    setContent(requested.copy(startDate = today.plusDays(1)))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
+        .performScrollTo()
+        .assertIsDisplayed()
+  }
+
+  @Test
+  fun cancelRowShowsTheYearWhenNotThisYear() {
+    setContent(
+        requested.copy(startDate = LocalDate.of(2027, 1, 6), endDate = LocalDate.of(2027, 1, 8))
+    )
+
+    assertShown(
+        C.Tag.rental_detail_cancel_until,
+        context.getString(R.string.rental_detail_cancel_until, "Tue 5 Jan 2027"),
+    )
+  }
+
+  @Test
+  fun lenderSeesNoCancelRow() {
+    setContent(requested.copy(isLender = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_map).performScrollTo()
+    assertAbsent(C.Tag.rental_detail_cancel_until)
+    assertAbsent(C.Tag.rental_detail_cancel_button)
+  }
+
+  @Test
+  fun noCancelRowOnThePickupDay() {
+    setContent(requested.copy(startDate = today))
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_map).performScrollTo()
+    assertAbsent(C.Tag.rental_detail_cancel_until)
+    assertAbsent(C.Tag.rental_detail_cancel_button)
+  }
+
+  @Test
+  fun tappingCancelRequestChangesNothing() {
+    setContent()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).performScrollTo().performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).assertIsDisplayed()
+    assertShown(C.Tag.rental_detail_title, "Ski helmet, size M")
+    assertEquals(0, retries)
+    assertEquals(0, chatClicks)
     assertEquals(emptyList<String>(), personClicks)
   }
 }
