@@ -118,9 +118,9 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 - 3-day grace period after the deadline, with reminders. Each late day costs the price per day + 2 PP, taken from the deposit and paid to the lender. Fees stop when the deposit is used up. After 3 days the item is Lost and the rest of the deposit goes to the lender.
 
 **Disputes**
-1. Direct settlement: parties propose splits in percent; accept or counter. Auto-escalates after 30 days without agreement.
+1. Direct settlement: parties propose splits in percent; accept or counter. Auto-escalates after 30 days without agreement; either party can escalate sooner. It is the only stage that escalates, by hand or on its own.
 2. LLM proposal: a Cloud Function sends pickup and return photos to Gemini and gets a split + reasoning. Both parties accept or reject.
-3. Court: if either rejects, the deposit is frozen. Either party uploads the court ruling PDF; Gemini pre-fills the split; an admin reviews it on the Admin court ruling screen and applies or rejects it.
+3. Court: once the dispute reaches court, because either party rejected the LLM proposal, the deposit is frozen. Either party uploads the court ruling PDF; Gemini pre-fills the split; an admin reviews it on the Admin court ruling screen and applies or rejects it.
 - Chat is disabled while a dispute is open. Reviews (1–5 stars, no text for now) are prompted when a rental closes, however it closed.
 
 ## Technical choices
