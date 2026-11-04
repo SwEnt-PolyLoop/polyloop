@@ -343,6 +343,7 @@
     <string name="dispute_you_get_back">You get back</string>
     <!-- An amount of PolyPoints, which can have one decimal, e.g. "18 PP" or "16.5 PP" -->
     <string name="dispute_amount">%1$s PP</string>
+    <string name="dispute_percent_sign">%</string>
     <string name="dispute_counter">Counter</string>
     <string name="dispute_update">Update</string>
     <string name="dispute_accept">Accept</string>

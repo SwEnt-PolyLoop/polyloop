@@ -48,6 +48,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import com.swent.polyloop.R
 import com.swent.polyloop.resources.C
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -167,7 +169,7 @@ internal fun InlinePercent(
           }
         },
     )
-    Text(text = "%", style = style)
+    Text(text = stringResource(R.string.dispute_percent_sign), style = style)
   }
 }
 
@@ -226,6 +228,12 @@ internal fun GetBackRow(label: String, tenths: Int, modifier: Modifier = Modifie
   }
 }
 
-/** [tenths] of a PolyPoint written with one decimal, or none when it is whole: "18", "16.5". */
-internal fun formatTenths(tenths: Int): String =
-    if (tenths % 10 == 0) "${tenths / 10}" else "${tenths / 10}.${tenths % 10}"
+/**
+ * [tenths] of a PolyPoint written with one decimal, or none when it is whole: "18", or "16.5" with
+ * the decimal separator of [locale] ("16,5" in French).
+ */
+internal fun formatTenths(tenths: Int, locale: Locale = Locale.getDefault()): String {
+  if (tenths % 10 == 0) return "${tenths / 10}"
+  val separator = DecimalFormatSymbols.getInstance(locale).decimalSeparator
+  return "${tenths / 10}$separator${tenths % 10}"
+}
