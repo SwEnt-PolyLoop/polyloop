@@ -228,6 +228,22 @@ object C {
     const val my_rentals_request_ = "my_rentals_request_"
     const val my_rentals_review_request_button = "my_rentals_review_request_button"
 
+    const val wallet_screen = "wallet_screen"
+    const val wallet_title = "wallet_title"
+    const val wallet_available = "wallet_available"
+    const val wallet_held_deposits = "wallet_held_deposits"
+    const val wallet_held_rentals = "wallet_held_rentals"
+    const val wallet_recharge_button = "wallet_recharge_button"
+    const val wallet_loading = "wallet_loading"
+    const val wallet_error = "wallet_error"
+    const val wallet_retry_button = "wallet_retry_button"
+    const val wallet_history_empty = "wallet_history_empty"
+    // Prefix: each history row is tagged wallet_row_ + transaction id
+    const val wallet_row_ = "wallet_row_"
+    const val wallet_row_title = "wallet_row_title"
+    const val wallet_row_amount = "wallet_row_amount"
+    const val wallet_footer = "wallet_footer"
+
     const val dummy_screen = "dummy_screen"
     const val dummy_screen_text = "dummy_screen_text"
   }
