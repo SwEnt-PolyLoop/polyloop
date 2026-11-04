@@ -29,6 +29,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -78,7 +79,7 @@ class DisputeViewModelTest {
   @Before
   fun setUp() {
     Dispatchers.setMain(dispatcher)
-    disputes = FakeDisputeRepository(listOf(open))
+    disputes = FakeDisputeRepository(listOf(open), clock = { now })
     rentals = FakeRentalRepository(listOf(pump))
     auth = FakeAuthRepository(signedInUser = me)
     connectivity = FakeConnectivityRepository()
@@ -304,6 +305,73 @@ class DisputeViewModelTest {
     assertTrue(state.refreshFailed)
     assertFalse(state.loadFailed)
     assertEquals(70, state.latestProposal?.lenderPercent)
+  }
+
+  // ---------- actions ----------
+
+  /** Asks [vm] to escalate and confirms it, as the user does on the screen. */
+  private fun confirmEscalate(vm: DisputeViewModel) {
+    vm.askEscalate()
+    vm.escalate()
+  }
+
+  /** Opens the editor of [vm], moves the draft to [lenderPercent] and sends it. */
+  private fun propose(vm: DisputeViewModel, lenderPercent: Int) {
+    vm.startEditing()
+    vm.setDraft(lenderPercent)
+    vm.sendDraft()
+  }
+
+  @Test
+  fun editingStartsFromTheProposalOnTheTable() {
+    val vm = viewModel()
+
+    vm.startEditing()
+
+    assertEquals(70, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun editingStartsFromAnEvenSplitWithoutAProposal() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = emptyList())))
+    val vm = viewModel()
+
+    vm.startEditing()
+
+    assertEquals(50, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun theirNewOfferKeepsMyDraftButANewStageEndsTheEditing() {
+    val vm = viewModel()
+    vm.startEditing()
+    vm.setDraft(55)
+
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now))))
+    assertEquals(55, vm.uiState.value.draftLenderPercent)
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL))
+    assertFalse(vm.uiState.value.isEditing)
+  }
+
+  @Test
+  fun sendingTheDraftSendsMyProposalAndClosesTheEditor() {
+    val vm = viewModel()
+
+    propose(vm, 55)
+
+    assertEquals(ProposalRow(true, 55, now), vm.uiState.value.latestProposal)
+    assertFalse(vm.uiState.value.isEditing)
+    assertFalse(vm.uiState.value.canAccept)
+  }
+
+  @Test
+  fun theDraftDoesNotMoveWhileTheEditorIsClosed() {
+    val vm = viewModel()
+
+    vm.setDraft(50)
+
+    assertNull(vm.uiState.value.draftLenderPercent)
   }
 
   // ---------- factory ----------
