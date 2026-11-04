@@ -142,4 +142,56 @@ class DisputeScreenTest {
     node(C.Tag.dispute_escalation).assertDoesNotExist()
     node(C.Tag.dispute_escalate_button).assertDoesNotExist()
   }
+
+  // ---------- offline and errors ----------
+
+  @Test
+  fun offlineShowsTheBannerAndDisablesTheActions() {
+    setContent(open.copy(isOnline = false))
+
+    node(C.Tag.offline_banner).assertIsDisplayed()
+    node(C.Tag.dispute_escalate_button).performScrollTo().assertIsNotEnabled()
+  }
+
+  @Test
+  fun loadingShowsOnlyTheSpinner() {
+    setContent(DisputeUiState(isLoading = true))
+
+    node(C.Tag.dispute_loading).assertIsDisplayed()
+    node(C.Tag.dispute_evidence_card).assertDoesNotExist()
+    node(C.Tag.dispute_error).assertDoesNotExist()
+  }
+
+  @Test
+  fun loadErrorShowsTheGenericTextAndRetries() {
+    setContent(DisputeUiState(isLoading = false, loadFailed = true))
+
+    node(C.Tag.dispute_error).assertTextEquals(context.getString(R.string.dispute_error_fallback))
+    node(C.Tag.dispute_retry_button).performClick()
+    assertEquals(listOf("retry"), calls)
+  }
+
+  @Test
+  fun failedRefreshKeepsTheDisputeWithANoteAndRetry() {
+    setContent(open.copy(refreshFailed = true))
+
+    node(C.Tag.dispute_refresh_failed).assertIsDisplayed()
+    node(C.Tag.dispute_evidence_card).assertIsDisplayed()
+    node(C.Tag.dispute_retry_button).performClick()
+    assertEquals(listOf("retry"), calls)
+  }
+
+  // ---------- what the other person did ----------
+
+  @Test
+  fun theirEscalationIsToldUnderComingSoon() {
+    setContent(
+        open.copy(
+            stage = DisputeStage.LLM_PROPOSAL,
+            escalationNotice = EscalationNotice.BY_OTHER,
+        )
+    )
+
+    node(C.Tag.dispute_escalation_notice).assertTextEquals("Ana escalated the dispute.")
+  }
 }
