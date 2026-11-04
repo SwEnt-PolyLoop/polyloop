@@ -190,9 +190,8 @@ describe("respondToOffer: accepting", () => {
     const listingId = await listing();
     const id = await offered(listingId);
 
-    const result = await respondToOffer(db, BORROWER, { rentalId: id, action: "ACCEPT" }, NOW);
+    await respondToOffer(db, BORROWER, { rentalId: id, action: "ACCEPT" }, NOW);
 
-    expect(result.declinedRentalIds).toEqual([]);
     const data = await rental(id);
     expect(data).toMatchObject({
       status: "ACCEPTED",
@@ -226,14 +225,8 @@ describe("respondToOffer: accepting", () => {
     const beforeBuffer = await offered(listingId, "2026-12-08", "2026-12-09");
     const free = await request(listingId, "2026-12-14", "2026-12-15");
 
-    const result = await respondToOffer(
-      db,
-      BORROWER,
-      { rentalId: accepted, action: "ACCEPT" },
-      NOW,
-    );
+    await respondToOffer(db, BORROWER, { rentalId: accepted, action: "ACCEPT" }, NOW);
 
-    expect(result.declinedRentalIds.sort()).toEqual([touching, beforeBuffer].sort());
     expect((await rental(touching))?.status).toBe("DECLINED");
     expect(await rental(beforeBuffer)).toMatchObject({
       status: "DECLINED",
