@@ -189,4 +189,17 @@ class CameraPhotosTest {
     assertFalse(shouldCloseCamera(Listing.MAX_PHOTOS - 1))
     assertTrue(shouldCloseCamera(Listing.MAX_PHOTOS))
   }
+
+  @Test
+  fun aSinglePhotoCameraTakesOnlyOnePhoto() {
+    assertTrue(canTakePhoto(photoCount = 0, isCapturing = false, maxPhotos = 1))
+    assertFalse(canTakePhoto(photoCount = 1, isCapturing = false, maxPhotos = 1))
+    assertFalse(canTakePhoto(photoCount = 0, isCapturing = true, maxPhotos = 1))
+  }
+
+  @Test
+  fun aSinglePhotoCameraClosesByItselfAfterOnePhoto() {
+    assertFalse(shouldCloseCamera(0, maxPhotos = 1))
+    assertTrue(shouldCloseCamera(1, maxPhotos = 1))
+  }
 }

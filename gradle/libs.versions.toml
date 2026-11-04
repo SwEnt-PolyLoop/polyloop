@@ -24,6 +24,8 @@ coroutines = "1.9.0"
 mockk = "1.14.11"
 coil = "3.6.3"
 camerax = "1.5.1"
+# 8.6 uses the same Compose BOM as the app; 9.x needs a newer one
+mapsCompose = "8.6.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -67,6 +69,8 @@ camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "
 camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+
+maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

@@ -5,7 +5,7 @@ One section per screen: what it shows and what it lets the user do. Mock-ups: ht
 
 ## Conventions
 
-PolyLoop has 13 screens, each backed by its own ViewModel, which uses the repositories it needs (see the table in ARCHITECTURE.md). Each section below lists what a screen shows and what it lets the user do.
+PolyLoop has 14 screens, each backed by its own ViewModel, which uses the repositories it needs (see the table in ARCHITECTURE.md). Each section below lists what a screen shows and what it lets the user do.
 
 Elements shared across screens:
 
@@ -46,7 +46,7 @@ The profile shows who someone is and how past rentals went. It opens from the pr
 
 The Wallet screen holds the user's in-app balance, which pays for rentals and deposits. ViewModel: WalletViewModel, using WalletRepository. The balance is only ever changed by Cloud Functions; the app sends a request and shows the result.
 
-- The available balance in PolyPoints (everything held excluded), plus what is reserved: the deposits held and the rental prices reserved since a request was sent (the deposit only exists once the lender accepts). Available plus reserved is the user's total.
+- The available balance in PolyPoints (everything held excluded), then “Held as deposits”, the deposits held, and, only when it is above 0, “Held for rentals”, the rental prices reserved since a request was sent (the deposit only exists once the lender accepts). Available plus both held amounts is the user's total.
 - A “Recharge” button: the user enters a whole Swiss franc amount from 1 to 99,999 and receives the same number of PolyPoints. Recharging is simulated; no real payment is made.
 - A transaction history, newest first: recharges, rental payments, late fees, and deposits held, released, split or forfeited (the rest of the deposit, paid to the lender once the item is lost). The amounts add up to the available balance; late fees and forfeited deposits show only in the lender's history, and a borrower's late fees appear as a smaller deposit release.
 - PolyPoints cannot be withdrawn back to Swiss francs.

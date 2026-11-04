@@ -4,9 +4,9 @@
 ## Layers
 
 ```
-UI layer        Compose screens (13 screens, see SCREENS.md)
+UI layer        Compose screens (14 screens, see SCREENS.md)
                   │  observe state / send user actions
-ViewModel layer 13 screen ViewModels (one per screen) + DrawerViewModel (navigation drawer)
+ViewModel layer 14 screen ViewModels (one per screen) + DrawerViewModel (navigation drawer)
                   │  call the repositories they need (no domain layer)
 Data layer      10 repositories + local upload queue (WorkManager)
                   │
@@ -32,7 +32,7 @@ One repository per type of data, shared by every ViewModel that needs it. ViewMo
 | Location | LocationRepository | The phone's GPS |
 | Connectivity | ConnectivityRepository | The phone's network status |
 
-`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing, Profile, Chat, Rental, Connectivity); add each new repository to it when it is implemented. It also exposes the shared `FirebaseStorage` instance, for the repositories that upload photos and PDFs. Repositories that read the phone (Connectivity, later Location) need the app context: `PolyLoopApplication` passes it to `RepositoryProvider.init` at startup.
+`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing, Profile, Chat, Rental, Connectivity, and Wallet, which is an in-memory `FakeWalletRepository` until its Firestore implementation exists); add each new repository to it when it is implemented. It also exposes the shared `FirebaseStorage` instance, for the repositories that upload photos and PDFs. Repositories that read the phone (Connectivity, later Location) need the app context: `PolyLoopApplication` passes it to `RepositoryProvider.init` at startup.
 
 ## ViewModels: one per screen
 
@@ -42,6 +42,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | --- | --- | --- |
 | Sign-up / login | AuthViewModel | Auth; Profile (creates the profile on the first verified sign-in) |
 | Profile & reviews | ProfileViewModel | Profile; Listing ("My listings"); Rental (where each listing stands); Auth ("Sign out") |
+| Edit profile | EditProfileViewModel | Profile (loads the profile, uploads the new photo, saves the name and the photo's URL) |
 | Wallet | WalletViewModel | Wallet |
 | Chat list | ChatListViewModel | Chat (the item and the other person are copied on each rental, see "Firestore schema") |
 | Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute); Profile (the other person); Listing (the item) |
@@ -122,7 +123,7 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 
 | Area | Choice |
 | --- | --- |
-| Architecture | MVVM without a domain layer: 13 screen ViewModels, each calling the repositories it needs |
+| Architecture | MVVM without a domain layer: 14 screen ViewModels, each calling the repositories it needs |
 | UI state | Each ViewModel exposes its screen state as a `StateFlow`, collected with `collectAsStateWithLifecycle()`; user actions are method calls (unidirectional data flow) |
 | Navigation | Single activity, Navigation 2 (`navigation-compose`). Navigation 3 is Google's newer option, not adopted for now |
 | Dependency injection | Manual constructor injection: repositories and ViewModels receive their dependencies in the constructor (ViewModels through a `ViewModelProvider.Factory`), so tests can pass fakes. `RepositoryProvider` creates the shared repository instances |
@@ -130,7 +131,7 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 | Offline cache | Firestore's built-in offline persistence |
 | Upload queue | WorkManager, for offline photos and QR scans |
 | Camera and QR | CameraX for photos; ML Kit code scanner to scan, ZXing to generate QR codes |
-| Maps | Google Maps SDK in the app |
+| Maps | Google Maps SDK for Android in the app, through Maps Compose (`maps-compose`). Its key comes from `MAPS_API_KEY` in `local.properties` (see the README); without it, as on CI, the maps show no tiles |
 | Geocoding | Cloud Function `geocodeListingAddresses`, when a listing's exact addresses are written (Geocoding API, key `GEOCODING_API_KEY`) |
 | "Near me" | Geohash queries with the GeoFire utilities |
 | LLM | Gemini API, called only from Cloud Functions (dispute proposals, court-ruling reading) |
@@ -171,7 +172,7 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 - A rental request must match its listing, which must be `PUBLISHED`: same owner, title, first photo (`""` if the listing has none), price per day and areas, dates inside the availability window, and `totalPrice` equal to the price per day × the number of days.
 - Profiles: a user creates and edits only their own, with their own email; `averageRating` and `reviewCount` are left to Cloud Functions.
 - Storage: listing photos must be images under 10 MB (the in-app camera takes about 1440 × 1080 JPEGs at quality 80), named `0.jpg` to `9.jpg` and tagged with the uid of the user writing them. They are uploaded before the listing document exists, so a folder whose listing does not exist yet is open to any verified user; once it exists, only the owner may change it. A photo can be replaced or deleted only by the user who uploaded it, even once its listing is deleted; photos uploaded before the tag existed have none, so only an admin can change or delete them. These rules read Firestore, so the first deploy asks to let Storage read Firestore.
-- Storage: a profile photo can be read by any verified user and changed or deleted only by its user; it must be an image under 5 MB, and no other file is allowed under `users/`. The camera still takes photos at full resolution, which can go over 5 MB on some phones, until it sets the photo size (#224).
+- Storage: a profile photo can be read by any verified user and changed or deleted only by its user; it must be an image under 5 MB, and no other file is allowed under `users/`. The in-app camera takes photos at 1440 × 1080 with JPEG quality 80, a few hundred KB, well under this limit.
 - Not enforced yet: locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; a profile's `photoUrl` pointing at its own photo in Storage; new photos in folders with no listing (any verified user can still add up to 10 under a made-up or deleted id); a limit on the requests one borrower sends for a listing (left to `requestRental`).
 
 ## Not decided yet — ask before implementing

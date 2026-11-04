@@ -258,7 +258,7 @@ class ChatScreenTest {
   @Test
   fun sentMessageAppearsOnTheRight() {
     val chat = FakeChatRepository(currentUid = "me", now = now)
-    chat.conversations.value =
+    chat.conversations =
         listOf(
             Conversation(
                 "tent",
