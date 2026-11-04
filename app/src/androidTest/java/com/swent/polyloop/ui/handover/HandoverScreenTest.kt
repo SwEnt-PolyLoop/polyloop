@@ -126,6 +126,14 @@ class HandoverScreenTest {
   }
 
   @Test
+  fun theFooterShowsTheDepositHeld() {
+    setContent(pickup.copy(deposit = 80))
+
+    composeTestRule.onNodeWithText("Deposit held").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.handover_deposit).assertTextEquals("80 PP")
+  }
+
+  @Test
   fun theLenderSeesYouLendAndTheBorrower() {
     setContent(pickup.copy(isLender = true, otherPersonName = "Loca"))
 

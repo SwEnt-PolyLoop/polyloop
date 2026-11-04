@@ -51,12 +51,14 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.swent.polyloop.R
+import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
@@ -64,7 +66,9 @@ import com.swent.polyloop.ui.components.dashedOutline
 import com.swent.polyloop.ui.components.formatDay
 import com.swent.polyloop.ui.createlisting.CameraPermissionMessage
 import com.swent.polyloop.ui.createlisting.PolyLoopCamera
+import com.swent.polyloop.ui.theme.PolyLoopTheme
 import com.swent.polyloop.ui.theme.PositiveGreen
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -156,15 +160,23 @@ fun HandoverContent(
               Modifier.align(Alignment.Center),
           )
       else ->
-          Column(
-              modifier =
-                  Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-              verticalArrangement = Arrangement.spacedBy(16.dp),
-          ) {
-            HandoverHeader(uiState)
-            if (!uiState.isPickupDay) NotPickupDayNote(uiState.pickupDate)
-            PhotosCard(uiState, zone, onAddPhoto, onRetryUpload, onPhotoClick = { enlargedId = it })
-            CameraPermissionMessage(cameraPermissionGranted)
+          Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+              HandoverHeader(uiState)
+              if (!uiState.isPickupDay) NotPickupDayNote(uiState.pickupDate)
+              PhotosCard(
+                  uiState,
+                  zone,
+                  onAddPhoto,
+                  onRetryUpload,
+                  onPhotoClick = { enlargedId = it },
+              )
+              CameraPermissionMessage(cameraPermissionGranted)
+            }
+            DepositFooter(uiState.deposit)
           }
     }
   }
@@ -520,5 +532,55 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
           modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(16.dp),
       )
     }
+  }
+}
+
+/** "Deposit held" and its amount, pinned under the scrolling content. */
+@Composable
+private fun DepositFooter(deposit: Int) {
+  Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+    Row(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+          text = stringResource(R.string.handover_deposit_held),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.weight(1f),
+      )
+      Text(
+          text = stringResource(R.string.handover_deposit_amount, deposit),
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+          modifier = Modifier.testTag(C.Tag.handover_deposit),
+      )
+    }
+  }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun HandoverPreview() {
+  val photos =
+      List(2) {
+        HandoverPhoto("p$it", HandoverPhase.PICKUP, Instant.parse("2026-10-06T12:02:00Z"), "")
+      }
+  PolyLoopTheme {
+    HandoverContent(
+        uiState =
+            HandoverUiState(
+                isLoading = false,
+                itemTitle = "Camping tent, 2 people",
+                otherPersonName = "Mara",
+                phase = HandoverPhase.PICKUP,
+                isPickupDay = true,
+                photos = photos,
+            ),
+        onRetry = {},
+        onAddPhoto = {},
+        onRetryUpload = {},
+    )
   }
 }

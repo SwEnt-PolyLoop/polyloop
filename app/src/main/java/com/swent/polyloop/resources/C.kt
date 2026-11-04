@@ -227,6 +227,7 @@ object C {
     const val handover_not_pickup_day = "handover_not_pickup_day"
     const val handover_photo_viewer = "handover_photo_viewer"
     const val handover_photo_viewer_close = "handover_photo_viewer_close"
+    const val handover_deposit = "handover_deposit"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
