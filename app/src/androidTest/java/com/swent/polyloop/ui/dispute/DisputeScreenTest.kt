@@ -194,4 +194,71 @@ class DisputeScreenTest {
 
     node(C.Tag.dispute_escalation_notice).assertTextEquals("Ana escalated the dispute.")
   }
+
+  // ---------- whole paths ----------
+
+  private val pump =
+      Rental(
+          id = "pump",
+          listingId = "listing",
+          listingTitle = "Bike pump",
+          ownerId = "ana",
+          ownerName = "Ana",
+          borrowerId = "me",
+          borrowerName = "Me",
+          startDate = LocalDate.of(2026, 9, 20),
+          endDate = LocalDate.of(2026, 9, 25),
+          status = RentalStatus.DISPUTED,
+          pricePerDay = 2,
+          totalPrice = 12,
+          pickupArea = "Ecublens",
+          dropOffArea = "Ecublens",
+          createdAt = at,
+      )
+
+  /** Shows the real screen for me, the borrower, with Ana's 70/30 on the table in [disputes]. */
+  private fun setScreen(): FakeDisputeRepository {
+    val disputes =
+        FakeDisputeRepository(
+            listOf(
+                Dispute(
+                    rentalId = "pump",
+                    stage = DisputeStage.SETTLE,
+                    proposals = listOf(Proposal("ana", 70, at)),
+                    escalatesAt = Instant.now().plus(Duration.ofDays(10)),
+                )
+            )
+        )
+    val viewModel =
+        DisputeViewModel(
+            "pump",
+            disputes,
+            FakeRentalRepository(listOf(pump)),
+            FakeAuthRepository(signedInUser = AuthUser("me", "me@epfl.ch", "Me")),
+            FakeConnectivityRepository(),
+        )
+    composeTestRule.setContent { PolyLoopTheme { DisputeScreen(viewModel) } }
+    return disputes
+  }
+
+  @Test
+  fun borrowerConfirmsAnEscalationThatFailsThenRetries() {
+    val disputes = setScreen()
+    fun confirmEscalation() {
+      node(C.Tag.dispute_escalate_button).performScrollTo().performClick()
+      node(C.Tag.dispute_escalate_confirm).performClick()
+    }
+
+    disputes.failure = IOException("offline")
+    confirmEscalation()
+    node(C.Tag.dispute_escalate_dialog).assertDoesNotExist()
+    node(C.Tag.dispute_escalate_error).performScrollTo().assertIsDisplayed()
+
+    disputes.failure = null
+    confirmEscalation()
+
+    node(C.Tag.dispute_escalate_error).assertDoesNotExist()
+    node(C.Tag.dispute_coming_soon).assertIsDisplayed()
+    node(C.Tag.dispute_escalation_notice).assertDoesNotExist()
+  }
 }
