@@ -25,6 +25,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.compose.ui.test.click
 
 @RunWith(AndroidJUnit4::class)
 class RentalDetailScreenTest {
