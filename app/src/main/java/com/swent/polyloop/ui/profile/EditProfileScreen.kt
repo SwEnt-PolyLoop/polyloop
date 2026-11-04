@@ -81,8 +81,8 @@ fun EditProfileScreen(
  * photo, once taken, replaces the saved one in the avatar. While the camera is open, it fills the
  * whole screen in a full-screen dialog, like in Create listing; Back closes it.
  * [cameraPermissionGranted] is the answer to the last camera permission request, null if it was
- * never asked; a refusal shows how to allow the camera. Back does nothing while saving, so a save
- * is never cut off halfway (the photo uploaded but not yet saved in the profile).
+ * never asked; a refusal shows how to allow the camera. Back does nothing while saving, so the user
+ * sees whether it worked and can try again if not; leaving anyway does not cut the save off.
  */
 @Composable
 fun EditProfileContent(
