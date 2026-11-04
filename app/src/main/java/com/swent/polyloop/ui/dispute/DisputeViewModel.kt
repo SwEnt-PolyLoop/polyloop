@@ -10,6 +10,7 @@ import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.dispute.Dispute
 import com.swent.polyloop.model.dispute.DisputeRepository
 import com.swent.polyloop.model.dispute.DisputeStage
+import com.swent.polyloop.model.dispute.ProposalChangedException
 import com.swent.polyloop.model.rental.RentalRepository
 import java.time.Duration
 import java.time.Instant
@@ -35,6 +36,16 @@ data class ProposalRow(val byMe: Boolean, val lenderPercent: Int, val createdAt:
     get() = 100 - lenderPercent
 }
 
+/** What the user tried and could not do; the screen shows it next to the part concerned. */
+enum class DisputeActionError {
+  /** The proposal could not be sent. */
+  PROPOSE,
+  /** The proposal could not be accepted. */
+  ACCEPT,
+  /** The proposal changed just before the user accepted it, so nothing was accepted. */
+  PROPOSAL_CHANGED,
+}
+
 /**
  * State of the Dispute screen.
  *
@@ -45,8 +56,10 @@ data class ProposalRow(val byMe: Boolean, val lenderPercent: Int, val createdAt:
  * direct settlement or once settled, where it never moves on by itself. [loadFailed] is true when
  * the dispute cannot be loaded (or nobody is signed in, or the user does not take part in the
  * rental) and nothing was shown yet; [refreshFailed] is true when it could not be loaded again
- * after it was shown, which keeps the last state on screen. [draftLenderPercent] is the split the
- * user is editing, as the lender's percentage, or null when the editor is closed.
+ * after it was shown, which keeps the last state on screen. [actionError] is what the last proposal
+ * or acceptance could not do; the next action, opening the split editor, a new stage or an
+ * agreement clears it, since the action it names then no longer applies. [draftLenderPercent] is
+ * the split the user is editing, as the lender's percentage, or null when the editor is closed.
  */
 data class DisputeUiState(
     val itemTitle: String = "",
@@ -60,6 +73,7 @@ data class DisputeUiState(
     val isOnline: Boolean = true,
     val isSending: Boolean = false,
     val draftLenderPercent: Int? = null,
+    val actionError: DisputeActionError? = null,
     val isLoading: Boolean = true,
     val loadFailed: Boolean = false,
     val refreshFailed: Boolean = false,
@@ -165,7 +179,12 @@ class DisputeViewModel(
    */
   fun startEditing() {
     if (!_uiState.value.canPropose) return
-    _uiState.update { it.copy(draftLenderPercent = it.latestProposal?.lenderPercent ?: 50) }
+    _uiState.update {
+      it.copy(
+          draftLenderPercent = it.latestProposal?.lenderPercent ?: 50,
+          actionError = null,
+      )
+    }
   }
 
   /** Moves the draft to [lenderPercent] percent for the lender, kept between 0 and 100. */
@@ -173,8 +192,76 @@ class DisputeViewModel(
     if (it.isEditing) it.copy(draftLenderPercent = lenderPercent.coerceIn(0, 100)) else it
   }
 
-  /** Closes the split editor without sending the draft. */
-  fun cancelEditing() = _uiState.update { it.copy(draftLenderPercent = null) }
+  /**
+   * Closes the split editor without sending the draft, and drops the error of a proposal that
+   * failed, which no longer applies once the draft is gone. Does nothing while a proposal is being
+   * sent, so the editor stays open to show whether it went through.
+   */
+  fun cancelEditing() {
+    if (_uiState.value.isSending) return
+    _uiState.update {
+      it.copy(
+          draftLenderPercent = null,
+          actionError = it.actionError.takeUnless { error -> error == DisputeActionError.PROPOSE },
+      )
+    }
+  }
+
+  /**
+   * Sends the draft as a first proposal, a counter-proposal or an update of the user's own. The
+   * editor closes once the proposal goes through, and stays open with the draft if it fails, so the
+   * user can send it again. Does nothing unless [DisputeUiState.canSend], so the split already on
+   * the table is never sent again.
+   */
+  fun sendDraft() {
+    val draft = _uiState.value.draftLenderPercent
+    if (!_uiState.value.canSend || draft == null) return
+    send(DisputeActionError.PROPOSE, closesEditor = true) { uid ->
+      disputeRepository.propose(rentalId, uid, draft)
+    }
+  }
+
+  /** Accepts the other person's proposal. Does nothing unless [DisputeUiState.canAccept]. */
+  fun accept() {
+    val seen = _uiState.value.latestProposal
+    if (!_uiState.value.canAccept || seen == null) return
+    send(DisputeActionError.ACCEPT) { uid ->
+      disputeRepository.accept(rentalId, uid, seen.lenderPercent)
+    }
+  }
+
+  /**
+   * Runs [request] as the signed-in user, with [DisputeUiState.isSending] set meanwhile so no
+   * second action starts. The new dispute arrives through the observer; a failure (or nobody signed
+   * in) sets [DisputeUiState.actionError] to [error], or to [DisputeActionError.PROPOSAL_CHANGED]
+   * when the proposal accepted was no longer the one on the table. A success also closes the split
+   * editor if [closesEditor].
+   */
+  private fun send(
+      error: DisputeActionError,
+      closesEditor: Boolean = false,
+      request: suspend (uid: String) -> Result<Unit>,
+  ) {
+    val uid = authRepository.getCurrentUser()?.uid
+    _uiState.update { it.copy(isSending = true, actionError = null) }
+    viewModelScope.launch {
+      val failure = if (uid == null) null else request(uid).exceptionOrNull()
+      val actionError =
+          when {
+            failure is ProposalChangedException -> DisputeActionError.PROPOSAL_CHANGED
+            uid == null || failure != null -> error
+            else -> null
+          }
+      _uiState.update {
+        val succeeded = actionError == null
+        it.copy(
+            isSending = false,
+            actionError = actionError,
+            draftLenderPercent = if (closesEditor && succeeded) null else it.draftLenderPercent,
+        )
+      }
+    }
+  }
 
   private fun observe() {
     observing?.cancel()
@@ -211,10 +298,15 @@ class DisputeViewModel(
   }
 
   private fun show(dispute: Dispute, uid: String) {
+    val before = shown
     shown = dispute
     val stillSettling = !dispute.isSettled && dispute.stage == DisputeStage.SETTLE
+    val stageChanged = before != null && dispute.stage != before.stage
+    val justSettled = before?.isSettled == false && dispute.isSettled
     _uiState.update {
       it.copy(
+          // The failed action was for a stage or an offer that is gone, so retrying it is wrong.
+          actionError = it.actionError.takeUnless { stageChanged || justSettled },
           stage = dispute.stage,
           draftLenderPercent = it.draftLenderPercent.takeIf { stillSettling },
           history =
