@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.wallet
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.model.wallet.Wallet
 import com.swent.polyloop.model.wallet.WalletRepository
@@ -39,12 +40,14 @@ class WalletViewModelTest {
 
   private lateinit var wallets: FakeWalletRepository
   private lateinit var auth: FakeAuthRepository
+  private lateinit var connectivity: FakeConnectivityRepository
 
   @Before
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     wallets = FakeWalletRepository(wallet = Wallet(available = 50, heldAsDeposits = 20))
     auth = FakeAuthRepository(signedInUser = me)
+    connectivity = FakeConnectivityRepository(online = true)
   }
 
   @After
@@ -52,7 +55,7 @@ class WalletViewModelTest {
     Dispatchers.resetMain()
   }
 
-  private fun viewModel() = WalletViewModel(wallets, auth)
+  private fun viewModel() = WalletViewModel(wallets, auth, connectivity)
 
   @Test
   fun initialStateIsLoadingWithAnEmptyWalletAndNoRecharge() {
@@ -62,6 +65,7 @@ class WalletViewModelTest {
     assertEquals(Wallet(), state.wallet)
     assertTrue(state.history.isEmpty())
     assertNull(state.errorMsg)
+    assertFalse(state.isOffline)
     assertEquals(RechargeStatus.IDLE, state.rechargeStatus)
     assertNull(state.rechargeAmount)
     assertNull(state.rechargeNewBalance)
@@ -333,15 +337,119 @@ class WalletViewModelTest {
   }
 
   @Test
+  fun isOfflineFollowsTheConnectivity() {
+    val viewModel = viewModel()
+    assertFalse(viewModel.uiState.value.isOffline)
+
+    connectivity.setOnline(false)
+    assertTrue(viewModel.uiState.value.isOffline)
+
+    connectivity.setOnline(true)
+    assertFalse(viewModel.uiState.value.isOffline)
+  }
+
+  @Test
+  fun startingOfflineShowsTheOfflineState() {
+    connectivity.setOnline(false)
+
+    assertTrue(viewModel().uiState.value.isOffline)
+  }
+
+  @Test
+  fun retryWhileOfflineKeepsTheOfflineStateAndStillFollowsTheConnectivity() {
+    val viewModel = viewModel()
+    connectivity.setOnline(false)
+
+    viewModel.retry()
+
+    assertTrue(viewModel.uiState.value.isOffline)
+
+    connectivity.setOnline(true)
+
+    assertFalse(viewModel.uiState.value.isOffline)
+
+    connectivity.setOnline(false)
+    viewModel.retry()
+    viewModel.retry()
+
+    assertTrue(viewModel.uiState.value.isOffline)
+    assertEquals(50, viewModel.uiState.value.wallet.available)
+  }
+
+  @Test
+  fun rechargeWhileOfflineSendsNothingAndEndsInAnError() {
+    val viewModel = viewModel()
+    connectivity.setOnline(false)
+
+    viewModel.recharge(30)
+
+    val state = viewModel.uiState.value
+    assertEquals(RechargeStatus.ERROR, state.rechargeStatus)
+    assertEquals(30, state.rechargeAmount)
+    assertNull(state.rechargeNewBalance)
+    assertTrue(wallets.recharges.isEmpty())
+    assertEquals(50, state.wallet.available)
+  }
+
+  @Test
+  fun rechargeWorksAgainAfterComingBackOnline() {
+    val viewModel = viewModel()
+    connectivity.setOnline(false)
+    viewModel.recharge(30)
+
+    connectivity.setOnline(true)
+    viewModel.recharge(30)
+
+    val state = viewModel.uiState.value
+    assertEquals(RechargeStatus.DONE, state.rechargeStatus)
+    assertEquals(80, state.rechargeNewBalance)
+    assertEquals(listOf("me" to 30), wallets.recharges)
+  }
+
+  @Test
+  fun theWalletAndHistoryAreStillShownWhileOffline() {
+    val shown = listOf(tx("tx-1", noon))
+    wallets.emit(Wallet(available = 50, heldAsDeposits = 20), shown)
+    val viewModel = viewModel()
+
+    connectivity.setOnline(false)
+
+    val state = viewModel.uiState.value
+    assertEquals(Wallet(available = 50, heldAsDeposits = 20), state.wallet)
+    assertEquals(shown, state.history)
+    assertNull(state.errorMsg)
+  }
+
+  @Test
+  fun aRechargeAlreadySendingIsNotCancelledWhenThePhoneGoesOffline() {
+    val gate = CompletableDeferred<Unit>()
+    wallets.gate = gate
+    val viewModel = viewModel()
+    viewModel.recharge(10)
+
+    connectivity.setOnline(false)
+
+    assertEquals(RechargeStatus.SENDING, viewModel.uiState.value.rechargeStatus)
+
+    gate.complete(Unit)
+
+    assertEquals(RechargeStatus.DONE, viewModel.uiState.value.rechargeStatus)
+    assertEquals(60, wallets.wallet.available)
+  }
+
+  @Test
   fun factoryCreatesAWalletViewModel() {
-    val created = WalletViewModel.Factory(wallets, auth).create(WalletViewModel::class.java)
+    connectivity.setOnline(false)
+    val created =
+        WalletViewModel.Factory(wallets, auth, connectivity).create(WalletViewModel::class.java)
 
     assertEquals(50, created.uiState.value.wallet.available)
+    assertTrue(created.uiState.value.isOffline)
   }
 
   @Test(expected = IllegalArgumentException::class)
   fun factoryRejectsOtherViewModels() {
-    WalletViewModel.Factory(wallets, auth).create(OtherViewModel::class.java)
+    WalletViewModel.Factory(wallets, auth, connectivity).create(OtherViewModel::class.java)
   }
 
   private class OtherViewModel : ViewModel()

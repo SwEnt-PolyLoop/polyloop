@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.wallet.Wallet
 import com.swent.polyloop.model.wallet.WalletRepository
 import com.swent.polyloop.model.wallet.WalletTransaction
@@ -43,6 +44,8 @@ enum class RechargeStatus {
  *   ordered by id, highest first, so the order is always the same.
  * @property isLoading true until the wallet and the history have both been read once, or failed.
  * @property errorMsg null without an error, blank for the generic text.
+ * @property isOffline true while the phone is offline: the wallet and the history stay readable
+ *   from cache, but a recharge is refused.
  * @property rechargeStatus where the last recharge stands.
  * @property rechargeAmount the amount of the last recharge in whole PP, sent or refused; null
  *   before the first one.
@@ -54,6 +57,7 @@ data class WalletUiState(
     val history: List<WalletTransaction> = emptyList(),
     val isLoading: Boolean = true,
     val errorMsg: String? = null,
+    val isOffline: Boolean = false,
     val rechargeStatus: RechargeStatus = RechargeStatus.IDLE,
     val rechargeAmount: Int? = null,
     val rechargeNewBalance: Int? = null,
@@ -61,14 +65,17 @@ data class WalletUiState(
 
 /**
  * Shows the wallet and the history of the signed-in user and sends recharges. It never changes a
- * balance itself: only the repository does, and the wallet shown is the one it observes.
+ * balance itself: only the repository does, and the wallet shown is the one it observes. Reading
+ * keeps working offline; a recharge needs a connection and is refused while offline.
  *
  * @param walletRepository the wallet, the history and recharges.
  * @param authRepository gives the signed-in user.
+ * @param connectivityRepository tells whether the phone is online.
  */
 class WalletViewModel(
     private val walletRepository: WalletRepository,
     private val authRepository: AuthRepository,
+    private val connectivityRepository: ConnectivityRepository,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(WalletUiState())
@@ -79,6 +86,12 @@ class WalletViewModel(
   private var observing: Job? = null
 
   init {
+    // Apart from the wallet and history job, so that retry() neither stops nor duplicates it.
+    viewModelScope.launch {
+      connectivityRepository.isOnline.collect { online ->
+        _uiState.update { it.copy(isOffline = !online) }
+      }
+    }
     observe()
   }
 
@@ -88,14 +101,20 @@ class WalletViewModel(
   /**
    * Sends a recharge of [amount] CHF (the same number of PP). An amount outside
    * [WalletRepository.MIN_RECHARGE]..[WalletRepository.MAX_RECHARGE], or no signed-in user, sets
-   * [RechargeStatus.ERROR] without calling the repository. Ignored while a recharge is sending.
+   * [RechargeStatus.ERROR] without calling the repository, and so does being offline
+   * ([WalletUiState.isOffline]). Ignored while a recharge is sending, even if the phone has gone
+   * offline since: a recharge already sent is not cancelled.
    *
    * @param amount the amount in whole CHF.
    */
   fun recharge(amount: Int) {
     if (_uiState.value.rechargeStatus == RechargeStatus.SENDING) return
     val uid = authRepository.getCurrentUser()?.uid
-    if (uid == null || amount !in WalletRepository.MIN_RECHARGE..WalletRepository.MAX_RECHARGE) {
+    if (
+        _uiState.value.isOffline ||
+            uid == null ||
+            amount !in WalletRepository.MIN_RECHARGE..WalletRepository.MAX_RECHARGE
+    ) {
       _uiState.update {
         it.copy(
             rechargeStatus = RechargeStatus.ERROR,
@@ -159,13 +178,14 @@ class WalletViewModel(
   class Factory(
       private val walletRepository: WalletRepository,
       private val authRepository: AuthRepository,
+      private val connectivityRepository: ConnectivityRepository,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass.isAssignableFrom(WalletViewModel::class.java)) {
         "Unknown ViewModel class: ${modelClass.name}"
       }
       @Suppress("UNCHECKED_CAST")
-      return WalletViewModel(walletRepository, authRepository) as T
+      return WalletViewModel(walletRepository, authRepository, connectivityRepository) as T
     }
   }
 
