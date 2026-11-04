@@ -303,5 +303,13 @@
     <string name="handover_retry">Retry</string>
     <string name="handover_not_found">This rental no longer exists.</string>
     <string name="handover_nothing">Nothing to hand over right now.</string>
+    <string name="handover_pickup_title">Pickup</string>
+    <string name="handover_you_lend">You lend</string>
+    <string name="handover_you_borrow">You borrow</string>
+    <!-- The other person on Handover: "with Loca" for the lender, "from Mara" for the borrower -->
+    <string name="handover_with">with %1$s</string>
+    <string name="handover_from">from %1$s</string>
+    <string name="handover_with_the_borrower">with the borrower</string>
+    <string name="handover_from_the_lender">from the lender</string>
 
 </resources>

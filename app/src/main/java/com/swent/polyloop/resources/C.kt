@@ -212,6 +212,10 @@ object C {
     const val handover_retry_button = "handover_retry_button"
     const val handover_not_found = "handover_not_found"
     const val handover_nothing = "handover_nothing"
+    const val handover_title = "handover_title"
+    const val handover_role_pill = "handover_role_pill"
+    const val handover_item = "handover_item"
+    const val handover_other_person = "handover_other_person"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"

@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.handover
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -70,5 +71,37 @@ class HandoverScreenTest {
 
     assertShown(C.Tag.handover_nothing)
     assertAbsent(C.Tag.handover_loading)
+  }
+
+  // ---------- header ----------
+
+  @Test
+  fun theBorrowerSeesPickupYouBorrowTheItemAndTheLender() {
+    setContent()
+
+    composeTestRule.onNodeWithTag(C.Tag.handover_title).assertTextEquals("Pickup")
+    composeTestRule.onNodeWithTag(C.Tag.handover_role_pill).assertTextEquals("You borrow")
+    composeTestRule.onNodeWithTag(C.Tag.handover_item).assertTextEquals("Camping tent")
+    composeTestRule.onNodeWithTag(C.Tag.handover_other_person).assertTextEquals("from Mara")
+  }
+
+  @Test
+  fun theLenderSeesYouLendAndTheBorrower() {
+    setContent(pickup.copy(isLender = true, otherPersonName = "Loca"))
+
+    composeTestRule.onNodeWithTag(C.Tag.handover_role_pill).assertTextEquals("You lend")
+    composeTestRule.onNodeWithTag(C.Tag.handover_other_person).assertTextEquals("with Loca")
+  }
+
+  @Test
+  fun aBlankNameShowsTheOtherPersonsRole() {
+    setContent(pickup.copy(isLender = true, otherPersonName = " "))
+    composeTestRule.onNodeWithTag(C.Tag.handover_other_person).assertTextEquals("with the borrower")
+  }
+
+  @Test
+  fun aBlankLenderNameShowsTheLender() {
+    setContent(pickup.copy(otherPersonName = ""))
+    composeTestRule.onNodeWithTag(C.Tag.handover_other_person).assertTextEquals("from the lender")
   }
 }
