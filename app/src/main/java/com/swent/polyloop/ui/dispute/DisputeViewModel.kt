@@ -376,13 +376,7 @@ class DisputeViewModel(
           // The failed action was for a stage or an offer that is gone, so retrying it is wrong.
           actionError = it.actionError.takeUnless { stageChanged || justSettled },
           escalationNotice =
-              if (!stageChanged) it.escalationNotice
-              else
-                  when (dispute.escalatedBy) {
-                    null -> EscalationNotice.AUTOMATIC
-                    uid -> null
-                    else -> EscalationNotice.BY_OTHER
-                  },
+              if (stageChanged) escalationNoticeFor(dispute, uid) else it.escalationNotice,
           stage = dispute.stage,
           // An agreement or a new stage ends the editing and the confirmation, which was for
           // another stage.
@@ -403,6 +397,14 @@ class DisputeViewModel(
     ticking?.cancel()
     if (stillSettling) countDownTo(dispute.escalatesAt)
   }
+
+  /** How [dispute] moved on to its current stage, as seen by [uid]; null when they moved it on. */
+  private fun escalationNoticeFor(dispute: Dispute, uid: String): EscalationNotice? =
+      when (dispute.escalatedBy) {
+        null -> EscalationNotice.AUTOMATIC
+        uid -> null
+        else -> EscalationNotice.BY_OTHER
+      }
 
   /** The whole days left until [deadline], rounded up; 0 once it has passed. */
   private fun daysUntil(deadline: Instant): Int {
