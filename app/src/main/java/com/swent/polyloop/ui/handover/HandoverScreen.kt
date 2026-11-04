@@ -14,10 +14,15 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -32,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,6 +48,9 @@ import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
 import com.swent.polyloop.ui.components.dashedOutline
+import com.swent.polyloop.ui.components.formatDay
+import com.swent.polyloop.ui.theme.PositiveGreen
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -49,19 +58,26 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HandoverScreen(viewModel: HandoverViewModel) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-  HandoverContent(uiState = uiState, onRetry = viewModel::retry, onAddPhoto = {})
+  HandoverContent(
+      uiState = uiState,
+      onRetry = viewModel::retry,
+      onAddPhoto = {},
+      onRetryUpload = viewModel::retryUpload,
+  )
 }
 
 /**
  * The Handover screen drawn from [uiState]: a spinner while loading, an error with Retry, a missing
  * rental, a rental that takes no photos, or the pickup itself. [onAddPhoto] is called when an empty
- * photo tile is tapped; photo times are shown in [zone].
+ * photo tile is tapped, [onRetryUpload] when the photo that failed to upload is; photo times are
+ * shown in [zone].
  */
 @Composable
 fun HandoverContent(
     uiState: HandoverUiState,
     onRetry: () -> Unit,
     onAddPhoto: () -> Unit,
+    onRetryUpload: () -> Unit,
     modifier: Modifier = Modifier,
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
@@ -107,7 +123,8 @@ fun HandoverContent(
               verticalArrangement = Arrangement.spacedBy(16.dp),
           ) {
             HandoverHeader(uiState)
-            PhotosCard(uiState, zone, onAddPhoto)
+            if (!uiState.isPickupDay) NotPickupDayNote(uiState.pickupDate)
+            PhotosCard(uiState, zone, onAddPhoto, onRetryUpload)
           }
     }
   }
@@ -190,20 +207,34 @@ private const val TILES_PER_ROW = 4
 private val PHOTO_TIME = DateTimeFormatter.ofPattern("HH:mm")
 
 /**
- * How many dashed camera tiles follow the photos: enough to reach the 3 needed, and at least one
- * while another photo fits. None outside the pickup day, when no photo can be added.
+ * How many dashed camera tiles follow the [shownCount] photos (uploaded, uploading or failed):
+ * enough to reach the 3 needed, and at least one while another photo fits. None outside the pickup
+ * day, when no photo can be added.
  */
-internal fun emptyTileCount(photoCount: Int, isPickupDay: Boolean): Int =
-    if (!isPickupDay || photoCount >= HandoverPhoto.MAX_PHOTOS) 0
-    else maxOf(HandoverPhoto.MIN_PHOTOS - photoCount, 1)
+internal fun emptyTileCount(shownCount: Int, isPickupDay: Boolean): Int =
+    if (!isPickupDay || shownCount >= HandoverPhoto.MAX_PHOTOS) 0
+    else maxOf(HandoverPhoto.MIN_PHOTOS - shownCount, 1)
 
-/** The "Condition photos" card: the user's photos, oldest first, then the dashed camera tiles. */
+/**
+ * The "Condition photos" card: the user's photos, oldest first, the one uploading or whose upload
+ * failed, then the dashed camera tiles, and whether enough photos were taken.
+ */
 @Composable
-private fun PhotosCard(uiState: HandoverUiState, zone: ZoneId, onAddPhoto: () -> Unit) {
+private fun PhotosCard(
+    uiState: HandoverUiState,
+    zone: ZoneId,
+    onAddPhoto: () -> Unit,
+    onRetryUpload: () -> Unit,
+) {
   val photoTiles: List<@Composable () -> Unit> =
       uiState.photos.map { photo -> { PhotoTile(photo, zone) } }
+  val pendingTiles: List<@Composable () -> Unit> = buildList {
+    if (uiState.isUploading) add { UploadingTile() }
+    uiState.failedPhotoUri?.let { add { FailedTile(it, onRetryUpload) } }
+  }
+  val shownCount = photoTiles.size + pendingTiles.size
   val emptyTiles: List<@Composable () -> Unit> =
-      List(emptyTileCount(uiState.photos.size, uiState.isPickupDay)) {
+      List(emptyTileCount(shownCount, uiState.isPickupDay)) {
         { EmptyTile(enabled = uiState.canAddPhoto, onClick = onAddPhoto) }
       }
   Surface(
@@ -234,8 +265,92 @@ private fun PhotosCard(uiState: HandoverUiState, zone: ZoneId, onAddPhoto: () ->
             modifier = Modifier.testTag(C.Tag.handover_photos_range),
         )
       }
-      TileGrid(photoTiles + emptyTiles)
+      if (uiState.photosFailed) {
+        Text(
+            text = stringResource(R.string.handover_photos_error),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.testTag(C.Tag.handover_photos_error),
+        )
+      } else {
+        TileGrid(photoTiles + pendingTiles + emptyTiles)
+        if (uiState.isPickupDay) PhotosStatus(uiState.photosNeeded)
+      }
     }
+  }
+}
+
+/** A green check with "Pickup photos done", or a red warning with how many photos are missing. */
+@Composable
+private fun PhotosStatus(photosNeeded: Int) {
+  val done = photosNeeded == 0
+  val color = if (done) PositiveGreen else MaterialTheme.colorScheme.error
+  Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(6.dp),
+  ) {
+    Icon(
+        imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.Warning,
+        contentDescription = null,
+        tint = color,
+        modifier = Modifier.size(18.dp),
+    )
+    Text(
+        text =
+            if (done) stringResource(R.string.handover_photos_done)
+            else
+                pluralStringResource(R.plurals.handover_photos_missing, photosNeeded, photosNeeded),
+        style = MaterialTheme.typography.bodyMedium,
+        color = color,
+        modifier = Modifier.testTag(C.Tag.handover_photos_status),
+    )
+  }
+}
+
+/** "Pickup is on 15 Oct": photos can only be taken on that day. */
+@Composable
+private fun NotPickupDayNote(pickupDate: LocalDate?) {
+  Text(
+      text =
+          stringResource(R.string.handover_not_pickup_day, pickupDate?.let { formatDay(it) } ?: ""),
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.testTag(C.Tag.handover_not_pickup_day),
+  )
+}
+
+/** The tile of the photo being uploaded: a spinner in a dashed tile. */
+@Composable
+private fun UploadingTile() {
+  Box(
+      modifier =
+          Modifier.fillMaxSize()
+              .dashedOutline(MaterialTheme.colorScheme.outline, TILE_CORNER)
+              .testTag(C.Tag.handover_uploading),
+      contentAlignment = Alignment.Center,
+  ) {
+    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+  }
+}
+
+/** The photo at [uri] whose upload failed, dimmed with a retry icon; tapping it calls [onRetry]. */
+@Composable
+private fun FailedTile(uri: String, onRetry: () -> Unit) {
+  Box(
+      modifier =
+          Modifier.fillMaxSize()
+              .clip(RoundedCornerShape(TILE_CORNER))
+              .clickable(onClick = onRetry)
+              .testTag(C.Tag.handover_failed_photo),
+      contentAlignment = Alignment.Center,
+  ) {
+    ListingPhoto(url = uri, contentDescription = null, modifier = Modifier.fillMaxSize())
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
+    Icon(
+        imageVector = Icons.Default.Refresh,
+        contentDescription = stringResource(R.string.handover_upload_failed),
+        tint = Color.White,
+    )
   }
 }
 

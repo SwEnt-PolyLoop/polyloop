@@ -317,5 +317,14 @@
     <!-- Read by screen readers for a pickup photo, e.g. "Pickup photo, 14:02" -->
     <string name="handover_photo_description">Pickup photo, %1$s</string>
     <string name="handover_take_photo">Take a photo</string>
+    <string name="handover_photos_done">Pickup photos done</string>
+    <plurals name="handover_photos_missing">
+        <item quantity="one">Take %1$d more photo</item>
+        <item quantity="other">Take %1$d more photos</item>
+    </plurals>
+    <string name="handover_photos_error">Could not load your photos.</string>
+    <string name="handover_upload_failed">Photo not uploaded. Tap to try again.</string>
+    <!-- Shown on Handover outside the pickup day, e.g. "Pickup is on 15 Oct" -->
+    <string name="handover_not_pickup_day">Pickup is on %1$s</string>
 
 </resources>

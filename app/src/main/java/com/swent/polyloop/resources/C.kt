@@ -220,6 +220,11 @@ object C {
     const val handover_photos_range = "handover_photos_range"
     const val handover_photo = "handover_photo"
     const val handover_add_photo = "handover_add_photo"
+    const val handover_uploading = "handover_uploading"
+    const val handover_failed_photo = "handover_failed_photo"
+    const val handover_photos_status = "handover_photos_status"
+    const val handover_photos_error = "handover_photos_error"
+    const val handover_not_pickup_day = "handover_not_pickup_day"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"

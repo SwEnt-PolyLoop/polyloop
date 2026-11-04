@@ -43,6 +43,7 @@ class HandoverScreenTest {
 
   private var retries = 0
   private var cameraOpenings = 0
+  private var uploadRetries = 0
 
   // The state shown; a test can change it after setContent and the screen follows.
   private var uiState by mutableStateOf(pickup)
@@ -54,6 +55,7 @@ class HandoverScreenTest {
           uiState = uiState,
           onRetry = { retries++ },
           onAddPhoto = { cameraOpenings++ },
+          onRetryUpload = { uploadRetries++ },
           zone = ZoneOffset.UTC,
       )
     }
@@ -167,7 +169,55 @@ class HandoverScreenTest {
   @Test
   fun outsideThePickupDayPhotosStayButNoneCanBeAdded() {
     setContent(pickup.copy(isPickupDay = false, photos = photos(1)))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.handover_not_pickup_day)
+        .assertTextEquals("Pickup is on 6 Oct")
     assertTiles(photos = 1, empty = 0)
+    assertAbsent(C.Tag.handover_photos_status)
+  }
+
+  @Test
+  fun theStatusSaysHowManyPhotosAreMissingThenThatTheyAreDone() {
+    val status = composeTestRule.onNodeWithTag(C.Tag.handover_photos_status)
+    setContent(pickup.copy(photos = photos(1)))
+    status.assertTextEquals("Take 2 more photos")
+
+    uiState = pickup.copy(photos = photos(2))
+    status.assertTextEquals("Take 1 more photo")
+
+    uiState = pickup.copy(photos = photos(3))
+    status.assertTextEquals("Pickup photos done")
+    assertAbsent(C.Tag.handover_not_pickup_day)
+  }
+
+  @Test
+  fun thePhotoBeingUploadedTakesATileWithASpinner() {
+    setContent(pickup.copy(photos = photos(1), isUploading = true))
+
+    assertShown(C.Tag.handover_uploading)
+    assertTiles(photos = 1, empty = 1)
+  }
+
+  @Test
+  fun aPhotoThatFailedToUploadIsRetriedWhenTapped() {
+    setContent(pickup.copy(failedPhotoUri = "file:///photo.jpg"))
+
+    composeTestRule
+        .onNodeWithContentDescription("Photo not uploaded. Tap to try again.")
+        .assertIsDisplayed()
+    assertTiles(photos = 0, empty = 2)
+    composeTestRule.onNodeWithTag(C.Tag.handover_failed_photo).performClick()
+    assertEquals(1, uploadRetries)
+  }
+
+  @Test
+  fun photosThatCannotBeLoadedShowAnErrorInsteadOfTheTiles() {
+    setContent(pickup.copy(photosFailed = true))
+
+    assertShown(C.Tag.handover_photos_error)
+    assertTiles(photos = 0, empty = 0)
+    assertAbsent(C.Tag.handover_photos_status)
   }
 
   @Test
