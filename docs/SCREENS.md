@@ -35,12 +35,21 @@ Only users with a verified EPFL email get past this screen. ViewModel: AuthViewM
 
 The profile shows who someone is and how past rentals went. It opens from the profile button in the top bar or by tapping a person on Listing detail or Rental detail. ViewModel: ProfileViewModel, using ProfileRepository, ListingRepository, RentalRepository and AuthRepository.
 
-- Name, photo, and the average rating (1 to 5 stars) with the number of reviews.
+- Name, photo, and the average rating (1 to 5 stars) with the number of reviews. The photo is round, cropped to fill the circle; without a photo, or when it cannot be loaded, the first letter of the name takes its place.
 - The list of reviews, each with stars, author, date and the item rented.
-- On your own profile: a “My listings” section with the items you have put up for rent, plus “Edit profile” (where the photo is added) and “Sign out”.
+- On your own profile: “Edit profile” (where the photo is added) and “Sign out” side by side under the rating, then a “My listings” section with the items you have put up for rent.
 - “My listings” is a card with the number of listings and one row per listing: first photo, title, price per day, and a pill showing where it stands right now, updated live from its rentals. The listings themselves are loaded again each time the profile comes back on screen, so a listing edited or deleted meanwhile shows as it is now. When several rentals apply, the first match wins: “Lost” (a borrower never gave the item back), “Frozen” (a dispute went to court and the deposit is frozen), “Disputed” (a dispute is open), “Overdue” (a return is late), “On loan” (the item is with a borrower), “Booked” (a request was accepted), “Requested” (a request waits for an answer), otherwise “Available”. The pills use the colours of the matching status on My rentals; “Available” uses those of a finished rental. A listing its owner unpublished (a draft) shows a plain “Draft” label, white with no colour, instead of “Available”; if one of its rentals is still under way, it shows that rental's pill instead. Tapping a row opens Listing detail. The card loads apart from the profile, with its own spinner, a generic error “Could not load your listings” with “Retry”, and the empty text “You haven't listed anything yet”. If loading them again fails, the listings loaded before stay, with the note “Could not refresh your listings. These are the last ones loaded.” under them, until a later load succeeds; if there were none, the note shows under the empty text, so a user who just listed an item knows why it is missing. Offline, the cards and their pills stay available as they were loaded before going offline.
 - A review prompt appears as soon as a rental closes, however it closed: clean return, direct settlement, LLM proposal or court ruling. Like rating a ride in Uber or Bolt, each participant rates the other once, from 1 to 5 stars. Stars only for now; a written comment may come later.
 - Other people's profiles don't show their listings for now.
+
+## Edit profile
+
+Edit profile is where the signed-in user changes their name and photo. It opens from “Edit profile” on their own profile. ViewModel: EditProfileViewModel, using ProfileRepository.
+
+- The photo, round like on the profile, with a “Take photo” button. It opens the in-app camera for a single photo (no count, it closes once the photo is taken), after asking for the camera permission; a refusal shows the same message as Create listing. The new photo replaces the old one in the circle right away, but is uploaded only on “Save”, so leaving without saving changes nothing.
+- The name field. “Save” with a blank name shows “Enter your name” and saves nothing; the name is trimmed.
+- “Save” uploads the new photo, if one was taken, then saves the name and the photo. While it runs, the field and both buttons are disabled and “Save” shows a spinner. On success the screen goes back to the profile, which shows the new name and photo. If it fails, an error is shown and the edits are kept; saving again does not upload the same photo a second time.
+- A spinner while the profile loads, and an error with “Retry” if it cannot be loaded.
 
 ## Wallet
 

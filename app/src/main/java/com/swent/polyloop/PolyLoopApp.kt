@@ -47,6 +47,8 @@ import com.swent.polyloop.ui.navigation.NavigationActions
 import com.swent.polyloop.ui.navigation.PolyLoopDrawerContent
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
+import com.swent.polyloop.ui.profile.EditProfileScreen
+import com.swent.polyloop.ui.profile.EditProfileViewModel
 import com.swent.polyloop.ui.profile.ProfileScreen
 import com.swent.polyloop.ui.profile.ProfileViewModel
 import com.swent.polyloop.ui.rentaldetail.RentalDetailScreen
@@ -242,6 +244,22 @@ private fun PolyLoopScaffold(
       composable(Screen.Profile.route) {
         ProfileRoute(userId = null, navController = navController, navigationActions)
       }
+      composable(Screen.EditProfile.route) {
+        val editProfileViewModel: EditProfileViewModel =
+            viewModel(
+                factory =
+                    EditProfileViewModel.Factory(
+                        profileRepository = RepositoryProvider.profileRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                    )
+            )
+        // Back to the profile, which follows the repository live and so shows the new name and
+        // photo. Pops Edit profile by its route, so a second call cannot also pop the profile.
+        EditProfileScreen(
+            viewModel = editProfileViewModel,
+            onSaved = { navController.popBackStack(Screen.EditProfile.route, inclusive = true) },
+        )
+      }
       composable(Screen.AdminCourtRuling.route) { DummyScreen(Screen.AdminCourtRuling.route) }
 
       composable(Screen.ListingDetail.route, stringArgument(Screen.ARG_LISTING_ID)) { entry ->
@@ -339,6 +357,7 @@ private fun ProfileRoute(
   ProfileScreen(
       viewModel = profileViewModel,
       onListingClick = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) },
+      onEditProfile = { navController.navigate(Screen.EditProfile.route) },
       onSignedOut = navigationActions::navigateAfterSignOut,
   )
 }
