@@ -182,6 +182,19 @@ class DisputeViewModelTest {
   }
 
   @Test
+  fun countdownReachesZeroWhenTheDeadlinePassesWhileTheScreenIsShown() {
+    disputes = FakeDisputeRepository(listOf(open.copy(escalatesAt = now + Duration.ofHours(12))))
+    val vm = viewModel(clock = { time })
+    val screen = show(vm)
+    assertEquals(1, vm.uiState.value.daysUntilEscalation)
+
+    elapse(Duration.ofHours(13))
+
+    assertEquals(0, vm.uiState.value.daysUntilEscalation)
+    screen.cancel()
+  }
+
+  @Test
   fun aSettledDisputeStopsTheCountdown() {
     val vm = viewModel(clock = { time })
     val screen = show(vm)
