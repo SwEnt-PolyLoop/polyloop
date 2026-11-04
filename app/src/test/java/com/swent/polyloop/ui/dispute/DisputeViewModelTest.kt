@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -372,6 +373,55 @@ class DisputeViewModelTest {
     vm.setDraft(50)
 
     assertNull(vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun aProposalSentAfterSigningOutFailsAndKeepsTheDraft() {
+    val vm = viewModel()
+    vm.startEditing()
+    vm.setDraft(50)
+
+    auth.signedInUser = null
+    vm.sendDraft()
+
+    assertEquals(DisputeActionError.PROPOSE, vm.uiState.value.actionError)
+    assertEquals(50, vm.uiState.value.draftLenderPercent)
+    assertEquals(open, disputes.disputes.single())
+  }
+
+  @Test
+  fun theSplitOnTheTableIsNotSentAgainAndCancelClosesTheEditor() {
+    val vm = viewModel()
+
+    propose(vm, 70)
+    assertEquals(2, disputes.disputes.single().proposals.size)
+    assertTrue(vm.uiState.value.isEditing)
+
+    vm.cancelEditing()
+    assertFalse(vm.uiState.value.isEditing)
+  }
+
+  @Test
+  fun draftStaysBetweenZeroAndAHundred() {
+    val vm = viewModel()
+    vm.startEditing()
+
+    vm.setDraft(101)
+    assertEquals(100, vm.uiState.value.draftLenderPercent)
+
+    vm.setDraft(-1)
+    assertEquals(0, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun anAgreementReachedMeanwhileEndsTheEditing() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+    vm.startEditing()
+
+    runBlocking { disputes.accept("pump", "ana", 40) }
+
+    assertFalse(vm.uiState.value.isEditing)
   }
 
   // ---------- factory ----------
