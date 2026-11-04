@@ -216,6 +216,10 @@ object C {
     const val handover_role_pill = "handover_role_pill"
     const val handover_item = "handover_item"
     const val handover_other_person = "handover_other_person"
+    const val handover_photos_card = "handover_photos_card"
+    const val handover_photos_range = "handover_photos_range"
+    const val handover_photo = "handover_photo"
+    const val handover_add_photo = "handover_add_photo"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"

@@ -311,5 +311,11 @@
     <string name="handover_from">from %1$s</string>
     <string name="handover_with_the_borrower">with the borrower</string>
     <string name="handover_from_the_lender">from the lender</string>
+    <string name="handover_photos_title">Condition photos</string>
+    <!-- The number of photos each person takes, e.g. "3–20 photos" -->
+    <string name="handover_photos_range">%1$d–%2$d photos</string>
+    <!-- Read by screen readers for a pickup photo, e.g. "Pickup photo, 14:02" -->
+    <string name="handover_photo_description">Pickup photo, %1$s</string>
+    <string name="handover_take_photo">Take a photo</string>
 
 </resources>

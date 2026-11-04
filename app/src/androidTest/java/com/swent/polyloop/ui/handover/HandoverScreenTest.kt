@@ -2,15 +2,25 @@
 
 package com.swent.polyloop.ui.handover
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.polyloop.model.handover.HandoverPhase
+import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -32,9 +42,37 @@ class HandoverScreenTest {
       )
 
   private var retries = 0
+  private var cameraOpenings = 0
 
-  private fun setContent(uiState: HandoverUiState = pickup) {
-    composeTestRule.setContent { HandoverContent(uiState = uiState, onRetry = { retries++ }) }
+  // The state shown; a test can change it after setContent and the screen follows.
+  private var uiState by mutableStateOf(pickup)
+
+  private fun setContent(initial: HandoverUiState = pickup) {
+    uiState = initial
+    composeTestRule.setContent {
+      HandoverContent(
+          uiState = uiState,
+          onRetry = { retries++ },
+          onAddPhoto = { cameraOpenings++ },
+          zone = ZoneOffset.UTC,
+      )
+    }
+  }
+
+  /** [count] pickup photos taken one minute apart from 14:02 UTC. */
+  private fun photos(count: Int) =
+      List(count) {
+        HandoverPhoto(
+            "p$it",
+            HandoverPhase.PICKUP,
+            Instant.parse("2026-10-06T14:02:00Z").plusSeconds(60L * it),
+            "https://example.com/p$it.jpg",
+        )
+      }
+
+  private fun assertTiles(photos: Int, empty: Int) {
+    composeTestRule.onAllNodesWithTag(C.Tag.handover_photo).assertCountEquals(photos)
+    composeTestRule.onAllNodesWithTag(C.Tag.handover_add_photo).assertCountEquals(empty)
   }
 
   private fun assertShown(tag: String) = composeTestRule.onNodeWithTag(tag).assertIsDisplayed()
@@ -103,5 +141,43 @@ class HandoverScreenTest {
   fun aBlankLenderNameShowsTheLender() {
     setContent(pickup.copy(otherPersonName = ""))
     composeTestRule.onNodeWithTag(C.Tag.handover_other_person).assertTextEquals("from the lender")
+  }
+
+  // ---------- photos ----------
+
+  @Test
+  fun photosShowTheirTimeAndCameraTilesFillUpToThreeThenOneUntilTwenty() {
+    setContent()
+    composeTestRule.onNodeWithText("Condition photos").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.handover_photos_range).assertTextEquals("3–20 photos")
+    assertTiles(photos = 0, empty = 3)
+
+    uiState = pickup.copy(photos = photos(2))
+    assertTiles(photos = 2, empty = 1)
+    composeTestRule.onNodeWithText("14:03").assertIsDisplayed()
+    composeTestRule.onNodeWithContentDescription("Pickup photo, 14:02").assertIsDisplayed()
+
+    uiState = pickup.copy(photos = photos(5))
+    assertTiles(photos = 5, empty = 1)
+
+    uiState = pickup.copy(photos = photos(HandoverPhoto.MAX_PHOTOS))
+    assertTiles(photos = 20, empty = 0)
+  }
+
+  @Test
+  fun outsideThePickupDayPhotosStayButNoneCanBeAdded() {
+    setContent(pickup.copy(isPickupDay = false, photos = photos(1)))
+    assertTiles(photos = 1, empty = 0)
+  }
+
+  @Test
+  fun aCameraTileOpensTheCameraOnlyWhenAPhotoCanBeAdded() {
+    setContent(pickup.copy(isUploading = true))
+    composeTestRule.onAllNodesWithTag(C.Tag.handover_add_photo)[0].performClick()
+    assertEquals(0, cameraOpenings)
+
+    uiState = pickup
+    composeTestRule.onAllNodesWithTag(C.Tag.handover_add_photo)[2].performClick()
+    assertEquals(1, cameraOpenings)
   }
 }
