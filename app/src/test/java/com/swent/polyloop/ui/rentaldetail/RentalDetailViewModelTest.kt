@@ -201,7 +201,7 @@ class RentalDetailViewModelTest {
 
   @Test
   fun nonRequestedRentalIsUnsupportedAndKeepsOnlyItsTitle() {
-    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACCEPTED)))
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
 
     val state = viewModel().uiState.value
 
@@ -254,7 +254,7 @@ class RentalDetailViewModelTest {
 
   @Test
   fun unsupportedRentalDoesNotReadTheListing() {
-    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACCEPTED)))
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
 
     viewModel()
 
