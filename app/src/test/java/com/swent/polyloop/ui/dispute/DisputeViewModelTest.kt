@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.dispute
 
+import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
@@ -291,4 +292,23 @@ class DisputeViewModelTest {
     assertFalse(state.loadFailed)
     assertEquals(70, state.latestProposal?.lenderPercent)
   }
+
+  // ---------- factory ----------
+
+  @Test
+  fun factoryCreatesTheViewModel() {
+    val vm =
+        DisputeViewModel.Factory("pump", disputes, rentals, auth, connectivity)
+            .create(DisputeViewModel::class.java)
+
+    assertEquals("Bike pump", vm.uiState.value.itemTitle)
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun factoryRejectsOtherViewModels() {
+    DisputeViewModel.Factory("pump", disputes, rentals, auth, connectivity)
+        .create(OtherViewModel::class.java)
+  }
+
+  private class OtherViewModel : ViewModel()
 }
