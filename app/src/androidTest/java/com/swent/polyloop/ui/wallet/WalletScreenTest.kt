@@ -163,6 +163,13 @@ class WalletScreenTest {
   }
 
   @Test
+  fun zeroAmountShowsNoSign() {
+    setContent(state(history = listOf(tx("1", WalletTransactionType.LATE_FEE, 0))))
+
+    inRow("1", C.Tag.wallet_row_amount).assertTextEquals("0 PP")
+  }
+
+  @Test
   fun emptyHistoryShowsTheEmptyText() {
     setContent(state())
 

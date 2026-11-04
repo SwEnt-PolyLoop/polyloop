@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -42,12 +41,9 @@ import com.swent.polyloop.model.wallet.WalletTransactionType
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.components.formatDay
+import com.swent.polyloop.ui.theme.PositiveGreen
 import java.time.LocalDate
 import java.time.ZoneId
-
-// Figma frame 27 shows the amounts received in green. The theme has no green, and adding one is a
-// theme change, so this one colour lives here, used only by the history amounts.
-private val PositiveGreen = Color(0xFF1E6B2E)
 
 /**
  * The Wallet screen (Figma frame 27): the balance, the PolyPoints held, a Recharge button and the
@@ -241,7 +237,9 @@ private fun HistorySection(history: List<WalletTransaction>, today: LocalDate) {
 
 /**
  * One line of the history: the type and then the item, or the date when there is no item ("Recharge
- * · 3 Oct", "Deposit held · Camping tent"), and the signed amount, green when positive.
+ * · 3 Oct", "Deposit held · Camping tent"), and the amount: "+N PP" in green when positive, "−N PP"
+ * (a real minus sign, U+2212) in the normal text colour when negative, and "0 PP" with no sign
+ * when 0.
  *
  * @param transaction the transaction to show.
  * @param today the current day, to leave the year out of this year's dates.
@@ -251,6 +249,12 @@ private fun TransactionRow(transaction: WalletTransaction, today: LocalDate) {
   val day = transaction.date.atZone(ZoneId.systemDefault()).toLocalDate()
   val detail = transaction.itemTitle.ifBlank { formatDay(day, withYear = day.year != today.year) }
   val amount = transaction.amount
+  val amountText =
+      when {
+        amount > 0 -> stringResource(R.string.wallet_amount_positive, amount)
+        amount < 0 -> stringResource(R.string.wallet_amount_negative, -amount)
+        else -> stringResource(R.string.wallet_pp_amount, amount)
+      }
   Row(
       modifier =
           Modifier.fillMaxWidth()
@@ -269,9 +273,7 @@ private fun TransactionRow(transaction: WalletTransaction, today: LocalDate) {
         modifier = Modifier.weight(1f).testTag(C.Tag.wallet_row_title),
     )
     Text(
-        text =
-            if (amount > 0) stringResource(R.string.wallet_amount_positive, amount)
-            else stringResource(R.string.wallet_amount_negative, -amount),
+        text = amountText,
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.SemiBold,
         color = if (amount > 0) PositiveGreen else MaterialTheme.colorScheme.onSurface,
