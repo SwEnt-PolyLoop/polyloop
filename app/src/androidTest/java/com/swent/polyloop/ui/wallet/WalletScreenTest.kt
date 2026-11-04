@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -268,7 +269,9 @@ class WalletScreenTest {
             FakeConnectivityRepository(),
         )
     composeTestRule.setContent { WalletScreen(viewModel, onRecharge = { recharged = true }) }
-    composeTestRule.waitForIdle()
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule.onAllNodesWithTag(C.Tag.wallet_available).fetchSemanticsNodes().isNotEmpty()
+    }
 
     composeTestRule.onNodeWithTag(C.Tag.wallet_available).assertTextEquals("50")
     composeTestRule.onNodeWithTag(C.Tag.wallet_recharge_button).performClick()

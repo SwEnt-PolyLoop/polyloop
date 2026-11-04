@@ -96,7 +96,6 @@ object RepositoryProvider {
    * is NOT the user's real wallet. Replace the default when the real repository exists.
    */
   var walletRepository: WalletRepository
-    // Placeholder: an in-memory fake, not the real wallet (see the KDoc above).
     get() = wallet ?: FakeWalletRepository().also { wallet = it }
     set(value) {
       wallet = value

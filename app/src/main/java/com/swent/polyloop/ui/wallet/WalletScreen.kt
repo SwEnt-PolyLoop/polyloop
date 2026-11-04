@@ -33,7 +33,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
@@ -43,8 +42,6 @@ import com.swent.polyloop.model.wallet.WalletTransactionType
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.components.formatDay
-import com.swent.polyloop.ui.theme.PolyLoopTheme
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -139,6 +136,10 @@ fun WalletContent(
 /**
  * The balance card: the available PolyPoints, the amount held as deposits, the amount held for
  * rentals when it is above 0, and the Recharge button, which is disabled unless [enabled].
+ *
+ * @param wallet the balance and the amounts held.
+ * @param enabled whether the Recharge button can be tapped; false while offline.
+ * @param onRecharge called when the user taps "Recharge".
  */
 @Composable
 private fun BalanceCard(wallet: Wallet, enabled: Boolean, onRecharge: () -> Unit) {
@@ -180,7 +181,13 @@ private fun BalanceCard(wallet: Wallet, enabled: Boolean, onRecharge: () -> Unit
   }
 }
 
-/** A line of the balance card: [labelRes] on the left, [amount] in PP on the right. */
+/**
+ * A line of the balance card: [labelRes] on the left, [amount] in PP on the right.
+ *
+ * @param labelRes the label of the line.
+ * @param amount the amount in whole PP.
+ * @param amountTag the test tag of the amount.
+ */
 @Composable
 private fun HeldRow(@StringRes labelRes: Int, amount: Int, amountTag: String) {
   Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -198,7 +205,12 @@ private fun HeldRow(@StringRes labelRes: Int, amount: Int, amountTag: String) {
   }
 }
 
-/** The "HISTORY" title and one card with a row per transaction, or the empty text. */
+/**
+ * The "HISTORY" title and one card with a row per transaction, or the empty text.
+ *
+ * @param history the transactions to show, in the order given.
+ * @param today the current day, to leave the year out of this year's dates.
+ */
 @Composable
 private fun HistorySection(history: List<WalletTransaction>, today: LocalDate) {
   Column(
@@ -230,6 +242,9 @@ private fun HistorySection(history: List<WalletTransaction>, today: LocalDate) {
 /**
  * One line of the history: the type and then the item, or the date when there is no item ("Recharge
  * · 3 Oct", "Deposit held · Camping tent"), and the signed amount, green when positive.
+ *
+ * @param transaction the transaction to show.
+ * @param today the current day, to leave the year out of this year's dates.
  */
 @Composable
 private fun TransactionRow(transaction: WalletTransaction, today: LocalDate) {
@@ -268,6 +283,10 @@ private fun TransactionRow(transaction: WalletTransaction, today: LocalDate) {
 /**
  * The load error ([errorMsg], or a generic text if it is blank) and a Retry button: on the whole
  * screen when there is no history, above the content otherwise.
+ *
+ * @param errorMsg the message to show; blank for the generic text.
+ * @param onRetry called when the user taps "Retry".
+ * @param modifier how the error is laid out.
  */
 @Composable
 private fun WalletError(errorMsg: String, onRetry: () -> Unit, modifier: Modifier) {
@@ -300,31 +319,3 @@ private val WalletTransactionType.labelRes: Int
         WalletTransactionType.DEPOSIT_SPLIT -> R.string.wallet_type_deposit_split
         WalletTransactionType.DEPOSIT_FORFEITED -> R.string.wallet_type_deposit_forfeited
       }
-
-@Preview(showBackground = true)
-@Composable
-private fun WalletContentPreview() {
-  val day = Instant.parse("2026-10-03T12:00:00Z")
-  PolyLoopTheme {
-    WalletContent(
-        uiState =
-            WalletUiState(
-                wallet = Wallet(available = 120, heldAsDeposits = 150),
-                history =
-                    listOf(
-                        WalletTransaction("1", WalletTransactionType.RECHARGE, 50, "", day),
-                        WalletTransaction(
-                            "2",
-                            WalletTransactionType.RENTAL_PAYMENT,
-                            -45,
-                            "Camping tent",
-                            day,
-                        ),
-                    ),
-                isLoading = false,
-            ),
-        onRetry = {},
-        onRecharge = {},
-    )
-  }
-}
