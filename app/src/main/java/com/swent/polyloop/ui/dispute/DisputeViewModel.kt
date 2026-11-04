@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.dispute
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
@@ -205,6 +206,30 @@ class DisputeViewModel(
   private fun fail() = _uiState.update {
     if (shown == null) it.copy(isLoading = false, loadFailed = true)
     else it.copy(refreshFailed = true)
+  }
+
+  /** Builds the ViewModel with its dependencies (manual constructor injection). */
+  class Factory(
+      private val rentalId: String,
+      private val disputeRepository: DisputeRepository,
+      private val rentalRepository: RentalRepository,
+      private val authRepository: AuthRepository,
+      private val connectivityRepository: ConnectivityRepository,
+  ) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+      require(modelClass.isAssignableFrom(DisputeViewModel::class.java)) {
+        "Unknown ViewModel class: ${modelClass.name}"
+      }
+      @Suppress("UNCHECKED_CAST")
+      return DisputeViewModel(
+          rentalId,
+          disputeRepository,
+          rentalRepository,
+          authRepository,
+          connectivityRepository,
+      )
+          as T
+    }
   }
 
   private companion object {
