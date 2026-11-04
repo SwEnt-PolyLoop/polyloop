@@ -2,8 +2,23 @@
 
 package com.swent.polyloop.ui.dispute
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.connectivity.ConnectivityRepository
+import com.swent.polyloop.model.dispute.Dispute
+import com.swent.polyloop.model.dispute.DisputeRepository
 import com.swent.polyloop.model.dispute.DisputeStage
+import com.swent.polyloop.model.rental.RentalRepository
+import java.time.Duration
 import java.time.Instant
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * One proposed split, ready to display.
@@ -66,4 +81,113 @@ data class DisputeUiState(
 fun shareInTenths(deposit: Int, lenderPercent: Int, toLender: Boolean): Int {
   val borrowerTenths = deposit * (100 - lenderPercent) / 10
   return if (toLender) deposit * 10 - borrowerTenths else borrowerTenths
+}
+
+/**
+ * The dispute of one rental, live, as seen by the signed-in user, who takes part in the rental as
+ * lender or borrower. [clock] gives the current time, to count the days left before escalation.
+ */
+class DisputeViewModel(
+    private val rentalId: String,
+    private val disputeRepository: DisputeRepository,
+    private val rentalRepository: RentalRepository,
+    private val authRepository: AuthRepository,
+    connectivityRepository: ConnectivityRepository,
+    private val clock: () -> Instant = { Instant.now() },
+) : ViewModel() {
+
+  private val _uiState = MutableStateFlow(DisputeUiState())
+  val uiState: StateFlow<DisputeUiState> = _uiState.asStateFlow()
+
+  private var observing: Job? = null
+
+  /** The last dispute shown, or null until one is loaded. */
+  private var shown: Dispute? = null
+
+  init {
+    viewModelScope.launch {
+      connectivityRepository.isOnline.collect { online ->
+        _uiState.update { it.copy(isOnline = online) }
+      }
+    }
+    observe()
+  }
+
+  /** Loads the dispute again, e.g. after an error. */
+  fun retry() = observe()
+
+  private fun observe() {
+    observing?.cancel()
+    // Once a dispute is shown, loading it again keeps it on screen.
+    if (shown == null) _uiState.update { it.copy(isLoading = true, loadFailed = false) }
+    val uid = authRepository.getCurrentUser()?.uid
+    if (uid == null) {
+      fail()
+      return
+    }
+    observing = viewModelScope.launch {
+      val rental =
+          rentalRepository.getRental(rentalId).getOrElse {
+            fail()
+            return@launch
+          }
+      if (rental == null || uid !in rental.participants) {
+        fail()
+        return@launch
+      }
+      _uiState.update {
+        it.copy(
+            itemTitle = rental.listingTitle,
+            otherPersonName = rental.otherPersonName(uid),
+            isLender = uid == rental.ownerId,
+            deposit = PLACEHOLDER_DEPOSIT,
+        )
+      }
+      disputeRepository
+          .observeDispute(rentalId)
+          .catch { fail() }
+          .collect { dispute -> if (dispute == null) fail() else show(dispute, uid) }
+    }
+  }
+
+  private fun show(dispute: Dispute, uid: String) {
+    shown = dispute
+    val stillSettling = !dispute.isSettled && dispute.stage == DisputeStage.SETTLE
+    _uiState.update {
+      it.copy(
+          stage = dispute.stage,
+          history =
+              dispute.proposals.reversed().map { p ->
+                ProposalRow(p.authorId == uid, p.lenderPercent, p.createdAt)
+              },
+          isSettled = dispute.isSettled,
+          daysUntilEscalation = if (stillSettling) daysUntil(dispute.escalatesAt) else 0,
+          isLoading = false,
+          loadFailed = false,
+          refreshFailed = false,
+      )
+    }
+  }
+
+  /** The whole days left until [deadline], rounded up; 0 once it has passed. */
+  private fun daysUntil(deadline: Instant): Int {
+    val seconds = Duration.between(clock(), deadline).seconds
+    return if (seconds <= 0) 0 else ((seconds + SECONDS_PER_DAY - 1) / SECONDS_PER_DAY).toInt()
+  }
+
+  /**
+   * A failed load: the whole screen shows the error if no dispute was shown yet; otherwise the last
+   * one stays, with a note.
+   */
+  private fun fail() = _uiState.update {
+    if (shown == null) it.copy(isLoading = false, loadFailed = true)
+    else it.copy(refreshFailed = true)
+  }
+
+  private companion object {
+    /** The deposit shown until rentals have one (#176), in PolyPoints. */
+    const val PLACEHOLDER_DEPOSIT = 100
+
+    const val SECONDS_PER_DAY = 86_400L
+  }
 }
