@@ -286,6 +286,27 @@ object C {
     const val wallet_row_amount = "wallet_row_amount"
     const val wallet_footer = "wallet_footer"
 
+    const val dispute_screen = "dispute_screen"
+    const val dispute_loading = "dispute_loading"
+    const val dispute_error = "dispute_error"
+    const val dispute_retry_button = "dispute_retry_button"
+    const val dispute_role_pill = "dispute_role_pill"
+    const val dispute_settled_pill = "dispute_settled_pill"
+    const val dispute_item_deposit = "dispute_item_deposit"
+    // Prefix: each step of the stepper is tagged dispute_step_ + stage name
+    const val dispute_step_ = "dispute_step_"
+    const val dispute_evidence_card = "dispute_evidence_card"
+    const val dispute_coming_soon = "dispute_coming_soon"
+    const val dispute_escalation = "dispute_escalation"
+    const val dispute_escalate_button = "dispute_escalate_button"
+    const val dispute_settled_footer = "dispute_settled_footer"
+    const val dispute_refresh_failed = "dispute_refresh_failed"
+    const val dispute_escalation_notice = "dispute_escalation_notice"
+    const val dispute_escalate_error = "dispute_escalate_error"
+    const val dispute_escalate_dialog = "dispute_escalate_dialog"
+    const val dispute_escalate_confirm = "dispute_escalate_confirm"
+    const val dispute_escalate_dismiss = "dispute_escalate_dismiss"
+
     const val dummy_screen = "dummy_screen"
     const val dummy_screen_text = "dummy_screen_text"
   }

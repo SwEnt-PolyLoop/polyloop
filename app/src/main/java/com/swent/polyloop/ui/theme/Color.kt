@@ -14,6 +14,9 @@ val Stone = Color(0xFF62615D) // secondary text
 val Sand = Color(0xFFEDECE7) // chips, avatars, segmented control
 val Border = Color(0xFFE4E3DF) // card and field borders
 
+val MintGreen = Color(0xFFE6F4EA) // "Settled" pill background
+val LeafGreen = Color(0xFF1E7B3A) // "Settled" pill text
+
 val OfflineOrange = Color(0xFFFDF0E0) // offline banner background
 val OfflineBrown = Color(0xFF7A3B12) // offline banner text
 
