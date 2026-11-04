@@ -63,7 +63,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
-import com.swent.polyloop.model.listing.MapPoint
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.DateRangePickerMode
 import com.swent.polyloop.ui.components.ListingPhoto

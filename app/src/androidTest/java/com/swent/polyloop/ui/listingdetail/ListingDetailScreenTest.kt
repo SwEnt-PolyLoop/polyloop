@@ -34,7 +34,7 @@ import com.swent.polyloop.model.listing.ListingAddresses
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
-import com.swent.polyloop.model.listing.MapPoint
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.resources.C
