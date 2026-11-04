@@ -266,5 +266,5 @@ class CreateListingViewModel(
 }
 
 /** Only the digits 0-9 ("007" is 7), from 1 to [Listing.MAX_AMOUNT]. */
-private fun String.isWholeNumberAboveZero(): Boolean =
+internal fun String.isWholeNumberAboveZero(): Boolean =
     isNotEmpty() && all { it in '0'..'9' } && (toIntOrNull() ?: 0) in 1..Listing.MAX_AMOUNT
