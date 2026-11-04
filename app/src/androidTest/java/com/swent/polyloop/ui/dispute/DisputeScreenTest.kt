@@ -366,6 +366,42 @@ class DisputeScreenTest {
   }
 
   @Test
+  fun borrowerCountersRetriesAfterAFailureSeesTheNewOfferAndAcceptsIt() {
+    val disputes = setScreen()
+    fun counterWithHalf() {
+      node(C.Tag.dispute_counter_button).performClick()
+      node(C.Tag.dispute_split_lender_field).performTextClearance()
+      node(C.Tag.dispute_split_lender_field).performTextInput("50")
+      node(C.Tag.dispute_split_send).performClick()
+    }
+
+    disputes.failure = IOException("offline")
+    val gate = CompletableDeferred<Unit>()
+    disputes.gate = gate
+    counterWithHalf()
+    // Cancel waits for the answer, so a failure is never left on a closed editor.
+    node(C.Tag.dispute_split_cancel).assertIsNotEnabled()
+    gate.complete(Unit)
+    node(C.Tag.dispute_proposal_error)
+        .assertTextEquals(context.getString(R.string.dispute_propose_failed))
+    // The editor stays open on the draft, so the first tap on Send never lands on Accept.
+    node(C.Tag.dispute_split_lender_field).assertTextEquals("50")
+
+    disputes.failure = null
+    node(C.Tag.dispute_split_send).performClick()
+    node(C.Tag.dispute_proposal_error).assertDoesNotExist()
+    node(C.Tag.dispute_waiting).assertTextEquals("Waiting for Ana")
+
+    runBlocking { disputes.propose("pump", "ana", 60) }
+    node(C.Tag.dispute_proposal_notice).assertTextEquals("Ana just updated their offer.")
+    node(C.Tag.dispute_accept_button).performClick()
+
+    node(C.Tag.dispute_settled_pill).assertIsDisplayed()
+    node(C.Tag.dispute_proposal_notice).assertDoesNotExist()
+    textIn(C.Tag.dispute_proposal_card, "60").assertIsDisplayed()
+  }
+
+  @Test
   fun borrowerConfirmsAnEscalationThatFailsThenRetries() {
     val disputes = setScreen()
     fun confirmEscalation() {
