@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
@@ -62,6 +63,14 @@ class RentalDetailScreenTest {
           zone = ZoneOffset.UTC,
       )
     }
+  }
+
+  private fun assertShown(tag: String, text: String) {
+    composeTestRule
+        .onNodeWithTag(tag, useUnmergedTree = true)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assertTextEquals(text)
   }
 
   private fun assertAbsent(tag: String) {
@@ -124,6 +133,7 @@ class RentalDetailScreenTest {
     assertAbsent(C.Tag.rental_detail_not_found)
     assertAbsent(C.Tag.rental_detail_stage_strip)
     assertAbsent(C.Tag.rental_detail_status)
+    assertAbsent(C.Tag.rental_detail_price)
   }
 
   @Test
@@ -189,5 +199,42 @@ class RentalDetailScreenTest {
     composeTestRule
         .onNodeWithTag(C.Tag.rental_detail_status_body)
         .assertTextEquals(context.getString(R.string.rental_detail_status_body, "30 Dec 2025"))
+  }
+
+  @Test
+  fun detailsCardShowsEachRow() {
+    setContent()
+
+    assertShown(C.Tag.rental_detail_dates, "1 – 8 Oct")
+    assertShown(C.Tag.rental_detail_return, "8 Oct")
+    assertShown(C.Tag.rental_detail_price, context.getString(R.string.rental_detail_price, 120))
+    assertShown(C.Tag.rental_detail_deposit, context.getString(R.string.listing_card_price, 180))
+  }
+
+  @Test
+  fun datesAcrossTwoMonthsShowBothMonths() {
+    setContent(
+        requested.copy(startDate = LocalDate.of(2026, 10, 28), endDate = LocalDate.of(2026, 11, 3))
+    )
+
+    assertShown(C.Tag.rental_detail_dates, "28 Oct – 3 Nov")
+    assertShown(C.Tag.rental_detail_return, "3 Nov")
+  }
+
+  @Test
+  fun returnShowsTheYearWhenNotThisYear() {
+    setContent(
+        requested.copy(startDate = LocalDate.of(2027, 1, 2), endDate = LocalDate.of(2027, 1, 5))
+    )
+
+    assertShown(C.Tag.rental_detail_return, "5 Jan 2027")
+  }
+
+  @Test
+  fun depositRowIsAbsentWhenUnknown() {
+    setContent(requested.copy(suggestedDeposit = null))
+
+    assertShown(C.Tag.rental_detail_price, context.getString(R.string.rental_detail_price, 120))
+    assertAbsent(C.Tag.rental_detail_deposit)
   }
 }

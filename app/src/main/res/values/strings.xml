@@ -290,5 +290,12 @@
     <string name="rental_detail_status_headline">Waiting for agreement</string>
     <!-- The day the request was sent, e.g. "Sent 28 Sep. The rental price is reserved. …" -->
     <string name="rental_detail_status_body">Sent %1$s. The rental price is reserved. Agree on the deposit in chat.</string>
+    <string name="rental_detail_details_title">Details</string>
+    <string name="rental_detail_dates_label">Dates</string>
+    <string name="rental_detail_return_label">Return</string>
+    <string name="rental_detail_price_label">Rental price</string>
+    <!-- The total rental price in PolyPoints, e.g. "120 PP · reserved" -->
+    <string name="rental_detail_price">%1$d PP · reserved</string>
+    <string name="rental_detail_deposit_label">Suggested deposit</string>
 
 </resources>

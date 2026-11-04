@@ -36,6 +36,7 @@ import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.badgeColors
 import com.swent.polyloop.ui.components.formatDay
+import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import com.swent.polyloop.ui.myrentals.labelRes
 import java.time.Instant
 import java.time.LocalDate
@@ -117,6 +118,7 @@ fun RentalDetailContent(
             RentalTitle(title = uiState.itemTitle)
             StageStrip()
             StatusCard(status = uiState.status, sentAt = uiState.sentAt, today = today, zone = zone)
+            DetailsCard(uiState = uiState, today = today)
           }
     }
   }
@@ -195,6 +197,76 @@ private fun StatusCard(status: RentalStatus?, sentAt: Instant?, today: LocalDate
         )
       }
     }
+  }
+}
+
+/** The dates, the return day, the reserved rental price and the suggested deposit. */
+@Composable
+private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
+  val locale = LocalConfiguration.current.locales[0]
+  OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      Text(
+          text = stringResource(R.string.rental_detail_details_title),
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+      )
+      val start = uiState.startDate
+      val end = uiState.endDate
+      if (start != null && end != null) {
+        val (from, to) = formatRangeEnds(start, end, locale, today)
+        InfoRow(
+            label = stringResource(R.string.rental_detail_dates_label),
+            value = stringResource(R.string.listing_detail_date_range, from, to),
+            valueTag = C.Tag.rental_detail_dates,
+        )
+        InfoRow(
+            label = stringResource(R.string.rental_detail_return_label),
+            value = formatDay(end, withYear = end.year != today.year, locale = locale),
+            valueTag = C.Tag.rental_detail_return,
+        )
+      }
+      InfoRow(
+          label = stringResource(R.string.rental_detail_price_label),
+          value = stringResource(R.string.rental_detail_price, uiState.rentalPrice),
+          valueTag = C.Tag.rental_detail_price,
+      )
+      // Null means the listing could not be read, not that the deposit is 0: "0 PP" would be
+      // wrong, so the row is left out instead.
+      uiState.suggestedDeposit?.let {
+        InfoRow(
+            label = stringResource(R.string.rental_detail_deposit_label),
+            value = stringResource(R.string.listing_card_price, it),
+            valueTag = C.Tag.rental_detail_deposit,
+            isBold = false,
+        )
+      }
+    }
+  }
+}
+
+/** A label on the left and its value on the right, bold unless [isBold] is false. */
+@Composable
+private fun InfoRow(label: String, value: String, valueTag: String, isBold: Boolean = true) {
+  Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.weight(1f),
+    )
+    Text(
+        text = value,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
+        color =
+            if (isBold) MaterialTheme.colorScheme.onSurface
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(valueTag),
+    )
   }
 }
 
