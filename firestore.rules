@@ -237,6 +237,23 @@ service cloud.firestore {
             && request.resource.data.sentAt == request.time
             && request.resource.data.type == 'USER';
       }
+
+      // Condition photos (#231). Each participant adds only their own pickup photos, while the
+      // rental is Accepted. They are evidence: never changed.
+      match /photos/{photoId} {
+        allow read: if isVerifiedEpfl()
+            && request.auth.uid in get(rentalPath(rentalId)).data.participants;
+
+        allow create: if isVerifiedEpfl()
+            && request.auth.uid in get(rentalPath(rentalId)).data.participants
+            && request.resource.data.keys().hasOnly(['takenBy', 'phase', 'takenAt', 'url'])
+            && request.resource.data.keys().hasAll(['takenBy', 'phase', 'takenAt', 'url'])
+            && request.resource.data.takenBy == request.auth.uid
+            && request.resource.data.takenAt == request.time
+            && request.resource.data.url is string
+            && request.resource.data.phase == 'PICKUP'
+            && get(rentalPath(rentalId)).data.status == 'ACCEPTED';
+      }
     }
   }
 }
