@@ -236,6 +236,7 @@ class PolyLoopAppTest {
           Screen.MyRentals -> C.Tag.my_rentals_screen
           Screen.ChatList -> C.Tag.chat_list_screen
           Screen.Chat -> C.Tag.chat_screen
+          Screen.Wallet -> C.Tag.wallet_screen
           Screen.Profile,
           Screen.UserProfile -> C.Tag.profile_screen
           else -> null

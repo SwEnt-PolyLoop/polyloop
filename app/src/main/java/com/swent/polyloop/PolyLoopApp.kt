@@ -49,6 +49,8 @@ import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.ui.profile.ProfileScreen
 import com.swent.polyloop.ui.profile.ProfileViewModel
+import com.swent.polyloop.ui.wallet.WalletScreen
+import com.swent.polyloop.ui.wallet.WalletViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -224,7 +226,18 @@ private fun PolyLoopScaffold(
             },
         )
       }
-      composable(Screen.Wallet.route) { DummyScreen(Screen.Wallet.route) }
+      composable(Screen.Wallet.route) {
+        val walletViewModel: WalletViewModel =
+            viewModel(
+                factory =
+                    WalletViewModel.Factory(
+                        walletRepository = RepositoryProvider.walletRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
+                    )
+            )
+        WalletScreen(viewModel = walletViewModel)
+      }
       composable(Screen.Profile.route) {
         ProfileRoute(userId = null, navController = navController, navigationActions)
       }
