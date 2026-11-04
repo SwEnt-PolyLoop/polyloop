@@ -9,6 +9,7 @@ import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.HandoverRepository
 import com.swent.polyloop.model.rental.RentalRepository
+import com.swent.polyloop.ui.createlisting.deletePhotoFile
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +29,7 @@ import kotlinx.coroutines.launch
  * @property deposit the deposit held, in PolyPoints.
  * @property photos the photos the signed-in user took in [phase], oldest first.
  * @property photosFailed true when the photos could not be loaded.
+ * @property failedPhotoUri the photo whose upload failed, kept to try again; null when none did.
  */
 data class HandoverUiState(
     val isLoading: Boolean = true,
@@ -42,19 +44,33 @@ data class HandoverUiState(
     val deposit: Int = 0, // 0 until Rental.deposit exists (#265)
     val photos: List<HandoverPhoto> = emptyList(),
     val photosFailed: Boolean = false,
+    val isUploading: Boolean = false,
+    val failedPhotoUri: String? = null,
 ) {
   /** How many more photos are needed before the handover can go on; 0 once there are enough. */
   val photosNeeded: Int
     get() = (HandoverPhoto.MIN_PHOTOS - photos.size).coerceAtLeast(0)
+
+  /** True when a photo can be added: on the pickup day, under 20 photos, none uploading. */
+  val canAddPhoto: Boolean
+    get() =
+        phase == HandoverPhase.PICKUP &&
+            isPickupDay &&
+            photos.size < HandoverPhoto.MAX_PHOTOS &&
+            !isUploading
 }
 
-/** Shows the handover of the rental [rentalId], read once. [today] is the current date. */
+/**
+ * Shows the handover of the rental [rentalId], read once, and uploads the photos taken. [today] is
+ * the current date; [deletePhoto] deletes a photo file once it is uploaded or refused.
+ */
 class HandoverViewModel(
     private val rentalId: String,
     private val rentalRepository: RentalRepository,
     private val handoverRepository: HandoverRepository,
     private val authRepository: AuthRepository,
     private val today: () -> LocalDate = LocalDate::now,
+    private val deletePhoto: (uri: String) -> Unit = ::deletePhotoFile,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(HandoverUiState())
@@ -67,6 +83,37 @@ class HandoverViewModel(
   /** Loads the rental again, after it failed to load. Ignored otherwise. */
   fun retry() {
     if (_uiState.value.loadFailed) load()
+  }
+
+  /**
+   * Uploads the photo just taken at [photoUri], replacing one that failed. A photo that cannot be
+   * added (see [HandoverUiState.canAddPhoto]) is deleted.
+   */
+  fun addPhoto(photoUri: String) {
+    if (!_uiState.value.canAddPhoto) {
+      deletePhoto(photoUri)
+      return
+    }
+    _uiState.value.failedPhotoUri?.let(deletePhoto)
+    upload(photoUri)
+  }
+
+  /** Uploads again the photo whose upload failed. */
+  fun retryUpload() {
+    val uri = _uiState.value.failedPhotoUri ?: return
+    if (_uiState.value.canAddPhoto) upload(uri)
+  }
+
+  private fun upload(photoUri: String) {
+    val phase = _uiState.value.phase ?: return
+    _uiState.update { it.copy(isUploading = true, failedPhotoUri = null) }
+    viewModelScope.launch {
+      val uploaded = handoverRepository.addPhoto(rentalId, phase, photoUri).isSuccess
+      if (uploaded) deletePhoto(photoUri) // the copy in Storage is the one shown now
+      _uiState.update {
+        it.copy(isUploading = false, failedPhotoUri = photoUri.takeUnless { uploaded })
+      }
+    }
   }
 
   private fun load() {

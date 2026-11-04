@@ -57,6 +57,7 @@ class HandoverViewModelTest {
   private lateinit var handoverRepository: FakeHandoverRepository
   private lateinit var authRepository: FakeAuthRepository
   private var today = pickupDay
+  private val deleted = mutableListOf<String>()
 
   @Before
   fun setUp() {
@@ -72,7 +73,14 @@ class HandoverViewModelTest {
   }
 
   private fun viewModel(id: String = rental.id) =
-      HandoverViewModel(id, rentalRepository, handoverRepository, authRepository, today = { today })
+      HandoverViewModel(
+          id,
+          rentalRepository,
+          handoverRepository,
+          authRepository,
+          today = { today },
+          deletePhoto = { deleted += it },
+      )
 
   @Test
   fun theBorrowerSeesTheItemTheLenderAndThePickupPhaseOnceLoaded() {
@@ -182,5 +190,80 @@ class HandoverViewModelTest {
     handoverRepository.failure = RuntimeException("would be reported if read")
 
     assertFalse(viewModel().uiState.value.photosFailed)
+  }
+
+  // ---------- adding photos ----------
+
+  @Test
+  fun aPhotoIsUploadedThenItsFileDeleted() {
+    val gate = CompletableDeferred<Unit>()
+    handoverRepository.gate = gate
+    val vm = viewModel()
+
+    vm.addPhoto("file1")
+    assertTrue(vm.uiState.value.isUploading)
+    assertFalse(vm.uiState.value.canAddPhoto)
+
+    gate.complete(Unit)
+    assertFalse(vm.uiState.value.isUploading)
+    assertEquals(1, vm.uiState.value.photos.size)
+    assertEquals(listOf("file1"), deleted)
+  }
+
+  @Test
+  fun aFailedUploadKeepsItsFileToTryAgain() {
+    val vm = viewModel()
+    handoverRepository.failure = RuntimeException("offline")
+
+    vm.addPhoto("file1")
+    assertEquals("file1", vm.uiState.value.failedPhotoUri)
+    assertEquals(emptyList<String>(), deleted)
+
+    handoverRepository.failure = null
+    vm.retryUpload()
+    assertNull(vm.uiState.value.failedPhotoUri)
+    assertEquals(listOf("file1"), deleted)
+    assertEquals(2, handoverRepository.addPhotoCalls)
+  }
+
+  @Test
+  fun aNewPhotoReplacesTheOneThatFailed() {
+    val vm = viewModel()
+    handoverRepository.failure = RuntimeException("offline")
+    vm.addPhoto("file1")
+
+    handoverRepository.failure = null
+    vm.addPhoto("file2")
+    assertEquals(listOf("file1", "file2"), deleted)
+    assertEquals(listOf("file2"), handoverRepository.photos.map { it.photo.url })
+  }
+
+  @Test
+  fun photosAreRefusedAndDeletedOffThePickupDayAtTwentyOrWhileUploading() {
+    today = pickupDay.plusDays(1)
+    viewModel().addPhoto("late")
+
+    today = pickupDay
+    handoverRepository.photos = photos(HandoverPhoto.MAX_PHOTOS)
+    viewModel().addPhoto("full")
+
+    handoverRepository.photos = emptyList()
+    handoverRepository.gate = CompletableDeferred()
+    val vm = viewModel()
+    vm.addPhoto("first")
+    vm.addPhoto("second")
+    vm.retryUpload() // nothing failed: ignored
+
+    assertEquals(listOf("late", "full", "second"), deleted)
+    assertEquals(1, handoverRepository.addPhotoCalls)
+  }
+
+  @Test
+  fun aRentalThatTakesNoPhotosRefusesThem() {
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
+    viewModel().addPhoto("file1")
+
+    assertEquals(listOf("file1"), deleted)
+    assertEquals(0, handoverRepository.addPhotoCalls)
   }
 }
