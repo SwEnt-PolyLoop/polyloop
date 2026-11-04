@@ -12,6 +12,8 @@ import com.swent.polyloop.model.chat.ChatRepository
 import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepositoryAndroid
+import com.swent.polyloop.model.handover.HandoverRepository
+import com.swent.polyloop.model.handover.HandoverRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.ProfileRepository
@@ -42,6 +44,7 @@ object RepositoryProvider {
   private var profile: ProfileRepository? = null
   private var rental: RentalRepository? = null
   private var connectivity: ConnectivityRepository? = null
+  private var handover: HandoverRepository? = null
   private var wallet: WalletRepository? = null
 
   /** Keeps the app context for the repositories that need one. Called once at app startup. */
@@ -77,6 +80,12 @@ object RepositoryProvider {
     get() = rental ?: RentalRepositoryFirestore().also { rental = it }
     set(value) {
       rental = value
+    }
+
+  var handoverRepository: HandoverRepository
+    get() = handover ?: HandoverRepositoryFirestore().also { handover = it }
+    set(value) {
+      handover = value
     }
 
   var connectivityRepository: ConnectivityRepository
@@ -122,6 +131,7 @@ object RepositoryProvider {
     profile = null
     rental = null
     connectivity = null
+    handover = null
     wallet = null
   }
 
