@@ -67,8 +67,8 @@ fun RentalDetailScreen(
 /**
  * Stateless Rental detail content: a loading indicator, an error with a Retry button, a not-found
  * message, a placeholder for a status not built yet, or the Requested rental, depending on
- * [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is shown); tests
- * pass fixed values so their expected texts do not depend on the day they run.
+ * [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is shown);
+ * tests pass fixed values so their expected texts do not depend on the day they run.
  */
 @Composable
 fun RentalDetailContent(
@@ -112,7 +112,8 @@ fun RentalDetailContent(
           }
       else ->
           Column(
-              modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+              modifier =
+                  Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
               verticalArrangement = Arrangement.spacedBy(16.dp),
           ) {
             RentalTitle(title = uiState.itemTitle)
