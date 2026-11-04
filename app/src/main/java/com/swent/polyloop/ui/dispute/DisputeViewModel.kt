@@ -49,6 +49,14 @@ enum class DisputeActionError {
   ESCALATE,
 }
 
+/** How the dispute moved on to its current stage while the screen was open. */
+enum class EscalationNotice {
+  /** The other person escalated it. */
+  BY_OTHER,
+  /** It escalated by itself, at the end of the time left. */
+  AUTOMATIC,
+}
+
 /**
  * State of the Dispute screen.
  *
@@ -65,6 +73,13 @@ enum class DisputeActionError {
  * [draftLenderPercent] is the split the user is editing, as the lender's percentage, or null when
  * the editor is closed. [isConfirmingEscalation] is true while the user is asked to confirm moving
  * the dispute on to the LLM proposal.
+ *
+ * What the other person did while the screen is open, never what the user did or what was there
+ * when the screen opened: [offerUpdated] is true when they sent a new proposal, until the user
+ * opens the split editor or sends something, or the dispute leaves direct settlement;
+ * [acceptedByOther] is true once they accepted the user's proposal, until the screen is opened
+ * again; and [escalationNotice] says how the dispute moved on to its current stage, until it moves
+ * on again (null when the user moved it on).
  */
 data class DisputeUiState(
     val itemTitle: String = "",
@@ -79,6 +94,9 @@ data class DisputeUiState(
     val isSending: Boolean = false,
     val draftLenderPercent: Int? = null,
     val isConfirmingEscalation: Boolean = false,
+    val offerUpdated: Boolean = false,
+    val acceptedByOther: Boolean = false,
+    val escalationNotice: EscalationNotice? = null,
     val actionError: DisputeActionError? = null,
     val isLoading: Boolean = true,
     val loadFailed: Boolean = false,
@@ -117,6 +135,13 @@ data class DisputeUiState(
   /** True when the user can accept the proposal on the table: it exists and is the other's. */
   val canAccept: Boolean
     get() = canPropose && latestProposal?.byMe == false
+
+  /**
+   * True when the screen says the other person updated their offer: not when the user's acceptance
+   * failed because of it, whose error already says so.
+   */
+  val showsOfferUpdated: Boolean
+    get() = offerUpdated && actionError != DisputeActionError.PROPOSAL_CHANGED
 
   /**
    * True when the user can move the dispute on to the LLM proposal: loaded, online, not sending,
@@ -189,6 +214,7 @@ class DisputeViewModel(
       it.copy(
           draftLenderPercent = it.latestProposal?.lenderPercent ?: 50,
           actionError = null,
+          offerUpdated = false,
       )
     }
   }
@@ -251,8 +277,8 @@ class DisputeViewModel(
   /**
    * Closes the confirmation and moves the dispute on to the LLM proposal. Does nothing else unless
    * the confirmation is still open (a new stage closes it) and [DisputeUiState.canEscalate]. If the
-   * dispute already moved on meanwhile, nothing changes and no error is shown: the new stage is
-   * shown instead, after loading the dispute again if it could not be refreshed.
+   * dispute already moved on meanwhile, nothing changes and no error is shown: the new stage and
+   * its notice are shown instead, after loading the dispute again if it could not be refreshed.
    */
   fun escalate() {
     val confirmed = _uiState.value.isConfirmingEscalation
@@ -275,7 +301,7 @@ class DisputeViewModel(
       request: suspend (uid: String) -> Result<Unit>,
   ) {
     val uid = authRepository.getCurrentUser()?.uid
-    _uiState.update { it.copy(isSending = true, actionError = null) }
+    _uiState.update { it.copy(isSending = true, actionError = null, offerUpdated = false) }
     viewModelScope.launch {
       val failure = if (uid == null) null else request(uid).exceptionOrNull()
       val actionError =
@@ -332,15 +358,31 @@ class DisputeViewModel(
   }
 
   private fun show(dispute: Dispute, uid: String) {
+    // Changes are told only against a dispute already shown, so not when the screen opens.
     val before = shown
     shown = dispute
     val stillSettling = !dispute.isSettled && dispute.stage == DisputeStage.SETTLE
+    val theirNewOffer =
+        before != null &&
+            dispute.proposals.size > before.proposals.size &&
+            dispute.latestProposal?.authorId != uid
     val stageChanged = before != null && dispute.stage != before.stage
     val justSettled = before?.isSettled == false && dispute.isSettled
     _uiState.update {
       it.copy(
+          offerUpdated = (it.offerUpdated || theirNewOffer) && stillSettling,
+          acceptedByOther =
+              it.acceptedByOther || (justSettled && dispute.latestProposal?.authorId == uid),
           // The failed action was for a stage or an offer that is gone, so retrying it is wrong.
           actionError = it.actionError.takeUnless { stageChanged || justSettled },
+          escalationNotice =
+              if (!stageChanged) it.escalationNotice
+              else
+                  when (dispute.escalatedBy) {
+                    null -> EscalationNotice.AUTOMATIC
+                    uid -> null
+                    else -> EscalationNotice.BY_OTHER
+                  },
           stage = dispute.stage,
           // An agreement or a new stage ends the editing and the confirmation, which was for
           // another stage.
