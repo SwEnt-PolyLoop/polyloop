@@ -88,6 +88,30 @@
     <string name="my_rentals_closed_on">Closed %1$s</string>
     <!-- What comes next, then where, e.g. "Return by 9 Oct · EPFL" -->
     <string name="my_rentals_date_and_area">%1$s · %2$s</string>
+    <string name="wallet_title">Wallet</string>
+    <string name="wallet_available">Available</string>
+    <string name="wallet_polypoints">PolyPoints</string>
+    <string name="wallet_held_deposits">Held as deposits</string>
+    <string name="wallet_held_rentals">Held for rentals</string>
+    <string name="wallet_pp_amount">%1$d PP</string>
+    <string name="wallet_recharge">Recharge</string>
+    <string name="wallet_history_title">HISTORY</string>
+    <string name="wallet_history_empty">No transactions yet.</string>
+    <string name="wallet_footer">1 CHF = 1 PolyPoint. PolyPoints can\'t be withdrawn.</string>
+    <string name="wallet_error_fallback">Could not load your wallet</string>
+    <string name="wallet_retry">Retry</string>
+    <!-- Signed amounts of the history; the minus is a real minus sign (U+2212) -->
+    <string name="wallet_amount_positive">+%1$d PP</string>
+    <string name="wallet_amount_negative">−%1$d PP</string>
+    <!-- The type, then the item or the date, e.g. "Deposit held · Camping tent", "Recharge · 3 Oct" -->
+    <string name="wallet_row_title">%1$s · %2$s</string>
+    <string name="wallet_type_recharge">Recharge</string>
+    <string name="wallet_type_rental_payment">Rental payment</string>
+    <string name="wallet_type_late_fee">Late fee received</string>
+    <string name="wallet_type_deposit_held">Deposit held</string>
+    <string name="wallet_type_deposit_released">Deposit released</string>
+    <string name="wallet_type_deposit_split">Deposit split</string>
+    <string name="wallet_type_deposit_forfeited">Lost item deposit received</string>
     <string name="rental_status_requested">Requested</string>
     <string name="rental_status_accepted">Accepted</string>
     <string name="rental_status_active">Active</string>
@@ -253,5 +277,25 @@
     <!-- A message written by the app, then its time, e.g. "Request sent · 15:02" -->
     <string name="chat_system_message">%1$s · %2$s</string>
     <string name="chat_send_failed">Message not sent. Press send to try again.</string>
+
+    <!-- Rental detail -->
+    <string name="rental_detail_error_fallback">Could not load the rental</string>
+    <string name="rental_detail_retry">Retry</string>
+    <string name="rental_detail_not_found">This rental no longer exists.</string>
+    <string name="rental_detail_unsupported">This rental\'s details aren\'t available yet.</string>
+    <string name="rental_detail_stage_accepted">Accepted</string>
+    <string name="rental_detail_stage_in_use">In use</string>
+    <string name="rental_detail_stage_returned">Returned</string>
+    <string name="rental_detail_stage_closed">Closed</string>
+    <string name="rental_detail_status_headline">Waiting for agreement</string>
+    <!-- The day the request was sent, e.g. "Sent 28 Sep. The rental price is reserved. …" -->
+    <string name="rental_detail_status_body">Sent %1$s. The rental price is reserved. Agree on the deposit in chat.</string>
+    <string name="rental_detail_details_title">Details</string>
+    <string name="rental_detail_dates_label">Dates</string>
+    <string name="rental_detail_return_label">Return</string>
+    <string name="rental_detail_price_label">Rental price</string>
+    <!-- The total rental price in PolyPoints, e.g. "120 PP · reserved" -->
+    <string name="rental_detail_price">%1$d PP · reserved</string>
+    <string name="rental_detail_deposit_label">Suggested deposit</string>
 
 </resources>

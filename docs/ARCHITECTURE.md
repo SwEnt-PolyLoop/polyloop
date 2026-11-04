@@ -32,7 +32,7 @@ One repository per type of data, shared by every ViewModel that needs it. ViewMo
 | Location | LocationRepository | The phone's GPS |
 | Connectivity | ConnectivityRepository | The phone's network status |
 
-`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing, Profile, Chat, Rental, Handover, Connectivity); add each new repository to it when it is implemented. It also exposes the shared `FirebaseStorage` instance, for the repositories that upload photos and PDFs. Repositories that read the phone (Connectivity, later Location) need the app context: `PolyLoopApplication` passes it to `RepositoryProvider.init` at startup.
+`model/RepositoryProvider` creates the repositories, so the whole app shares one instance of each. Each repository is created on first use, so Firebase is not touched until it is needed. Tests can replace a repository with a fake by assigning it before setting content, then call `reset()`. It holds the repositories implemented so far (Auth, Listing, Profile, Chat, Rental, Handover, Connectivity, and Wallet, which is an in-memory `FakeWalletRepository` until its Firestore implementation exists); add each new repository to it when it is implemented. It also exposes the shared `FirebaseStorage` instance, for the repositories that upload photos and PDFs. Repositories that read the phone (Connectivity, later Location) need the app context: `PolyLoopApplication` passes it to `RepositoryProvider.init` at startup.
 
 ## ViewModels: one per screen
 
