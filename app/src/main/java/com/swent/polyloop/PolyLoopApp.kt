@@ -216,6 +216,7 @@ private fun PolyLoopScaffold(
             onReviewRequest = { id ->
               navController.navigate(Screen.ReviewRequest.createRoute(id))
             },
+            onOpenChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
         )
       }
       composable(Screen.ChatList.route) {

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.profile.ProfileRepository
+import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
@@ -17,6 +18,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -29,7 +31,8 @@ import kotlinx.coroutines.launch
  * signed-in user owns the item. [sentAt] is when the request was sent, [endDate] the return day and
  * [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the listing's item value in
  * PolyPoints, or null when the listing is missing or could not be read. [otherPerson] is the
- * borrower for the lender and the owner for the borrower.
+ * borrower for the lender and the owner for the borrower. [offer] is the deposit offer waiting for
+ * an answer, if any, and [isOfferMine] is true when the signed-in user wrote it.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -46,6 +49,8 @@ data class RentalDetailUiState(
     val suggestedDeposit: Int? = null,
     val pickupArea: String = "",
     val otherPerson: OtherPerson? = null,
+    val offer: DepositOffer? = null,
+    val isOfferMine: Boolean = false,
 )
 
 /**
@@ -62,7 +67,10 @@ data class OtherPerson(
     val reviewCount: Int?,
 )
 
-/** Shows one rental, read once, as seen by the signed-in user. Only Requested is handled so far. */
+/**
+ * Shows one rental as seen by the signed-in user. Only Requested is handled so far. The rental is
+ * read once, then followed so that the offer stays up to date when coming back from the chat.
+ */
 class RentalDetailViewModel(
     private val rentalId: String,
     private val rentalRepository: RentalRepository,
@@ -135,7 +143,25 @@ class RentalDetailViewModel(
               suggestedDeposit = suggestedDeposit,
               pickupArea = rental.pickupArea,
               otherPerson = otherPerson,
+              offer = rental.offer,
+              isOfferMine = rental.offer?.authorId == uid,
           )
+      // A read error here only stops the updates: what was read above stays on screen.
+      rentalRepository
+          .observeRental(rentalId)
+          .catch {}
+          .collect { live ->
+            when {
+              live == null -> Unit
+              live.status != RentalStatus.REQUESTED ->
+                  _uiState.value =
+                      RentalDetailUiState(isSupported = false, itemTitle = live.listingTitle)
+              else ->
+                  _uiState.update {
+                    it.copy(offer = live.offer, isOfferMine = live.offer?.authorId == uid)
+                  }
+            }
+          }
     }
   }
 
