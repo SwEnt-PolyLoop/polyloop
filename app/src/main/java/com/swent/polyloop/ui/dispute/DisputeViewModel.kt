@@ -45,7 +45,8 @@ data class ProposalRow(val byMe: Boolean, val lenderPercent: Int, val createdAt:
  * direct settlement or once settled, where it never moves on by itself. [loadFailed] is true when
  * the dispute cannot be loaded (or nobody is signed in, or the user does not take part in the
  * rental) and nothing was shown yet; [refreshFailed] is true when it could not be loaded again
- * after it was shown, which keeps the last state on screen.
+ * after it was shown, which keeps the last state on screen. [draftLenderPercent] is the split the
+ * user is editing, as the lender's percentage, or null when the editor is closed.
  */
 data class DisputeUiState(
     val itemTitle: String = "",
@@ -58,6 +59,7 @@ data class DisputeUiState(
     val daysUntilEscalation: Int = 0,
     val isOnline: Boolean = true,
     val isSending: Boolean = false,
+    val draftLenderPercent: Int? = null,
     val isLoading: Boolean = true,
     val loadFailed: Boolean = false,
     val refreshFailed: Boolean = false,
@@ -76,6 +78,21 @@ data class DisputeUiState(
   /** True when the user can send a proposal: loaded, online, not sending, still settling. */
   val canPropose: Boolean
     get() = isLoaded && isOnline && !isSending && !isSettled && stage == DisputeStage.SETTLE
+
+  /** True while the user edits a split. */
+  val isEditing: Boolean
+    get() = draftLenderPercent != null
+
+  /** What the user would get back if the draft were applied, in tenths of a PolyPoint. */
+  val draftGetBackTenths: Int?
+    get() = draftLenderPercent?.let { shareInTenths(deposit, it, isLender) }
+
+  /** True when the draft can be sent: the user can propose and it is not the split on the table. */
+  val canSend: Boolean
+    get() =
+        canPropose &&
+            draftLenderPercent != null &&
+            draftLenderPercent != latestProposal?.lenderPercent
 
   /** True when the user can accept the proposal on the table: it exists and is the other's. */
   val canAccept: Boolean
@@ -142,6 +159,23 @@ class DisputeViewModel(
   /** Loads the dispute again, e.g. after an error. */
   fun retry() = observe()
 
+  /**
+   * Opens the split editor on the proposal on the table, or on 50/50 without one. Does nothing
+   * unless [DisputeUiState.canPropose].
+   */
+  fun startEditing() {
+    if (!_uiState.value.canPropose) return
+    _uiState.update { it.copy(draftLenderPercent = it.latestProposal?.lenderPercent ?: 50) }
+  }
+
+  /** Moves the draft to [lenderPercent] percent for the lender, kept between 0 and 100. */
+  fun setDraft(lenderPercent: Int) = _uiState.update {
+    if (it.isEditing) it.copy(draftLenderPercent = lenderPercent.coerceIn(0, 100)) else it
+  }
+
+  /** Closes the split editor without sending the draft. */
+  fun cancelEditing() = _uiState.update { it.copy(draftLenderPercent = null) }
+
   private fun observe() {
     observing?.cancel()
     // Once a dispute is shown, loading it again keeps it on screen.
@@ -182,6 +216,7 @@ class DisputeViewModel(
     _uiState.update {
       it.copy(
           stage = dispute.stage,
+          draftLenderPercent = it.draftLenderPercent.takeIf { stillSettling },
           history =
               dispute.proposals.reversed().map { p ->
                 ProposalRow(p.authorId == uid, p.lenderPercent, p.createdAt)
