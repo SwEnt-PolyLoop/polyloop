@@ -103,7 +103,6 @@ class DisputeScreenTest {
     node(C.Tag.dispute_settled_footer).performScrollTo().assertIsDisplayed()
   }
 
-
   @Test
   fun escalateNowShowsTheDaysLeftAndAsksToConfirm() {
     setContent(open)
