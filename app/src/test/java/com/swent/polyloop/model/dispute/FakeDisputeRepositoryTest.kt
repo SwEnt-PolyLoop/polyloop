@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -18,7 +19,10 @@ class FakeDisputeRepositoryTest {
   private val open =
       Dispute("rental", DisputeStage.SETTLE, listOf(proposal), now.plusSeconds(86_400))
 
-  private fun repository() = FakeDisputeRepository(listOf(open))
+  private fun repository(dispute: Dispute = open) =
+      FakeDisputeRepository(listOf(dispute), clock = { now })
+
+  private suspend fun FakeDisputeRepository.current() = observeDispute("rental").first()!!
 
   @Test
   fun observeDisputeGivesNullForARentalWithoutDispute() = runTest {
@@ -35,6 +39,25 @@ class FakeDisputeRepositoryTest {
 
     repository.remove("rental")
     assertNull(repository.observeDispute("rental").first())
+  }
+
+  @Test
+  fun proposeAddsTheLatestProposal() = runTest {
+    val repository = repository()
+
+    assertTrue(repository.propose("rental", "borrower", 40).isSuccess)
+
+    assertEquals(listOf(proposal, Proposal("borrower", 40, now)), repository.current().proposals)
+  }
+
+  @Test
+  fun proposeFailsOnceSettled() = runTest {
+    assertTrue(repository(open.copy(agreedAt = now)).propose("rental", "lender", 50).isFailure)
+  }
+
+  @Test
+  fun callsFailForAMissingDispute() = runTest {
+    assertTrue(repository().propose("other", "lender", 50).isFailure)
   }
 
   @Test
