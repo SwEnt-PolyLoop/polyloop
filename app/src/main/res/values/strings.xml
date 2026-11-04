@@ -298,4 +298,10 @@
     <string name="rental_detail_price">%1$d PP · reserved</string>
     <string name="rental_detail_deposit_label">Suggested deposit</string>
 
+    <!-- Handover -->
+    <string name="handover_error">Could not load this rental.</string>
+    <string name="handover_retry">Retry</string>
+    <string name="handover_not_found">This rental no longer exists.</string>
+    <string name="handover_nothing">Nothing to hand over right now.</string>
+
 </resources>

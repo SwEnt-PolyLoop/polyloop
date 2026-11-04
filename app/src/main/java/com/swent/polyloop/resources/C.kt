@@ -206,6 +206,13 @@ object C {
     const val rental_detail_retry_button = "rental_detail_retry_button"
     const val rental_detail_not_found = "rental_detail_not_found"
 
+    const val handover_screen = "handover_screen"
+    const val handover_loading = "handover_loading"
+    const val handover_error = "handover_error"
+    const val handover_retry_button = "handover_retry_button"
+    const val handover_not_found = "handover_not_found"
+    const val handover_nothing = "handover_nothing"
+
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
     const val top_bar_profile_button = "top_bar_profile_button"
