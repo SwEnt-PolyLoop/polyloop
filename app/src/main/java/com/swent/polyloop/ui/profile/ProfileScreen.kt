@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
@@ -41,17 +40,20 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.ProfileAvatar
 
 /**
  * The Profile screen, for the signed-in user's own profile or someone else's.
  *
  * @param onListingClick opens one of the own listings.
+ * @param onEditProfile opens Edit profile, from the own profile.
  * @param onSignedOut called once the user signed out, to leave the screen for sign-in.
  */
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     onListingClick: (listingId: String) -> Unit,
+    onEditProfile: () -> Unit,
     onSignedOut: () -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -61,6 +63,7 @@ fun ProfileScreen(
   ProfileContent(
       uiState = uiState,
       onListingClick = onListingClick,
+      onEditProfile = onEditProfile,
       onSignOut = viewModel::signOut,
       onRetry = viewModel::retry,
       onRetryListings = viewModel::refreshListings,
@@ -72,6 +75,7 @@ fun ProfileScreen(
 fun ProfileContent(
     uiState: ProfileUiState,
     onListingClick: (listingId: String) -> Unit,
+    onEditProfile: () -> Unit,
     onSignOut: () -> Unit,
     onRetry: () -> Unit,
     onRetryListings: () -> Unit,
@@ -104,6 +108,7 @@ fun ProfileContent(
               profile = profile,
               uiState = uiState,
               onListingClick = onListingClick,
+              onEditProfile = onEditProfile,
               onSignOut = onSignOut,
               onRetryListings = onRetryListings,
           )
@@ -131,13 +136,15 @@ private fun ProfileError(errorMsg: String, onRetry: () -> Unit) {
 }
 
 /**
- * The header of [profile], then, on the own profile only, the "My listings" card and "Sign out".
+ * The header of [profile], then, on the own profile only, "Edit profile" and "Sign out" side by
+ * side, then the "My listings" card.
  */
 @Composable
 private fun ProfileLoaded(
     profile: UserProfile,
     uiState: ProfileUiState,
     onListingClick: (listingId: String) -> Unit,
+    onEditProfile: () -> Unit,
     onSignOut: () -> Unit,
     onRetryListings: () -> Unit,
 ) {
@@ -148,6 +155,7 @@ private fun ProfileLoaded(
   ) {
     item { ProfileHeader(profile) }
     if (uiState.isOwnProfile) {
+      item { ProfileActions(onEditProfile = onEditProfile, onSignOut = onSignOut) }
       item {
         MyListingsCard(
             listings = uiState.listings,
@@ -159,20 +167,38 @@ private fun ProfileLoaded(
             modifier = Modifier.padding(top = 12.dp),
         )
       }
-      item {
-        OutlinedButton(
-            onClick = onSignOut,
-            modifier =
-                Modifier.fillMaxWidth().padding(top = 12.dp).testTag(C.Tag.profile_sign_out_button),
-        ) {
-          Text(stringResource(R.string.profile_sign_out))
-        }
-      }
     }
   }
 }
 
-/** Avatar with the initial, name, and rating with the number of reviews. */
+/**
+ * "Edit profile" and "Sign out" side by side, equally wide, as rectangles with rounded corners like
+ * the "Request" button of Listing detail.
+ */
+@Composable
+private fun ProfileActions(onEditProfile: () -> Unit, onSignOut: () -> Unit) {
+  Row(
+      modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    OutlinedButton(
+        onClick = onEditProfile,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.weight(1f).testTag(C.Tag.profile_edit_button),
+    ) {
+      Text(stringResource(R.string.profile_edit))
+    }
+    OutlinedButton(
+        onClick = onSignOut,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.weight(1f).testTag(C.Tag.profile_sign_out_button),
+    ) {
+      Text(stringResource(R.string.profile_sign_out))
+    }
+  }
+}
+
+/** Avatar (the photo, or the initial), name, and rating with the number of reviews. */
 @Composable
 private fun ProfileHeader(profile: UserProfile) {
   Column(
@@ -180,18 +206,7 @@ private fun ProfileHeader(profile: UserProfile) {
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    Box(
-        modifier =
-            Modifier.size(80.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-      Text(
-          text = profile.name.trim().firstOrNull()?.uppercase() ?: "?",
-          style = MaterialTheme.typography.headlineMedium,
-          fontWeight = FontWeight.Bold,
-          modifier = Modifier.testTag(C.Tag.profile_avatar),
-      )
-    }
+    ProfileAvatar(photo = profile.photoUrl, name = profile.name, size = 80.dp)
     Text(
         text = profile.name.ifBlank { stringResource(R.string.profile_name_placeholder) },
         style = MaterialTheme.typography.headlineSmall,

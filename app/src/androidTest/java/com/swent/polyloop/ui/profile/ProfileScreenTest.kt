@@ -9,10 +9,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.width
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -90,6 +93,7 @@ class ProfileScreenTest {
 
   private var openedListing: String? = null
   private var signOutClicks = 0
+  private var editClicks = 0
   private var retryClicks = 0
   private var retryListingsClicks = 0
 
@@ -99,6 +103,7 @@ class ProfileScreenTest {
         ProfileContent(
             uiState = state,
             onListingClick = { openedListing = it },
+            onEditProfile = { editClicks++ },
             onSignOut = { signOutClicks++ },
             onRetry = { retryClicks++ },
             onRetryListings = { retryListingsClicks++ },
@@ -244,6 +249,50 @@ class ProfileScreenTest {
     node(C.Tag.profile_listings_title).assertDoesNotExist()
     node(C.Tag.profile_listings_empty).assertDoesNotExist()
     node(C.Tag.profile_sign_out_button).assertDoesNotExist()
+    node(C.Tag.profile_edit_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun editProfileAndSignOutSitSideBySideAboveMyListings() {
+    setContent(ownProfile)
+
+    val edit = node(C.Tag.profile_edit_button).getUnclippedBoundsInRoot()
+    val signOut = node(C.Tag.profile_sign_out_button).getUnclippedBoundsInRoot()
+    val listingsTitle = node(C.Tag.profile_listings_title).getUnclippedBoundsInRoot()
+
+    // One row: same top, Edit profile on the left, both as wide.
+    assertEquals(edit.top, signOut.top)
+    assertTrue(edit.right <= signOut.left)
+    // Within 1 dp: splitting the row in two can round each half differently.
+    assertEquals(edit.width.value, signOut.width.value, 1f)
+    // The row comes before "My listings".
+    assertTrue(edit.bottom <= listingsTitle.top)
+  }
+
+  @Test
+  fun editProfileButtonOpensEditProfile() {
+    setContent(ownProfile)
+
+    node(C.Tag.profile_edit_button)
+        .performScrollTo()
+        .assertTextEquals(context.getString(R.string.profile_edit))
+        .performClick()
+
+    composeTestRule.runOnIdle {
+      assertEquals(1, editClicks)
+      assertEquals(0, signOutClicks)
+    }
+  }
+
+  @Test
+  fun aProfilePhotoThatNoLongerLoadsShowsTheInitial() {
+    // e.g. a URL that stopped working because a newer photo replaced it
+    setContent(ownProfile.copy(profile = john.copy(photoUrl = "file:///data/missing.jpg")))
+
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule.onAllNodesWithTag(C.Tag.profile_avatar).fetchSemanticsNodes().isNotEmpty()
+    }
+    node(C.Tag.profile_avatar).assertTextEquals("J")
   }
 
   @Test
@@ -326,6 +375,7 @@ class ProfileScreenTest {
         ProfileScreen(
             viewModel = viewModel,
             onListingClick = {},
+            onEditProfile = {},
             onSignedOut = { signedOut = true },
         )
       }
@@ -359,7 +409,10 @@ class ProfileScreenTest {
     var shown by mutableStateOf(true)
     composeTestRule.setContent {
       CompositionLocalProvider(LocalLifecycleOwner provides owner) {
-        PolyLoopTheme { if (shown) ProfileScreen(viewModel, onListingClick = {}, onSignedOut = {}) }
+        PolyLoopTheme {
+          if (shown)
+              ProfileScreen(viewModel, onListingClick = {}, onEditProfile = {}, onSignedOut = {})
+        }
       }
     }
     composeTestRule.runOnIdle { assertEquals(1, reads) }

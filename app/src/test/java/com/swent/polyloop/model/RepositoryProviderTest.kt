@@ -19,6 +19,7 @@ import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.RentalRepositoryFirestore
+import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -260,6 +261,30 @@ class RepositoryProviderTest {
     assertEquals("RepositoryProvider.init was not called", error.message)
   }
 
+  // ---------- walletRepository ----------
+
+  @Test
+  fun walletRepositoryDefaultsToTheInMemoryFake() {
+    assertTrue(RepositoryProvider.walletRepository is FakeWalletRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+  }
+
+  @Test
+  fun walletRepositoryReturnsSameInstanceOnEveryAccess() {
+    val first = RepositoryProvider.walletRepository
+
+    assertSame(first, RepositoryProvider.walletRepository)
+  }
+
+  @Test
+  fun walletRepositoryReturnsAssignedRepository() {
+    val fake = FakeWalletRepository()
+
+    RepositoryProvider.walletRepository = fake
+
+    assertSame(fake, RepositoryProvider.walletRepository)
+  }
+
   // ---------- laziness and reset ----------
 
   @Test
@@ -289,6 +314,8 @@ class RepositoryProviderTest {
     RepositoryProvider.profileRepository = FakeProfileRepository()
     RepositoryProvider.rentalRepository = FakeRentalRepository()
     RepositoryProvider.connectivityRepository = FakeConnectivityRepository()
+    val fakeWallet = FakeWalletRepository()
+    RepositoryProvider.walletRepository = fakeWallet
 
     RepositoryProvider.reset()
 
@@ -298,6 +325,7 @@ class RepositoryProviderTest {
     assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
     assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
     assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
+    assertNotSame(fakeWallet, RepositoryProvider.walletRepository)
   }
 
   @Test
@@ -308,6 +336,7 @@ class RepositoryProviderTest {
     val firstProfile = RepositoryProvider.profileRepository
     val firstRental = RepositoryProvider.rentalRepository
     val firstConnectivity = RepositoryProvider.connectivityRepository
+    val firstWallet = RepositoryProvider.walletRepository
 
     RepositoryProvider.reset()
 
@@ -317,5 +346,6 @@ class RepositoryProviderTest {
     assertNotSame(firstProfile, RepositoryProvider.profileRepository)
     assertNotSame(firstRental, RepositoryProvider.rentalRepository)
     assertNotSame(firstConnectivity, RepositoryProvider.connectivityRepository)
+    assertNotSame(firstWallet, RepositoryProvider.walletRepository)
   }
 }

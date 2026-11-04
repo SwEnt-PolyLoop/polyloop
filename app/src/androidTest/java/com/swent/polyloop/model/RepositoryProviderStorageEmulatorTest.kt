@@ -26,10 +26,15 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class RepositoryProviderStorageEmulatorTest {
 
-  // A listing photo: storage.rules only accept images, in a listing's folder.
+  // A listing photo: storage.rules only accept images in a listing's folder, tagged with the uid of
+  // the user uploading them (read on each upload, once a test has signed a user in).
   private val path = "listings/${UUID.randomUUID()}/0.jpg"
   private val bytes = "Hello PolyLoop".toByteArray()
-  private val jpeg = storageMetadata { contentType = "image/jpeg" }
+  private val jpeg
+    get() = storageMetadata {
+      contentType = "image/jpeg"
+      Firebase.auth.currentUser?.let { setCustomMetadata("uploader", it.uid) }
+    }
 
   @Before
   fun setUp() {

@@ -5,7 +5,7 @@ One section per screen: what it shows and what it lets the user do. Mock-ups: ht
 
 ## Conventions
 
-PolyLoop has 13 screens, each backed by its own ViewModel, which uses the repositories it needs (see the table in ARCHITECTURE.md). Each section below lists what a screen shows and what it lets the user do.
+PolyLoop has 14 screens, each backed by its own ViewModel, which uses the repositories it needs (see the table in ARCHITECTURE.md). Each section below lists what a screen shows and what it lets the user do.
 
 Elements shared across screens:
 
@@ -35,18 +35,27 @@ Only users with a verified EPFL email get past this screen. ViewModel: AuthViewM
 
 The profile shows who someone is and how past rentals went. It opens from the profile button in the top bar or by tapping a person on Listing detail or Rental detail. ViewModel: ProfileViewModel, using ProfileRepository, ListingRepository, RentalRepository and AuthRepository.
 
-- Name, photo, and the average rating (1 to 5 stars) with the number of reviews.
+- Name, photo, and the average rating (1 to 5 stars) with the number of reviews. The photo is round, cropped to fill the circle; without a photo, or when it cannot be loaded, the first letter of the name takes its place.
 - The list of reviews, each with stars, author, date and the item rented.
-- On your own profile: a “My listings” section with the items you have put up for rent, plus “Edit profile” (where the photo is added) and “Sign out”.
+- On your own profile: “Edit profile” (where the photo is added) and “Sign out” side by side under the rating, then a “My listings” section with the items you have put up for rent.
 - “My listings” is a card with the number of listings and one row per listing: first photo, title, price per day, and a pill showing where it stands right now, updated live from its rentals. The listings themselves are loaded again each time the profile comes back on screen, so a listing edited or deleted meanwhile shows as it is now. When several rentals apply, the first match wins: “Lost” (a borrower never gave the item back), “Frozen” (a dispute went to court and the deposit is frozen), “Disputed” (a dispute is open), “Overdue” (a return is late), “On loan” (the item is with a borrower), “Booked” (a request was accepted), “Requested” (a request waits for an answer), otherwise “Available”. The pills use the colours of the matching status on My rentals; “Available” uses those of a finished rental. A listing its owner unpublished (a draft) shows a plain “Draft” label, white with no colour, instead of “Available”; if one of its rentals is still under way, it shows that rental's pill instead. Tapping a row opens Listing detail. The card loads apart from the profile, with its own spinner, a generic error “Could not load your listings” with “Retry”, and the empty text “You haven't listed anything yet”. If loading them again fails, the listings loaded before stay, with the note “Could not refresh your listings. These are the last ones loaded.” under them, until a later load succeeds; if there were none, the note shows under the empty text, so a user who just listed an item knows why it is missing. Offline, the cards and their pills stay available as they were loaded before going offline.
 - A review prompt appears as soon as a rental closes, however it closed: clean return, direct settlement, LLM proposal or court ruling. Like rating a ride in Uber or Bolt, each participant rates the other once, from 1 to 5 stars. Stars only for now; a written comment may come later.
 - Other people's profiles don't show their listings for now.
+
+## Edit profile
+
+Edit profile is where the signed-in user changes their name and photo. It opens from “Edit profile” on their own profile. ViewModel: EditProfileViewModel, using ProfileRepository.
+
+- The photo, round like on the profile, with a “Take photo” button. It opens the in-app camera for a single photo (no count, it closes once the photo is taken), after asking for the camera permission; a refusal shows the same message as Create listing. The new photo replaces the old one in the circle right away, but is uploaded only on “Save”, so leaving without saving changes nothing.
+- The name field. “Save” with a blank name shows “Enter your name” and saves nothing; the name is trimmed.
+- “Save” uploads the new photo, if one was taken, then saves the name and the photo. While it runs, the field and both buttons are disabled and “Save” shows a spinner. On success the screen goes back to the profile, which shows the new name and photo. If it fails, an error is shown and the edits are kept; saving again does not upload the same photo a second time.
+- A spinner while the profile loads, and an error with “Retry” if it cannot be loaded.
 
 ## Wallet
 
 The Wallet screen holds the user's in-app balance, which pays for rentals and deposits. ViewModel: WalletViewModel, using WalletRepository. The balance is only ever changed by Cloud Functions; the app sends a request and shows the result.
 
-- The available balance in PolyPoints (everything held excluded), plus what is reserved: the deposits held and the rental prices reserved since a request was sent (the deposit only exists once the lender accepts). Available plus reserved is the user's total.
+- The available balance in PolyPoints (everything held excluded), then “Held as deposits”, the deposits held, and, only when it is above 0, “Held for rentals”, the rental prices reserved since a request was sent (the deposit only exists once the lender accepts). Available plus both held amounts is the user's total.
 - A “Recharge” button: the user enters a whole Swiss franc amount from 1 to 99,999 and receives the same number of PolyPoints. Recharging is simulated; no real payment is made.
 - A transaction history, newest first: recharges, rental payments, late fees, and deposits held, released, split or forfeited (the rest of the deposit, paid to the lender once the item is lost). The amounts add up to the available balance; late fees and forfeited deposits show only in the lender's history, and a borrower's late fees appear as a smaller deposit release.
 - PolyPoints cannot be withdrawn back to Swiss francs.
@@ -111,13 +120,15 @@ My rentals is the user's overview of everything they borrow and lend, and it wor
 - Two tabs: “Borrowing” and “Lending”, each with the same two sections, “REQUESTS” and “CURRENT”. A section shows only when it has rows.
 - “REQUESTS” holds pending requests only, newest first. “CURRENT” holds every other rental, what needs attention first (overdue, then disputed, frozen and lost, then active, accepted, finished, and declined or cancelled last), newest first within each status.
 - Each card shows the listing photo, the item, the other person (“from [Lender name]” on Borrowing), a status label, and one “what comes next” line: the dates while requested, “Pickup 15 Oct · area” once accepted, “Return by 8 Oct · area” while active or overdue, the area while disputed, frozen or lost, and “Closed 2 Oct” once closed. Returned, declined and cancelled rentals have no line. The area is the public one; the closed date is the rental's last day for now.
-- On “Lending”, a request shows the borrower, the dates and the reserved price, and only its “Review request” button reacts. On “Borrowing”, tapping a request opens its Chat. Tapping a row in “CURRENT” opens Rental detail.
+- On “Lending”, a request shows the borrower, the dates and the reserved price, and only its “Review request” button reacts. On “Borrowing”, tapping a request opens Rental detail. Tapping a row in “CURRENT” opens Rental detail.
 - Offline: the whole list, deadlines and meeting points stay available from cache.
 - The items the user has put up for rent are listed in Profile, not here.
 
 ## Rental detail
 
 Rental detail is the hub for one rental: what it is, where it stands, and the next action. ViewModel: RentalDetailViewModel, using RentalRepository, ListingRepository and ProfileRepository.
+
+So far only the Requested state is built (other statuses show the item's title and a short “not available yet” text), and its map is a grey placeholder until the map is added.
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
 - The deposit, entered by the lender when accepting, and its state: held, released, or frozen.

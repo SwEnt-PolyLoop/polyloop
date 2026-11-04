@@ -64,7 +64,9 @@ class ListingRepositoryFirestore(
     }
     return withFirebaseErrors {
       val listingRef = db.collection(ListingFields.COLLECTION).document()
-      val photoUrls = photos.mapIndexed { index, uri -> uploadPhoto(listingRef.id, index, uri) }
+      val photoUrls = photos.mapIndexed { index, uri ->
+        uploadPhoto(listingRef.id, index, uri, listing.ownerId)
+      }
       val saved = listing.copy(id = listingRef.id, photoUrls = photoUrls)
       db.batch()
           .set(listingRef, listingToDocument(saved))
@@ -94,10 +96,23 @@ class ListingRepositoryFirestore(
     }
   }
 
-  /** Uploads the photo at [uri] as listings/{listingId}/{index}.jpg and returns its URL. */
-  private suspend fun uploadPhoto(listingId: String, index: Int, uri: Uri): String {
+  /**
+   * Uploads the photo at [uri] as listings/{listingId}/{index}.jpg and returns its URL. The photo
+   * is tagged with the uid of its [uploader], the listing's owner (the signed-in user): the Storage
+   * rules refuse it otherwise, and let only that user change it.
+   */
+  private suspend fun uploadPhoto(
+      listingId: String,
+      index: Int,
+      uri: Uri,
+      uploader: String,
+  ): String {
     val ref = storage.reference.child("$PHOTOS_FOLDER/$listingId/$index.jpg")
-    ref.putFile(uri, storageMetadata { contentType = PHOTO_CONTENT_TYPE }).await()
+    val metadata = storageMetadata {
+      contentType = PHOTO_CONTENT_TYPE
+      setCustomMetadata(UPLOADER_METADATA, uploader)
+    }
+    ref.putFile(uri, metadata).await()
     return ref.downloadUrl.await().toString()
   }
 
@@ -105,5 +120,8 @@ class ListingRepositoryFirestore(
     // The Storage folder of listing photos, listings/{listingId}/ (see ARCHITECTURE.md).
     const val PHOTOS_FOLDER = "listings"
     const val PHOTO_CONTENT_TYPE = "image/jpeg"
+
+    // The custom metadata holding the uid of the user who uploaded a photo (see storage.rules).
+    const val UPLOADER_METADATA = "uploader"
   }
 }

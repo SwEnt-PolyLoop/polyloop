@@ -14,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -100,7 +101,8 @@ class PolyLoopAppTest {
 
   /**
    * One accepted rental borrowed by "uid", so My rentals shows a CURRENT row, which opens Rental
-   * detail, without reaching Firestore.
+   * detail, without reaching Firestore. Rental detail shows only its title, as for every status but
+   * Requested.
    */
   private val rental =
       Rental(
@@ -236,8 +238,11 @@ class PolyLoopAppTest {
           Screen.MyRentals -> C.Tag.my_rentals_screen
           Screen.ChatList -> C.Tag.chat_list_screen
           Screen.Chat -> C.Tag.chat_screen
+          Screen.RentalDetail -> C.Tag.rental_detail_screen
+          Screen.Wallet -> C.Tag.wallet_screen
           Screen.Profile,
           Screen.UserProfile -> C.Tag.profile_screen
+          Screen.EditProfile -> C.Tag.edit_profile_screen
           else -> null
         }
     if (realScreenTag != null) {
@@ -373,7 +378,7 @@ class PolyLoopAppTest {
 
   @Test
   fun tappingAConversationOpensItsChat() {
-    chatRepository.conversations.value =
+    chatRepository.conversations =
         listOf(
             Conversation(
                 "rental-1",
@@ -403,7 +408,7 @@ class PolyLoopAppTest {
 
   @Test
   fun rentalDetailsInTheChatOpensTheRental() {
-    chatRepository.conversations.value =
+    chatRepository.conversations =
         listOf(
             Conversation(
                 "rental-1",
@@ -428,9 +433,30 @@ class PolyLoopAppTest {
     waitForTag(C.Tag.chat_rental_details)
     composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
 
-    assertCurrentScreen(
-        Screen.RentalDetail,
-        shownRoute = Screen.RentalDetail.createRoute("rental-1"),
+    assertCurrentScreen(Screen.RentalDetail)
+    // The tapped rental is open: its title is the one of rental-1.
+    waitForTag(C.Tag.rental_detail_title)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_title).assertTextEquals(rental.listingTitle)
+  }
+
+  @Test
+  fun chatOnRentalDetailOpensTheRentalsChat() {
+    // Only a Requested rental shows the person card and its Chat button.
+    RepositoryProvider.rentalRepository =
+        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED)))
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+
+    waitForTag(C.Tag.rental_detail_chat_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
+
+    assertCurrentScreen(Screen.Chat)
+    assertEquals(
+        rental.id,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
     )
   }
 
@@ -702,6 +728,23 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + rental.id).performClick()
 
     assertCurrentScreen(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
+  }
+
+  @Test
+  fun editProfileSavesTheNameAndGoesBackToTheProfile() {
+    setAppSignedIn()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_profile_button).performClick()
+    waitForTag(C.Tag.profile_edit_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.profile_edit_button).performScrollTo().performClick()
+    assertCurrentScreen(Screen.EditProfile)
+    waitForTag(C.Tag.edit_profile_name_field)
+    composeTestRule.onNodeWithTag(C.Tag.edit_profile_name_field).performTextReplacement("New me")
+    composeTestRule.onNodeWithTag(C.Tag.edit_profile_save_button).performClick()
+
+    assertCurrentScreen(Screen.Profile)
+    composeTestRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals("New me")
+    assertEquals("New me", profileRepository.profiles.single { it.uid == "me" }.name)
   }
 
   @Test

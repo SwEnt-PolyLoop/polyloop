@@ -56,15 +56,17 @@ import kotlinx.coroutines.CancellationException
 
 /**
  * The in-app camera: a live [CameraPreview] with a [CameraOverlay] (shutter, close button, count
- * "[photoCount] / 10") on top, filling its window. The caller shows it in a full-screen dialog,
- * which also handles the system Back button.
+ * "[photoCount] / [maxPhotos]") on top, filling its window. The caller shows it in a full-screen
+ * dialog, which also handles the system Back button.
  *
  * Each shot is saved as a JPEG in `filesDir/listing_photos/` and its file Uri is passed to
  * [onPhotoTaken]. The camera stays open after each shot, so several photos can be taken in a row.
  * It closes through [onClose] with the close button, or by itself once [photoCount] reaches
- * [Listing.MAX_PHOTOS]. A camera or capture error shows a short message and keeps the camera open.
+ * [maxPhotos] (10 for a listing). With [maxPhotos] 1, e.g. for a profile photo, the count is
+ * hidden. A camera or capture error shows a short message and keeps the camera open.
  *
- * This is the only source of listing photos: no gallery picker and no system camera app.
+ * This is the only source of listing and profile photos: no gallery picker and no system camera
+ * app.
  */
 @Composable
 fun PolyLoopCamera(
@@ -72,6 +74,7 @@ fun PolyLoopCamera(
     onPhotoTaken: (uri: String) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    maxPhotos: Int = Listing.MAX_PHOTOS,
 ) {
   val context = LocalContext.current
   val imageCapture = remember {
@@ -85,6 +88,7 @@ fun PolyLoopCamera(
       onPhotoTaken = onPhotoTaken,
       onClose = onClose,
       modifier = modifier,
+      maxPhotos = maxPhotos,
       preview = { onBindError, previewModifier ->
         CameraPreview(imageCapture, onBindError, previewModifier)
       },
@@ -107,6 +111,7 @@ internal fun PolyLoopCameraContent(
     preview: @Composable (onBindError: () -> Unit, modifier: Modifier) -> Unit,
     capture: (file: File, onSaved: () -> Unit, onError: () -> Unit) -> Unit,
     modifier: Modifier = Modifier,
+    maxPhotos: Int = Listing.MAX_PHOTOS,
 ) {
   val context = LocalContext.current
   var isCapturing by remember { mutableStateOf(false) }
@@ -114,13 +119,14 @@ internal fun PolyLoopCameraContent(
   // Set before the capture starts, so a second tap before the next recomposition is ignored.
   val captureInFlight = remember { AtomicBoolean(false) }
 
-  LaunchedEffect(photoCount) { if (shouldCloseCamera(photoCount)) onClose() }
+  LaunchedEffect(photoCount) { if (shouldCloseCamera(photoCount, maxPhotos)) onClose() }
 
   Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
     preview({ hasError = true }, Modifier.fillMaxSize())
     CameraOverlay(
         photoCount = photoCount,
-        canTakePhoto = canTakePhoto(photoCount, isCapturing),
+        maxPhotos = maxPhotos,
+        canTakePhoto = canTakePhoto(photoCount, isCapturing, maxPhotos),
         errorMessage = if (hasError) stringResource(R.string.create_listing_camera_error) else null,
         onShutter = {
           if (captureInFlight.compareAndSet(false, true)) {
@@ -149,9 +155,10 @@ internal fun PolyLoopCameraContent(
 }
 
 /**
- * The controls over the camera: a close button and the count "[photoCount] / 10" on top, the
- * [errorMessage] if any in the middle, and the shutter at the bottom, disabled when [canTakePhoto]
- * is false. Everything stays inside the safe area, clear of the status and navigation bars.
+ * The controls over the camera: a close button and the count "[photoCount] / [maxPhotos]" on top
+ * (hidden when [maxPhotos] is 1), the [errorMessage] if any in the middle, and the shutter at the
+ * bottom, disabled when [canTakePhoto] is false. Everything stays inside the safe area, clear of
+ * the status and navigation bars.
  */
 @Composable
 internal fun CameraOverlay(
@@ -161,6 +168,7 @@ internal fun CameraOverlay(
     onShutter: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    maxPhotos: Int = Listing.MAX_PHOTOS,
 ) {
   val shutterLabel = stringResource(R.string.create_listing_camera_shutter)
   Box(modifier = modifier.fillMaxSize().testTag(C.Tag.create_listing_camera).systemBarsPadding()) {
@@ -178,12 +186,14 @@ internal fun CameraOverlay(
             tint = Color.White,
         )
       }
-      Text(
-          text =
-              stringResource(R.string.create_listing_camera_count, photoCount, Listing.MAX_PHOTOS),
-          color = Color.White,
-          modifier = Modifier.padding(start = 8.dp).testTag(C.Tag.create_listing_camera_count),
-      )
+      // "0 / 1" says nothing when only one photo is taken.
+      if (maxPhotos > 1) {
+        Text(
+            text = stringResource(R.string.create_listing_camera_count, photoCount, maxPhotos),
+            color = Color.White,
+            modifier = Modifier.padding(start = 8.dp).testTag(C.Tag.create_listing_camera_count),
+        )
+      }
     }
     if (errorMessage != null) {
       Text(

@@ -48,6 +48,7 @@
 
     <!-- Profile -->
     <string name="profile_name_placeholder">No name yet</string>
+    <string name="profile_photo_description">Profile photo</string>
     <plurals name="profile_rating">
         <item quantity="one">%1$.1f · %2$d review</item>
         <item quantity="other">%1$.1f · %2$d reviews</item>
@@ -62,9 +63,16 @@
     <string name="profile_listing_status_on_loan">On loan</string>
     <string name="profile_listing_status_draft">Draft</string>
     <string name="profile_sign_out">Sign out</string>
+    <string name="profile_edit">Edit profile</string>
     <string name="profile_error_fallback">Could not load the profile</string>
     <string name="profile_retry">Retry</string>
     <string name="profile_not_found">This profile doesn\'t exist.</string>
+    <string name="edit_profile_take_photo">Take photo</string>
+    <string name="edit_profile_name_label">Name</string>
+    <string name="edit_profile_name_required">Enter your name</string>
+    <string name="edit_profile_save">Save</string>
+    <string name="edit_profile_save_error">Your profile could not be saved. Check your connection and try again.</string>
+    <string name="edit_profile_load_error">Could not load your profile</string>
 
     <!-- My rentals -->
     <string name="my_rentals_title">My rentals</string>
@@ -89,6 +97,30 @@
     <string name="my_rentals_closed_on">Closed %1$s</string>
     <!-- What comes next, then where, e.g. "Return by 9 Oct · EPFL" -->
     <string name="my_rentals_date_and_area">%1$s · %2$s</string>
+    <string name="wallet_title">Wallet</string>
+    <string name="wallet_available">Available</string>
+    <string name="wallet_polypoints">PolyPoints</string>
+    <string name="wallet_held_deposits">Held as deposits</string>
+    <string name="wallet_held_rentals">Held for rentals</string>
+    <string name="wallet_pp_amount">%1$d PP</string>
+    <string name="wallet_recharge">Recharge</string>
+    <string name="wallet_history_title">HISTORY</string>
+    <string name="wallet_history_empty">No transactions yet.</string>
+    <string name="wallet_footer">1 CHF = 1 PolyPoint. PolyPoints can\'t be withdrawn.</string>
+    <string name="wallet_error_fallback">Could not load your wallet</string>
+    <string name="wallet_retry">Retry</string>
+    <!-- Signed amounts of the history; the minus is a real minus sign (U+2212) -->
+    <string name="wallet_amount_positive">+%1$d PP</string>
+    <string name="wallet_amount_negative">−%1$d PP</string>
+    <!-- The type, then the item or the date, e.g. "Deposit held · Camping tent", "Recharge · 3 Oct" -->
+    <string name="wallet_row_title">%1$s · %2$s</string>
+    <string name="wallet_type_recharge">Recharge</string>
+    <string name="wallet_type_rental_payment">Rental payment</string>
+    <string name="wallet_type_late_fee">Late fee received</string>
+    <string name="wallet_type_deposit_held">Deposit held</string>
+    <string name="wallet_type_deposit_released">Deposit released</string>
+    <string name="wallet_type_deposit_split">Deposit split</string>
+    <string name="wallet_type_deposit_forfeited">Lost item deposit received</string>
     <string name="rental_status_requested">Requested</string>
     <string name="rental_status_accepted">Accepted</string>
     <string name="rental_status_active">Active</string>
@@ -222,7 +254,10 @@
     <string name="auth_error_sign_up_expired">This sign-up expired because the email was not verified in time. Go back to the form and sign up again.</string>
     <string name="auth_check_inbox_title">Check your inbox</string>
     <!-- The email, then the minutes after sign-up the account has to be verified, e.g. "… to ana@epfl.ch. Verify your email within 5 minutes of creating your account, …" -->
-    <string name="auth_check_inbox_body">We sent a verification link to %1$s. Verify your email within %2$d minutes of creating your account, then come back here. Resending the email does not give you more time.</string>
+    <plurals name="auth_check_inbox_body">
+        <item quantity="one">We sent a verification link to %1$s. Verify your email within %2$d minute of creating your account, then come back here. Resending the email does not give you more time.</item>
+        <item quantity="other">We sent a verification link to %1$s. Verify your email within %2$d minutes of creating your account, then come back here. Resending the email does not give you more time.</item>
+    </plurals>
     <string name="auth_verified">I\'ve verified</string>
     <string name="auth_resend_email">Resend email</string>
     <string name="auth_resend_email_countdown">Resend email (%1$d s)</string>
@@ -251,5 +286,32 @@
     <!-- A message written by the app, then its time, e.g. "Request sent · 15:02" -->
     <string name="chat_system_message">%1$s · %2$s</string>
     <string name="chat_send_failed">Message not sent. Press send to try again.</string>
+
+    <!-- Rental detail -->
+    <string name="rental_detail_error_fallback">Could not load the rental</string>
+    <string name="rental_detail_retry">Retry</string>
+    <string name="rental_detail_not_found">This rental no longer exists.</string>
+    <string name="rental_detail_unsupported">This rental\'s details aren\'t available yet.</string>
+    <string name="rental_detail_stage_accepted">Accepted</string>
+    <string name="rental_detail_stage_in_use">In use</string>
+    <string name="rental_detail_stage_returned">Returned</string>
+    <string name="rental_detail_stage_closed">Closed</string>
+    <string name="rental_detail_status_headline">Waiting for agreement</string>
+    <!-- The day the request was sent, e.g. "Sent 28 Sep. The rental price is reserved. …" -->
+    <string name="rental_detail_status_body">Sent %1$s. The rental price is reserved. Agree on the deposit in chat.</string>
+    <string name="rental_detail_details_title">Details</string>
+    <string name="rental_detail_dates_label">Dates</string>
+    <string name="rental_detail_return_label">Return</string>
+    <string name="rental_detail_price_label">Rental price</string>
+    <!-- The total rental price in PolyPoints, e.g. "120 PP · reserved" -->
+    <string name="rental_detail_price">%1$d PP · reserved</string>
+    <string name="rental_detail_deposit_label">Suggested deposit</string>
+    <string name="rental_detail_chat">Chat</string>
+    <string name="rental_detail_pickup_label">PICKUP AREA</string>
+    <string name="rental_detail_area_placeholder">Area not known yet</string>
+    <string name="rental_detail_pickup_note">Only the area is shown for now. The exact address appears once the request is accepted.</string>
+    <!-- The last day the rental can be cancelled, e.g. "You can cancel until Wed 30 Sep" -->
+    <string name="rental_detail_cancel_until">You can cancel until %1$s</string>
+    <string name="rental_detail_cancel_request">Cancel request</string>
 
 </resources>
