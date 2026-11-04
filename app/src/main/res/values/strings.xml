@@ -100,6 +100,18 @@
     <string name="my_rentals_date_range">%1$s – %2$s</string>
     <string name="my_rentals_reserved">%1$d PP reserved · waiting for your answer</string>
     <string name="my_rentals_review_request">Review request</string>
+    <string name="my_rentals_badge_offer_sent">Offer sent</string>
+    <string name="my_rentals_badge_offer_received">Offer received</string>
+    <string name="my_rentals_badge_counter_sent">Counteroffer sent</string>
+    <string name="my_rentals_badge_counter_received">Counteroffer</string>
+    <!-- e.g. "45 PP reserved · 180 PP deposit offered" -->
+    <string name="my_rentals_offer_sent_line">%1$d PP reserved · %2$d PP deposit offered</string>
+    <!-- e.g. "180 PP deposit offered · expires 22 Oct" -->
+    <string name="my_rentals_offer_received_line">%1$d PP deposit offered · expires %2$s</string>
+    <!-- e.g. "120 PP counteroffer · expires 22 Oct" -->
+    <string name="my_rentals_counter_line">%1$d PP counteroffer · expires %2$s</string>
+    <string name="my_rentals_open_chat">Open chat</string>
+    <string name="my_rentals_answer_in_chat">Answer in chat</string>
     <string name="my_rentals_pickup_on">Pickup %1$s</string>
     <string name="my_rentals_from">from %1$s</string>
     <string name="my_rentals_closed_on">Closed %1$s</string>
@@ -332,6 +344,16 @@
     <string name="rental_detail_status_headline">Waiting for agreement</string>
     <!-- The day the request was sent, e.g. "Sent 28 Sep. The rental price is reserved. …" -->
     <string name="rental_detail_status_body">Sent %1$s. The rental price is reserved. Agree on the deposit in chat.</string>
+    <string name="rental_detail_status_offer_sent">Offer sent</string>
+    <string name="rental_detail_status_offer_received">Offer received</string>
+    <string name="rental_detail_status_counter_sent">Counteroffer sent</string>
+    <string name="rental_detail_status_counter_received">Counteroffer received</string>
+    <!-- e.g. "Deposit offer: 180 PP. Expires 22 Oct. Answer in the chat." -->
+    <string name="rental_detail_offer_body_answer">Deposit offer: %1$d PP. Expires %2$s. Answer in the chat.</string>
+    <string name="rental_detail_offer_body_waiting">Deposit offer: %1$d PP. Expires %2$s. Waiting for the answer.</string>
+    <string name="rental_detail_counter_body_answer">Counteroffer: %1$d PP. Expires %2$s. Answer in the chat.</string>
+    <string name="rental_detail_counter_body_waiting">Counteroffer: %1$d PP. Expires %2$s. Waiting for the answer.</string>
+    <string name="rental_detail_offer_label">Deposit offer</string>
     <string name="rental_detail_details_title">Details</string>
     <string name="rental_detail_dates_label">Dates</string>
     <string name="rental_detail_return_label">Return</string>
