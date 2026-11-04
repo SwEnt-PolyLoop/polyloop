@@ -17,6 +17,7 @@ import java.io.IOException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -422,6 +423,52 @@ class DisputeViewModelTest {
     runBlocking { disputes.accept("pump", "ana", 40) }
 
     assertFalse(vm.uiState.value.isEditing)
+  }
+
+  @Test
+  fun acceptSettlesTheDispute() {
+    val vm = viewModel()
+
+    vm.accept()
+
+    assertTrue(vm.uiState.value.isSettled)
+    assertFalse(vm.uiState.value.canEscalate)
+  }
+
+  @Test
+  fun acceptDoesNothingOnMyOwnProposal() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+
+    vm.accept()
+
+    assertFalse(vm.uiState.value.isSettled)
+    assertNull(vm.uiState.value.actionError)
+  }
+
+  @Test
+  fun acceptOfAProposalThatChangedSettlesNothingAndSaysSo() {
+    val vm = viewModel()
+    // Ana's update reaches the server before the screen.
+    disputes.gate = CompletableDeferred()
+    vm.accept()
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+    disputes.gate?.complete(Unit)
+
+    assertFalse(vm.uiState.value.isSettled)
+    assertEquals(DisputeActionError.PROPOSAL_CHANGED, vm.uiState.value.actionError)
+  }
+
+  @Test
+  fun failedAcceptAndEscalateNameTheirAction() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+
+    vm.accept()
+    assertEquals(DisputeActionError.ACCEPT, vm.uiState.value.actionError)
+
+    confirmEscalate(vm)
+    assertEquals(DisputeActionError.ESCALATE, vm.uiState.value.actionError)
   }
 
   // ---------- factory ----------
