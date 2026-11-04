@@ -546,6 +546,22 @@ class DisputeViewModelTest {
   }
 
   @Test
+  fun anAcceptRefusedWhileTheDisputeCannotBeRefreshedLoadsTheNewProposal() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+    disputes.put(open.copy(proposals = listOf(mine)))
+    disputes.failure = null
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+
+    vm.accept()
+
+    val state = vm.uiState.value
+    assertEquals(90, state.latestProposal?.lenderPercent)
+    assertFalse(state.refreshFailed)
+    assertEquals(DisputeActionError.PROPOSAL_CHANGED, state.actionError)
+  }
+
+  @Test
   fun anEscalationSentAsTheOtherPersonEscalatesSkipsNoStage() {
     disputes.gate = CompletableDeferred()
     val vm = viewModel()
@@ -658,6 +674,31 @@ class DisputeViewModelTest {
   }
 
   @Test
+  fun theirNewOfferIsNoLongerToldOnceISendSomething() {
+    val vm = viewModel()
+    vm.startEditing()
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now))))
+    assertTrue(vm.uiState.value.offerUpdated)
+
+    vm.setDraft(55)
+    vm.sendDraft()
+
+    assertFalse(vm.uiState.value.offerUpdated)
+  }
+
+  @Test
+  fun theirNewOfferIsNoLongerToldOnceTheDisputeLeavesDirectSettlement() {
+    val vm = viewModel()
+    val updated = open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now)))
+    disputes.put(updated)
+    assertTrue(vm.uiState.value.offerUpdated)
+
+    disputes.put(updated.copy(stage = DisputeStage.LLM_PROPOSAL))
+
+    assertFalse(vm.uiState.value.offerUpdated)
+  }
+
+  @Test
   fun myOwnNewOfferIsNotTold() {
     val vm = viewModel()
 
@@ -686,6 +727,16 @@ class DisputeViewModelTest {
     runBlocking { disputes.accept("pump", "ana", 40) }
 
     assertTrue(vm.uiState.value.acceptedByOther)
+  }
+
+  @Test
+  fun myOwnAcceptanceIsNotTold() {
+    val vm = viewModel()
+
+    vm.accept()
+
+    assertTrue(vm.uiState.value.isSettled)
+    assertFalse(vm.uiState.value.acceptedByOther)
   }
 
   @Test

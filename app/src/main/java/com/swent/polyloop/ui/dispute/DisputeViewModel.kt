@@ -148,7 +148,7 @@ data class DisputeUiState(
    * unsettled, and in direct settlement, the only stage that can be escalated.
    */
   val canEscalate: Boolean
-    get() = isLoaded && isOnline && !isSending && !isSettled && stage == DisputeStage.SETTLE
+    get() = canPropose
 
   /** True once a dispute is shown: not while it first loads, nor when that load failed. */
   private val isLoaded: Boolean
@@ -292,8 +292,9 @@ class DisputeViewModel(
    * second action starts. The new dispute arrives through the observer; a failure (or nobody signed
    * in) sets [DisputeUiState.actionError] to [error], or to [DisputeActionError.PROPOSAL_CHANGED]
    * when the proposal accepted was no longer the one on the table. An escalation refused because
-   * the dispute already moved on sets none, and loads the dispute again if it could not be
-   * refreshed, so the new stage shows. A success also closes the split editor if [closesEditor].
+   * the dispute already moved on sets none. After either refusal, the dispute is loaded again if it
+   * could not be refreshed, so the new proposal or stage shows. A success also closes the split
+   * editor if [closesEditor].
    */
   private fun send(
       error: DisputeActionError,
@@ -319,7 +320,8 @@ class DisputeViewModel(
             draftLenderPercent = if (closesEditor && succeeded) null else it.draftLenderPercent,
         )
       }
-      if (failure is StageChangedException && _uiState.value.refreshFailed) observe()
+      val changedMeanwhile = failure is ProposalChangedException || failure is StageChangedException
+      if (changedMeanwhile && _uiState.value.refreshFailed) observe()
     }
   }
 
