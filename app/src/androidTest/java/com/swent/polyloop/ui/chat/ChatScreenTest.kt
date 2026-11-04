@@ -23,6 +23,8 @@ import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.chatlist.formatMessageTime
@@ -289,7 +291,8 @@ class ChatScreenTest {
 
           override fun signOut() = Unit
         }
-    val viewModel = ChatViewModel("tent", chat, auth)
+    val viewModel =
+        ChatViewModel("tent", chat, auth, FakeRentalRepository(), FakeConnectivityRepository())
 
     composeTestRule.setContent { PolyLoopTheme { ChatScreen(viewModel) } }
     composeTestRule.onNodeWithTag(C.Tag.chat_input).performTextInput("See you at 5?")
