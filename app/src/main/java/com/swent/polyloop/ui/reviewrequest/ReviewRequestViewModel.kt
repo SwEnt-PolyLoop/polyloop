@@ -7,11 +7,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
-import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.ListingRepository
-import com.swent.polyloop.model.listing.conflictsWithBuffer
 import com.swent.polyloop.model.profile.ProfileRepository
-import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.ui.createlisting.isWholeNumberAboveZero
@@ -201,7 +198,7 @@ class ReviewRequestViewModel(
       val overlaps = async {
         rentalRepository
             .observeRentalsAsLender(rental.ownerId)
-            .map { rentals -> rentals.count { it.overlapsWith(rental) } }
+            .map { rentals -> rentals.count { it.isDeclinedByAccepting(rental) } }
             .catch { emit(0) }
             .first()
       }
@@ -230,16 +227,6 @@ class ReviewRequestViewModel(
       }
     }
   }
-
-  /** True for another pending request of the same listing whose dates conflict with [request]. */
-  private fun Rental.overlapsWith(request: Rental): Boolean =
-      id != request.id &&
-          listingId == request.listingId &&
-          status == RentalStatus.REQUESTED &&
-          conflictsWithBuffer(
-              BookedRange(startDate, endDate),
-              BookedRange(request.startDate, request.endDate),
-          )
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */
   class Factory(

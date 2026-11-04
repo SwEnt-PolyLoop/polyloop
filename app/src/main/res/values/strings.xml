@@ -294,6 +294,31 @@
     <!-- A message written by the app, then its time, e.g. "Request sent · 15:02" -->
     <string name="chat_system_message">%1$s · %2$s</string>
     <string name="chat_send_failed">Message not sent. Press send to try again.</string>
+    <!-- The deposit offer card in the chat. -->
+    <string name="chat_offer_title">Deposit offer</string>
+    <string name="chat_offer_title_mine">Your offer</string>
+    <string name="chat_offer_title_counter">Counteroffer</string>
+    <string name="chat_offer_title_my_counter">Your counteroffer</string>
+    <string name="chat_offer_badge_answer">Your answer</string>
+    <string name="chat_offer_badge_waiting">Waiting</string>
+    <string name="chat_offer_amount_mine">%1$d PP deposit</string>
+    <!-- e.g. "Waiting for Ana. Expires 22 Oct." -->
+    <string name="chat_offer_note_waiting">Waiting for %1$s. Expires %2$s.</string>
+    <string name="chat_offer_note_expires">Expires %1$s.</string>
+    <!-- e.g. "Your offer was 180 PP. Expires 24 Oct." -->
+    <string name="chat_offer_note_counter">Your offer was %1$d PP. Expires %2$s.</string>
+    <string name="chat_offer_counter_hint">Their offer: %1$d PP. You can counter only once, and the lender can then only accept or decline.</string>
+    <plurals name="chat_offer_overlapping">
+        <item quantity="one">Accepting declines %1$d request with overlapping dates.</item>
+        <item quantity="other">Accepting declines %1$d requests with overlapping dates.</item>
+    </plurals>
+    <string name="chat_offer_accept">Accept</string>
+    <string name="chat_offer_decline">Decline</string>
+    <string name="chat_offer_counter">Counter</string>
+    <string name="chat_offer_back">Back</string>
+    <string name="chat_offer_send">Send</string>
+    <string name="chat_offer_suffix">PP</string>
+    <string name="chat_offer_error">Could not send your answer. Try again.</string>
 
     <!-- Rental detail -->
     <string name="rental_detail_error_fallback">Could not load the rental</string>
