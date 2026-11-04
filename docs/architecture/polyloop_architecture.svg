@@ -27,6 +27,8 @@
 <text x="870.8" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">My rentals</text>
 <rect x="786.0" y="168.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
 <text x="870.8" y="195.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Rental detail</text>
+<rect x="786.0" y="232.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+<text x="870.8" y="259.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Review request</text>
 <rect x="967.5" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
 <text x="1052.2" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Handover</text>
 <text x="1052.2" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">pickup + return</text>
@@ -80,6 +82,9 @@
 <rect x="786.0" y="456.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
 <text x="870.8" y="475.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">RentalDetail</text>
 <text x="870.8" y="494.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#A32D2D">ViewModel</text>
+<rect x="786.0" y="520.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+<text x="870.8" y="539.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">ReviewRequest</text>
+<text x="870.8" y="558.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#A32D2D">ViewModel</text>
 <rect x="967.5" y="392.0" width="169.5" height="54.0" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
 <text x="1052.2" y="411.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#791F1F">Handover</text>
 <text x="1052.2" y="430.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#A32D2D">ViewModel</text>
