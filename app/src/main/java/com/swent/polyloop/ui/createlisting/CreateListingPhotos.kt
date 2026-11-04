@@ -26,10 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -43,6 +39,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
+import com.swent.polyloop.ui.components.dashedOutline
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
 private val PHOTO_TILE_SIZE = 88.dp
@@ -211,18 +208,7 @@ private fun AddPhotoTile(enabled: Boolean, onClick: () -> Unit) {
       modifier =
           Modifier.size(PHOTO_TILE_SIZE)
               .clip(RoundedCornerShape(PHOTO_TILE_CORNER))
-              .drawBehind {
-                drawRoundRect(
-                    color = borderColor,
-                    cornerRadius = CornerRadius(PHOTO_TILE_CORNER.toPx()),
-                    style =
-                        Stroke(
-                            width = 1.dp.toPx(),
-                            pathEffect =
-                                PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())),
-                        ),
-                )
-              }
+              .dashedOutline(borderColor, PHOTO_TILE_CORNER)
               .clickable(enabled = enabled, onClick = onClick)
               .testTag(C.Tag.create_listing_add_photo),
       verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
