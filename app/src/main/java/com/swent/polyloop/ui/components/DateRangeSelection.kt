@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.components
 
+import com.swent.polyloop.model.listing.bufferDays
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
@@ -50,16 +51,6 @@ internal enum class DayKind {
   /** Part of the user's picked dates. */
   SELECTED,
 }
-
-/**
- * The days right before and right after each booked stretch, unless they are booked too. The day
- * before could only end a range with no free day after it, so it is blocked like the day after.
- */
-fun bufferDays(disabledDates: Set<LocalDate>): Set<LocalDate> =
-    disabledDates
-        .flatMap { listOf(it.minusDays(1), it.plusDays(1)) }
-        .filterNot { it in disabledDates }
-        .toSet()
 
 /** True for a day inside [window], not before [today], neither booked nor a buffer day. */
 fun isSelectable(
