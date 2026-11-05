@@ -10,6 +10,7 @@ import {
   Timestamp,
   Transaction,
 } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import {
   DateRange,
   OfferAnswer,
@@ -32,6 +33,12 @@ interface StoredOffer {
   authorId: string;
   isCounter: boolean;
   expiresAt: Timestamp;
+}
+
+/** What a sweep did: the offers it expired, and those it could not, which the next sweep retries. */
+export interface SweepResult {
+  expired: number;
+  failed: number;
 }
 
 /**
@@ -156,6 +163,60 @@ export async function declineRequest(
       throw new RequestError("failed-precondition", "An offer is waiting for an answer.");
     }
     decline(tx, rentalRef, "Request declined");
+  });
+}
+
+/**
+ * Declines every rental whose offer has expired at [now]. One failure is logged and does not stop
+ * the others. A finished negotiation has no `offer` left, so the query, on one field and needing no
+ * composite index, only finds offers still waiting.
+ *
+ * @param db the Firestore database.
+ * @param now the current time, passed so that tests can set it.
+ * @param expire handles one rental; tests pass one that fails.
+ * @returns how many offers were expired and how many could not be.
+ */
+export async function expireOverdueOffers(
+  db: Firestore,
+  now: Date,
+  expire: typeof expireOffer = expireOffer,
+): Promise<SweepResult> {
+  const overdue = await db
+    .collection(RENTALS)
+    .where("offer.expiresAt", "<=", Timestamp.fromDate(now))
+    .select()
+    .get();
+  const results = await Promise.allSettled(
+    overdue.docs.map((doc) =>
+      expire(doc.ref, now).catch((error) => {
+        logger.error(`Could not expire the offer of rental ${doc.id}`, error);
+        throw error;
+      }),
+    ),
+  );
+  return {
+    expired: results.filter((result) => result.status === "fulfilled" && result.value).length,
+    failed: results.filter((result) => result.status === "rejected").length,
+  };
+}
+
+/**
+ * Declines one rental if its offer has still expired at [now], in one transaction. The check is
+ * made again because the offer may have been answered or countered since the query.
+ *
+ * @param rentalRef the rental to check.
+ * @param now the current time.
+ * @returns true if the rental was declined, false if there was nothing to do.
+ */
+export async function expireOffer(rentalRef: DocumentReference, now: Date): Promise<boolean> {
+  return rentalRef.firestore.runTransaction(async (tx) => {
+    const rental = (await tx.get(rentalRef)).data();
+    const offer = rental?.offer as StoredOffer | undefined;
+    if (rental?.status !== REQUESTED || !offer || !isExpired(offer, now)) {
+      return false;
+    }
+    decline(tx, rentalRef, "Offer expired · request declined");
+    return true;
   });
 }
 
@@ -296,6 +357,11 @@ async function requireFreeListing(
   return listingRef;
 }
 
+/** True once [offer] can no longer be accepted, and `expireOffers` may decline its rental. */
+function isExpired(offer: StoredOffer, now: Date): boolean {
+  return offer.expiresAt.toMillis() <= now.getTime();
+}
+
 /** The offer that [callerId] may answer at [now], or a refusal. */
 function requireLiveOffer(rental: DocumentData, callerId: string, now: Date): StoredOffer {
   const offer = rental.offer as StoredOffer | undefined;
@@ -305,7 +371,7 @@ function requireLiveOffer(rental: DocumentData, callerId: string, now: Date): St
   if (offer.authorId === callerId) {
     throw new RequestError("permission-denied", "You cannot answer your own offer.");
   }
-  if (offer.expiresAt.toMillis() <= now.getTime()) {
+  if (isExpired(offer, now)) {
     throw new RequestError("failed-precondition", "This offer has expired.");
   }
   return offer;

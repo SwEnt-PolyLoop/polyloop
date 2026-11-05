@@ -14,3 +14,4 @@ export { geocodeListingAddresses } from "./geocodeListingAddresses";
 export { makeOffer } from "./makeOffer";
 export { respondToOffer } from "./respondToOffer";
 export { declineRequest } from "./declineRequest";
+export { expireOffers } from "./expireOffers";
