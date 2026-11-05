@@ -46,13 +46,13 @@ class FakeChatRepositoryTest {
 
   @Test
   fun conversationsAreTheUsersOwnNewestFirst() = runTest {
-    repository.conversations.value = listOf(older, notMine, newer)
+    repository.conversations = listOf(older, notMine, newer)
     assertEquals(listOf(newer, older), repository.observeConversations("u1").first())
   }
 
   @Test
   fun userWithoutRentalsHasNoConversations() = runTest {
-    repository.conversations.value = listOf(older, newer)
+    repository.conversations = listOf(older, newer)
     assertEquals(emptyList<Conversation>(), repository.observeConversations("u9").first())
   }
 
@@ -62,7 +62,7 @@ class FakeChatRepositoryTest {
   fun messagesAreOnlyThoseOfTheRental() = runTest {
     val m1 = Message("m1", "u1", "Hi", Instant.EPOCH, MessageType.USER)
     val m2 = Message("m1", "u2", "Other chat", Instant.EPOCH, MessageType.USER)
-    repository.messages.value = mapOf("r1" to listOf(m1), "r2" to listOf(m2))
+    repository.messages = mapOf("r1" to listOf(m1), "r2" to listOf(m2))
     assertEquals(listOf(m1), repository.observeMessages("r1").first())
   }
 
@@ -75,7 +75,7 @@ class FakeChatRepositoryTest {
 
   @Test
   fun sentMessageIsAddedAsTheSignedInUser() = runTest {
-    repository.conversations.value = listOf(older)
+    repository.conversations = listOf(older)
 
     assertTrue(repository.sendMessage("r1", "See you at 5?").isSuccess)
     repository.sendMessage("r1", "Ok")
@@ -91,7 +91,7 @@ class FakeChatRepositoryTest {
 
   @Test
   fun sentMessageBecomesTheLastMessageAndMovesTheConversationToTheTop() = runTest {
-    repository.conversations.value = listOf(older, newer)
+    repository.conversations = listOf(older, newer)
     repository.now = Instant.parse("2026-10-13T12:00:00Z")
 
     repository.sendMessage("r1", "Still available?")
@@ -101,6 +101,16 @@ class FakeChatRepositoryTest {
     assertEquals("Still available?", conversations[0].lastMessage)
     assertEquals(repository.now, conversations[0].lastMessageAt)
     assertEquals(newer, conversations[1])
+  }
+
+  @Test
+  fun sentMessageCanBeReadBackFromTheProperties() = runTest {
+    repository.conversations = listOf(older)
+
+    repository.sendMessage("r1", "Hi")
+
+    assertEquals(repository.observeMessages("r1").first(), repository.messages["r1"])
+    assertEquals("Hi", repository.conversations.single().lastMessage)
   }
 
   @Test
@@ -122,7 +132,7 @@ class FakeChatRepositoryTest {
 
   @Test
   fun sendingToAnUnknownRentalIsRefusedAndNotStored() = runTest {
-    repository.conversations.value = listOf(older)
+    repository.conversations = listOf(older)
 
     val result = repository.sendMessage("nope", "Hi")
 
@@ -159,7 +169,7 @@ class FakeChatRepositoryTest {
     val gate = CompletableDeferred<Unit>()
     repository.gate = gate
 
-    repository.conversations.value = listOf(older)
+    repository.conversations = listOf(older)
     val sending = async { repository.sendMessage("r1", "Hi") }
     yield()
     assertFalse(sending.isCompleted)
@@ -174,7 +184,7 @@ class FakeChatRepositoryTest {
 
   @Test
   fun getConversationFindsTheRental() = runTest {
-    repository.conversations.value = listOf(older, newer)
+    repository.conversations = listOf(older, newer)
     assertEquals(newer, repository.getConversation("r2").getOrThrow())
   }
 

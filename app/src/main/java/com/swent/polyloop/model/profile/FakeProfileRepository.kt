@@ -21,13 +21,15 @@ import kotlinx.coroutines.flow.update
  *
  * [uploadProfilePhoto] stores nothing: it records the photo in [uploadedPhotos] and returns
  * [uploadedUrl] of it. When [uploadFailure] is set, only uploads fail with it, so a test can fail
- * the photo while the name still saves.
+ * the photo while the name still saves; [updateFailure] likewise fails only [updateProfile], so a
+ * test can fail the save after the photo was uploaded.
  */
 class FakeProfileRepository(
     profiles: List<UserProfile> = emptyList(),
     var failure: Throwable? = null,
     var gate: CompletableDeferred<Unit>? = null,
     var uploadFailure: Throwable? = null,
+    var updateFailure: Throwable? = null,
 ) : ProfileRepository {
 
   private val uploads = mutableListOf<Pair<String, String>>()
@@ -71,7 +73,7 @@ class FakeProfileRepository(
 
   override suspend fun updateProfile(uid: String, name: String, photoUrl: String): Result<Unit> {
     gate?.await()
-    failure?.let {
+    (failure ?: updateFailure)?.let {
       return Result.failure(it)
     }
     val profile =

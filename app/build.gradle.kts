@@ -40,6 +40,7 @@ android {
   buildTypes {
     release {
       isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(
           getDefaultProguardFile("proguard-android-optimize.txt"),
           "proguard-rules.pro",
@@ -204,6 +205,8 @@ tasks.withType<Test> {
 }
 
 tasks.register("jacocoTestReport", JacocoReport::class) {
+  group = "verification"
+  description = "Builds the Jacoco coverage report of the unit and instrumented tests for Sonar."
   mustRunAfter("testDebugUnitTest", "connectedDebugAndroidTest")
 
   reports {

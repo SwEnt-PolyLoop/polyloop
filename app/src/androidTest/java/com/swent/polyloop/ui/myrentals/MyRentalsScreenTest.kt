@@ -83,7 +83,6 @@ class MyRentalsScreenTest {
       onRentalClick: (String) -> Unit = {},
       onRetry: () -> Unit = {},
       onReviewRequest: (String) -> Unit = {},
-      onOpenChat: (String) -> Unit = {},
   ) {
     composeTestRule.setContent {
       MyRentalsContent(
@@ -92,7 +91,6 @@ class MyRentalsScreenTest {
           onRentalClick = onRentalClick,
           onRetry = onRetry,
           onReviewRequest = onReviewRequest,
-          onOpenChat = onOpenChat,
           today = TODAY,
       )
     }
@@ -444,35 +442,32 @@ class MyRentalsScreenTest {
   }
 
   @Test
-  fun tappingABorrowingRequestOpensOnlyItsChat() {
-    val chats = mutableListOf<String>()
+  fun tappingABorrowingRequestOpensOnlyItsRental() {
+    val reviewed = mutableListOf<String>()
     val rentalsOpened = mutableListOf<String>()
     setContent(
         borrowing(requests = listOf(request("tent"))),
         onRentalClick = { rentalsOpened += it },
-        onOpenChat = { chats += it },
+        onReviewRequest = { reviewed += it },
     )
 
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "tent").performClick()
 
-    assertEquals(listOf("tent"), chats)
-    assertEquals(emptyList<String>(), rentalsOpened)
+    assertEquals(listOf("tent"), rentalsOpened)
+    assertEquals(emptyList<String>(), reviewed)
   }
 
   @Test
-  fun tappingABorrowingCurrentCardOpensOnlyTheRental() {
-    val chats = mutableListOf<String>()
+  fun tappingABorrowingCurrentCardOpensTheRental() {
     val rentalsOpened = mutableListOf<String>()
     setContent(
         borrowing(current = listOf(row("drill", status = RentalStatus.ACTIVE))),
         onRentalClick = { rentalsOpened += it },
-        onOpenChat = { chats += it },
     )
 
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + "drill").performClick()
 
     assertEquals(listOf("drill"), rentalsOpened)
-    assertEquals(emptyList<String>(), chats)
   }
 
   @Test

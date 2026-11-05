@@ -123,6 +123,18 @@ class ListingRepositoryFirestoreEmulatorTest {
   }
 
   @Test
+  fun photosAreTaggedWithTheUidOfTheirUploader() {
+    runBlocking {
+      val id = create(photos(Listing.MIN_PHOTOS)).getOrThrow()
+
+      repeat(Listing.MIN_PHOTOS) { index ->
+        val metadata = Firebase.storage.reference.child("listings/$id/$index.jpg").metadata.await()
+        assertEquals(ownerId, metadata.getCustomMetadata("uploader"))
+      }
+    }
+  }
+
+  @Test
   fun addressesAreOnlyInThePrivateDocument() {
     runBlocking {
       val id = create(photos(Listing.MIN_PHOTOS)).getOrThrow()

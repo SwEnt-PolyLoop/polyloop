@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.update
  * In-memory [ChatRepository] for tests and previews; the app itself never uses it. It lives in
  * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
  *
- * Tests change [conversations] and [messages] to make the flows emit, like Firestore would.
+ * Tests set [conversations] and [messages] to make the flows emit, like Firestore would.
  * [sendMessage] behaves like the real repository: it checks the text, the signed-in user and that
  * the rental exists, then adds the message and updates the conversation.
  */
@@ -29,11 +29,22 @@ class FakeChatRepository(
     var now: Instant = Instant.parse("2026-10-13T15:00:00Z"),
 ) : ChatRepository {
 
-  // Every rental's conversation, in any order.
-  val conversations = MutableStateFlow<List<Conversation>>(emptyList())
+  private val storedConversations = MutableStateFlow<List<Conversation>>(emptyList())
+  private val storedMessages = MutableStateFlow<Map<String, List<Message>>>(emptyMap())
 
-  // The messages of each rental, by rental id, oldest first.
-  val messages = MutableStateFlow<Map<String, List<Message>>>(emptyMap())
+  // Every rental's conversation, in any order. Setting it makes observeConversations emit.
+  var conversations: List<Conversation>
+    get() = storedConversations.value
+    set(value) {
+      storedConversations.value = value
+    }
+
+  // The messages of each rental, by rental id, oldest first. Setting it makes observeMessages emit.
+  var messages: Map<String, List<Message>>
+    get() = storedMessages.value
+    set(value) {
+      storedMessages.value = value
+    }
 
   // How many times sendMessage was called, including the calls that failed.
   var sendMessageCalls = 0
@@ -41,17 +52,17 @@ class FakeChatRepository(
 
   override fun observeConversations(uid: String): Flow<List<Conversation>> =
       failing()
-          ?: conversations.map { all ->
+          ?: storedConversations.map { all ->
             all.filter { it.ownerId == uid || it.borrowerId == uid }
                 .sortedByDescending { it.lastMessageAt }
           }
 
   override suspend fun getConversation(rentalId: String): Result<Conversation?> =
       failure?.let { Result.failure(it) }
-          ?: Result.success(conversations.value.find { it.rentalId == rentalId })
+          ?: Result.success(conversations.find { it.rentalId == rentalId })
 
   override fun observeMessages(rentalId: String): Flow<List<Message>> =
-      failing() ?: messages.map { it[rentalId].orEmpty() }
+      failing() ?: storedMessages.map { it[rentalId].orEmpty() }
 
   override suspend fun sendMessage(rentalId: String, text: String): Result<Unit> {
     sendMessageCalls++
@@ -62,16 +73,16 @@ class FakeChatRepository(
     if (text.isBlank()) return Result.failure(IllegalArgumentException("Blank message"))
     val uid = currentUid ?: return Result.failure(IllegalStateException("Nobody is signed in"))
     // Like Firestore, which refuses to update a rental that does not exist.
-    if (conversations.value.none { it.rentalId == rentalId }) {
+    if (conversations.none { it.rentalId == rentalId }) {
       return Result.failure(NoSuchElementException("No rental $rentalId"))
     }
 
-    messages.update { all ->
+    storedMessages.update { all ->
       val sent = all[rentalId].orEmpty()
       val message = Message("m${sent.size + 1}", uid, text, now, MessageType.USER)
       all + (rentalId to sent + message)
     }
-    conversations.update { all ->
+    storedConversations.update { all ->
       all.map {
         if (it.rentalId == rentalId) it.copy(lastMessage = text, lastMessageAt = now) else it
       }
