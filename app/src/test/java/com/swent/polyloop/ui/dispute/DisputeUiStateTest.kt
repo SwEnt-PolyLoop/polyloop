@@ -2,9 +2,12 @@
 
 package com.swent.polyloop.ui.dispute
 
+import com.swent.polyloop.model.dispute.DisputeStage
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DisputeUiStateTest {
@@ -33,5 +36,47 @@ class DisputeUiStateTest {
   @Test
   fun nothingToGetBackWithoutAProposal() {
     assertNull(open.copy(history = emptyList()).youGetBackTenths)
+  }
+
+  @Test
+  fun userCanAcceptOnlyTheOtherPersonsProposal() {
+    assertTrue(open.canAccept)
+    assertFalse(open.copy(history = listOf(theirs.copy(byMe = true))).canAccept)
+    assertFalse(open.copy(history = emptyList()).canAccept)
+  }
+
+  @Test
+  fun settledDisputeAllowsNoAction() {
+    val settled = open.copy(isSettled = true)
+
+    assertFalse(settled.canPropose)
+    assertFalse(settled.canAccept)
+    assertFalse(settled.canEscalate)
+  }
+
+  @Test
+  fun onlyDirectSettlementCanBeEscalated() {
+    val llm = open.copy(stage = DisputeStage.LLM_PROPOSAL)
+
+    assertTrue(open.canEscalate)
+    assertFalse(llm.canPropose)
+    assertFalse(llm.canEscalate)
+    assertFalse(open.copy(stage = DisputeStage.COURT).canEscalate)
+  }
+
+  @Test
+  fun loadingOrAFailedLoadAllowsNoAction() {
+    for (state in listOf(open.copy(isLoading = true), open.copy(loadFailed = true))) {
+      assertFalse(state.canPropose)
+      assertFalse(state.canEscalate)
+    }
+  }
+
+  @Test
+  fun offlineOrSendingAllowsNoAction() {
+    for (state in listOf(open.copy(isOnline = false), open.copy(isSending = true))) {
+      assertFalse(state.canPropose)
+      assertFalse(state.canEscalate)
+    }
   }
 }

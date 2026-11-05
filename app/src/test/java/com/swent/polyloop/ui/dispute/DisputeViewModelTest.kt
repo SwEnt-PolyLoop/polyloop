@@ -17,11 +17,13 @@ import java.io.IOException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -29,6 +31,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -78,7 +81,7 @@ class DisputeViewModelTest {
   @Before
   fun setUp() {
     Dispatchers.setMain(dispatcher)
-    disputes = FakeDisputeRepository(listOf(open))
+    disputes = FakeDisputeRepository(listOf(open), clock = { now })
     rentals = FakeRentalRepository(listOf(pump))
     auth = FakeAuthRepository(signedInUser = me)
     connectivity = FakeConnectivityRepository()
@@ -304,6 +307,459 @@ class DisputeViewModelTest {
     assertTrue(state.refreshFailed)
     assertFalse(state.loadFailed)
     assertEquals(70, state.latestProposal?.lenderPercent)
+  }
+
+  // ---------- actions ----------
+
+  /** Asks [vm] to escalate and confirms it, as the user does on the screen. */
+  private fun confirmEscalate(vm: DisputeViewModel) {
+    vm.askEscalate()
+    vm.escalate()
+  }
+
+  /** Opens the editor of [vm], moves the draft to [lenderPercent] and sends it. */
+  private fun propose(vm: DisputeViewModel, lenderPercent: Int) {
+    vm.startEditing()
+    vm.setDraft(lenderPercent)
+    vm.sendDraft()
+  }
+
+  @Test
+  fun editingStartsFromTheProposalOnTheTable() {
+    val vm = viewModel()
+
+    vm.startEditing()
+
+    assertEquals(70, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun editingStartsFromAnEvenSplitWithoutAProposal() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = emptyList())))
+    val vm = viewModel()
+
+    vm.startEditing()
+
+    assertEquals(50, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun theirNewOfferKeepsMyDraftButANewStageEndsTheEditing() {
+    val vm = viewModel()
+    vm.startEditing()
+    vm.setDraft(55)
+
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now))))
+    assertEquals(55, vm.uiState.value.draftLenderPercent)
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL))
+    assertFalse(vm.uiState.value.isEditing)
+  }
+
+  @Test
+  fun sendingTheDraftSendsMyProposalAndClosesTheEditor() {
+    val vm = viewModel()
+
+    propose(vm, 55)
+
+    assertEquals(ProposalRow(true, 55, now), vm.uiState.value.latestProposal)
+    assertFalse(vm.uiState.value.isEditing)
+    assertFalse(vm.uiState.value.canAccept)
+  }
+
+  @Test
+  fun theDraftDoesNotMoveWhileTheEditorIsClosed() {
+    val vm = viewModel()
+
+    vm.setDraft(50)
+
+    assertNull(vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun aProposalSentAfterSigningOutFailsAndKeepsTheDraft() {
+    val vm = viewModel()
+    vm.startEditing()
+    vm.setDraft(50)
+
+    auth.signedInUser = null
+    vm.sendDraft()
+
+    assertEquals(DisputeActionError.PROPOSE, vm.uiState.value.actionError)
+    assertEquals(50, vm.uiState.value.draftLenderPercent)
+    assertEquals(open, disputes.disputes.single())
+  }
+
+  @Test
+  fun theSplitOnTheTableIsNotSentAgainAndCancelClosesTheEditor() {
+    val vm = viewModel()
+
+    propose(vm, 70)
+    assertEquals(2, disputes.disputes.single().proposals.size)
+    assertTrue(vm.uiState.value.isEditing)
+
+    vm.cancelEditing()
+    assertFalse(vm.uiState.value.isEditing)
+  }
+
+  @Test
+  fun draftStaysBetweenZeroAndAHundred() {
+    val vm = viewModel()
+    vm.startEditing()
+
+    vm.setDraft(101)
+    assertEquals(100, vm.uiState.value.draftLenderPercent)
+
+    vm.setDraft(-1)
+    assertEquals(0, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun anAgreementReachedMeanwhileEndsTheEditing() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+    vm.startEditing()
+
+    runBlocking { disputes.accept("pump", "ana", 40) }
+
+    assertFalse(vm.uiState.value.isEditing)
+  }
+
+  @Test
+  fun acceptSettlesTheDispute() {
+    val vm = viewModel()
+
+    vm.accept()
+
+    assertTrue(vm.uiState.value.isSettled)
+    assertFalse(vm.uiState.value.canEscalate)
+  }
+
+  @Test
+  fun acceptDoesNothingOnMyOwnProposal() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+
+    vm.accept()
+
+    assertFalse(vm.uiState.value.isSettled)
+    assertNull(vm.uiState.value.actionError)
+  }
+
+  @Test
+  fun acceptOfAProposalThatChangedSettlesNothingAndSaysSo() {
+    val vm = viewModel()
+    // Ana's update reaches the server before the screen.
+    disputes.gate = CompletableDeferred()
+    vm.accept()
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+    disputes.gate?.complete(Unit)
+
+    assertFalse(vm.uiState.value.isSettled)
+    assertEquals(DisputeActionError.PROPOSAL_CHANGED, vm.uiState.value.actionError)
+  }
+
+  @Test
+  fun failedAcceptAndEscalateNameTheirAction() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+
+    vm.accept()
+    assertEquals(DisputeActionError.ACCEPT, vm.uiState.value.actionError)
+
+    confirmEscalate(vm)
+    assertEquals(DisputeActionError.ESCALATE, vm.uiState.value.actionError)
+  }
+
+  @Test
+  fun escalateMovesToTheLlmStageWhereNothingEscalatesAnymore() {
+    val vm = viewModel()
+
+    confirmEscalate(vm)
+
+    assertEquals(DisputeStage.LLM_PROPOSAL, vm.uiState.value.stage)
+    assertFalse(vm.uiState.value.canEscalate)
+    assertEquals(0, vm.uiState.value.daysUntilEscalation)
+  }
+
+  @Test
+  fun escalatingAsksForAConfirmation() {
+    val vm = viewModel()
+
+    vm.askEscalate()
+    assertTrue(vm.uiState.value.isConfirmingEscalation)
+
+    vm.dismissEscalate()
+    assertFalse(vm.uiState.value.isConfirmingEscalation)
+    assertEquals(DisputeStage.SETTLE, vm.uiState.value.stage)
+  }
+
+  @Test
+  fun confirmationClosesWhenTheDisputeMovesOnMeanwhile() {
+    val vm = viewModel()
+    vm.askEscalate()
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL))
+
+    assertFalse(vm.uiState.value.isConfirmingEscalation)
+  }
+
+  @Test
+  fun confirmationClosesWhenAnAgreementIsReachedMeanwhile() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+    vm.askEscalate()
+
+    runBlocking { disputes.accept("pump", "ana", 40) }
+
+    assertFalse(vm.uiState.value.isConfirmingEscalation)
+  }
+
+  @Test
+  fun aConfirmationLeftOpenAfterTheDisputeMovedOnEscalatesNothing() {
+    disputes.gate = CompletableDeferred()
+    val vm = viewModel()
+    vm.askEscalate()
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    vm.escalate()
+
+    // Nothing is sent: a request would wait for the gate.
+    assertFalse(vm.uiState.value.isSending)
+  }
+
+  @Test
+  fun anEscalationRefusedWhileTheDisputeCannotBeRefreshedLoadsTheNewStage() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+    disputes.put(open.copy(proposals = listOf(mine)))
+    disputes.failure = null
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+
+    confirmEscalate(vm)
+
+    val state = vm.uiState.value
+    assertEquals(DisputeStage.LLM_PROPOSAL, state.stage)
+    assertFalse(state.refreshFailed)
+    assertNull(state.actionError)
+    assertEquals(EscalationNotice.BY_OTHER, state.escalationNotice)
+  }
+
+  @Test
+  fun anAcceptRefusedWhileTheDisputeCannotBeRefreshedLoadsTheNewProposal() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+    disputes.put(open.copy(proposals = listOf(mine)))
+    disputes.failure = null
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+
+    vm.accept()
+
+    val state = vm.uiState.value
+    assertEquals(90, state.latestProposal?.lenderPercent)
+    assertFalse(state.refreshFailed)
+    assertEquals(DisputeActionError.PROPOSAL_CHANGED, state.actionError)
+  }
+
+  @Test
+  fun anEscalationSentAsTheOtherPersonEscalatesSkipsNoStage() {
+    disputes.gate = CompletableDeferred()
+    val vm = viewModel()
+
+    confirmEscalate(vm)
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    disputes.gate?.complete(Unit)
+
+    assertEquals(DisputeStage.LLM_PROPOSAL, disputes.disputes.single().stage)
+    assertNull(vm.uiState.value.actionError)
+    assertEquals(EscalationNotice.BY_OTHER, vm.uiState.value.escalationNotice)
+  }
+
+  @Test
+  fun actionsDoNothingOffline() {
+    connectivity.setOnline(false)
+    val vm = viewModel()
+
+    propose(vm, 50)
+    vm.accept()
+    confirmEscalate(vm)
+
+    assertEquals(open, disputes.disputes.single())
+  }
+
+  @Test
+  fun noSecondActionWhileOneIsSending() {
+    val gate = CompletableDeferred<Unit>()
+    disputes.gate = gate
+    val vm = viewModel()
+
+    confirmEscalate(vm)
+    assertTrue(vm.uiState.value.isSending)
+    confirmEscalate(vm)
+    gate.complete(Unit)
+
+    assertFalse(vm.uiState.value.isSending)
+    assertEquals(DisputeStage.LLM_PROPOSAL, vm.uiState.value.stage)
+  }
+
+  @Test
+  fun aFailedProposalKeepsTheDraftToSendAgain() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+
+    propose(vm, 50)
+
+    assertEquals(DisputeActionError.PROPOSE, vm.uiState.value.actionError)
+    assertEquals(50, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun cancellingAfterAFailedProposalClearsItsError() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+    propose(vm, 50)
+
+    vm.cancelEditing()
+
+    assertFalse(vm.uiState.value.isEditing)
+    assertNull(vm.uiState.value.actionError)
+  }
+
+  @Test
+  fun cancellingWhileTheProposalIsSentKeepsTheEditorToShowItsError() {
+    val gate = CompletableDeferred<Unit>()
+    val vm = viewModel()
+    disputes.gate = gate
+    disputes.failure = IOException("offline")
+    propose(vm, 50)
+
+    vm.cancelEditing()
+    assertTrue(vm.uiState.value.isEditing)
+    gate.complete(Unit)
+
+    assertEquals(DisputeActionError.PROPOSE, vm.uiState.value.actionError)
+    assertEquals(50, vm.uiState.value.draftLenderPercent)
+  }
+
+  @Test
+  fun aNewStageOrAnAgreementClearsTheErrorOfAnActionThatNoLongerApplies() {
+    val vm = viewModel()
+    disputes.failure = IOException("offline")
+    confirmEscalate(vm)
+    disputes.failure = null
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    assertNull(vm.uiState.value.actionError)
+
+    disputes.put(open)
+    disputes.failure = IOException("offline")
+    vm.accept()
+    disputes.failure = null
+    disputes.put(open.copy(agreedAt = now))
+    assertNull(vm.uiState.value.actionError)
+  }
+
+  // ---------- what the other person did ----------
+
+  @Test
+  fun theirNewOfferIsToldUntilMyNextAction() {
+    val vm = viewModel()
+    assertFalse(vm.uiState.value.offerUpdated)
+
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now))))
+    assertTrue(vm.uiState.value.showsOfferUpdated)
+
+    vm.startEditing()
+    assertFalse(vm.uiState.value.offerUpdated)
+  }
+
+  @Test
+  fun theirNewOfferIsNoLongerToldOnceISendSomething() {
+    val vm = viewModel()
+    vm.startEditing()
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now))))
+    assertTrue(vm.uiState.value.offerUpdated)
+
+    vm.setDraft(55)
+    vm.sendDraft()
+
+    assertFalse(vm.uiState.value.offerUpdated)
+  }
+
+  @Test
+  fun theirNewOfferIsNoLongerToldOnceTheDisputeLeavesDirectSettlement() {
+    val vm = viewModel()
+    val updated = open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now)))
+    disputes.put(updated)
+    assertTrue(vm.uiState.value.offerUpdated)
+
+    disputes.put(updated.copy(stage = DisputeStage.LLM_PROPOSAL))
+
+    assertFalse(vm.uiState.value.offerUpdated)
+  }
+
+  @Test
+  fun myOwnNewOfferIsNotTold() {
+    val vm = viewModel()
+
+    propose(vm, 50)
+
+    assertFalse(vm.uiState.value.offerUpdated)
+  }
+
+  @Test
+  fun aFailedAcceptHidesTheNewOfferItFailedOn() {
+    val vm = viewModel()
+    disputes.gate = CompletableDeferred()
+    vm.accept()
+    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+    disputes.gate?.complete(Unit)
+
+    assertTrue(vm.uiState.value.offerUpdated)
+    assertFalse(vm.uiState.value.showsOfferUpdated)
+  }
+
+  @Test
+  fun theirAcceptanceOfMyProposalIsTold() {
+    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    val vm = viewModel()
+
+    runBlocking { disputes.accept("pump", "ana", 40) }
+
+    assertTrue(vm.uiState.value.acceptedByOther)
+  }
+
+  @Test
+  fun myOwnAcceptanceIsNotTold() {
+    val vm = viewModel()
+
+    vm.accept()
+
+    assertTrue(vm.uiState.value.isSettled)
+    assertFalse(vm.uiState.value.acceptedByOther)
+  }
+
+  @Test
+  fun anEscalationTellsWhetherTheOtherPersonOrNobodyDidIt() {
+    val vm = viewModel()
+
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    assertEquals(EscalationNotice.BY_OTHER, vm.uiState.value.escalationNotice)
+
+    disputes.put(open.copy(stage = DisputeStage.COURT))
+    assertEquals(EscalationNotice.AUTOMATIC, vm.uiState.value.escalationNotice)
+  }
+
+  @Test
+  fun myOwnEscalationAndADisputeAlreadySettledAreNotTold() {
+    disputes = FakeDisputeRepository(listOf(open.copy(agreedAt = now)))
+    assertFalse(viewModel().uiState.value.acceptedByOther)
+
+    disputes = FakeDisputeRepository(listOf(open), clock = { now })
+    val vm = viewModel()
+    confirmEscalate(vm)
+
+    assertNull(vm.uiState.value.escalationNotice)
   }
 
   // ---------- factory ----------
