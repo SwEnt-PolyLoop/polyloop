@@ -69,7 +69,7 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 
 ## Never do, ask first
 
-- **Never** commit `google-services.json`, tokens or `local.properties`. CI reads the secrets `GOOGLE_SERVICES` and `SONAR_TOKEN`.
+- **Never** commit `google-services.json`, tokens, keystores or `local.properties`. CI reads the secrets `GOOGLE_SERVICES` and `SONAR_TOKEN`; the Build APK workflow also reads `MAPS_API_KEY` and `DEBUG_KEYSTORE`.
 - **Never** lower coverage thresholds, add Sonar exclusions, disable lint or tests, use `--no-verify`, or force-push to `main` just to get green.
 - **Ask first** before changing dependencies or versions, `.github/workflows/ci.yml`, Security Rules, or the Firestore data model.
 
