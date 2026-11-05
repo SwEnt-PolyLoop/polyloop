@@ -569,7 +569,10 @@ class ProfileScreenTest {
 
         override suspend fun getListing(id: String) = Result.success<Listing?>(null)
 
-        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+        override suspend fun getListingsByOwner(
+            ownerId: String,
+            fromServer: Boolean,
+        ): Result<List<Listing>> {
           onRead()
           return failure()?.let { Result.failure(it) } ?: Result.success(listOf(tent))
         }

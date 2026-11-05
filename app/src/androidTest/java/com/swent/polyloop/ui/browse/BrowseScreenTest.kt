@@ -90,8 +90,10 @@ class BrowseScreenTest {
   ) {
     val repository =
         object : ListingRepository {
-          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-              Result.success(emptyList())
+          override suspend fun getListingsByOwner(
+              ownerId: String,
+              fromServer: Boolean,
+          ): Result<List<Listing>> = Result.success(emptyList())
 
           override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
 
@@ -213,8 +215,10 @@ class BrowseScreenTest {
     val connectivity = FakeConnectivityRepository(online = true)
     val repository =
         object : ListingRepository {
-          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-              Result.success(emptyList())
+          override suspend fun getListingsByOwner(
+              ownerId: String,
+              fromServer: Boolean,
+          ): Result<List<Listing>> = Result.success(emptyList())
 
           override suspend fun getAllListings(): Result<List<Listing>> = Result.success(listings)
 
@@ -250,8 +254,10 @@ class BrowseScreenTest {
     var calls = 0
     val repository =
         object : ListingRepository {
-          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-              Result.success(emptyList())
+          override suspend fun getListingsByOwner(
+              ownerId: String,
+              fromServer: Boolean,
+          ): Result<List<Listing>> = Result.success(emptyList())
 
           override suspend fun getAllListings(): Result<List<Listing>> =
               if (calls++ == 0) Result.success(listings) else awaitCancellation()
@@ -322,8 +328,10 @@ class BrowseScreenTest {
     var calls = 0
     val repository =
         object : ListingRepository {
-          override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-              Result.success(emptyList())
+          override suspend fun getListingsByOwner(
+              ownerId: String,
+              fromServer: Boolean,
+          ): Result<List<Listing>> = Result.success(emptyList())
 
           override suspend fun getAllListings(): Result<List<Listing>> =
               if (calls++ == 0) Result.failure(IllegalStateException("Network down"))

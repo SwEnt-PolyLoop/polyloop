@@ -64,7 +64,10 @@ sealed class Screen(val route: String) {
     fun createRoute(rentalId: String) = "dispute/$rentalId"
   }
 
-  /** Someone else's profile, opened from Listing detail or Rental detail. */
+  /**
+   * A profile opened from Listing detail or Rental detail: someone else's, or the user's own when
+   * they tap the lender card on one of their own listings.
+   */
   data object UserProfile : Screen("profile/{$ARG_USER_ID}") {
     fun createRoute(userId: String) = "profile/$userId"
   }

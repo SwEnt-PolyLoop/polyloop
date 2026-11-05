@@ -29,10 +29,11 @@ class NavigationActions(private val navController: NavHostController) {
   }
 
   /**
-   * Goes back to [route], built with a destination's `createRoute(...)`, if it is already in the
-   * back stack, dropping the screens on top of it; opens it otherwise. So going back and forth
+   * Goes back to [route], built with a destination's `createRoute(...)`, if it is further back in
+   * the back stack, dropping the screens on top of it; opens it otherwise. So going back and forth
    * between two screens that open each other does not pile up entries, each keeping its ViewModel
-   * alive.
+   * alive. If [route] is already on top it opens again, so callers must ignore taps from a screen
+   * that is leaving.
    */
   fun navigateToOrBackTo(route: String) {
     if (!navController.popBackStack(route, inclusive = false)) navController.navigate(route)

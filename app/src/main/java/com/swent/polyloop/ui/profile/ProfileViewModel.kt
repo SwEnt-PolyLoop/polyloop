@@ -39,10 +39,11 @@ import kotlinx.coroutines.launch
  *   card shows a generic text whatever the cause.
  * @property listingsStale true when the last refresh of the listings failed, so [listings] are the
  *   ones read before, even when that read found none; false while they load, on [listingsError],
- *   and before a first read succeeded, as there is then nothing read before.
+ *   while [listingsOffline], and before a first read succeeded, as there is then nothing read
+ *   before.
  * @property listingsOffline true on someone else's profile while the phone is offline: nothing is
- *   read, as the cache may hold only some of their listings, and the card says so instead of
- *   showing them. Always false on the own profile, which stays readable offline.
+ *   read, as their listings are read from the server only, and the card says so instead of showing
+ *   them. Always false on the own profile, which stays readable offline.
  * @property isSignedOut true once the user signed out; the app then goes back to sign-in.
  */
 data class ProfileUiState(
@@ -64,7 +65,8 @@ data class ProfileUiState(
  * otherwise. The profile follows the repository live. The listings are loaded separately, again
  * each time the screen comes back ([onScreenResumed]). On the own profile their rentals are
  * followed live, so the state of each listing updates by itself; someone else's rentals are never
- * read, their drafts are left out, and their listings are only read while the phone is online.
+ * read, their drafts are left out, and their listings are only read from the server, while the
+ * phone is online.
  */
 class ProfileViewModel(
     private val userId: String?,
@@ -95,9 +97,9 @@ class ProfileViewModel(
   /**
    * Loads the listings again, after an error or when the screen comes back (they may have been
    * edited or deleted meanwhile); the profile stays as it is. Ignored while they are loading, and
-   * while [ProfileUiState.listingsOffline], as they load by themselves once back online. The
-   * rentals of the own listings stay followed, so only the listings are read again, without showing
-   * the spinner.
+   * while [ProfileUiState.listingsOffline], as they load by themselves once back online. After an
+   * error they load from the start, with the spinner. Otherwise the rentals of the own listings
+   * stay followed, so only the listings are read again, without showing the spinner.
    */
   fun refreshListings() {
     val uid = listingsOwner ?: return
@@ -171,13 +173,14 @@ class ProfileViewModel(
 
   /**
    * Loads someone else's listings each time the phone is online, at start and again whenever the
-   * connection comes back, and reads nothing while it is offline: Firestore would then answer from
-   * its cache without failing, and the cache may hold only some of their listings, or none, which
-   * would look like all they have.
+   * connection comes back, and reads nothing while it is offline: the read goes to the server, so
+   * it could only fail.
    */
   private fun loadListingsWhileOnline(uid: String) {
     // Loading until the first network status arrives, so the empty text never flashes at start.
-    _uiState.update { it.copy(listingsLoading = true) }
+    _uiState.update {
+      it.copy(listingsLoading = true, listingsError = false, listingsStale = false)
+    }
     followingConnection = viewModelScope.launch {
       connectivityRepository.isOnline.collect { online ->
         if (online) {
@@ -201,9 +204,11 @@ class ProfileViewModel(
   /**
    * Loads the listings of [uid], again at each [listingsRefresh]: on the own profile all of them,
    * whose rentals are followed live; on someone else's only the published ones (their drafts are
-   * left out), without reading their rentals, which belong to other people. Called for the first
-   * load and after an error only, so the spinner always shows: a retry never shows the old listings
-   * as if they were current. A refresh that fails (e.g. a network error) keeps the listings already
+   * left out), without reading their rentals, which belong to other people. Someone else's are read
+   * from the server only: the cache may hold only some of them, or none, which would look like all
+   * they have. Called for the first load, after an error and, on someone else's profile, each time
+   * the connection comes back, so the spinner always shows: a retry never shows the old listings as
+   * if they were current. A refresh that fails (e.g. a network error) keeps the listings already
    * shown, marked as stale until a refresh succeeds (even when there are none, so the user knows
    * why a new listing is missing), and the rentals of the own listings stay followed.
    */
@@ -213,19 +218,20 @@ class ProfileViewModel(
     _uiState.update {
       it.copy(listingsLoading = true, listingsError = false, listingsStale = false)
     }
+    // Set by load() before it loads the listings, and changes only there.
+    val isOwnProfile = _uiState.value.isOwnProfile
     var shown: List<Listing>? = null
     // Each read gives the listings to show, and whether they are the old ones kept after a failure.
     val listings = listingsRefresh.map {
       listingRepository
-          .getListingsByOwner(uid)
+          .getListingsByOwner(uid, fromServer = !isOwnProfile)
           .fold(
               onSuccess = { read -> read.also { shown = it } to false },
               onFailure = { e -> (shown ?: throw e) to true },
           )
     }
-    // isOwnProfile is set by load() before it loads the listings, and changes only there.
     val rows =
-        if (_uiState.value.isOwnProfile) {
+        if (isOwnProfile) {
           val lent = rentalRepository.observeRentalsAsLender(uid)
           combine(listings, lent) { (owned, stale), rentals ->
             owned.map { MyListing(it, rentalStateOf(it.id, rentals)) } to stale

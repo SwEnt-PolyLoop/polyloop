@@ -494,8 +494,10 @@ class ListingDetailScreenTest {
       readBookedRanges: (String) -> Result<List<BookedRange>?> = { Result.success(emptyList()) },
   ) =
       object : ListingRepository {
-        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-            Result.success(emptyList())
+        override suspend fun getListingsByOwner(
+            ownerId: String,
+            fromServer: Boolean,
+        ): Result<List<Listing>> = Result.success(emptyList())
 
         override suspend fun getAllListings(): Result<List<Listing>> = Result.success(emptyList())
 

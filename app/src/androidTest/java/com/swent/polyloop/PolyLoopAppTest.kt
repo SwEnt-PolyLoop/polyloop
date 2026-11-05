@@ -5,6 +5,7 @@ package com.swent.polyloop
 import android.net.Uri
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -81,8 +82,10 @@ class PolyLoopAppTest {
   /** In-memory listings, so screens wired to RepositoryProvider never reach Firestore. */
   private val listingRepository =
       object : ListingRepository {
-        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-            Result.success(listOf(listing).filter { it.ownerId == ownerId })
+        override suspend fun getListingsByOwner(
+            ownerId: String,
+            fromServer: Boolean,
+        ): Result<List<Listing>> = Result.success(listOf(listing).filter { it.ownerId == ownerId })
 
         override suspend fun getAllListings(): Result<List<Listing>> =
             Result.success(listOf(listing))
@@ -196,6 +199,22 @@ class PolyLoopAppTest {
 
   private fun tapLenderCard() {
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo().performClick()
+  }
+
+  /** Two taps in a row, so the second lands while Listing detail is leaving after the first. */
+  private fun doubleTapLenderCard() {
+    val tap =
+        composeTestRule
+            .onNodeWithTag(C.Tag.listing_detail_lender_card)
+            .performScrollTo()
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action
+    composeTestRule.runOnUiThread {
+      tap?.invoke()
+      tap?.invoke()
+    }
+    composeTestRule.waitForIdle()
   }
 
   private fun tapListingOnProfile() {
@@ -764,6 +783,33 @@ class PolyLoopAppTest {
         Screen.ListingDetail.route,
         navController.previousBackStackEntry?.destination?.route,
     )
+  }
+
+  @Test
+  fun doubleTapOnLenderCardOpensTheirProfileOnce() {
+    setAppSignedIn()
+    openListingDetail()
+
+    doubleTapLenderCard()
+
+    assertEquals(Screen.UserProfile.route, navController.currentDestination?.route)
+    assertEquals(
+        Screen.ListingDetail.route,
+        navController.previousBackStackEntry?.destination?.route,
+    )
+  }
+
+  @Test
+  fun doubleTapOnLenderCardGoesBackToTheirProfileOnce() {
+    setAppSignedIn()
+    openProfileOf(listing.ownerId)
+    val ownersProfile = navController.currentBackStackEntry?.id
+    openListingDetail()
+
+    doubleTapLenderCard()
+
+    assertEquals(ownersProfile, navController.currentBackStackEntry?.id)
+    assertEquals(Screen.Browse.route, navController.previousBackStackEntry?.destination?.route)
   }
 
   @Test

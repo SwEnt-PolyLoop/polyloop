@@ -96,18 +96,38 @@ class ProfileViewModelTest {
   private fun viewModel(userId: String? = null) =
       ProfileViewModel(userId, profiles, listings, rentals, auth, connectivity)
 
-  /** [listings], calling [onRead] at each read of the own listings. */
+  /** [listings], calling [onRead] at each read of someone's listings, own or not. */
   private fun countingListings(onRead: () -> Unit) =
       object : ListingRepository by listings {
-        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+        override suspend fun getListingsByOwner(
+            ownerId: String,
+            fromServer: Boolean,
+        ): Result<List<Listing>> {
           onRead()
-          return listings.getListingsByOwner(ownerId)
+          return listings.getListingsByOwner(ownerId, fromServer)
         }
       }
 
   /** A ViewModel for the profile of [userId], calling [onRead] at each read of the listings. */
   private fun countingViewModel(userId: String?, onRead: () -> Unit) =
       ProfileViewModel(userId, profiles, countingListings(onRead), rentals, auth, connectivity)
+
+  /** Like a phone reporting it is online that cannot reach the server: only the cache answers. */
+  private fun serverOutOfReach(cached: List<Listing>) =
+      object : ListingRepository by listings {
+        override suspend fun getListingsByOwner(
+            ownerId: String,
+            fromServer: Boolean,
+        ): Result<List<Listing>> =
+            if (fromServer) Result.failure(IllegalStateException("Unavailable"))
+            else Result.success(cached)
+      }
+
+  /** A network status that arrives only when the test emits it. */
+  private fun connectivityFrom(status: Flow<Boolean>) =
+      object : ConnectivityRepository {
+        override val isOnline: Flow<Boolean> = status
+      }
 
   // ---------- own profile ----------
 
@@ -275,7 +295,7 @@ class ProfileViewModelTest {
     assertEquals(listOf(MyListing(janesBike, rentalState = null)), vm.uiState.value.listings)
   }
 
-  // ---------- someone else's profile, offline ----------
+  // ---------- someone else's profile, connection ----------
 
   @Test
   fun otherProfileOfflineReadsNothingAndKeepsTheProfile() {
@@ -305,11 +325,7 @@ class ProfileViewModelTest {
   @Test
   fun otherProfileLoadsUntilTheFirstNetworkStatusArrives() {
     val status = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
-    val waiting =
-        object : ConnectivityRepository {
-          override val isOnline: Flow<Boolean> = status
-        }
-    val vm = ProfileViewModel("jane", profiles, listings, rentals, auth, waiting)
+    val vm = ProfileViewModel("jane", profiles, listings, rentals, auth, connectivityFrom(status))
     assertTrue(vm.uiState.value.listingsLoading)
     assertTrue(vm.uiState.value.listings.isEmpty())
 
@@ -317,6 +333,71 @@ class ProfileViewModelTest {
 
     assertFalse(vm.uiState.value.listingsLoading)
     assertEquals(listOf(MyListing(janesBike, rentalState = null)), vm.uiState.value.listings)
+  }
+
+  @Test
+  fun retryBeforeTheNetworkStatusArrivesClearsTheStaleNote() {
+    val status = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
+    val vm = ProfileViewModel("jane", profiles, listings, rentals, auth, connectivityFrom(status))
+    status.tryEmit(true)
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    assertTrue(vm.uiState.value.listingsStale)
+
+    vm.retry()
+
+    assertTrue(vm.uiState.value.listingsLoading)
+    assertFalse(vm.uiState.value.listingsStale)
+  }
+
+  @Test
+  fun retryBeforeTheNetworkStatusArrivesClearsTheListingsError() {
+    val status = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
+    listings.failure = IllegalStateException("No connection")
+    val vm = ProfileViewModel("jane", profiles, listings, rentals, auth, connectivityFrom(status))
+    status.tryEmit(true)
+    assertTrue(vm.uiState.value.listingsError)
+
+    vm.retry()
+
+    assertTrue(vm.uiState.value.listingsLoading)
+    assertFalse(vm.uiState.value.listingsError)
+  }
+
+  @Test
+  fun otherProfileWithTheServerOutOfReachShowsTheErrorNotTheCache() {
+    val vm =
+        ProfileViewModel(
+            "jane",
+            profiles,
+            serverOutOfReach(cached = emptyList()),
+            rentals,
+            auth,
+            connectivity,
+        )
+
+    assertTrue(vm.uiState.value.listingsError)
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertTrue(vm.uiState.value.listings.isEmpty())
+  }
+
+  @Test
+  fun ownProfileWithTheServerOutOfReachShowsTheCache() {
+    val vm =
+        ProfileViewModel(
+            null,
+            profiles,
+            serverOutOfReach(cached = listOf(myTent)),
+            rentals,
+            auth,
+            connectivity,
+        )
+
+    assertFalse(vm.uiState.value.listingsError)
+    assertEquals(
+        listOf(MyListing(myTent, ListingRentalState.AVAILABLE)),
+        vm.uiState.value.listings,
+    )
   }
 
   @Test
