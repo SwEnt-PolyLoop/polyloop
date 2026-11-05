@@ -2,8 +2,11 @@
 
 package com.swent.polyloop.model.listing
 
+import com.google.firebase.firestore.GeoPoint
+import com.swent.polyloop.model.location.MapPoint
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -25,6 +28,7 @@ class ListingDocumentTest {
           ListingFields.STATUS to "PUBLISHED",
           ListingFields.PICKUP_AREA to "Ecublens",
           ListingFields.DROP_OFF_AREA to "Ecublens",
+          ListingFields.PICKUP_POINT to GeoPoint(46.52, 6.57),
       )
 
   private val expected =
@@ -42,6 +46,7 @@ class ListingDocumentTest {
           status = ListingStatus.PUBLISHED,
           pickupArea = "Ecublens",
           dropOffArea = "Ecublens",
+          pickupPoint = MapPoint(latitude = 46.52, longitude = 6.57),
       )
 
   private fun fromDocument(data: Map<String, Any?>) = listingFromDocument("listing1", data)
@@ -49,8 +54,19 @@ class ListingDocumentTest {
   @Test fun validDocumentIsMapped() = assertEquals(expected, fromDocument(validData))
 
   @Test
-  fun listingToDocumentIsReadBackUnchanged() =
-      assertEquals(expected, fromDocument(listingToDocument(expected)))
+  fun listingToDocumentIsReadBackUnchanged() {
+    val notGeocoded = expected.copy(pickupPoint = null)
+
+    assertEquals(notGeocoded, fromDocument(listingToDocument(notGeocoded)))
+  }
+
+  @Test
+  fun listingToDocumentLeavesOutThePickupPoint() =
+      assertFalse(ListingFields.PICKUP_POINT in listingToDocument(expected))
+
+  @Test
+  fun listingToDocumentLeavesOutTheBookedRanges() =
+      assertFalse(ListingFields.BOOKED_RANGES in listingToDocument(expected))
 
   @Test
   fun addressesToDocumentKeepsBothAddresses() =
@@ -102,6 +118,30 @@ class ListingDocumentTest {
           expected.copy(pickupArea = "", dropOffArea = ""),
           fromDocument(validData - listOf(ListingFields.PICKUP_AREA, ListingFields.DROP_OFF_AREA)),
       )
+
+  @Test
+  fun missingPickupPointReadsAsNull() =
+      assertEquals(
+          expected.copy(pickupPoint = null),
+          fromDocument(validData - ListingFields.PICKUP_POINT),
+      )
+
+  @Test
+  fun pickupPointOfWrongTypeReadsAsNullAndKeepsTheListing() {
+    val wrongTypes =
+        listOf(
+            mapOf("latitude" to 46.52, "longitude" to 6.57),
+            "46.52, 6.57",
+            listOf(46.52, 6.57),
+        )
+    for (value in wrongTypes) {
+      assertEquals(
+          "Point stored as $value",
+          expected.copy(pickupPoint = null),
+          fromDocument(validData + (ListingFields.PICKUP_POINT to value)),
+      )
+    }
+  }
 
   @Test
   fun decimalPriceIsRejected() =
