@@ -240,6 +240,7 @@ object C {
     const val rental_detail_error = "rental_detail_error"
     const val rental_detail_retry_button = "rental_detail_retry_button"
     const val rental_detail_not_found = "rental_detail_not_found"
+    const val rental_detail_offer = "rental_detail_offer"
 
     const val review_request_screen = "review_request_screen"
     const val review_request_loading = "review_request_loading"
@@ -292,6 +293,8 @@ object C {
     // Prefix: each request card on Lending is tagged my_rentals_request_ + rental id
     const val my_rentals_request_ = "my_rentals_request_"
     const val my_rentals_review_request_button = "my_rentals_review_request_button"
+    const val my_rentals_row_offer = "my_rentals_row_offer"
+    const val my_rentals_open_chat_button = "my_rentals_open_chat_button"
 
     const val wallet_screen = "wallet_screen"
     const val wallet_title = "wallet_title"
