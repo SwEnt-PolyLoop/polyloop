@@ -285,7 +285,7 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
  * also open the profile.
  */
 @Composable
-private fun PersonCard(person: OtherPerson, onClick: () -> Unit, onChatClick: () -> Unit) {
+internal fun PersonCard(person: OtherPerson, onClick: () -> Unit, onChatClick: () -> Unit) {
   OutlinedCard(
       onClick = onClick,
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.rental_detail_person_card),
@@ -449,7 +449,7 @@ private fun CancelRow(lastCancelDay: LocalDate?, today: LocalDate) {
 
 /** A label on the left and its value on the right, bold unless [isBold] is false. */
 @Composable
-private fun InfoRow(label: String, value: String, valueTag: String, isBold: Boolean = true) {
+internal fun InfoRow(label: String, value: String, valueTag: String, isBold: Boolean = true) {
   Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
     Text(
         text = label,
@@ -485,7 +485,7 @@ private fun StatusBadge(status: RentalStatus) {
 
 /** The load error ([errorMsg], or a generic text if it is blank) and a Retry button. */
 @Composable
-private fun RentalDetailError(errorMsg: String, onRetry: () -> Unit) {
+internal fun RentalDetailError(errorMsg: String, onRetry: () -> Unit) {
   Column(
       modifier = Modifier.fillMaxSize().padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
@@ -504,7 +504,7 @@ private fun RentalDetailError(errorMsg: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun RentalNotFound() {
+internal fun RentalNotFound() {
   Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
     Text(
         text = stringResource(R.string.rental_detail_not_found),

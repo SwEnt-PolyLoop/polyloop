@@ -50,6 +50,10 @@ sealed class Screen(val route: String) {
     fun createRoute(rentalId: String) = "rental_detail/$rentalId"
   }
 
+  data object ReviewRequest : Screen("review_request/{$ARG_RENTAL_ID}") {
+    fun createRoute(rentalId: String) = "review_request/$rentalId"
+  }
+
   /** Each rental has exactly one conversation, so a chat is identified by its rental. */
   data object Chat : Screen("chat/{$ARG_RENTAL_ID}") {
     fun createRoute(rentalId: String) = "chat/$rentalId"
