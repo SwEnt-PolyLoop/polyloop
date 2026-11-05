@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NamedNavArgument
@@ -277,8 +278,12 @@ private fun PolyLoopScaffold(
             )
         ListingDetailScreen(
             viewModel = listingDetailViewModel,
+            // Their profile opens this screen too, so the two must not pile up in the back stack.
+            // The second tap of a double tap comes from a screen already leaving, so it is ignored.
             onLenderClick = { ownerId ->
-              navController.navigate(Screen.UserProfile.createRoute(ownerId))
+              if (entry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                navigationActions.navigateToOrBackTo(Screen.UserProfile.createRoute(ownerId))
+              }
             },
             onRequestSent = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
         )
@@ -337,7 +342,9 @@ private fun PolyLoopScaffold(
   }
 }
 
-/** The Profile screen, for the own profile ([userId] null) or someone else's. */
+/**
+ * The Profile screen, for the own profile ([userId] null or the user's own id) or someone else's.
+ */
 @Composable
 private fun ProfileRoute(
     userId: String?,
@@ -354,6 +361,7 @@ private fun ProfileRoute(
                   listingRepository = RepositoryProvider.listingRepository,
                   rentalRepository = RepositoryProvider.rentalRepository,
                   authRepository = RepositoryProvider.authRepository,
+                  connectivityRepository = RepositoryProvider.connectivityRepository,
               )
       )
   ProfileScreen(

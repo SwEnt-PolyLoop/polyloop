@@ -5,6 +5,7 @@ package com.swent.polyloop
 import android.net.Uri
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -81,8 +82,10 @@ class PolyLoopAppTest {
   /** In-memory listings, so screens wired to RepositoryProvider never reach Firestore. */
   private val listingRepository =
       object : ListingRepository {
-        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-            Result.success(emptyList())
+        override suspend fun getListingsByOwner(
+            ownerId: String,
+            fromServer: Boolean,
+        ): Result<List<Listing>> = Result.success(listOf(listing).filter { it.ownerId == ownerId })
 
         override suspend fun getAllListings(): Result<List<Listing>> =
             Result.success(listOf(listing))
@@ -185,6 +188,40 @@ class PolyLoopAppTest {
       NavigationActions(navController).navigateTo(Screen.ListingDetail.createRoute(listing.id))
     }
     waitForTag(C.Tag.listing_detail_screen)
+  }
+
+  private fun openProfileOf(userId: String) {
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.UserProfile.createRoute(userId))
+    }
+    waitForTag(C.Tag.profile_screen)
+  }
+
+  private fun tapLenderCard() {
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo().performClick()
+  }
+
+  /** Two taps in a row, so the second lands while Listing detail is leaving after the first. */
+  private fun doubleTapLenderCard() {
+    val tap =
+        composeTestRule
+            .onNodeWithTag(C.Tag.listing_detail_lender_card)
+            .performScrollTo()
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action
+    composeTestRule.runOnUiThread {
+      tap?.invoke()
+      tap?.invoke()
+    }
+    composeTestRule.waitForIdle()
+  }
+
+  private fun tapListingOnProfile() {
+    composeTestRule
+        .onNodeWithTag(C.Tag.profile_listing_ + listing.id)
+        .performScrollTo()
+        .performClick()
   }
 
   // isSignedIn is left to its default, so the app reads the user from RepositoryProvider.
@@ -687,9 +724,106 @@ class PolyLoopAppTest {
     setAppSignedIn()
     openListingDetail()
 
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo().performClick()
+    tapLenderCard()
 
     assertCurrentScreen(Screen.UserProfile, shownRoute = Screen.UserProfile.createRoute("owner-1"))
+  }
+
+  @Test
+  fun listingOnSomeoneElsesProfileOpensListingDetail() {
+    setAppSignedIn()
+    openProfileOf(listing.ownerId)
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+
+    tapListingOnProfile()
+
+    waitForTag(C.Tag.listing_detail_screen)
+    assertEquals(Screen.ListingDetail.route, navController.currentDestination?.route)
+    assertEquals(
+        listing.id,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_LISTING_ID),
+    )
+  }
+
+  @Test
+  fun lenderCardGoesBackToTheirProfileInsteadOfOpeningItAgain() {
+    setAppSignedIn()
+    openListingDetail()
+    tapLenderCard()
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+    val ownersProfile = navController.currentBackStackEntry?.id
+
+    tapListingOnProfile()
+    waitForTag(C.Tag.listing_detail_lender_card)
+    tapLenderCard()
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+
+    assertEquals(ownersProfile, navController.currentBackStackEntry?.id)
+    // The round trip added nothing: only the first Listing detail and Browse are below.
+    composeTestRule.runOnUiThread { navController.popBackStack() }
+    composeTestRule.waitForIdle()
+    assertEquals(Screen.ListingDetail.route, navController.currentDestination?.route)
+    assertEquals(Screen.Browse.route, navController.previousBackStackEntry?.destination?.route)
+  }
+
+  @Test
+  fun lenderCardOpensTheirProfileWhenSomeoneElsesIsInTheBackStack() {
+    setAppSignedIn()
+    openProfileOf("user-1")
+    openListingDetail()
+
+    tapLenderCard()
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+
+    assertEquals(
+        listing.ownerId,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_USER_ID),
+    )
+    assertEquals(
+        Screen.ListingDetail.route,
+        navController.previousBackStackEntry?.destination?.route,
+    )
+  }
+
+  @Test
+  fun doubleTapOnLenderCardOpensTheirProfileOnce() {
+    setAppSignedIn()
+    openListingDetail()
+
+    doubleTapLenderCard()
+
+    assertEquals(Screen.UserProfile.route, navController.currentDestination?.route)
+    assertEquals(
+        Screen.ListingDetail.route,
+        navController.previousBackStackEntry?.destination?.route,
+    )
+  }
+
+  @Test
+  fun doubleTapOnLenderCardGoesBackToTheirProfileOnce() {
+    setAppSignedIn()
+    openProfileOf(listing.ownerId)
+    val ownersProfile = navController.currentBackStackEntry?.id
+    openListingDetail()
+
+    doubleTapLenderCard()
+
+    assertEquals(ownersProfile, navController.currentBackStackEntry?.id)
+    assertEquals(Screen.Browse.route, navController.previousBackStackEntry?.destination?.route)
+  }
+
+  @Test
+  fun someoneElsesProfileOfflineLoadsTheListingsOnceTheConnectionIsBack() {
+    connectivity.setOnline(false)
+    setAppSignedIn()
+    openProfileOf(listing.ownerId)
+    waitForTag(C.Tag.profile_listings_offline)
+    composeTestRule.onNodeWithTag(C.Tag.profile_listing_ + listing.id).assertDoesNotExist()
+
+    connectivity.setOnline(true)
+
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+    composeTestRule.onNodeWithTag(C.Tag.profile_listings_offline).assertDoesNotExist()
   }
 
   @Test
