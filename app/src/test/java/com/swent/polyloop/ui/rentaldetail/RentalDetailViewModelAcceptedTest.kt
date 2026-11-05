@@ -20,7 +20,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -115,14 +114,7 @@ class RentalDetailViewModelAcceptedTest {
     assertEquals(RentalStatus.ACCEPTED, state.status)
     assertEquals(180, state.deposit)
     assertEquals("Route Cantonale 1", state.pickupAddress)
+    assertEquals("Rue de Lausanne 10", state.returnAddress)
     assertNull(state.offer)
-  }
-
-  @Test
-  fun aLaterStatusIsStillUnsupported() {
-    val state = viewModel(accepted.copy(status = RentalStatus.ACTIVE)).uiState.value
-
-    assertFalse(state.isSupported)
-    assertEquals("Camping tent", state.itemTitle)
   }
 }

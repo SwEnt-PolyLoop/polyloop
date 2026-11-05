@@ -82,9 +82,9 @@ data class OtherPerson(
 
 /**
  * Shows one rental as seen by the signed-in user. Requested and Accepted are handled so far. The
- * rental is read once, then followed so that the offer stays up to date when coming back from the
- * chat. It follows the network status from [connectivityRepository], so the screen knows when to
- * replace the map.
+ * rental is read once, then followed, so that the offer and an acceptance show without a reload. It
+ * follows the network status from [connectivityRepository], so the screen knows when to replace the
+ * map.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
