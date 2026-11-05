@@ -85,8 +85,8 @@ fun RentalDetailScreen(
 
 /**
  * Stateless Rental detail content: a loading indicator, an error with a Retry button, a not-found
- * message, a placeholder for a status not built yet, or the Requested rental, depending on
- * [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is shown);
+ * message, a placeholder for a status not built yet, or the Requested or Accepted rental, depending
+ * on [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is shown);
  * tests pass fixed values so their expected texts do not depend on the day they run.
  */
 @Composable
@@ -185,6 +185,10 @@ private fun StageStrip(status: RentalStatus?) {
             modifier =
                 Modifier.fillMaxWidth()
                     .height(4.dp)
+                    .then(
+                        if (reached) Modifier.testTag(C.Tag.rental_detail_stage_reached)
+                        else Modifier
+                    )
                     .background(
                         if (reached) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.surfaceVariant,
@@ -343,7 +347,8 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
           value = stringResource(R.string.rental_detail_price, uiState.rentalPrice),
           valueTag = C.Tag.rental_detail_price,
       )
-      if (uiState.status == RentalStatus.ACCEPTED) {
+      // 0 means the deposit is unknown, since an accepted one is at least 1: "0 PP" would be wrong.
+      if (uiState.status == RentalStatus.ACCEPTED && uiState.deposit > 0) {
         InfoRow(
             label = stringResource(R.string.rental_detail_accepted_deposit_label),
             value = stringResource(R.string.listing_card_price, uiState.deposit),
@@ -472,6 +477,7 @@ private fun PickupPoint(uiState: RentalDetailUiState) {
         text = stringResource(R.string.rental_detail_pickup_point_label),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(C.Tag.rental_detail_pickup_point_label),
     )
     // A placeholder for the map, as on the pickup area.
     Box(

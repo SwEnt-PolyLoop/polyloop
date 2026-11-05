@@ -128,7 +128,7 @@ My rentals is the user's overview of everything they borrow and lend, and it wor
 
 Rental detail is the hub for one rental: what it is, where it stands, and the next action. ViewModel: RentalDetailViewModel, using RentalRepository, ListingRepository and ProfileRepository.
 
-So far only the Requested and Accepted states are built (other statuses show the item's title and a short “not available yet” text), and its map is a grey placeholder until the map is added.
+So far only the Requested and Accepted states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Start pickup”, “Navigate”, cancelling or deposit state yet, and the map of both states is a grey placeholder until the map is added.
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
 - The deposit, entered by the lender when accepting, and its state: held, released, or frozen.

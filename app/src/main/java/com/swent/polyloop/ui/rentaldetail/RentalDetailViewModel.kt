@@ -74,8 +74,7 @@ data class OtherPerson(
 
 /**
  * Shows one rental as seen by the signed-in user. Requested and Accepted are handled so far. The
- * rental is read once, then followed so that the offer stays up to date when coming back from the
- * chat.
+ * rental is read once, then followed, so that the offer and an acceptance show without a reload.
  */
 class RentalDetailViewModel(
     private val rentalId: String,

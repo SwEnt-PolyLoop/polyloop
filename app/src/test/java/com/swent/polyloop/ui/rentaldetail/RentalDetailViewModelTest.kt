@@ -200,7 +200,7 @@ class RentalDetailViewModelTest {
   }
 
   @Test
-  fun nonRequestedRentalIsUnsupportedAndKeepsOnlyItsTitle() {
+  fun statusNotBuiltYetIsUnsupportedAndKeepsOnlyItsTitle() {
     rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
 
     val state = viewModel().uiState.value

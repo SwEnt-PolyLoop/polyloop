@@ -101,8 +101,7 @@ class PolyLoopAppTest {
 
   /**
    * One accepted rental borrowed by "uid", so My rentals shows a CURRENT row, which opens Rental
-   * detail, without reaching Firestore. Rental detail shows only its title, as for every status but
-   * Requested.
+   * detail, without reaching Firestore.
    */
   private val rental =
       Rental(
@@ -441,9 +440,7 @@ class PolyLoopAppTest {
 
   @Test
   fun chatOnRentalDetailOpensTheRentalsChat() {
-    // Only a Requested rental shows the person card and its Chat button.
-    RepositoryProvider.rentalRepository =
-        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED)))
+    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {

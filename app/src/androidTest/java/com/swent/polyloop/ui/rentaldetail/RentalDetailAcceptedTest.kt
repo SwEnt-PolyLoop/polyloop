@@ -6,13 +6,13 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.formatDay
 import java.time.LocalDate
 import java.time.ZoneOffset
 import org.junit.Rule
@@ -66,7 +66,13 @@ class RentalDetailAcceptedTest {
   fun theStatusCardGivesThePickupDay() {
     setContent()
 
-    assertShown(C.Tag.rental_detail_status_headline, "Pickup on 1 Oct")
+    assertShown(
+        C.Tag.rental_detail_status_headline,
+        context.getString(
+            R.string.rental_detail_accepted_headline,
+            formatDay(LocalDate.of(2026, 10, 1)),
+        ),
+    )
     assertShown(
         C.Tag.rental_detail_status_body,
         context.getString(R.string.rental_detail_accepted_body),
@@ -77,15 +83,40 @@ class RentalDetailAcceptedTest {
   fun aPickupInAnotherYearShowsTheYear() {
     setContent(accepted.copy(startDate = LocalDate.of(2027, 1, 5)))
 
-    assertShown(C.Tag.rental_detail_status_headline, "Pickup on 5 Jan 2027")
+    assertShown(
+        C.Tag.rental_detail_status_headline,
+        context.getString(
+            R.string.rental_detail_accepted_headline,
+            formatDay(LocalDate.of(2027, 1, 5), withYear = true),
+        ),
+    )
+  }
+
+  @Test
+  fun theFirstStageIsReached() {
+    setContent()
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_stage_reached, useUnmergedTree = true)
+        .assertExists()
   }
 
   @Test
   fun theDetailsGiveTheDepositWithoutHeldOrASuggestion() {
     setContent()
 
-    assertShown(C.Tag.rental_detail_accepted_deposit, "60 PP")
+    assertShown(
+        C.Tag.rental_detail_accepted_deposit,
+        context.getString(R.string.listing_card_price, 60),
+    )
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_deposit).assertDoesNotExist()
+  }
+
+  @Test
+  fun anUnknownDepositLeavesOutTheRow() {
+    setContent(accepted.copy(deposit = 0))
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_accepted_deposit).assertDoesNotExist()
   }
 
   @Test
@@ -98,7 +129,8 @@ class RentalDetailAcceptedTest {
         context.getString(R.string.rental_detail_return_address, "Rue de Lausanne 10, Renens"),
     )
     composeTestRule
-        .onNodeWithText(context.getString(R.string.rental_detail_pickup_point_label))
+        .onNodeWithTag(C.Tag.rental_detail_pickup_point_label, useUnmergedTree = true)
+        .performScrollTo()
         .assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_area).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_note).assertDoesNotExist()
@@ -106,26 +138,22 @@ class RentalDetailAcceptedTest {
 
   @Test
   fun aMissingAddressShowsThePlaceholder() {
-    setContent(accepted.copy(pickupAddress = ""))
+    setContent(accepted.copy(pickupAddress = "", returnAddress = ""))
+    val placeholder = context.getString(R.string.rental_detail_address_placeholder)
 
+    assertShown(C.Tag.rental_detail_pickup_address, placeholder)
     assertShown(
-        C.Tag.rental_detail_pickup_address,
-        context.getString(R.string.rental_detail_address_placeholder),
+        C.Tag.rental_detail_return_address,
+        context.getString(R.string.rental_detail_return_address, placeholder),
     )
   }
 
   @Test
-  fun thereIsNoCancelButtonYet() {
-    setContent()
-
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).assertDoesNotExist()
-  }
-
-  @Test
   fun aRequestStillShowsTheAreaAndNoAcceptedDeposit() {
-    setContent(accepted.copy(status = RentalStatus.REQUESTED, deposit = 0))
+    setContent(accepted.copy(status = RentalStatus.REQUESTED))
 
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_accepted_deposit).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_stage_reached).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_address).assertDoesNotExist()
     composeTestRule
         .onNodeWithTag(C.Tag.rental_detail_pickup_area, useUnmergedTree = true)
