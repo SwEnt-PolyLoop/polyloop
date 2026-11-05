@@ -82,14 +82,15 @@ class ListingRepositoryFirestore(
     }
   }
 
-  override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+  override suspend fun getListingsByOwner(
+      ownerId: String,
+      fromServer: Boolean,
+  ): Result<List<Listing>> {
     if (ownerId.isBlank()) return Result.success(emptyList())
     return withFirebaseErrors {
-      val snapshot =
-          db.collection(ListingFields.COLLECTION)
-              .whereEqualTo(ListingFields.OWNER_ID, ownerId)
-              .get()
-              .await()
+      val query =
+          db.collection(ListingFields.COLLECTION).whereEqualTo(ListingFields.OWNER_ID, ownerId)
+      val snapshot = (if (fromServer) query.get(Source.SERVER) else query.get()).await()
       Result.success(
           snapshot.documents.mapNotNull { doc -> doc.data?.let { listingFromDocument(doc.id, it) } }
       )

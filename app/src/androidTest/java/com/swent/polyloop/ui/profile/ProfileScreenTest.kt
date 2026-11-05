@@ -27,6 +27,7 @@ import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
@@ -65,10 +66,14 @@ class ProfileScreenTest {
           reviewCount = 2,
       )
 
-  private fun listing(id: String, status: ListingStatus = ListingStatus.PUBLISHED) =
+  private fun listing(
+      id: String,
+      status: ListingStatus = ListingStatus.PUBLISHED,
+      ownerId: String = "me",
+  ) =
       Listing(
           id = id,
-          ownerId = "me",
+          ownerId = ownerId,
           title = "Item $id",
           description = "Description of $id",
           category = ListingCategory.OTHER,
@@ -88,6 +93,17 @@ class ProfileScreenTest {
           isOwnProfile = true,
           profile = john,
           listings = listOf(MyListing(tent, ListingRentalState.AVAILABLE)),
+          isLoading = false,
+      )
+
+  private val jane = UserProfile(uid = "jane", name = "Jane", email = "jane@epfl.ch")
+
+  // Someone else's rentals are not read, so their listings do not know where they stand.
+  private val janesProfile =
+      ProfileUiState(
+          isOwnProfile = false,
+          profile = jane,
+          listings = listOf(MyListing(listing("bike", ownerId = "jane"), rentalState = null)),
           isLoading = false,
       )
 
@@ -206,11 +222,12 @@ class ProfileScreenTest {
   }
 
   @Test
-  fun staleWithNoListingShowsTheNoteUnderTheEmptyText() {
+  fun staleWithNoListingShowsTheShortNoteUnderTheEmptyText() {
     setContent(ownProfile.copy(listings = emptyList(), listingsStale = true))
 
     node(C.Tag.profile_listings_empty).assertIsDisplayed()
-    node(C.Tag.profile_listings_stale).assertIsDisplayed()
+    node(C.Tag.profile_listings_stale)
+        .assertTextEquals(context.getString(R.string.profile_listings_stale_empty))
   }
 
   @Test
@@ -242,14 +259,85 @@ class ProfileScreenTest {
   // ---------- someone else's profile ----------
 
   @Test
-  fun otherProfileShowsTheHeaderWithoutListingsOrSignOut() {
-    setContent(ownProfile.copy(isOwnProfile = false, listings = emptyList()))
+  fun otherProfileShowsTheirListingsWithoutPillsEditOrSignOut() {
+    setContent(janesProfile)
 
-    node(C.Tag.profile_name).assertTextEquals("John")
-    node(C.Tag.profile_listings_title).assertDoesNotExist()
-    node(C.Tag.profile_listings_empty).assertDoesNotExist()
+    node(C.Tag.profile_name).assertTextEquals("Jane")
+    node(C.Tag.profile_listings_title)
+        .assertTextEquals(context.getString(R.string.profile_other_listings))
+    node(C.Tag.profile_listings_count).assertTextEquals("1")
+    node(C.Tag.profile_listing_ + "bike").assertIsDisplayed()
+    // The clickable row merges its texts, so the pills are looked for in the unmerged tree.
+    composeTestRule
+        .onNodeWithTag(C.Tag.profile_listing_status_ + "bike", useUnmergedTree = true)
+        .assertDoesNotExist()
+    composeTestRule
+        .onNodeWithTag(C.Tag.profile_listing_draft_ + "bike", useUnmergedTree = true)
+        .assertDoesNotExist()
     node(C.Tag.profile_sign_out_button).assertDoesNotExist()
     node(C.Tag.profile_edit_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun otherProfileWithoutListingsSaysTheyHaveNone() {
+    setContent(janesProfile.copy(listings = emptyList()))
+
+    node(C.Tag.profile_listings_empty)
+        .assertTextEquals(context.getString(R.string.profile_other_no_listings, "Jane"))
+    node(C.Tag.profile_listings_count).assertDoesNotExist()
+  }
+
+  @Test
+  fun otherProfileWithoutNameOrListingsSaysThisUserHasNone() {
+    setContent(janesProfile.copy(profile = jane.copy(name = " "), listings = emptyList()))
+
+    node(C.Tag.profile_listings_empty)
+        .assertTextEquals(context.getString(R.string.profile_other_no_listings_unnamed))
+  }
+
+  @Test
+  fun otherProfileListingsErrorIsNotAboutYourListingsAndRetries() {
+    setContent(janesProfile.copy(listings = emptyList(), listingsError = true))
+
+    node(C.Tag.profile_listings_error)
+        .assertTextEquals(context.getString(R.string.profile_other_listings_error))
+    node(C.Tag.profile_listings_retry_button).performClick()
+
+    assertEquals(1, retryListingsClicks)
+    assertEquals(0, retryClicks)
+  }
+
+  @Test
+  fun otherProfileStaleListingsStayShownWithTheirNote() {
+    setContent(janesProfile.copy(listingsStale = true))
+
+    node(C.Tag.profile_listing_ + "bike").assertIsDisplayed()
+    node(C.Tag.profile_listings_stale)
+        .assertTextEquals(context.getString(R.string.profile_other_listings_stale))
+  }
+
+  @Test
+  fun otherProfileStaleWithNoListingShowsTheShortNoteUnderTheEmptyText() {
+    setContent(janesProfile.copy(listings = emptyList(), listingsStale = true))
+
+    node(C.Tag.profile_listings_empty).assertIsDisplayed()
+    node(C.Tag.profile_listings_stale)
+        .assertTextEquals(context.getString(R.string.profile_other_listings_stale_empty))
+  }
+
+  @Test
+  fun otherProfileOfflineSaysTheListingsAreUnavailableInsteadOfShowingThem() {
+    // The listings read before going offline stay in the state, but are not shown.
+    setContent(janesProfile.copy(listingsOffline = true))
+
+    node(C.Tag.profile_listings_title)
+        .assertTextEquals(context.getString(R.string.profile_other_listings))
+    node(C.Tag.profile_listings_offline)
+        .assertTextEquals(context.getString(R.string.profile_other_listings_offline))
+    node(C.Tag.profile_listing_ + "bike").assertDoesNotExist()
+    node(C.Tag.profile_listings_count).assertDoesNotExist()
+    node(C.Tag.profile_listings_empty).assertDoesNotExist()
+    node(C.Tag.profile_listings_retry_button).assertDoesNotExist()
   }
 
   @Test
@@ -369,6 +457,7 @@ class ProfileScreenTest {
             ownListings(),
             FakeRentalRepository(),
             auth,
+            FakeConnectivityRepository(),
         )
     composeTestRule.setContent {
       PolyLoopTheme {
@@ -405,6 +494,7 @@ class ProfileScreenTest {
             FakeAuthRepository(
                 signedInUser = AuthUser(uid = "me", email = "john@epfl.ch", name = "John")
             ),
+            FakeConnectivityRepository(),
         )
     var shown by mutableStateOf(true)
     composeTestRule.setContent {
@@ -431,18 +521,60 @@ class ProfileScreenTest {
     composeTestRule.runOnIdle { assertEquals(2, reads) }
   }
 
+  @Test
+  fun retryOnTheScreenLoadsTheListingsAfterAnError() {
+    var failure: Throwable? = IllegalStateException("No connection")
+    val viewModel =
+        ProfileViewModel(
+            null,
+            FakeProfileRepository(listOf(john)),
+            ownListings(failure = { failure }),
+            FakeRentalRepository(),
+            FakeAuthRepository(
+                signedInUser = AuthUser(uid = "me", email = "john@epfl.ch", name = "John")
+            ),
+            FakeConnectivityRepository(),
+        )
+    composeTestRule.setContent {
+      PolyLoopTheme {
+        ProfileScreen(viewModel, onListingClick = {}, onEditProfile = {}, onSignedOut = {})
+      }
+    }
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.profile_listings_retry_button)
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+
+    failure = null
+    node(C.Tag.profile_listings_retry_button).performClick()
+
+    composeTestRule.waitUntil(5_000) {
+      composeTestRule
+          .onAllNodesWithTag(C.Tag.profile_listing_ + "tent")
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    node(C.Tag.profile_listings_error).assertDoesNotExist()
+  }
+
   /**
-   * A listing repository holding only [tent], calling [onRead] at each read of the own listings.
+   * A listing repository holding only [tent], calling [onRead] at each read of the own listings,
+   * which fails with [failure] while it gives one.
    */
-  private fun ownListings(onRead: () -> Unit = {}) =
+  private fun ownListings(onRead: () -> Unit = {}, failure: () -> Throwable? = { null }) =
       object : ListingRepository {
         override suspend fun getAllListings() = Result.success(emptyList<Listing>())
 
         override suspend fun getListing(id: String) = Result.success<Listing?>(null)
 
-        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+        override suspend fun getListingsByOwner(
+            ownerId: String,
+            fromServer: Boolean,
+        ): Result<List<Listing>> {
           onRead()
-          return Result.success(listOf(tent))
+          return failure()?.let { Result.failure(it) } ?: Result.success(listOf(tent))
         }
 
         override suspend fun getBookedRanges(id: String) = Result.success(emptyList<BookedRange>())

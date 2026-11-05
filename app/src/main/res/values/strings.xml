@@ -57,6 +57,14 @@
     <string name="profile_no_listings">You haven\'t listed anything yet</string>
     <string name="profile_listings_error">Could not load your listings</string>
     <string name="profile_listings_stale">Could not refresh your listings. These are the last ones loaded.</string>
+    <string name="profile_listings_stale_empty">Could not refresh your listings.</string>
+    <string name="profile_other_listings">Listings</string>
+    <string name="profile_other_no_listings">%1$s has no listings yet</string>
+    <string name="profile_other_no_listings_unnamed">This user has no listings yet</string>
+    <string name="profile_other_listings_error">Could not load the listings</string>
+    <string name="profile_other_listings_stale">Could not refresh the listings. These are the last ones loaded.</string>
+    <string name="profile_other_listings_stale_empty">Could not refresh the listings.</string>
+    <string name="profile_other_listings_offline">Listings are unavailable offline</string>
     <string name="profile_listing_status_available">Available</string>
     <string name="profile_listing_status_booked">Booked</string>
     <string name="profile_listing_status_on_loan">On loan</string>
