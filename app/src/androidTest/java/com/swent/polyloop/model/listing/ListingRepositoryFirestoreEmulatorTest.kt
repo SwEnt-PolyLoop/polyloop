@@ -123,21 +123,6 @@ class ListingRepositoryFirestoreEmulatorTest {
   }
 
   @Test
-  fun pickupPointStoredByTheCloudFunctionIsRead() {
-    runBlocking {
-      val id = "listing-${UUID.randomUUID()}"
-      // The name geocodeListingAddresses writes, not ListingFields.PICKUP_POINT, so this test also
-      // fails if the two drift apart.
-      FirebaseEmulator.createDocumentAsAdmin(
-          "${ListingFields.COLLECTION}/$id",
-          listingToDocument(listing.copy(id = id)) + ("pickupPoint" to GeoPoint(46.52, 6.57)),
-      )
-
-      assertEquals(MapPoint(46.52, 6.57), repository.getListing(id).getOrThrow()?.pickupPoint)
-    }
-  }
-
-  @Test
   fun addressesAreOnlyInThePrivateDocument() {
     runBlocking {
       val id = create(photos(Listing.MIN_PHOTOS)).getOrThrow()
@@ -163,6 +148,21 @@ class ListingRepositoryFirestoreEmulatorTest {
           ),
           private,
       )
+    }
+  }
+
+  @Test
+  fun pickupPointStoredByTheCloudFunctionIsRead() {
+    runBlocking {
+      val id = "listing-${UUID.randomUUID()}"
+      // The name geocodeListingAddresses writes, not ListingFields.PICKUP_POINT, so this test also
+      // fails if the two drift apart.
+      FirebaseEmulator.createDocumentAsAdmin(
+          "${ListingFields.COLLECTION}/$id",
+          listingToDocument(listing.copy(id = id)) + ("pickupPoint" to GeoPoint(46.52, 6.57)),
+      )
+
+      assertEquals(MapPoint(46.52, 6.57), repository.getListing(id).getOrThrow()?.pickupPoint)
     }
   }
 
