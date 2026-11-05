@@ -7,8 +7,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.storage
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.io.File
 import java.time.LocalDate
@@ -146,6 +148,21 @@ class ListingRepositoryFirestoreEmulatorTest {
           ),
           private,
       )
+    }
+  }
+
+  @Test
+  fun pickupPointStoredByTheCloudFunctionIsRead() {
+    runBlocking {
+      val id = "listing-${UUID.randomUUID()}"
+      // The name geocodeListingAddresses writes, not ListingFields.PICKUP_POINT, so this test also
+      // fails if the two drift apart.
+      FirebaseEmulator.createDocumentAsAdmin(
+          "${ListingFields.COLLECTION}/$id",
+          listingToDocument(listing.copy(id = id)) + ("pickupPoint" to GeoPoint(46.52, 6.57)),
+      )
+
+      assertEquals(MapPoint(46.52, 6.57), repository.getListing(id).getOrThrow()?.pickupPoint)
     }
   }
 

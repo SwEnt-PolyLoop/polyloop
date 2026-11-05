@@ -65,6 +65,10 @@ class ListingDocumentTest {
       assertFalse(ListingFields.PICKUP_POINT in listingToDocument(expected))
 
   @Test
+  fun listingToDocumentLeavesOutTheBookedRanges() =
+      assertFalse(ListingFields.BOOKED_RANGES in listingToDocument(expected))
+
+  @Test
   fun addressesToDocumentKeepsBothAddresses() =
       assertEquals(
           mapOf(
