@@ -298,6 +298,17 @@ class DisputeScreenTest {
     node(C.Tag.dispute_escalate_button).assertDoesNotExist()
   }
 
+  @Test
+  fun courtStageShowsComingSoonWithoutCountdownOrEscalation() {
+    setContent(open.copy(stage = DisputeStage.COURT))
+
+    node(C.Tag.dispute_step_ + DisputeStage.COURT.name).assertIsSelected()
+    node(C.Tag.dispute_coming_soon).assertIsDisplayed()
+    node(C.Tag.dispute_proposal_card).assertDoesNotExist()
+    node(C.Tag.dispute_escalation).assertDoesNotExist()
+    node(C.Tag.dispute_escalate_button).assertDoesNotExist()
+  }
+
   // ---------- offline and errors ----------
 
   @Test

@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
@@ -316,6 +317,7 @@ private fun ProposalButtons(
  */
 @Composable
 internal fun HistoryCard(uiState: DisputeUiState, today: LocalDate) {
+  val locale = LocalConfiguration.current.locales[0]
   val otherName =
       uiState.otherPersonName.ifBlank { stringResource(R.string.dispute_unknown_person) }
   DisputeCard(
@@ -330,7 +332,7 @@ internal fun HistoryCard(uiState: DisputeUiState, today: LocalDate) {
                 stringResource(
                     R.string.dispute_history_author,
                     if (row.byMe) stringResource(R.string.dispute_history_you) else otherName,
-                    formatDay(day, withYear = day.year != today.year),
+                    formatDay(day, withYear = day.year != today.year, locale = locale),
                 ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
