@@ -241,6 +241,11 @@ object C {
     const val rental_detail_retry_button = "rental_detail_retry_button"
     const val rental_detail_not_found = "rental_detail_not_found"
     const val rental_detail_offer = "rental_detail_offer"
+    const val rental_detail_accepted_deposit = "rental_detail_accepted_deposit"
+    const val rental_detail_stage_reached = "rental_detail_stage_reached"
+    const val rental_detail_pickup_point_label = "rental_detail_pickup_point_label"
+    const val rental_detail_pickup_address = "rental_detail_pickup_address"
+    const val rental_detail_return_address = "rental_detail_return_address"
 
     const val review_request_screen = "review_request_screen"
     const val review_request_loading = "review_request_loading"

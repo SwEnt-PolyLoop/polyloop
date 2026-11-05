@@ -85,8 +85,8 @@ fun RentalDetailScreen(
 
 /**
  * Stateless Rental detail content: a loading indicator, an error with a Retry button, a not-found
- * message, a placeholder for a status not built yet, or the Requested rental, depending on
- * [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is shown);
+ * message, a placeholder for a status not built yet, or the Requested or Accepted rental, depending
+ * on [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is shown);
  * tests pass fixed values so their expected texts do not depend on the day they run.
  */
 @Composable
@@ -136,7 +136,7 @@ fun RentalDetailContent(
               verticalArrangement = Arrangement.spacedBy(16.dp),
           ) {
             RentalTitle(title = uiState.itemTitle)
-            StageStrip()
+            StageStrip(status = uiState.status)
             StatusCard(uiState = uiState, today = today, zone = zone)
             DetailsCard(uiState = uiState, today = today)
             uiState.otherPerson?.let { person ->
@@ -146,7 +146,11 @@ fun RentalDetailContent(
                   onChatClick = onChatClick,
               )
             }
-            PickupArea(area = uiState.pickupArea)
+            if (uiState.status == RentalStatus.ACCEPTED) {
+              PickupPoint(uiState = uiState)
+            } else {
+              PickupArea(area = uiState.pickupArea)
+            }
             // A request that was never accepted can always be withdrawn, even after its pickup day,
             // so the borrower keeps the button for as long as the rental is Requested.
             if (!uiState.isLender && uiState.status == RentalStatus.REQUESTED) {
@@ -158,11 +162,11 @@ fun RentalDetailContent(
 }
 
 /**
- * The stages after the request, one grey bar each. A Requested rental has reached none of them, so
- * all four stay grey.
+ * The stages after the request, one bar each. A Requested rental has reached none of them, so all
+ * four stay grey; an Accepted one has reached the first, in red with a bold label.
  */
 @Composable
-private fun StageStrip() {
+private fun StageStrip(status: RentalStatus?) {
   val labels =
       listOf(
           R.string.rental_detail_stage_accepted,
@@ -174,18 +178,30 @@ private fun StageStrip() {
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.rental_detail_stage_strip),
       horizontalArrangement = Arrangement.spacedBy(4.dp),
   ) {
-    labels.forEach { label ->
+    labels.forEachIndexed { index, label ->
+      val reached = index == 0 && status == RentalStatus.ACCEPTED
       Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(
             modifier =
                 Modifier.fillMaxWidth()
                     .height(4.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                    .then(
+                        if (reached) Modifier.testTag(C.Tag.rental_detail_stage_reached)
+                        else Modifier
+                    )
+                    .background(
+                        if (reached) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceVariant,
+                        CircleShape,
+                    )
         )
         Text(
             text = stringResource(label),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (reached) FontWeight.Bold else null,
+            color =
+                if (reached) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
     }
@@ -195,7 +211,8 @@ private fun StageStrip() {
 /**
  * The status badge, the headline and when the request was sent. The sent day is read in [zone] and
  * written with its year only when it is not [today]'s year. While an offer waits for an answer, the
- * card says where it stands instead (Figma frame 13.10).
+ * card says where it stands instead (Figma frame 13.10). Once accepted, it gives the pickup day
+ * (Figma frame 13.01).
  */
 @Composable
 private fun StatusCard(uiState: RentalDetailUiState, today: LocalDate, zone: ZoneId) {
@@ -214,13 +231,20 @@ private fun StatusCard(uiState: RentalDetailUiState, today: LocalDate, zone: Zon
       ) {
         status?.let { StatusBadge(it) }
         Text(
-            text = stringResource(offerHeadline(offer, uiState.isOfferMine)),
+            text = statusHeadline(uiState, today),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.testTag(C.Tag.rental_detail_status_headline),
         )
       }
-      if (offer != null) {
+      if (status == RentalStatus.ACCEPTED) {
+        Text(
+            text = stringResource(R.string.rental_detail_accepted_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(C.Tag.rental_detail_status_body),
+        )
+      } else if (offer != null) {
         Text(
             text = offerBody(offer, uiState.isOfferMine, zone),
             style = MaterialTheme.typography.bodyMedium,
@@ -244,7 +268,21 @@ private fun StatusCard(uiState: RentalDetailUiState, today: LocalDate, zone: Zon
   }
 }
 
-/** The headline of the status card: where the offer stands, or the default without one. */
+/** The headline of the status card: the pickup day once accepted, else where the offer stands. */
+@Composable
+private fun statusHeadline(uiState: RentalDetailUiState, today: LocalDate): String {
+  val start = uiState.startDate
+  if (uiState.status != RentalStatus.ACCEPTED || start == null) {
+    return stringResource(offerHeadline(uiState.offer, uiState.isOfferMine))
+  }
+  val locale = LocalConfiguration.current.locales[0]
+  return stringResource(
+      R.string.rental_detail_accepted_headline,
+      formatDay(start, withYear = start.year != today.year, locale = locale),
+  )
+}
+
+/** The headline while requested: where the offer stands, or the default without one. */
 @StringRes
 private fun offerHeadline(offer: DepositOffer?, isMine: Boolean): Int =
     when {
@@ -272,7 +310,10 @@ private fun offerBody(offer: DepositOffer, isMine: Boolean, zone: ZoneId): Strin
   )
 }
 
-/** The dates, the return day, the reserved rental price, and the offer or the suggested deposit. */
+/**
+ * The dates, the return day, the reserved rental price, and the accepted deposit, the offer or the
+ * suggested deposit. "Held" is left out of the deposit until deposits are really reserved.
+ */
 @Composable
 private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
   val locale = LocalConfiguration.current.locales[0]
@@ -306,6 +347,14 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
           value = stringResource(R.string.rental_detail_price, uiState.rentalPrice),
           valueTag = C.Tag.rental_detail_price,
       )
+      // 0 means the deposit is unknown, since an accepted one is at least 1: "0 PP" would be wrong.
+      if (uiState.status == RentalStatus.ACCEPTED && uiState.deposit > 0) {
+        InfoRow(
+            label = stringResource(R.string.rental_detail_accepted_deposit_label),
+            value = stringResource(R.string.listing_card_price, uiState.deposit),
+            valueTag = C.Tag.rental_detail_accepted_deposit,
+        )
+      }
       uiState.offer?.let {
         InfoRow(
             label = stringResource(R.string.rental_detail_offer_label),
@@ -316,7 +365,7 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
       // Null means the listing could not be read, not that the deposit is 0: "0 PP" would be
       // wrong, so the row is left out instead.
       uiState.suggestedDeposit
-          ?.takeIf { uiState.offer == null }
+          ?.takeIf { uiState.offer == null && uiState.status == RentalStatus.REQUESTED }
           ?.let {
             InfoRow(
                 label = stringResource(R.string.rental_detail_deposit_label),
@@ -413,6 +462,57 @@ private fun RatingLine(averageRating: Double, reviewCount: Int) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.testTag(C.Tag.rental_detail_person_rating),
+    )
+  }
+}
+
+/**
+ * The exact meeting point once the rental is accepted (Figma frame 13.01): a map box, the pickup
+ * address, and the drop-off address. A missing address reads as "not known yet".
+ */
+@Composable
+private fun PickupPoint(uiState: RentalDetailUiState) {
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Text(
+        text = stringResource(R.string.rental_detail_pickup_point_label),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(C.Tag.rental_detail_pickup_point_label),
+    )
+    // A placeholder for the map, as on the pickup area.
+    Box(
+        modifier =
+            Modifier.fillMaxWidth()
+                .height(160.dp)
+                .clip(MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .testTag(C.Tag.rental_detail_map)
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      Icon(Icons.Outlined.Place, contentDescription = null, modifier = Modifier.size(20.dp))
+      Text(
+          text =
+              uiState.pickupAddress.ifBlank {
+                stringResource(R.string.rental_detail_address_placeholder)
+              },
+          style = MaterialTheme.typography.bodyMedium,
+          modifier = Modifier.testTag(C.Tag.rental_detail_pickup_address),
+      )
+    }
+    Text(
+        text =
+            stringResource(
+                R.string.rental_detail_return_address,
+                uiState.returnAddress.ifBlank {
+                  stringResource(R.string.rental_detail_address_placeholder)
+                },
+            ),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(C.Tag.rental_detail_return_address),
     )
   }
 }

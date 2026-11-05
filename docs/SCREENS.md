@@ -140,7 +140,7 @@ Review request is where the lender answers a request that has no offer yet (Figm
 
 Rental detail is the hub for one rental: what it is, where it stands, and the next action. ViewModel: RentalDetailViewModel, using RentalRepository, ListingRepository and ProfileRepository.
 
-So far only the Requested state is built (other statuses show the item's title and a short “not available yet” text), and its map is a grey placeholder until the map is added.
+So far only the Requested and Accepted states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Start pickup”, “Navigate”, cancelling or deposit state yet, and the map of both states is a grey placeholder until the map is added.
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
 - The deposit, once an offer is accepted, and its state: held, released, or frozen. “Held” appears only once deposits are really reserved, which needs the wallet's Firestore implementation; until then only the amount shows.

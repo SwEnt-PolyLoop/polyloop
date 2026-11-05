@@ -27,12 +27,14 @@ import kotlinx.coroutines.launch
  * [errorMsg] is non-null when the rental could not be read; it is blank when the failure carried no
  * message, and the screen then shows a generic text. [notFound] is true when there is no such
  * rental. [isSupported] is false for a status the screen does not handle yet (anything but
- * Requested): only [itemTitle] is then set, for the placeholder. [isLender] is true when the
- * signed-in user owns the item. [sentAt] is when the request was sent, [endDate] the return day and
- * [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the listing's item value in
- * PolyPoints, or null when the listing is missing or could not be read. [otherPerson] is the
- * borrower for the lender and the owner for the borrower. [offer] is the deposit offer waiting for
- * an answer, if any, and [isOfferMine] is true when the signed-in user wrote it.
+ * Requested and Accepted): only [itemTitle] is then set, for the placeholder. [isLender] is true
+ * when the signed-in user owns the item. [sentAt] is when the request was sent, [endDate] the
+ * return day and [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the listing's
+ * item value in PolyPoints, or null when the listing is missing or could not be read. [otherPerson]
+ * is the borrower for the lender and the owner for the borrower. [offer] is the deposit offer
+ * waiting for an answer, if any, and [isOfferMine] is true when the signed-in user wrote it.
+ * [deposit] is the accepted amount in PolyPoints, and [pickupAddress] and [returnAddress] are the
+ * exact addresses, set once the rental is accepted.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -51,6 +53,9 @@ data class RentalDetailUiState(
     val otherPerson: OtherPerson? = null,
     val offer: DepositOffer? = null,
     val isOfferMine: Boolean = false,
+    val deposit: Int = 0,
+    val pickupAddress: String = "",
+    val returnAddress: String = "",
 )
 
 /**
@@ -68,8 +73,8 @@ data class OtherPerson(
 )
 
 /**
- * Shows one rental as seen by the signed-in user. Only Requested is handled so far. The rental is
- * read once, then followed so that the offer stays up to date when coming back from the chat.
+ * Shows one rental as seen by the signed-in user. Requested and Accepted are handled so far. The
+ * rental is read once, then followed, so that the offer and an acceptance show without a reload.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
@@ -106,8 +111,9 @@ class RentalDetailViewModel(
         _uiState.update { it.copy(isLoading = false, notFound = true) }
         return@launch
       }
-      if (rental.status != RentalStatus.REQUESTED) {
-        // Only Requested is built so far: the screen shows a placeholder with the title until the
+      if (rental.status !in SUPPORTED_STATUSES) {
+        // Only these statuses are built so far: the screen shows a placeholder with the title until
+        // the
         // other statuses are, so everything else stays at its default and neither the listing nor
         // the other person's profile is read.
         _uiState.value = RentalDetailUiState(isSupported = false, itemTitle = rental.listingTitle)
@@ -145,6 +151,9 @@ class RentalDetailViewModel(
               otherPerson = otherPerson,
               offer = rental.offer,
               isOfferMine = rental.offer?.authorId == uid,
+              deposit = rental.deposit,
+              pickupAddress = rental.pickupAddress,
+              returnAddress = rental.returnAddress,
           )
       // A read error here only stops the updates: what was read above stays on screen.
       rentalRepository
@@ -153,16 +162,28 @@ class RentalDetailViewModel(
           .collect { live ->
             when {
               live == null -> Unit
-              live.status != RentalStatus.REQUESTED ->
+              live.status !in SUPPORTED_STATUSES ->
                   _uiState.value =
                       RentalDetailUiState(isSupported = false, itemTitle = live.listingTitle)
               else ->
                   _uiState.update {
-                    it.copy(offer = live.offer, isOfferMine = live.offer?.authorId == uid)
+                    it.copy(
+                        status = live.status,
+                        offer = live.offer,
+                        isOfferMine = live.offer?.authorId == uid,
+                        deposit = live.deposit,
+                        pickupAddress = live.pickupAddress,
+                        returnAddress = live.returnAddress,
+                    )
                   }
             }
           }
     }
+  }
+
+  private companion object {
+    /** The statuses the screen shows in full. */
+    val SUPPORTED_STATUSES = setOf(RentalStatus.REQUESTED, RentalStatus.ACCEPTED)
   }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */
