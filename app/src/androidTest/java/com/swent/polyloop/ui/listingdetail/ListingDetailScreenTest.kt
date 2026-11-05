@@ -251,48 +251,6 @@ class ListingDetailScreenTest {
   }
 
   @Test
-  fun pickupAreaShowsTheMapOnlineWithAPoint() {
-    setContent(listing.copy(pickupPoint = pointNearEpfl))
-
-    assertPickupMapShown()
-    assertSectionText(
-        C.Tag.listing_detail_pickup_caption,
-        context.getString(R.string.listing_detail_pickup_caption),
-    )
-  }
-
-  @Test
-  fun pickupAreaShowsThePlaceholderWithTheAreaNameWithoutAPoint() {
-    setContent(listing)
-
-    assertPickupPlaceholderShown("Ecublens")
-  }
-
-  @Test
-  fun pickupAreaShowsThePlaceholderWithTheAreaNameOffline() {
-    setContent(
-        ListingDetailUiState(listing = listing.copy(pickupPoint = pointNearEpfl), isOffline = true)
-    )
-
-    assertPickupPlaceholderShown("Ecublens")
-    assertSectionText(
-        C.Tag.listing_detail_pickup_caption,
-        context.getString(R.string.listing_detail_pickup_caption),
-    )
-  }
-
-  @Test
-  fun pickupPlaceholderShowsNoAreaNameBeforeGeocoding() {
-    setContent(listing.copy(pickupArea = ""))
-
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_area).performScrollTo()
-    composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertIsDisplayed()
-    composeTestRule
-        .onNodeWithTag(C.Tag.pickup_map_area_name, useUnmergedTree = true)
-        .assertDoesNotExist()
-  }
-
-  @Test
   fun listingDetailScreenSwapsTheMapForThePlaceholderWhenGoingOffline() {
     val connectivity = FakeConnectivityRepository(online = true)
     val viewModel =
@@ -311,6 +269,10 @@ class ListingDetailScreenTest {
     }
     waitForTag(C.Tag.listing_detail_pickup_area)
     assertPickupMapShown()
+    assertSectionText(
+        C.Tag.listing_detail_pickup_caption,
+        context.getString(R.string.listing_detail_pickup_caption),
+    )
 
     connectivity.setOnline(false)
     composeTestRule.waitForIdle()

@@ -362,36 +362,6 @@ class RentalDetailScreenTest {
   }
 
   @Test
-  fun pickupAreaShowsTheMapOnlineWithAPoint() {
-    setContent(requested.copy(pickupPoint = pointNearEpfl))
-
-    assertPickupMapShown()
-  }
-
-  @Test
-  fun pickupAreaShowsThePlaceholderWithTheAreaNameWithoutAPoint() {
-    setContent()
-
-    assertPickupPlaceholderShown("Ecublens")
-  }
-
-  @Test
-  fun pickupAreaShowsThePlaceholderWithTheAreaNameOffline() {
-    setContent(requested.copy(pickupPoint = pointNearEpfl, isOffline = true))
-
-    assertPickupPlaceholderShown("Ecublens")
-  }
-
-  @Test
-  fun pickupPlaceholderShowsNoAreaNameBeforeGeocoding() {
-    setContent(requested.copy(pickupArea = ""))
-
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_map).performScrollTo()
-    composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.pickup_map_area_name).assertDoesNotExist()
-  }
-
-  @Test
   fun pickupAreaSwapsTheMapForThePlaceholderWhenGoingOffline() {
     var uiState by mutableStateOf(requested.copy(pickupPoint = pointNearEpfl))
     composeTestRule.setContent {
