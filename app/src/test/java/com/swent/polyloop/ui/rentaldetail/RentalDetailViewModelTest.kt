@@ -379,7 +379,7 @@ class RentalDetailViewModelTest {
   /** A [RentalRepository] whose n-th getRental call answers with the n-th of [answers]. */
   private class OneDeferredPerCallRentalRepository(
       private val answers: List<CompletableDeferred<Rental>>
-  ) : RentalRepository {
+  ) : RentalRepository by FakeRentalRepository() {
     private var calls = 0
 
     override suspend fun getRental(id: String): Result<Rental?> =
