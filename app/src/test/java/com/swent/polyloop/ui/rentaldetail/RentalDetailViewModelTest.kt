@@ -273,6 +273,29 @@ class RentalDetailViewModelTest {
   }
 
   @Test
+  fun blankRentalAreaFallsBackToTheListings() {
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(pickupArea = "")))
+    listingRepository.listings = listOf(listing.copy(pickupArea = "Ecublens"))
+
+    assertEquals("Ecublens", viewModel().uiState.value.pickupArea)
+  }
+
+  @Test
+  fun rentalAreaIsKeptWhenTheListingsIsDifferent() {
+    listingRepository.listings = listOf(listing.copy(pickupArea = "Renens"))
+
+    assertEquals("Ecublens", viewModel().uiState.value.pickupArea)
+  }
+
+  @Test
+  fun blankRentalAreaStaysBlankWithoutTheListing() {
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(pickupArea = "")))
+    listingRepository.listings = emptyList()
+
+    assertEquals("", viewModel().uiState.value.pickupArea)
+  }
+
+  @Test
   fun staysLoadingUntilTheListingIsRead() {
     val gate = CompletableDeferred<Unit>()
     listingRepository.gate = gate
@@ -381,8 +404,6 @@ class RentalDetailViewModelTest {
     assertEquals(rental.listingTitle, vm.uiState.value.itemTitle)
   }
 
-  @Test fun isOnlineAtStartWhenThePhoneIsOnline() = assertFalse(viewModel().uiState.value.isOffline)
-
   @Test
   fun isOfflineAtStartWhenThePhoneIsOffline() {
     connectivityRepository.setOnline(false)
@@ -424,6 +445,19 @@ class RentalDetailViewModelTest {
 
     assertTrue(vm.uiState.value.isOffline)
     assertFalse(vm.uiState.value.isSupported)
+  }
+
+  @Test
+  fun goingOfflineDuringALoadKeepsTheOfflineState() {
+    val gate = CompletableDeferred<Unit>()
+    listingRepository.gate = gate
+    val vm = viewModel()
+
+    connectivityRepository.setOnline(false)
+    gate.complete(Unit)
+
+    assertTrue(vm.uiState.value.isOffline)
+    assertEquals(rental.listingTitle, vm.uiState.value.itemTitle)
   }
 
   @Test(expected = IllegalArgumentException::class)

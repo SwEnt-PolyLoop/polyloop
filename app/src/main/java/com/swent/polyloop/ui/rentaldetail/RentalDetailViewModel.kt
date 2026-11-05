@@ -30,11 +30,12 @@ import kotlinx.coroutines.launch
  * Requested): only [itemTitle] is then set, for the placeholder. [isLender] is true when the
  * signed-in user owns the item. [sentAt] is when the request was sent, [endDate] the return day and
  * [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the listing's item value in
- * PolyPoints, or null when the listing is missing or could not be read. [pickupPoint] is the
- * listing's public point, or null when the listing is missing, could not be read or is not geocoded
- * yet. [otherPerson] is the borrower for the lender and the owner for the borrower. [isOffline] is
- * true while the phone has no connection; the screen then shows the pickup area as a placeholder
- * instead of the map.
+ * PolyPoints, or null when the listing is missing or could not be read. [pickupArea] is the name
+ * copied on the rental, or the listing's if the request was sent before the listing was geocoded.
+ * [pickupPoint] is the listing's public point, or null when the listing is missing, could not be
+ * read or is not geocoded yet. [otherPerson] is the borrower for the lender and the owner for the
+ * borrower. [isOffline] is true while the phone has no connection; the screen then shows the pickup
+ * area as a placeholder instead of the map.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -156,7 +157,8 @@ class RentalDetailViewModel(
             endDate = rental.endDate,
             rentalPrice = rental.totalPrice,
             suggestedDeposit = listing?.itemValue,
-            pickupArea = rental.pickupArea,
+            // A request sent before the listing was geocoded has a blank copy of the area.
+            pickupArea = rental.pickupArea.ifBlank { listing?.pickupArea.orEmpty() },
             pickupPoint = listing?.pickupPoint,
             otherPerson = otherPerson,
             isOffline = it.isOffline,
