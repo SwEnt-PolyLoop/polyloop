@@ -43,11 +43,12 @@ internal object ListingAddressFields {
 }
 
 /**
- * The Firestore fields of [listing] that the app writes; the id is the key. Amounts are Long, the
- * type Firestore returns them as. The pickup point and the booked ranges are left out: only Cloud
- * Functions write them, so [listingFromDocument] reads more than this writes. To save an edit, use
- * `update()` or `SetOptions.merge()`: a plain `set()` would remove those fields, which the security
- * rules refuse.
+ * The Firestore fields of a new [listing]; the id is the key. Amounts are Long, the type Firestore
+ * returns them as. The points and the booked ranges are left out: only Cloud Functions write them,
+ * so [listingFromDocument] reads more than this writes. Do not save an edit with this map: the
+ * security rules refuse a plain `set()`, which would remove those fields, and an `update()` or
+ * `SetOptions.merge()` that carries an out-of-date area. An edit must write only the fields the
+ * owner may change.
  */
 internal fun listingToDocument(listing: Listing): Map<String, Any> =
     mapOf(
