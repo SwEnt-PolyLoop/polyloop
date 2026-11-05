@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,8 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import com.swent.polyloop.R
 import com.swent.polyloop.model.dispute.DisputeStage
 import com.swent.polyloop.resources.C
-import com.swent.polyloop.ui.theme.LeafGreen
 import com.swent.polyloop.ui.theme.MintGreen
+import com.swent.polyloop.ui.theme.PositiveGreen
 
 /**
  * The top of the Dispute screen: the title with a "Settled" pill once both parties agreed, the
@@ -48,7 +49,7 @@ internal fun DisputeHeader(uiState: DisputeUiState) {
         Pill(
             text = stringResource(R.string.dispute_settled),
             background = MintGreen,
-            content = LeafGreen,
+            content = PositiveGreen,
             modifier =
                 Modifier.padding(start = dimensionResource(R.dimen.dispute_pill_gap))
                     .testTag(C.Tag.dispute_settled_pill),
@@ -137,7 +138,7 @@ private fun Pill(
       color = content,
       modifier =
           modifier
-              .background(background, RoundedCornerShape(50))
+              .background(background, CircleShape)
               .padding(
                   horizontal = dimensionResource(R.dimen.dispute_pill_padding_horizontal),
                   vertical = dimensionResource(R.dimen.dispute_pill_padding_vertical),
