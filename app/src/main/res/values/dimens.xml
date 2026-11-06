@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dispute screen -->
+    <dimen name="dispute_screen_padding">16dp</dimen>
+    <!-- Under the top bar, which the Scaffold already keeps clear -->
+    <dimen name="dispute_screen_padding_top">4dp</dimen>
+    <dimen name="dispute_section_spacing">12dp</dimen>
+    <dimen name="dispute_card_padding">16dp</dimen>
+    <dimen name="dispute_card_spacing">12dp</dimen>
+    <dimen name="dispute_header_spacing">8dp</dimen>
+    <dimen name="dispute_pill_gap">12dp</dimen>
+    <dimen name="dispute_pill_padding_horizontal">12dp</dimen>
+    <dimen name="dispute_pill_padding_vertical">4dp</dimen>
+    <dimen name="dispute_step_spacing">6dp</dimen>
+    <dimen name="dispute_step_bar_height">4dp</dimen>
+    <dimen name="dispute_step_bar_corner">2dp</dimen>
+</resources>
