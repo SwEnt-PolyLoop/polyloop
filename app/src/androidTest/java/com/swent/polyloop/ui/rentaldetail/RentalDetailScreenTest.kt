@@ -2,6 +2,9 @@
 
 package com.swent.polyloop.ui.rentaldetail
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -17,6 +20,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import java.time.Instant
@@ -338,6 +342,43 @@ class RentalDetailScreenTest {
         C.Tag.rental_detail_pickup_note,
         context.getString(R.string.rental_detail_pickup_note),
     )
+  }
+
+  private val pointNearEpfl = MapPoint(latitude = 46.52, longitude = 6.57)
+
+  /** Scrolls to the pickup area and checks it shows the map, not the placeholder. */
+  private fun assertPickupMapShown() {
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_map).performScrollTo()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertDoesNotExist()
+  }
+
+  /** Scrolls to the pickup area and checks it shows the placeholder with [area], not the map. */
+  private fun assertPickupPlaceholderShown(area: String) {
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_map).performScrollTo()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map_area_name).assertTextEquals(area)
+  }
+
+  @Test
+  fun pickupAreaSwapsTheMapForThePlaceholderWhenGoingOffline() {
+    var uiState by mutableStateOf(requested.copy(pickupPoint = pointNearEpfl))
+    composeTestRule.setContent {
+      RentalDetailContent(
+          uiState = uiState,
+          onRetry = {},
+          onChatClick = {},
+          onPersonClick = {},
+          today = today,
+          zone = ZoneOffset.UTC,
+      )
+    }
+    assertPickupMapShown()
+
+    uiState = uiState.copy(isOffline = true)
+
+    assertPickupPlaceholderShown("Ecublens")
   }
 
   @Test

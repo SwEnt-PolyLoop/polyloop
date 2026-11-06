@@ -28,6 +28,10 @@ object C {
 
     const val offline_banner = "offline_banner"
 
+    const val pickup_map = "pickup_map"
+    const val pickup_map_placeholder = "pickup_map_placeholder"
+    const val pickup_map_area_name = "pickup_map_area_name"
+
     fun browseCategoryChip(category: ListingCategory) = "browse_category_chip_${category.name}"
 
     // Prefix: each card is tagged listing_card_ + listing.id
@@ -54,9 +58,6 @@ object C {
     const val listing_detail_deposit_note = "listing_detail_deposit_note"
     const val listing_detail_pickup_area = "listing_detail_pickup_area"
     const val listing_detail_pickup_caption = "listing_detail_pickup_caption"
-    const val listing_detail_pickup_map = "listing_detail_pickup_map"
-    const val listing_detail_pickup_placeholder = "listing_detail_pickup_placeholder"
-    const val listing_detail_pickup_area_name = "listing_detail_pickup_area_name"
     const val listing_detail_request_button = "listing_detail_request_button"
     const val listing_detail_loading = "listing_detail_loading"
     const val listing_detail_error = "listing_detail_error"

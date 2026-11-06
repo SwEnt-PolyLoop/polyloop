@@ -238,58 +238,16 @@ class ListingDetailScreenTest {
   /** Scrolls to the pickup area and checks it shows the map, not the placeholder. */
   private fun assertPickupMapShown() {
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_area).performScrollTo()
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_map).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_placeholder).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertDoesNotExist()
   }
 
   /** Scrolls to the pickup area and checks it shows the placeholder with [area], not the map. */
   private fun assertPickupPlaceholderShown(area: String) {
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_area).performScrollTo()
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_placeholder).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_map).assertDoesNotExist()
-    assertSectionText(C.Tag.listing_detail_pickup_area_name, area)
-  }
-
-  @Test
-  fun pickupAreaShowsTheMapOnlineWithAPoint() {
-    setContent(listing.copy(pickupPoint = pointNearEpfl))
-
-    assertPickupMapShown()
-    assertSectionText(
-        C.Tag.listing_detail_pickup_caption,
-        context.getString(R.string.listing_detail_pickup_caption),
-    )
-  }
-
-  @Test
-  fun pickupAreaShowsThePlaceholderWithTheAreaNameWithoutAPoint() {
-    setContent(listing)
-
-    assertPickupPlaceholderShown("Ecublens")
-  }
-
-  @Test
-  fun pickupAreaShowsThePlaceholderWithTheAreaNameOffline() {
-    setContent(
-        ListingDetailUiState(listing = listing.copy(pickupPoint = pointNearEpfl), isOffline = true)
-    )
-
-    assertPickupPlaceholderShown("Ecublens")
-    assertSectionText(
-        C.Tag.listing_detail_pickup_caption,
-        context.getString(R.string.listing_detail_pickup_caption),
-    )
-  }
-
-  @Test
-  fun pickupPlaceholderShowsNoAreaNameBeforeGeocoding() {
-    setContent(listing.copy(pickupArea = ""))
-
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_area).performScrollTo()
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_pickup_placeholder).assertIsDisplayed()
-    composeTestRule
-        .onNodeWithTag(C.Tag.listing_detail_pickup_area_name, useUnmergedTree = true)
-        .assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map).assertDoesNotExist()
+    assertSectionText(C.Tag.pickup_map_area_name, area)
   }
 
   @Test
@@ -311,6 +269,10 @@ class ListingDetailScreenTest {
     }
     waitForTag(C.Tag.listing_detail_pickup_area)
     assertPickupMapShown()
+    assertSectionText(
+        C.Tag.listing_detail_pickup_caption,
+        context.getString(R.string.listing_detail_pickup_caption),
+    )
 
     connectivity.setOnline(false)
     composeTestRule.waitForIdle()
