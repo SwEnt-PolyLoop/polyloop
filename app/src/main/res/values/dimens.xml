@@ -14,4 +14,10 @@
     <dimen name="dispute_step_spacing">6dp</dimen>
     <dimen name="dispute_step_bar_height">4dp</dimen>
     <dimen name="dispute_step_bar_corner">2dp</dimen>
+    <dimen name="dispute_split_bar_height">10dp</dimen>
+    <dimen name="dispute_split_bar_corner">5dp</dimen>
+    <dimen name="dispute_split_thumb_size">22dp</dimen>
+    <dimen name="dispute_split_thumb_border">3dp</dimen>
+    <dimen name="dispute_percent_extra_width">2dp</dimen>
+    <dimen name="dispute_percent_underline">1dp</dimen>
 </resources>
