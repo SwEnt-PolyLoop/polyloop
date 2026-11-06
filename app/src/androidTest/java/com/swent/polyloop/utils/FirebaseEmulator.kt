@@ -8,7 +8,9 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.firestore
+import com.google.firebase.functions.functions
 import com.google.firebase.storage.storage
+import com.swent.polyloop.model.rental.RentalRepositoryFirestore
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -30,6 +32,7 @@ object FirebaseEmulator {
   private const val AUTH_PORT = 9099
   private const val FIRESTORE_PORT = 8080
   private const val STORAGE_PORT = 9199
+  private const val FUNCTIONS_PORT = 5001
   private const val TIMEOUT_MS = 2000
   private const val REQUEST_TIMEOUT_MS = 10_000
 
@@ -39,7 +42,7 @@ object FirebaseEmulator {
 
   /** Fails the test with a clear message if the emulators are not running. */
   fun connect() {
-    if (!listOf(AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT).all { isRunning(it) }) {
+    if (!listOf(AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT, FUNCTIONS_PORT).all { isRunning(it) }) {
       fail("The Firebase emulators are not running. Start them with: firebase emulators:start")
     }
     // useEmulator may only be called once per app process, before Firebase is used.
@@ -47,6 +50,8 @@ object FirebaseEmulator {
     Firebase.auth.useEmulator(HOST, AUTH_PORT)
     Firebase.firestore.useEmulator(HOST, FIRESTORE_PORT)
     Firebase.storage.useEmulator(HOST, STORAGE_PORT)
+    // The negotiation Functions run in RentalRepositoryFirestore.REGION, as deployed.
+    Firebase.functions(RentalRepositoryFirestore.REGION).useEmulator(HOST, FUNCTIONS_PORT)
     connected = true
   }
 

@@ -27,8 +27,12 @@ import kotlinx.coroutines.flow.update
  * see a loading state. [clock] gives the creation time of new rentals and the current time of the
  * negotiation.
  *
- * The negotiation follows the rules of the Cloud Functions, except that the fake does not know who
- * calls it, so it does not check the caller's role. A refusal is an [IllegalStateException].
+ * The negotiation follows the rules of the Cloud Functions, except for what the fake cannot know:
+ * - it does not know who calls it, so it does not check the caller's role;
+ * - it has no listings, so it does not check that the dates are still free (neither when an offer
+ *   is made nor when it is accepted) and does not refuse a listing that is gone.
+ *
+ * A refusal is an [IllegalStateException].
  */
 class FakeRentalRepository(
     rentals: List<Rental> = emptyList(),
@@ -142,7 +146,12 @@ class FakeRentalRepository(
                     other.listingId == rental.listingId &&
                     other.status == RentalStatus.REQUESTED &&
                     conflictsWithBuffer(dates, BookedRange(other.startDate, other.endDate))
-            if (overlaps) other.copy(status = RentalStatus.DECLINED, offer = null) else other
+            if (overlaps) {
+              offeredAddresses.remove(other.id)
+              other.copy(status = RentalStatus.DECLINED, offer = null)
+            } else {
+              other
+            }
           }
         }
         rental.copy(
