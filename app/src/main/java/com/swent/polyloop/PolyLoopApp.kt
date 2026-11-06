@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NamedNavArgument
@@ -47,8 +48,14 @@ import com.swent.polyloop.ui.navigation.NavigationActions
 import com.swent.polyloop.ui.navigation.PolyLoopDrawerContent
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.navigation.Screen
+import com.swent.polyloop.ui.profile.EditProfileScreen
+import com.swent.polyloop.ui.profile.EditProfileViewModel
 import com.swent.polyloop.ui.profile.ProfileScreen
 import com.swent.polyloop.ui.profile.ProfileViewModel
+import com.swent.polyloop.ui.rentaldetail.RentalDetailScreen
+import com.swent.polyloop.ui.rentaldetail.RentalDetailViewModel
+import com.swent.polyloop.ui.wallet.WalletScreen
+import com.swent.polyloop.ui.wallet.WalletViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -205,7 +212,6 @@ private fun PolyLoopScaffold(
         MyRentalsScreen(
             viewModel = myRentalsViewModel,
             onRentalClick = { id -> navController.navigate(Screen.RentalDetail.createRoute(id)) },
-            onOpenChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
         )
       }
       composable(Screen.ChatList.route) {
@@ -224,9 +230,36 @@ private fun PolyLoopScaffold(
             },
         )
       }
-      composable(Screen.Wallet.route) { DummyScreen(Screen.Wallet.route) }
+      composable(Screen.Wallet.route) {
+        val walletViewModel: WalletViewModel =
+            viewModel(
+                factory =
+                    WalletViewModel.Factory(
+                        walletRepository = RepositoryProvider.walletRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
+                    )
+            )
+        WalletScreen(viewModel = walletViewModel)
+      }
       composable(Screen.Profile.route) {
         ProfileRoute(userId = null, navController = navController, navigationActions)
+      }
+      composable(Screen.EditProfile.route) {
+        val editProfileViewModel: EditProfileViewModel =
+            viewModel(
+                factory =
+                    EditProfileViewModel.Factory(
+                        profileRepository = RepositoryProvider.profileRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                    )
+            )
+        // Back to the profile, which follows the repository live and so shows the new name and
+        // photo. Pops Edit profile by its route, so a second call cannot also pop the profile.
+        EditProfileScreen(
+            viewModel = editProfileViewModel,
+            onSaved = { navController.popBackStack(Screen.EditProfile.route, inclusive = true) },
+        )
       }
       composable(Screen.AdminCourtRuling.route) { DummyScreen(Screen.AdminCourtRuling.route) }
 
@@ -240,12 +273,17 @@ private fun PolyLoopScaffold(
                         rentalRepository = RepositoryProvider.rentalRepository,
                         authRepository = RepositoryProvider.authRepository,
                         profileRepository = RepositoryProvider.profileRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
                     )
             )
         ListingDetailScreen(
             viewModel = listingDetailViewModel,
+            // Their profile opens this screen too, so the two must not pile up in the back stack.
+            // The second tap of a double tap comes from a screen already leaving, so it is ignored.
             onLenderClick = { ownerId ->
-              navController.navigate(Screen.UserProfile.createRoute(ownerId))
+              if (entry.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                navigationActions.navigateToOrBackTo(Screen.UserProfile.createRoute(ownerId))
+              }
             },
             onRequestSent = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
         )
@@ -254,7 +292,24 @@ private fun PolyLoopScaffold(
         DummyScreen(Screen.EditListing.createRoute(entry.stringArg(Screen.ARG_LISTING_ID)))
       }
       composable(Screen.RentalDetail.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
-        DummyScreen(Screen.RentalDetail.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
+        val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)
+        val rentalDetailViewModel: RentalDetailViewModel =
+            viewModel(
+                factory =
+                    RentalDetailViewModel.Factory(
+                        rentalId = rentalId,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        listingRepository = RepositoryProvider.listingRepository,
+                        profileRepository = RepositoryProvider.profileRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
+                    )
+            )
+        RentalDetailScreen(
+            viewModel = rentalDetailViewModel,
+            onChatClick = { navController.navigate(Screen.Chat.createRoute(rentalId)) },
+            onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
+        )
       }
       composable(Screen.Chat.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
         val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)
@@ -287,7 +342,9 @@ private fun PolyLoopScaffold(
   }
 }
 
-/** The Profile screen, for the own profile ([userId] null) or someone else's. */
+/**
+ * The Profile screen, for the own profile ([userId] null or the user's own id) or someone else's.
+ */
 @Composable
 private fun ProfileRoute(
     userId: String?,
@@ -304,11 +361,13 @@ private fun ProfileRoute(
                   listingRepository = RepositoryProvider.listingRepository,
                   rentalRepository = RepositoryProvider.rentalRepository,
                   authRepository = RepositoryProvider.authRepository,
+                  connectivityRepository = RepositoryProvider.connectivityRepository,
               )
       )
   ProfileScreen(
       viewModel = profileViewModel,
       onListingClick = { id -> navController.navigate(Screen.ListingDetail.createRoute(id)) },
+      onEditProfile = { navController.navigate(Screen.EditProfile.route) },
       onSignedOut = navigationActions::navigateAfterSignOut,
   )
 }

@@ -384,6 +384,31 @@ class ListingRepositoryFirestoreTest {
   }
 
   @Test
+  fun getListingsByOwnerFromServerReadsTheServerNotTheCache() = runTest {
+    // What the cache would answer: nothing.
+    stubOwnerQuery()
+    val fromServer =
+        mockk<QuerySnapshot> { every { documents } returns listOf(document("listing1", validData)) }
+    every { ownerQuery.get(Source.SERVER) } returns Tasks.forResult(fromServer)
+
+    assertEquals(
+        listOf(expectedListing("listing1")),
+        repository.getListingsByOwner("user1", fromServer = true).getOrThrow(),
+    )
+  }
+
+  @Test
+  fun getListingsByOwnerFromServerFailsEvenWhenTheCacheHasListings() = runTest {
+    stubOwnerQuery(document("listing1", validData))
+    every { ownerQuery.get(Source.SERVER) } returns Tasks.forException(firestoreError)
+
+    assertSame(
+        firestoreError,
+        repository.getListingsByOwner("user1", fromServer = true).exceptionOrNull(),
+    )
+  }
+
+  @Test
   fun getListingsByOwnerReturnsNothingForBlankIdWithoutCallingFirestore() = runTest {
     assertEquals(emptyList<Listing>(), repository.getListingsByOwner(" ").getOrThrow())
     verify(exactly = 0) { db.collection(any()) }

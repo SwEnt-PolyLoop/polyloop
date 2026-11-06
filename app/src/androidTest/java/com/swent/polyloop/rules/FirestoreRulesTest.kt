@@ -541,6 +541,62 @@ class FirestoreRulesTest {
         assertDenied { messages.document().set(message(stranger.uid)).await() }
       }
 
+  @Test
+  fun onlyCloudFunctionsWriteTheOfferTheDepositAndTheAddresses() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid)
+        val offer = mapOf("amount" to 1, "authorId" to borrower.uid, "isCounter" to true)
+
+        for (account in listOf(borrower, owner)) {
+          signInAs(account)
+          assertDenied { rental.update("offer", offer).await() }
+          assertDenied { rental.update("deposit", 1).await() }
+          assertDenied { rental.update("pickupAddress", "Route Cantonale 1").await() }
+          assertDenied { rental.update("returnAddress", "Route Cantonale 1").await() }
+        }
+      }
+
+  @Test
+  fun aNewRequestCannotCarryAnOfferOrADeposit() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val listing = seedListing(owner.uid)
+        val borrower = newAccount()
+        val rentals = db.collection("rentals")
+
+        assertDenied {
+          rentals
+              .document()
+              .set(request(listing, borrower) + ("offer" to mapOf("amount" to 1)))
+              .await()
+        }
+        assertDenied {
+          rentals.document().set(request(listing, borrower) + ("deposit" to 1)).await()
+        }
+
+        rentals.document().set(request(listing, borrower)).await() // the same request without them
+      }
+
+  @Test
+  fun noClientReadsOrWritesTheAddressesOfAnOffer() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid)
+        val addresses = rental.collection("private").document("addresses")
+        FirebaseEmulator.createDocumentAsAdmin(addresses.path, mapOf("pickup" to "Secret 1"))
+        val stolen = mapOf("pickup" to "Elsewhere 2")
+
+        for (account in listOf(borrower, owner)) {
+          signInAs(account)
+          assertDenied { addresses.get(Source.SERVER).await() }
+          assertDenied { addresses.set(stolen).await() }
+          assertDenied { addresses.delete().await() }
+        }
+      }
+
   private companion object {
     const val PASSWORD = "password123"
   }

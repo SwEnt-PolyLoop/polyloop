@@ -31,6 +31,11 @@ sealed class Screen(val route: String) {
   /** The signed-in user's own profile. */
   data object Profile : TopLevel("profile", R.string.menu_profile)
 
+  /**
+   * Edit profile, where the signed-in user changes their name and photo; opened from their profile.
+   */
+  data object EditProfile : Screen("edit_profile")
+
   data object AdminCourtRuling : TopLevel("admin_court_ruling", R.string.menu_admin_court_ruling)
 
   data object ListingDetail : Screen("listing_detail/{$ARG_LISTING_ID}") {
@@ -59,7 +64,10 @@ sealed class Screen(val route: String) {
     fun createRoute(rentalId: String) = "dispute/$rentalId"
   }
 
-  /** Someone else's profile, opened from Listing detail or Rental detail. */
+  /**
+   * A profile opened from Listing detail or Rental detail: someone else's, or the user's own when
+   * they tap the lender card on one of their own listings.
+   */
   data object UserProfile : Screen("profile/{$ARG_USER_ID}") {
     fun createRoute(userId: String) = "profile/$userId"
   }

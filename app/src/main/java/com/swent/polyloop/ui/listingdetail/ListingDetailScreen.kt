@@ -3,7 +3,6 @@
 package com.swent.polyloop.ui.listingdetail
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,9 +52,11 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.DateRangePickerMode
 import com.swent.polyloop.ui.components.ListingPhoto
+import com.swent.polyloop.ui.components.PickupMap
 import com.swent.polyloop.ui.components.PolyLoopDateRangePicker
 import com.swent.polyloop.ui.components.PriceText
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
@@ -70,6 +71,9 @@ internal const val FAKE_LENDER_RATING = 4.8
 internal const val FAKE_LENDER_REVIEW_COUNT = 12
 
 private const val STAR_COUNT = 5
+
+/** Height of the pickup area, whether it shows the map or its placeholder. */
+private val PICKUP_AREA_HEIGHT = 120.dp
 
 /**
  * The Listing detail screen, showing the listing loaded by [viewModel]. Once a request is sent,
@@ -149,6 +153,7 @@ fun ListingDetailContent(
         ListingDetailLoaded(
             listing = listing,
             showRequestButton = !uiState.isOwnListing,
+            showMap = !uiState.isOffline,
             onRequestDates = onRequestDates,
             onLenderClick = { onLenderClick(listing.ownerId) },
         )
@@ -199,12 +204,14 @@ private fun ListingDetailError(errorMsg: String, onRetry: () -> Unit) {
 /**
  * The loaded listing for a borrower: photos, title, price, description, the lender, the suggested
  * deposit and availability, the pickup area, and a pinned "Request dates" button unless
- * [showRequestButton] is false (the user's own listing).
+ * [showRequestButton] is false (the user's own listing). The pickup area is a map only if [showMap]
+ * is true (the phone is online) and the listing has a pickup point; see [PickupArea].
  */
 @Composable
 private fun ListingDetailLoaded(
     listing: Listing,
     showRequestButton: Boolean,
+    showMap: Boolean,
     onRequestDates: () -> Unit,
     onLenderClick: () -> Unit,
 ) {
@@ -234,7 +241,7 @@ private fun ListingDetailLoaded(
       )
       LenderCard(onClick = onLenderClick)
       InfoCard(listing = listing)
-      PickupArea()
+      PickupArea(area = listing.pickupArea, point = listing.pickupPoint, showMap = showMap)
     }
     if (showRequestButton) RequestBar(onRequestDates = onRequestDates)
   }
@@ -396,29 +403,28 @@ private fun InfoRow(label: String, value: String, valueTag: String) {
   }
 }
 
-/** Map placeholder: a translucent circle over the pickup area and a caption chip. */
+/**
+ * The pickup area, with a caption chip saying the exact address comes after acceptance. It shows a
+ * small map centered on [point] if [showMap] is true; without a [point] (the address is not
+ * geocoded yet, or its geocoding failed) or when [showMap] is false (offline, since the map tiles
+ * need a connection), it shows a placeholder with the [area] name instead. The caption sits at the
+ * top: the Maps SDK draws the Google logo at the bottom-left, and its terms forbid covering it.
+ */
 @Composable
-private fun PickupArea() {
-  val circleColor = MaterialTheme.colorScheme.primary
+private fun PickupArea(area: String, point: MapPoint?, showMap: Boolean) {
   Box(
       modifier =
           Modifier.fillMaxWidth()
-              .height(120.dp)
+              .height(PICKUP_AREA_HEIGHT)
               .clip(MaterialTheme.shapes.large)
               .background(MaterialTheme.colorScheme.surfaceVariant)
               .testTag(C.Tag.listing_detail_pickup_area)
   ) {
-    Box(
-        modifier =
-            Modifier.align(Alignment.Center)
-                .size(88.dp)
-                .background(circleColor.copy(alpha = 0.2f), CircleShape)
-                .border(1.dp, circleColor, CircleShape)
-    )
+    PickupMap(area = area, point = point, showMap = showMap)
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+        modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
     ) {
       Text(
           text = stringResource(R.string.listing_detail_pickup_caption),

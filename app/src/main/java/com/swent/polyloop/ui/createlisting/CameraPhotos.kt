@@ -11,7 +11,11 @@ import java.io.File
 import java.net.URI
 import java.util.UUID
 
-/** Folder inside the app's files directory where the in-app camera saves listing photos. */
+/**
+ * Folder inside the app's files directory where the in-app camera saves its photos, listing and
+ * profile photos alike (the files are named `listing_*.jpg` either way). Keeping them in one folder
+ * lets [deleteStalePhotos] remove a profile photo left behind, as it does for listings.
+ */
 internal const val LISTING_PHOTOS_DIR = "listing_photos"
 
 /** Long side of the size listing photos are shot at, in pixels (4:3). */
@@ -96,9 +100,16 @@ internal fun deleteStalePhotos(photosDir: File, nowMillis: Long) {
   }
 }
 
-/** True when the shutter may be used: a shot is not already being saved and a photo still fits. */
-internal fun canTakePhoto(photoCount: Int, isCapturing: Boolean): Boolean =
-    !isCapturing && photoCount < Listing.MAX_PHOTOS
+/**
+ * True when the shutter may be used: a shot is not already being saved and a photo still fits
+ * (fewer than [maxPhotos] taken).
+ */
+internal fun canTakePhoto(
+    photoCount: Int,
+    isCapturing: Boolean,
+    maxPhotos: Int = Listing.MAX_PHOTOS,
+): Boolean = !isCapturing && photoCount < maxPhotos
 
 /** True when the camera closes by itself, because no more photo fits. */
-internal fun shouldCloseCamera(photoCount: Int): Boolean = photoCount >= Listing.MAX_PHOTOS
+internal fun shouldCloseCamera(photoCount: Int, maxPhotos: Int = Listing.MAX_PHOTOS): Boolean =
+    photoCount >= maxPhotos

@@ -25,8 +25,10 @@ class UnusedListingRepository : ListingRepository {
       photos: List<Uri>,
   ): Result<String> = error("Not used in this test")
 
-  override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-      error("Not used in this test")
+  override suspend fun getListingsByOwner(
+      ownerId: String,
+      fromServer: Boolean,
+  ): Result<List<Listing>> = error("Not used in this test")
 
   override suspend fun getBookedRanges(id: String): Result<List<BookedRange>?> =
       error("Not used in this test")
