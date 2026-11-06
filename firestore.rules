@@ -172,12 +172,29 @@ service cloud.firestore {
       // borrower creates the request, with status REQUESTED only and no money reserved.
       allow create: if isVerifiedEpfl() && isValidNewRental(request.resource.data);
 
-      // Afterwards the participants may only update the chat preview (#101).
+      // Afterwards the participants may only update the chat preview (#101) and the time they last
+      // opened the chat (#181), which the app saves by itself.
       allow update: if isVerifiedEpfl()
           && request.auth.uid in resource.data.participants
-          && changedKeys().hasOnly(['lastMessage', 'lastMessageAt'])
-          && request.resource.data.lastMessage is string
-          && request.resource.data.lastMessageAt == request.time;
+          && changedKeys().hasOnly(['lastMessage', 'lastMessageAt', 'lastReadAt'])
+          && (!changedKeys().hasAny(['lastMessage', 'lastMessageAt'])
+              || isChatPreview(request.resource.data))
+          && (!changedKeys().hasAny(['lastReadAt']) || isOwnReadTime(request.resource.data));
+
+      function isChatPreview(rental) {
+        return rental.lastMessage is string && rental.lastMessageAt == request.time;
+      }
+
+      // lastReadAt maps each participant's uid to when they last opened the chat. A user changes
+      // only their own entry, and only to the server's current time, so they cannot hide or show
+      // the other person's red dot.
+      function isOwnReadTime(rental) {
+        let reads = rental.lastReadAt;
+        return reads is map
+            && reads.diff(resource.data.get('lastReadAt', {})).affectedKeys()
+                .hasOnly([request.auth.uid])
+            && reads[request.auth.uid] == request.time;
+      }
 
       function isValidNewRental(rental) {
         let fields = ['listingId', 'listingTitle', 'listingPhotoUrl', 'ownerId', 'ownerName',

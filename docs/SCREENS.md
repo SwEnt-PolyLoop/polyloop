@@ -65,7 +65,7 @@ The Wallet screen holds the user's in-app balance, which pays for rentals and de
 
 Each rental has exactly one 1:1 conversation between its lender and borrower. ViewModels: ChatListViewModel, using ChatRepository, ProfileRepository and ListingRepository; ChatViewModel, using ChatRepository, RentalRepository, ProfileRepository and ListingRepository.
 
-- **Chat list.** A separate screen lists all the user's conversations, one per rental, with the other person, the item and the last message.
+- **Chat list.** A separate screen lists all the user's conversations, one per rental, with the other person, the item and the last message. A red dot marks a conversation whose last message the user has not opened yet; opening the chat removes it, and the user's own messages never add one.
 - The chat opens as soon as a request is sent, so both sides can agree on details before acceptance, such as the meeting point and the deposit.
 - **Offer card** (Figma frames 19.10 to 19.15). While an offer waits for an answer, the chat shows its amount and when it expires. The lender's offer gives the borrower “Decline”, “Counter” and “Accept”; “Counter” asks for an amount, with “Back” and “Send”. A counteroffer gives the lender “Decline” and “Accept” only. The author of the offer sees it as waiting, with no action. Each step adds a centred system message, including an accepted, declined or expired offer. The actions are disabled offline.
 - Header with the other person's name, the item, and a link back to Rental detail.

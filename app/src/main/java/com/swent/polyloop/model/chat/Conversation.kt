@@ -23,7 +23,20 @@ data class Conversation(
     val status: RentalStatus,
     val startDate: LocalDate,
     val endDate: LocalDate, // the return date; both days are part of the rental
+    // When each participant last opened the chat, by uid; empty until someone opens it.
+    val lastReadAt: Map<String, Instant> = emptyMap(),
 ) {
   /** The name of the person [myUid] is talking to. */
   fun otherPersonName(myUid: String): String = if (myUid == ownerId) borrowerName else ownerName
+
+  /**
+   * True if [myUid] has not seen the last message yet: there is one, and it came after the last
+   * time they opened the chat, or they never opened it. Sending a message saves the sender's time
+   * too, at the same instant, so their own message never counts as unread.
+   */
+  fun isUnreadFor(myUid: String): Boolean {
+    if (lastMessage.isEmpty()) return false
+    val readAt = lastReadAt[myUid] ?: return true
+    return lastMessageAt.isAfter(readAt)
+  }
 }

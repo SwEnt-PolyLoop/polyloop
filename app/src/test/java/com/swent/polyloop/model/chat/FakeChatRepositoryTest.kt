@@ -100,6 +100,8 @@ class FakeChatRepositoryTest {
     assertEquals(listOf("r1", "r2"), conversations.map { it.rentalId })
     assertEquals("Still available?", conversations[0].lastMessage)
     assertEquals(repository.now, conversations[0].lastMessageAt)
+    assertEquals(mapOf("u1" to repository.now), conversations[0].lastReadAt)
+    assertFalse(conversations[0].isUnreadFor("u1"))
     assertEquals(newer, conversations[1])
   }
 
@@ -178,6 +180,36 @@ class FakeChatRepositoryTest {
     gate.complete(Unit)
     assertTrue(sending.await().isSuccess)
     assertEquals(1, repository.observeMessages("r1").first().size)
+  }
+
+  // ---------- markAsRead ----------
+
+  @Test
+  fun markAsReadSavesOnlyTheSignedInUsersTime() = runTest {
+    repository.conversations = listOf(older.copy(lastReadAt = mapOf("u2" to Instant.EPOCH)), newer)
+
+    assertTrue(repository.markAsRead("r1").isSuccess)
+
+    assertEquals(
+        mapOf("u2" to Instant.EPOCH, "u1" to repository.now),
+        repository.conversations[0].lastReadAt,
+    )
+    assertEquals(newer, repository.conversations[1])
+    assertEquals(1, repository.markAsReadCalls)
+  }
+
+  @Test
+  fun markAsReadIsRefusedWhenSignedOutForAnUnknownRentalOrOnFailure() = runTest {
+    repository.conversations = listOf(older)
+    assertTrue(repository.markAsRead("nope").exceptionOrNull() is NoSuchElementException)
+    repository.currentUid = null
+    assertTrue(repository.markAsRead("r1").exceptionOrNull() is IllegalStateException)
+    val error = IllegalStateException("offline")
+    repository.failure = error
+    assertSame(error, repository.markAsRead("r1").exceptionOrNull())
+
+    assertEquals(emptyMap<String, Instant>(), repository.conversations[0].lastReadAt)
+    assertEquals(3, repository.markAsReadCalls)
   }
 
   // ---------- getConversation ----------

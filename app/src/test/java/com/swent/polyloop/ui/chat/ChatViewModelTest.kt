@@ -346,6 +346,69 @@ class ChatViewModelTest {
     assertTrue(vm.uiState.value.sendFailed)
   }
 
+  // ---------- marking as read ----------
+
+  @Test
+  fun openingTheChatMarksItAsRead() {
+    viewModel()
+
+    assertEquals(1, chat.markAsReadCalls)
+    assertEquals(chat.now, chat.conversations.single().lastReadAt["me"])
+  }
+
+  @Test
+  fun newMessageWhileTheChatIsOpenMarksItAgain() {
+    viewModel()
+
+    chat.messages =
+        mapOf("tent" to listOf(fromAna, message("m4", "ana", "Great", MessageType.USER)))
+
+    assertEquals(2, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun chatThatCannotBeShownIsNotMarkedAsRead() {
+    auth.signedInUser = null
+    viewModel()
+    auth.signedInUser = me
+    viewModel(rentalId = "nope")
+    chat.failure = IOException("offline")
+    viewModel()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun failedMarkAsReadShowsNoError() {
+    val failing =
+        object : ChatRepository by chat {
+          override suspend fun markAsRead(rentalId: String) =
+              Result.failure<Unit>(IOException("offline"))
+        }
+
+    val state = viewModel(failing).uiState.value
+
+    assertNull(state.errorMsg)
+    assertEquals(3, state.messages.size)
+  }
+
+  @Test
+  fun unconfirmedMarkAsReadDoesNotHoldBackNewMessages() {
+    val neverConfirmed =
+        object : ChatRepository by chat {
+          override suspend fun markAsRead(rentalId: String): Result<Unit> {
+            CompletableDeferred<Unit>().await() // offline: the server never answers
+            return Result.success(Unit)
+          }
+        }
+    val vm = viewModel(neverConfirmed)
+
+    chat.messages =
+        mapOf("tent" to listOf(fromAna, message("m4", "ana", "Great", MessageType.USER)))
+
+    assertEquals("Great", vm.uiState.value.messages.last().text)
+  }
+
   // ---------- factory ----------
 
   @Test

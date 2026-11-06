@@ -67,7 +67,8 @@ class ChatRepositoryFirestore(
     val message = rental.collection(ChatFields.MESSAGES).document() // new random id
     return withFirebaseErrors {
       // A batch writes both or neither, so the chat list never misses a sent message. The update
-      // fails if the rental does not exist, so no message is left without its rental.
+      // fails if the rental does not exist, so no message is left without its rental. It also
+      // saves the sender's read time, equal to lastMessageAt, so their own message is not unread.
       val batch =
           db.batch()
               .set(
@@ -84,6 +85,7 @@ class ChatRepositoryFirestore(
                   mapOf(
                       ChatFields.LAST_MESSAGE to text,
                       ChatFields.LAST_MESSAGE_AT to FieldValue.serverTimestamp(),
+                      readTimeOf(uid) to FieldValue.serverTimestamp(),
                   ),
               )
       // Not confirmed in time (offline): the batch stays queued and Firestore sends it later, so
@@ -92,6 +94,21 @@ class ChatRepositoryFirestore(
       Result.success(Unit)
     }
   }
+
+  override suspend fun markAsRead(rentalId: String): Result<Unit> {
+    if (!isValidDocumentId(rentalId)) {
+      return Result.failure(IllegalArgumentException("Invalid rental id"))
+    }
+    val uid = auth.currentUser?.uid ?: return Result.failure(IllegalStateException("Signed out"))
+    return withFirebaseErrors {
+      // Not confirmed in time (offline): queued, and the cache already counts the chat as read.
+      confirmWrite { rental(rentalId).update(readTimeOf(uid), FieldValue.serverTimestamp()) }
+      Result.success(Unit)
+    }
+  }
+
+  /** The path of [uid]'s entry in the rental's lastReadAt map; the other entries are kept. */
+  private fun readTimeOf(uid: String): String = "${ChatFields.LAST_READ_AT}.$uid"
 
   private fun rental(rentalId: String): DocumentReference =
       db.collection(ChatFields.RENTALS).document(rentalId)

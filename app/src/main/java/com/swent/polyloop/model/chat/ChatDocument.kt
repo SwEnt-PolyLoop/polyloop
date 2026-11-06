@@ -6,6 +6,7 @@ import com.swent.polyloop.model.firestore.dateOrNull
 import com.swent.polyloop.model.firestore.enumOrNull
 import com.swent.polyloop.model.firestore.instantOrNull
 import com.swent.polyloop.model.rental.RentalStatus
+import java.time.Instant
 
 /**
  * Firestore names for chat, from the schema in #94, kept in one place so they are easy to change.
@@ -21,6 +22,7 @@ internal object ChatFields {
   const val PARTICIPANTS = "participants"
   const val LAST_MESSAGE = "lastMessage"
   const val LAST_MESSAGE_AT = "lastMessageAt"
+  const val LAST_READ_AT = "lastReadAt" // uid -> when that participant last opened the chat
   const val STATUS = "status"
   const val START_DATE = "startDate"
   const val END_DATE = "endDate"
@@ -64,5 +66,20 @@ internal fun conversationFromDocument(id: String, data: Map<String, Any?>): Conv
       status = enumOrNull<RentalStatus>(data[ChatFields.STATUS]) ?: return null,
       startDate = dateOrNull(data[ChatFields.START_DATE]) ?: return null,
       endDate = dateOrNull(data[ChatFields.END_DATE]) ?: return null,
+      lastReadAt = readTimesOrEmpty(data[ChatFields.LAST_READ_AT]),
   )
 }
+
+/**
+ * Reads `lastReadAt`, a map of uid to time. Rentals from before #181 do not have it, so a missing
+ * field gives an empty map, and an entry that is not a uid with a time is skipped: the chat then
+ * counts as never opened by that user, which only shows a red dot.
+ */
+private fun readTimesOrEmpty(value: Any?): Map<String, Instant> =
+    (value as? Map<*, *>)
+        .orEmpty()
+        .mapNotNull { (uid, time) ->
+          val readAt = instantOrNull(time)
+          if (uid is String && readAt != null) uid to readAt else null
+        }
+        .toMap()

@@ -27,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +40,7 @@ import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.myrentals.labelRes
 import com.swent.polyloop.ui.theme.PolyLoopTheme
+import com.swent.polyloop.ui.theme.PolyRed
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -160,16 +163,33 @@ private fun ConversationRow(row: ChatListRow, now: Instant, onClick: () -> Unit)
           overflow = TextOverflow.Ellipsis,
           modifier = Modifier.testTag(C.Tag.chat_list_row_item),
       )
-      Text(
-          text = row.lastMessage.ifBlank { stringResource(R.string.chat_list_no_messages) },
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-          modifier = Modifier.testTag(C.Tag.chat_list_row_message),
-      )
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = row.lastMessage.ifBlank { stringResource(R.string.chat_list_no_messages) },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).testTag(C.Tag.chat_list_row_message),
+        )
+        if (row.isUnread) UnreadDot()
+      }
     }
   }
+}
+
+/** The red dot on a conversation the user has not opened since its last message. */
+@Composable
+private fun UnreadDot() {
+  val description = stringResource(R.string.chat_list_unread)
+  Box(
+      modifier =
+          Modifier.padding(start = 8.dp)
+              .size(8.dp)
+              .background(PolyRed, CircleShape)
+              .semantics { contentDescription = description }
+              .testTag(C.Tag.chat_list_row_unread)
+  )
 }
 
 /** A circle with the other person's initial. */
@@ -243,6 +263,7 @@ private fun ChatListContentPreview() {
                             "See you at 5?",
                             now,
                             RentalStatus.ACCEPTED,
+                            isUnread = true,
                         ),
                         ChatListRow(
                             "r2",
