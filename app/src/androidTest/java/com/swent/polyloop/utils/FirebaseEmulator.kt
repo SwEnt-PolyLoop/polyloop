@@ -42,7 +42,9 @@ object FirebaseEmulator {
 
   /** Fails the test with a clear message if the emulators are not running. */
   fun connect() {
-    if (!listOf(AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT, FUNCTIONS_PORT).all { isRunning(it) }) {
+    // Functions is not checked: CI starts only Auth, Firestore and Storage, and no test calls a
+    // Function yet. Pointing it at the emulator still keeps a call away from the real project.
+    if (!listOf(AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT).all { isRunning(it) }) {
       fail("The Firebase emulators are not running. Start them with: firebase emulators:start")
     }
     // useEmulator may only be called once per app process, before Firebase is used.
