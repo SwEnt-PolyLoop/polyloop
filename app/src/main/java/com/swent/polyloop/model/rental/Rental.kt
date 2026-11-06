@@ -30,8 +30,10 @@ data class Rental(
     val totalPrice: Int, // in PP: pricePerDay times the number of days
     val pickupArea: String, // public, copied from the listing
     val dropOffArea: String, // public, copied from the listing
-    val pickupAddress: String = "", // exact, set when the lender accepts (later sprint)
-    val returnAddress: String = "", // exact, set when the lender accepts (later sprint)
+    val pickupAddress: String = "", // exact, set when the rental is accepted
+    val returnAddress: String = "", // exact, set when the rental is accepted
+    val deposit: Int = 0, // in PP: the accepted amount, 0 until then
+    val offer: DepositOffer? = null, // the offer waiting for an answer, if any
     val createdAt: Instant,
     val lastMessage: String = "",
     // Starts at createdAt: the chat list sorts by this field, and Firestore leaves out of a sorted
@@ -59,6 +61,23 @@ data class Rental(
     }
   }
 }
+
+/**
+ * A deposit offer waiting for an answer. Only Cloud Functions write it.
+ *
+ * @property amount the deposit offered, in PP.
+ * @property authorId the user who made it; the other participant answers it.
+ * @property isCounter true for the borrower's counteroffer, which cannot be countered.
+ * @property previousAmount on a counteroffer, the amount the lender offered; null otherwise.
+ * @property expiresAt when it stops being valid.
+ */
+data class DepositOffer(
+    val amount: Int,
+    val authorId: String,
+    val isCounter: Boolean,
+    val previousAmount: Int? = null,
+    val expiresAt: Instant,
+)
 
 /** Where a rental stands; see "Rental statuses" in docs/ARCHITECTURE.md. */
 enum class RentalStatus {
