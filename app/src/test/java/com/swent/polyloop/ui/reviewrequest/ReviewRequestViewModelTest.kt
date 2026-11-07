@@ -185,6 +185,54 @@ class ReviewRequestViewModelTest {
   }
 
   @Test
+  fun aRetryAfterTheRequestGotAnOfferDropsTheOldForm() = runTest {
+    val vm = filled()
+    assertTrue(vm.uiState.value.canAnswer)
+    rentals.makeOffer(request.id, 100, "A", "B").getOrThrow()
+
+    vm.retry()
+
+    val state = vm.uiState.value
+    assertFalse(state.canAnswer)
+    assertFalse(state.canDecline)
+    assertNull(state.borrower)
+    assertEquals("", state.deposit)
+    assertEquals("", state.pickupAddress)
+    assertEquals("Camping tent", state.itemTitle)
+  }
+
+  @Test
+  fun aRetryKeepsTheOfflineState() {
+    val vm = viewModel()
+    connectivity.setOnline(false)
+
+    vm.retry()
+
+    assertTrue(vm.uiState.value.isOffline)
+  }
+
+  @Test
+  fun anOlderSlowerLoadDoesNotOverwriteANewerOne() {
+    val first = CompletableDeferred<Unit>()
+    rentals.gate = first
+    val vm = viewModel()
+    val second = CompletableDeferred<Unit>()
+    rentals.gate = second
+    vm.retry()
+
+    // The newer load reads the request as the borrower, so it cannot answer.
+    auth.signedInUser = borrowerUser
+    second.complete(Unit)
+    assertFalse(vm.uiState.value.canAnswer)
+    // The older load would read it as the lender and show the form.
+    auth.signedInUser = lender
+    first.complete(Unit)
+
+    assertFalse(vm.uiState.value.isLoading)
+    assertFalse(vm.uiState.value.canAnswer)
+  }
+
+  @Test
   fun aFailureWithoutAMessageGivesABlankError() {
     rentals.failure = IllegalStateException()
 

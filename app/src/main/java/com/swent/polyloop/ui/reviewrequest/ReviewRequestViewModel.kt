@@ -161,7 +161,9 @@ class ReviewRequestViewModel(
     // A retry while an earlier load is still running would otherwise let the older, slower result
     // overwrite the newer one.
     loading?.cancel()
-    _uiState.update { it.copy(isLoading = true, errorMsg = null, notFound = false) }
+    // Starts from a fresh state, so nothing from an earlier load stays: a request that got an offer
+    // meanwhile must not keep the old form. What the user typed is lost too.
+    _uiState.update { ReviewRequestUiState(isLoading = true, isOffline = it.isOffline) }
     loading = viewModelScope.launch {
       val rental =
           rentalRepository.getRental(rentalId).getOrElse { e ->
