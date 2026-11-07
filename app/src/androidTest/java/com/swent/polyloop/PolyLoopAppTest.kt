@@ -39,6 +39,7 @@ import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
@@ -176,6 +177,7 @@ class PolyLoopAppTest {
     RepositoryProvider.chatRepository = chatRepository
     RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     RepositoryProvider.connectivityRepository = connectivity
+    RepositoryProvider.walletRepository = FakeWalletRepository()
   }
 
   @After

@@ -22,6 +22,7 @@ import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.RentalRepositoryFirestore
 import com.swent.polyloop.model.wallet.FakeWalletRepository
+import com.swent.polyloop.model.wallet.WalletRepositoryFirestore
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -285,9 +286,8 @@ class RepositoryProviderTest {
   // ---------- walletRepository ----------
 
   @Test
-  fun walletRepositoryDefaultsToTheInMemoryFake() {
-    assertTrue(RepositoryProvider.walletRepository is FakeWalletRepository)
-    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+  fun walletRepositoryDefaultsToFirestoreImplementation() {
+    assertTrue(RepositoryProvider.walletRepository is WalletRepositoryFirestore)
   }
 
   @Test
@@ -295,6 +295,7 @@ class RepositoryProviderTest {
     val first = RepositoryProvider.walletRepository
 
     assertSame(first, RepositoryProvider.walletRepository)
+    verify(exactly = 1) { FirebaseFirestore.getInstance() }
   }
 
   @Test
@@ -304,6 +305,7 @@ class RepositoryProviderTest {
     RepositoryProvider.walletRepository = fake
 
     assertSame(fake, RepositoryProvider.walletRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
   // ---------- laziness and reset ----------
@@ -347,6 +349,7 @@ class RepositoryProviderTest {
     assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
     assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
     assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
+    assertTrue(RepositoryProvider.walletRepository is WalletRepositoryFirestore)
     assertNotSame(fakeWallet, RepositoryProvider.walletRepository)
     assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)
   }
