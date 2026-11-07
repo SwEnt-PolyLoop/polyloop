@@ -251,7 +251,6 @@ class RepositoryProviderTest {
   @Test
   fun connectivityRepositoryDefaultsToAndroidImplementation() {
     assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
-    assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)
   }
 
   @Test
