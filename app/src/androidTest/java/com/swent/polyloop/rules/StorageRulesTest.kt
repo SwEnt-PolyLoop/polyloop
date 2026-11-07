@@ -263,6 +263,57 @@ class StorageRulesTest {
   fun profilePhotosOf5MbOrMoreAreRefused() =
       runBlocking<Unit> { assertDenied { uploadSparseFile(profilePhoto(), 5L * 1024 * 1024) } }
 
+  // ---------- pickup photos ----------
+
+  private fun pickupPhoto(rentalId: String, name: String = "0.jpg") =
+      Firebase.storage.reference.child("rentals/$rentalId/photos/$name")
+
+  /** A rental between the owner and [borrowerUid], written as an admin. Returns its id. */
+  private fun seedRental(borrowerUid: String, status: String = "ACCEPTED") =
+      "rental-${UUID.randomUUID()}"
+          .also {
+            FirebaseEmulator.createDocumentAsAdmin(
+                "rentals/$it",
+                mapOf("participants" to listOf(ownerUid, borrowerUid), "status" to status),
+            )
+          }
+
+  @Test
+  fun participantsAddAndReadPickupPhotosButNeverReplaceOrDeleteThem() =
+      runBlocking<Unit> {
+        val rentalId = seedRental(FirebaseEmulator.signUpVerified())
+
+        pickupPhoto(rentalId).putBytes(bytes, jpeg).await()
+        assertDenied { pickupPhoto(rentalId).putBytes(byteArrayOf(9), jpeg).await() }
+        assertDenied { pickupPhoto(rentalId).delete().await() }
+
+        signInAsOwner()
+        assertArrayEquals(bytes, pickupPhoto(rentalId).getBytes(MAX_BYTES).await())
+      }
+
+  @Test
+  fun strangersAndRentalsThatAreNotAcceptedGetNoPickupPhotos() =
+      runBlocking<Unit> {
+        val rentalId = seedRental("someone-else")
+        pickupPhoto(rentalId).putBytes(bytes, jpeg).await()
+        val requested = seedRental("someone-else", status = "REQUESTED")
+        assertDenied { pickupPhoto(requested).putBytes(bytes, jpeg).await() }
+
+        FirebaseEmulator.signUpVerified() // a stranger
+        assertDenied { pickupPhoto(rentalId).getBytes(MAX_BYTES).await() }
+        assertDenied { pickupPhoto(rentalId, "1.jpg").putBytes(bytes, jpeg).await() }
+      }
+
+  @Test
+  fun pickupPhotosMustBeImagesUnder10Mb() =
+      runBlocking<Unit> {
+        val rentalId = seedRental("someone-else")
+        val pdf = storageMetadata { contentType = "application/pdf" }
+
+        assertDenied { pickupPhoto(rentalId).putBytes(bytes, pdf).await() }
+        assertDenied { uploadSparseFile(pickupPhoto(rentalId), 10L * 1024 * 1024) }
+      }
+
   private companion object {
     const val PASSWORD = "password123"
     const val MAX_BYTES = 1024L

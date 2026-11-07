@@ -150,7 +150,7 @@ So far only the Requested state is built (other statuses show the item's title a
 - A “Take photo” button while the rental is active, for condition photos between pickup and return.
 - The main action, which changes with status and role:
     - Requested: the “Chat” button leads to the chat, where the offer is answered (see Chat list & chat). Accepting reserves the deposit from the borrower's balance, and fails if it is too low. Accepting automatically declines other requests whose dates overlap, counting the 1-day buffer between rentals, with or without an offer.
-    - Accepted: “Start pickup”, which opens Handover.
+    - Accepted: “Start pickup”, shown only on the pickup day, which opens Handover.
     - Active: “Start return”, which opens Handover.
     - Disputed: “View dispute”, which opens Dispute.
     - Closed: the review prompt (see Profile & reviews).
@@ -161,8 +161,8 @@ So far only the Requested state is built (other statuses show the item's title a
 
 One Handover screen covers both pickup and return, and adapts to the phase and to the user's role. ViewModel: HandoverViewModel, using HandoverRepository, RentalRepository and DisputeRepository. Mock-ups: [PolyLoop Handover screen](https://claude.ai/artifact/FH2RZaMrYTGYU2fNz6UpZc).
 
-- A progress strip: Pickup → In use → Return.
-- **Condition photos.** In-app camera, each photo labelled with its phase and time. Photos taken offline show a “Not synced” badge. Each handover needs at least 3 and at most 20 photos. Photos can also be taken mid-rental from Rental detail.
+- The pickup opens only on the pickup day: on another day the screen shows the pickup date, and no photo can be taken.
+- **Condition photos.** In-app camera, each photo labelled with its phase and time. Photos taken offline show a “Not synced” badge. Each person takes their own 3 to 20 photos per handover and sees only their own. Photos can also be taken mid-rental from Rental detail.
 - **QR code.** The person receiving the item scans:
     - At pickup, the lender shows the code and the borrower scans it.
     - At return, the borrower shows the code and the lender scans it.

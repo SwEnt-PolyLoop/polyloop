@@ -106,7 +106,11 @@ class FirestoreRulesTest {
       )
 
   /** A rental between [owner] and [borrower], written as an admin. Returns its reference. */
-  private fun seedRental(owner: String, borrower: String): DocumentReference {
+  private fun seedRental(
+      owner: String,
+      borrower: String,
+      status: String = "REQUESTED",
+  ): DocumentReference {
     val id = "rental-${UUID.randomUUID()}"
     FirebaseEmulator.createDocumentAsAdmin(
         "rentals/$id",
@@ -115,7 +119,7 @@ class FirestoreRulesTest {
             "ownerId" to owner,
             "borrowerId" to borrower,
             "participants" to listOf(owner, borrower),
-            "status" to "REQUESTED",
+            "status" to status,
             "startDate" to start.toString(),
             "endDate" to end.toString(),
             "lastMessage" to "",
@@ -551,6 +555,57 @@ class FirestoreRulesTest {
           assertDenied { addresses.set(stolen).await() }
           assertDenied { addresses.delete().await() }
         }
+      }
+
+  // ---------- handover photos ----------
+
+  private fun photo(takenBy: String, phase: String = "PICKUP") =
+      mapOf(
+          "takenBy" to takenBy,
+          "phase" to phase,
+          "takenAt" to FieldValue.serverTimestamp(),
+          "url" to "https://example.com/p.jpg",
+      )
+
+  @Test
+  fun participantsAddOnlyTheirOwnPickupPhotosAndNeverChangeThem() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val photos = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
+
+        val mine = photos.document()
+        mine.set(photo(borrower.uid)).await()
+        assertDenied { photos.document().set(photo(owner.uid)).await() } // someone else's
+        assertDenied {
+          photos.document().set(photo(borrower.uid) + ("takenAt" to Timestamp(5_000, 0))).await()
+        }
+        assertDenied { photos.document().set(photo(borrower.uid) + ("url" to 5)).await() }
+        assertDenied { photos.document().set(photo(borrower.uid) + ("extra" to 1)).await() }
+        assertDenied { mine.update("url", "https://example.com/other.jpg").await() }
+        assertDenied { mine.delete().await() }
+
+        signInAs(owner)
+        photos.document().set(photo(owner.uid)).await()
+        assertEquals(2, photos.get(Source.SERVER).await().size())
+
+        val stranger = newAccount()
+        assertDenied { photos.get(Source.SERVER).await() }
+        assertDenied { photos.document().set(photo(stranger.uid)).await() }
+      }
+
+  @Test
+  fun pickupPhotosAreAddedOnlyWhileTheRentalIsAccepted() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val accepted = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
+        val active = seedRental(owner.uid, borrower.uid, status = "ACTIVE").collection("photos")
+        val requested = seedRental(owner.uid, borrower.uid).collection("photos")
+
+        assertDenied { accepted.document().set(photo(borrower.uid, phase = "RETURN")).await() }
+        assertDenied { active.document().set(photo(borrower.uid)).await() } // pickup is over
+        assertDenied { requested.document().set(photo(borrower.uid)).await() }
       }
 
   private companion object {
