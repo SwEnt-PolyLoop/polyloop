@@ -150,7 +150,7 @@ So far only the Requested state is built (other statuses show the item's title a
 - A “Take photo” button while the rental is active, for condition photos between pickup and return.
 - The main action, which changes with status and role:
     - Requested: the “Chat” button leads to the chat, where the offer is answered (see Chat list & chat). Accepting reserves the deposit from the borrower's balance, and fails if it is too low. Accepting automatically declines other requests whose dates overlap, counting the 1-day buffer between rentals, with or without an offer.
-    - Accepted: “Start pickup”, which opens Handover.
+    - Accepted: “Start pickup”, shown only on the pickup day, which opens Handover.
     - Active: “Start return”, which opens Handover.
     - Disputed: “View dispute”, which opens Dispute.
     - Closed: the review prompt (see Profile & reviews).

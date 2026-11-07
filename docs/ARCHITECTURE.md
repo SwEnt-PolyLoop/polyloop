@@ -110,7 +110,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 **Handover**
 - QR scan at pickup and at return. The person receiving the item scans: at pickup the lender shows the code and the borrower scans; at return the borrower shows and the lender scans.
-- Each handover needs 3 to 20 condition photos; the scan is disabled until 3 are taken. Photos can also be taken mid-rental from Rental detail.
+- At each handover, each person takes their own 3 to 20 condition photos; the scan is disabled until they have 3. Photos can also be taken mid-rental from Rental detail.
 - Offline: photos and QR scans go into the local upload queue and sync later. The server trusts the app's order (a scan is accepted even if its photos are still uploading).
 - After the return scan, the lender chooses "Item is fine" (full deposit released) or "Flag damage" (opens a dispute).
 
@@ -188,11 +188,12 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 - Storage: listing photos must be images under 10 MB (the in-app camera takes about 1440 × 1080 JPEGs at quality 80), named `0.jpg` to `9.jpg` and tagged with the uid of the user writing them. They are uploaded before the listing document exists, so a folder whose listing does not exist yet is open to any verified user; once it exists, only the owner may change it. A photo can be replaced or deleted only by the user who uploaded it, even once its listing is deleted; photos uploaded before the tag existed have none, so only an admin can change or delete them. These rules read Firestore, so the first deploy asks to let Storage read Firestore.
 - Storage: a profile photo can be read by any verified user and changed or deleted only by its user; it must be an image under 5 MB, and no other file is allowed under `users/`. The in-app camera takes photos at 1440 × 1080 with JPEG quality 80, a few hundred KB, well under this limit.
 - Storage: condition photos are read and added only by the rental's two participants while it is Accepted, as images under 10 MB; they are never replaced or deleted.
-- Not enforced yet: the 20-photo cap and the pickup day of condition photos (checked in the app); locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; a profile's `photoUrl` pointing at its own photo in Storage; new photos in folders with no listing (any verified user can still add up to 10 under a made-up or deleted id); a limit on the requests one borrower sends for a listing (left to `requestRental`); keeping drafts private: any verified user can read every listing, so someone else's profile downloads and caches their drafts and only leaves them out on the phone (#308).
+- Not enforced yet: the 20-photo cap and the pickup day of condition photos (checked in the app); a condition photo's `url` pointing at its own file in Storage (the rules only require a string, so a modified client could point it at any image); locking a listing's edit and delete while a rental of it is accepted or active; photo URLs pointing at this listing's Storage folder; a profile's `photoUrl` pointing at its own photo in Storage; new photos in folders with no listing (any verified user can still add up to 10 under a made-up or deleted id); a limit on the requests one borrower sends for a listing (left to `requestRental`); keeping drafts private: any verified user can read every listing, so someone else's profile downloads and caches their drafts and only leaves them out on the phone (#308).
 
 ## Not decided yet — ask before implementing
 
 - Security rules for collections not listed in the schema above
 - Cloud Function names and signatures, apart from `geocodeListingAddresses` (see "Firestore schema") and the negotiation's: `makeOffer({rentalId, deposit, pickupAddress, returnAddress})`, `respondToOffer({rentalId, action, deposit})` (`action` is `ACCEPT`, `DECLINE` or `COUNTER`; `deposit` only for `COUNTER`), `declineRequest({rentalId})`, and the scheduled `expireOffers`
 - Whether the auto-cancel waits until a set time on the pickup day (e.g. noon) so offline return scans can sync first
+- What happens when nobody shows up on the pickup day: condition photos are refused from the next day and cancelling closed the day before, so the rental stays Accepted with the price and the deposit held
 - The exact list of push notifications
