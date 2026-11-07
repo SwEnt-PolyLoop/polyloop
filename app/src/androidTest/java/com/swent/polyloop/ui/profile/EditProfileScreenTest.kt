@@ -28,6 +28,7 @@ import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.createlisting.staleFile
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.io.File
 import java.util.UUID
@@ -90,6 +91,7 @@ class EditProfileScreenTest {
             onTakePhoto = { takePhotoClicks++ },
             onPhotoTaken = {},
             onCloseCamera = {},
+            onCaptureFailed = {},
             onSave = {},
             onRetry = { retryClicks++ },
             onSaved = { savedCalls++ },
@@ -290,6 +292,26 @@ class EditProfileScreenTest {
       assertEquals(listOf("me" to photo), profiles.uploadedPhotos)
       assertEquals(FakeProfileRepository.uploadedUrl(photo), profiles.profiles.single().photoUrl)
       assertEquals(1, savedCalls)
+    }
+  }
+
+  @Test
+  fun openingTheCameraKeepsTheNewPhotoNotSavedYetAndDeletesOtherStalePhotos() {
+    val held = staleFile(context, "held-${System.nanoTime()}.jpg")
+    val notHeld = staleFile(context, "not-held-${System.nanoTime()}.jpg")
+    try {
+      showScreen()
+      composeTestRule.runOnIdle {
+        viewModel.onPhotoTaken(Uri.fromFile(held).toString())
+        viewModel.openCamera()
+      }
+
+      composeTestRule.waitUntil(5_000) { !notHeld.exists() }
+      composeTestRule.waitForIdle()
+      assertTrue(held.exists())
+    } finally {
+      held.delete()
+      notHeld.delete()
     }
   }
 }

@@ -8,6 +8,7 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import com.swent.polyloop.model.listing.Listing
 import java.io.File
+import java.io.IOException
 import java.net.URI
 import java.util.UUID
 
@@ -27,7 +28,10 @@ internal const val PHOTO_SHORT_SIDE_PX = 1080
 /** JPEG quality of listing photos, from 1 to 100. */
 internal const val PHOTO_JPEG_QUALITY = 80
 
-/** Photo files older than this (24 hours) are leftovers from an app killed mid-form. */
+/**
+ * Photo files older than this (24 hours) are leftovers from an app killed mid-form. They are
+ * deleted once, when the camera opens, except the photos the open form still holds.
+ */
 internal const val STALE_PHOTO_AGE_MS = 24L * 60 * 60 * 1000
 
 /**
@@ -67,38 +71,65 @@ internal fun deletePhotoFile(uri: String): Boolean = runCatching {
 /**
  * A new, unique JPEG file in [photosDir], which is created if needed. The name holds the time of
  * the shot and a random id, so two shots in the same millisecond never share a file. Files older
- * than [STALE_PHOTO_AGE_MS] are deleted first.
+ * than [STALE_PHOTO_AGE_MS] are deleted by [deleteStalePhotos], not here.
  *
  * @param photosDir the folder the new file goes in; created if it does not exist.
- * @param nowMillis the time of the shot in milliseconds, used in the name and to find stale files.
+ * @param nowMillis the time of the shot in milliseconds, used in the name.
  * @param id a random id that makes the name unique.
  * @return the new file, which does not exist yet.
+ * @throws IOException if [photosDir] does not exist and cannot be created.
  */
 internal fun newPhotoFile(
     photosDir: File,
     nowMillis: Long = System.currentTimeMillis(),
     id: UUID = UUID.randomUUID(),
 ): File {
-  photosDir.mkdirs()
-  deleteStalePhotos(photosDir, nowMillis)
+  // isDirectory again: mkdirs is false too when another call created the folder meanwhile.
+  if (!photosDir.mkdirs() && !photosDir.isDirectory) throw IOException("Cannot create $photosDir")
   return File(photosDir, "listing_${nowMillis}_$id.jpg")
 }
 
 /**
- * Deletes the files in [photosDir] last modified more than [STALE_PHOTO_AGE_MS] before [nowMillis].
- * Never throws.
+ * Deletes the files in [photosDir] last modified more than [STALE_PHOTO_AGE_MS] before [nowMillis],
+ * except the ones in [keep]. Each file goes through [deletePhotoFile], so only files directly
+ * inside a folder named [LISTING_PHOTOS_DIR] are ever deleted; in any other folder nothing is.
+ * Never throws. It lists and deletes files, so call it off the main thread.
  *
- * @param photosDir the folder to clean; a missing or empty folder is fine.
+ * [keep] exists because a form can stay open longer than [STALE_PHOTO_AGE_MS] while the app is
+ * alive (Create listing, or Edit profile before "Save"): its photos are then old but still needed,
+ * and deleting them would make the upload fail.
+ *
+ * @param photosDir the folder to clean; a missing or empty folder is fine (it is not created).
  * @param nowMillis the current time in milliseconds, to compare with each file's last change.
+ * @param keep the photos a form still holds, as `file:` URIs; they are never deleted. A URI that is
+ *   not a `file:` URI keeps nothing.
  */
-internal fun deleteStalePhotos(photosDir: File, nowMillis: Long) {
+internal fun deleteStalePhotos(
+    photosDir: File,
+    nowMillis: Long,
+    keep: Collection<String> = emptyList(),
+) {
   runCatching {
+    val kept = keep.mapNotNull(::canonicalPhotoFile).toSet()
     photosDir
         .listFiles()
         ?.filter { nowMillis - it.lastModified() > STALE_PHOTO_AGE_MS }
+        ?.filter { it.canonicalFile !in kept }
         ?.forEach { deletePhotoFile(it.toURI().toString()) }
   }
 }
+
+/**
+ * The file a `file:` [uri] points to, with its path resolved, or null for any other or malformed
+ * URI.
+ *
+ * @param uri the photo's location as a URI string.
+ * @return the resolved file, or null.
+ */
+private fun canonicalPhotoFile(uri: String): File? = runCatching {
+  File(URI(uri)).canonicalFile
+}
+    .getOrNull()
 
 /**
  * True when the shutter may be used: a shot is not already being saved and a photo still fits
