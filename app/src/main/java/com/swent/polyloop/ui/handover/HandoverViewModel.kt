@@ -42,7 +42,7 @@ data class HandoverUiState(
     val phase: HandoverPhase? = null,
     val pickupDate: LocalDate? = null,
     val isPickupDay: Boolean = false,
-    val deposit: Int = 0, // 0 until Rental.deposit exists (#265)
+    val deposit: Int = 0,
     val photos: List<HandoverPhoto> = emptyList(),
     val photosFailed: Boolean = false,
     val isUploading: Boolean = false,
@@ -81,9 +81,16 @@ class HandoverViewModel(
     load()
   }
 
-  /** Loads the rental again, after it failed to load. Ignored otherwise. */
+  /**
+   * Loads the rental again after it failed to load, or follows the photos again after they failed
+   * to load. Ignored otherwise.
+   */
   fun retry() {
-    if (_uiState.value.loadFailed) load()
+    val state = _uiState.value
+    when {
+      state.loadFailed -> load()
+      state.photosFailed -> state.phase?.let(::observePhotos)
+    }
   }
 
   /**
@@ -144,12 +151,14 @@ class HandoverViewModel(
               phase = phase,
               pickupDate = rental.startDate,
               isPickupDay = rental.startDate == today(),
+              deposit = rental.deposit,
           )
       if (phase != null) observePhotos(phase)
     }
   }
 
   private fun observePhotos(phase: HandoverPhase) {
+    _uiState.update { it.copy(photosFailed = false) }
     viewModelScope.launch {
       handoverRepository
           .observeMyPhotos(rentalId, phase)

@@ -49,6 +49,7 @@ class HandoverViewModelTest {
           totalPrice = 45,
           pickupArea = "Ecublens",
           dropOffArea = "Renens",
+          deposit = 80,
           createdAt = Instant.parse("2026-10-01T09:30:00Z"),
       )
 
@@ -99,6 +100,7 @@ class HandoverViewModelTest {
     assertEquals(HandoverPhase.PICKUP, state.phase)
     assertEquals(pickupDay, state.pickupDate)
     assertTrue(state.isPickupDay)
+    assertEquals(80, state.deposit)
   }
 
   @Test
@@ -179,10 +181,18 @@ class HandoverViewModelTest {
   }
 
   @Test
-  fun photosThatCannotBeLoadedAreReported() {
+  fun photosThatCannotBeLoadedAreReportedAndCanBeRetried() {
     handoverRepository.failure = RuntimeException("offline")
+    handoverRepository.photos = photos(2)
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.photosFailed)
+    assertEquals(3, vm.uiState.value.photosNeeded)
 
-    assertTrue(viewModel().uiState.value.photosFailed)
+    handoverRepository.failure = null
+    vm.retry()
+    assertFalse(vm.uiState.value.photosFailed)
+    assertEquals(2, vm.uiState.value.photos.size)
+    assertEquals(1, vm.uiState.value.photosNeeded)
   }
 
   @Test
