@@ -46,6 +46,14 @@ interface ListingRepository {
    * The listings put up by [ownerId], whatever their status (their owner also sees drafts), in no
    * particular order. A document that cannot be mapped is skipped. Empty for a blank id. Fails with
    * the cause if they cannot be loaded.
+   *
+   * By default, the cache answers when the server cannot be reached, so an owner can read their own
+   * listings offline, but it may hold only some of them, or none. With [fromServer], only the
+   * server answers, so the result is complete, and the read fails if it cannot be reached, e.g.
+   * offline.
    */
-  suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>>
+  suspend fun getListingsByOwner(
+      ownerId: String,
+      fromServer: Boolean = false,
+  ): Result<List<Listing>>
 }

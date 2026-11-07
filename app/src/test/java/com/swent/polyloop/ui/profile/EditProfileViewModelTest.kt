@@ -3,6 +3,8 @@
 package com.swent.polyloop.ui.profile
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.profile.FakeProfileRepository
@@ -266,6 +268,26 @@ class EditProfileViewModelTest {
     gate.complete(Unit)
     assertFalse(vm.uiState.value.isSaving)
     assertTrue(vm.uiState.value.isSaved)
+  }
+
+  @Test
+  fun leavingTheScreenDuringASaveStillSavesTheNameAndThePhoto() {
+    // Like Navigation dropping the screen from the back stack: its ViewModelStore is cleared.
+    val store = ViewModelStore()
+    val vm =
+        ViewModelProvider(store, EditProfileViewModel.Factory(profiles, auth))[
+            EditProfileViewModel::class.java]
+    vm.onNameChange("Johnny")
+    vm.onPhotoTaken(newPhoto)
+    val gate = CompletableDeferred<Unit>()
+    profiles.gate = gate
+
+    vm.save()
+    store.clear()
+    gate.complete(Unit)
+
+    assertEquals("Johnny", savedProfile().name)
+    assertEquals(FakeProfileRepository.uploadedUrl(newPhoto), savedProfile().photoUrl)
   }
 
   @Test

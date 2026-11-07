@@ -40,9 +40,28 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
+      # A fixed signing certificate: the Maps key only works for the certificates listed on it, and
+      # without this step each run would sign with a new one. Gradle signs debug builds with this file.
+      - name: Decode the debug keystore
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE" ]; then
+            mkdir -p ~/.android
+            echo "$DEBUG_KEYSTORE" | base64 --decode > ~/.android/debug.keystore
+          else
+            echo "::warning::DEBUG_KEYSTORE secret is not set. The maps in this APK will show no tiles."
+          fi
+
       # The debug APK is signed automatically, so it installs on any phone
       - name: Build the APK
-        run: ./gradlew assembleDebug
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+        run: |
+          if [ -z "$MAPS_API_KEY" ]; then
+            echo "::warning::MAPS_API_KEY secret is not set. The maps in this APK will show no tiles."
+          fi
+          ./gradlew assembleDebug
 
       - name: Upload the APK
         uses: actions/upload-artifact@v4

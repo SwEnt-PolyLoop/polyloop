@@ -5,6 +5,7 @@ package com.swent.polyloop
 import android.net.Uri
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -80,8 +82,10 @@ class PolyLoopAppTest {
   /** In-memory listings, so screens wired to RepositoryProvider never reach Firestore. */
   private val listingRepository =
       object : ListingRepository {
-        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> =
-            Result.success(emptyList())
+        override suspend fun getListingsByOwner(
+            ownerId: String,
+            fromServer: Boolean,
+        ): Result<List<Listing>> = Result.success(listOf(listing).filter { it.ownerId == ownerId })
 
         override suspend fun getAllListings(): Result<List<Listing>> =
             Result.success(listOf(listing))
@@ -100,7 +104,8 @@ class PolyLoopAppTest {
 
   /**
    * One accepted rental borrowed by "uid", so My rentals shows a CURRENT row, which opens Rental
-   * detail, without reaching Firestore.
+   * detail, without reaching Firestore. Rental detail shows only its title, as for every status but
+   * Requested.
    */
   private val rental =
       Rental(
@@ -185,6 +190,40 @@ class PolyLoopAppTest {
     waitForTag(C.Tag.listing_detail_screen)
   }
 
+  private fun openProfileOf(userId: String) {
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.UserProfile.createRoute(userId))
+    }
+    waitForTag(C.Tag.profile_screen)
+  }
+
+  private fun tapLenderCard() {
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo().performClick()
+  }
+
+  /** Two taps in a row, so the second lands while Listing detail is leaving after the first. */
+  private fun doubleTapLenderCard() {
+    val tap =
+        composeTestRule
+            .onNodeWithTag(C.Tag.listing_detail_lender_card)
+            .performScrollTo()
+            .fetchSemanticsNode()
+            .config[SemanticsActions.OnClick]
+            .action
+    composeTestRule.runOnUiThread {
+      tap?.invoke()
+      tap?.invoke()
+    }
+    composeTestRule.waitForIdle()
+  }
+
+  private fun tapListingOnProfile() {
+    composeTestRule
+        .onNodeWithTag(C.Tag.profile_listing_ + listing.id)
+        .performScrollTo()
+        .performClick()
+  }
+
   // isSignedIn is left to its default, so the app reads the user from RepositoryProvider.
   private fun setApp(isAdmin: Boolean = false) {
     composeTestRule.setContent {
@@ -236,9 +275,11 @@ class PolyLoopAppTest {
           Screen.MyRentals -> C.Tag.my_rentals_screen
           Screen.ChatList -> C.Tag.chat_list_screen
           Screen.Chat -> C.Tag.chat_screen
+          Screen.RentalDetail -> C.Tag.rental_detail_screen
           Screen.Wallet -> C.Tag.wallet_screen
           Screen.Profile,
           Screen.UserProfile -> C.Tag.profile_screen
+          Screen.EditProfile -> C.Tag.edit_profile_screen
           else -> null
         }
     if (realScreenTag != null) {
@@ -429,9 +470,30 @@ class PolyLoopAppTest {
     waitForTag(C.Tag.chat_rental_details)
     composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
 
-    assertCurrentScreen(
-        Screen.RentalDetail,
-        shownRoute = Screen.RentalDetail.createRoute("rental-1"),
+    assertCurrentScreen(Screen.RentalDetail)
+    // The tapped rental is open: its title is the one of rental-1.
+    waitForTag(C.Tag.rental_detail_title)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_title).assertTextEquals(rental.listingTitle)
+  }
+
+  @Test
+  fun chatOnRentalDetailOpensTheRentalsChat() {
+    // Only a Requested rental shows the person card and its Chat button.
+    RepositoryProvider.rentalRepository =
+        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED)))
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+
+    waitForTag(C.Tag.rental_detail_chat_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
+
+    assertCurrentScreen(Screen.Chat)
+    assertEquals(
+        rental.id,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
     )
   }
 
@@ -662,9 +724,106 @@ class PolyLoopAppTest {
     setAppSignedIn()
     openListingDetail()
 
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo().performClick()
+    tapLenderCard()
 
     assertCurrentScreen(Screen.UserProfile, shownRoute = Screen.UserProfile.createRoute("owner-1"))
+  }
+
+  @Test
+  fun listingOnSomeoneElsesProfileOpensListingDetail() {
+    setAppSignedIn()
+    openProfileOf(listing.ownerId)
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+
+    tapListingOnProfile()
+
+    waitForTag(C.Tag.listing_detail_screen)
+    assertEquals(Screen.ListingDetail.route, navController.currentDestination?.route)
+    assertEquals(
+        listing.id,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_LISTING_ID),
+    )
+  }
+
+  @Test
+  fun lenderCardGoesBackToTheirProfileInsteadOfOpeningItAgain() {
+    setAppSignedIn()
+    openListingDetail()
+    tapLenderCard()
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+    val ownersProfile = navController.currentBackStackEntry?.id
+
+    tapListingOnProfile()
+    waitForTag(C.Tag.listing_detail_lender_card)
+    tapLenderCard()
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+
+    assertEquals(ownersProfile, navController.currentBackStackEntry?.id)
+    // The round trip added nothing: only the first Listing detail and Browse are below.
+    composeTestRule.runOnUiThread { navController.popBackStack() }
+    composeTestRule.waitForIdle()
+    assertEquals(Screen.ListingDetail.route, navController.currentDestination?.route)
+    assertEquals(Screen.Browse.route, navController.previousBackStackEntry?.destination?.route)
+  }
+
+  @Test
+  fun lenderCardOpensTheirProfileWhenSomeoneElsesIsInTheBackStack() {
+    setAppSignedIn()
+    openProfileOf("user-1")
+    openListingDetail()
+
+    tapLenderCard()
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+
+    assertEquals(
+        listing.ownerId,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_USER_ID),
+    )
+    assertEquals(
+        Screen.ListingDetail.route,
+        navController.previousBackStackEntry?.destination?.route,
+    )
+  }
+
+  @Test
+  fun doubleTapOnLenderCardOpensTheirProfileOnce() {
+    setAppSignedIn()
+    openListingDetail()
+
+    doubleTapLenderCard()
+
+    assertEquals(Screen.UserProfile.route, navController.currentDestination?.route)
+    assertEquals(
+        Screen.ListingDetail.route,
+        navController.previousBackStackEntry?.destination?.route,
+    )
+  }
+
+  @Test
+  fun doubleTapOnLenderCardGoesBackToTheirProfileOnce() {
+    setAppSignedIn()
+    openProfileOf(listing.ownerId)
+    val ownersProfile = navController.currentBackStackEntry?.id
+    openListingDetail()
+
+    doubleTapLenderCard()
+
+    assertEquals(ownersProfile, navController.currentBackStackEntry?.id)
+    assertEquals(Screen.Browse.route, navController.previousBackStackEntry?.destination?.route)
+  }
+
+  @Test
+  fun someoneElsesProfileOfflineLoadsTheListingsOnceTheConnectionIsBack() {
+    connectivity.setOnline(false)
+    setAppSignedIn()
+    openProfileOf(listing.ownerId)
+    waitForTag(C.Tag.profile_listings_offline)
+    composeTestRule.onNodeWithTag(C.Tag.profile_listing_ + listing.id).assertDoesNotExist()
+
+    connectivity.setOnline(true)
+
+    waitForTag(C.Tag.profile_listing_ + listing.id)
+    composeTestRule.onNodeWithTag(C.Tag.profile_listings_offline).assertDoesNotExist()
   }
 
   @Test
@@ -703,6 +862,23 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.my_rentals_row_ + rental.id).performClick()
 
     assertCurrentScreen(Screen.RentalDetail, Screen.RentalDetail.createRoute(rental.id))
+  }
+
+  @Test
+  fun editProfileSavesTheNameAndGoesBackToTheProfile() {
+    setAppSignedIn()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_profile_button).performClick()
+    waitForTag(C.Tag.profile_edit_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.profile_edit_button).performScrollTo().performClick()
+    assertCurrentScreen(Screen.EditProfile)
+    waitForTag(C.Tag.edit_profile_name_field)
+    composeTestRule.onNodeWithTag(C.Tag.edit_profile_name_field).performTextReplacement("New me")
+    composeTestRule.onNodeWithTag(C.Tag.edit_profile_save_button).performClick()
+
+    assertCurrentScreen(Screen.Profile)
+    composeTestRule.onNodeWithTag(C.Tag.profile_name).assertTextEquals("New me")
+    assertEquals("New me", profileRepository.profiles.single { it.uid == "me" }.name)
   }
 
   @Test

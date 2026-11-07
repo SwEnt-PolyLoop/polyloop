@@ -12,14 +12,17 @@ plugins {
   id("jacoco")
 }
 
-// The Maps SDK key, read from MAPS_API_KEY in local.properties so it stays out of git (see the
-// README). Without it, e.g. on CI, the app still builds and the maps show no tiles. The fallback is
-// a placeholder rather than a blank value, because the Maps SDK throws when it finds no key.
+// The Maps SDK key, read from MAPS_API_KEY in local.properties or else in the environment (the
+// Build APK workflow), so it stays out of git (see the README). Without it, e.g. on CI, the app
+// still builds and the maps show no tiles. The fallback is a placeholder rather than a blank value,
+// because the Maps SDK throws when it finds no key. An unset GitHub secret arrives as blank.
 val mapsApiKey: String =
     Properties()
         .apply { rootProject.file("local.properties").takeIf { it.isFile }?.reader()?.use(::load) }
         .getProperty("MAPS_API_KEY")
-        ?.takeIf { it.isNotBlank() } ?: "MAPS_API_KEY_NOT_SET"
+        ?.takeIf { it.isNotBlank() }
+        ?: providers.environmentVariable("MAPS_API_KEY").orNull?.takeIf { it.isNotBlank() }
+        ?: "MAPS_API_KEY_NOT_SET"
 
 android {
   namespace = "com.swent.polyloop"
@@ -192,6 +195,7 @@ dependencies {
   implementation(libs.firebase.auth)
   implementation(libs.firebase.firestore)
   implementation(libs.firebase.storage)
+  implementation(libs.firebase.functions)
   // Lets us call .await() on Firebase Tasks inside coroutines
   implementation(libs.kotlinx.coroutines.play.services)
 }

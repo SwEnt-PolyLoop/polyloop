@@ -31,8 +31,13 @@ enum class ListingRentalState(val rentalStatus: RentalStatus?, val priority: Int
   LOST(RentalStatus.LOST, priority = 7),
 }
 
-/** One of the signed-in user's listings, with where it stands right now. */
-data class MyListing(val listing: Listing, val rentalState: ListingRentalState)
+/**
+ * A listing shown on a profile, with where it stands right now.
+ *
+ * @property rentalState null when its rentals are not read: on someone else's profile, as they
+ *   belong to other people.
+ */
+data class MyListing(val listing: Listing, val rentalState: ListingRentalState?)
 
 /**
  * The state of the listing [listingId], from the most important of its [rentals]. Rentals of other

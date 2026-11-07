@@ -5,6 +5,8 @@ package com.swent.polyloop.ui.profile
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.connectivity.ConnectivityRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
@@ -20,6 +22,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -64,22 +67,25 @@ class ProfileViewModelTest {
   private val myTent = listing("tent", ownerId = "me")
   private val myDraft = listing("draft", ownerId = "me", status = ListingStatus.DRAFT)
   private val janesBike = listing("bike", ownerId = "jane")
+  private val janesDraft = listing("lamp", ownerId = "jane", status = ListingStatus.DRAFT)
 
   private lateinit var profiles: FakeProfileRepository
   private lateinit var listings: FakeListingRepository
   private lateinit var rentals: FakeRentalRepository
   private lateinit var auth: FakeAuthRepository
+  private lateinit var connectivity: FakeConnectivityRepository
 
   @Before
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     profiles = FakeProfileRepository(listOf(me, jane))
-    listings = FakeListingRepository(listings = listOf(myTent, myDraft, janesBike))
+    listings = FakeListingRepository(listings = listOf(myTent, myDraft, janesBike, janesDraft))
     rentals = FakeRentalRepository()
     auth =
         FakeAuthRepository(
             signedInUser = AuthUser(uid = "me", email = "john@epfl.ch", name = "John")
         )
+    connectivity = FakeConnectivityRepository()
   }
 
   @After
@@ -88,15 +94,39 @@ class ProfileViewModelTest {
   }
 
   private fun viewModel(userId: String? = null) =
-      ProfileViewModel(userId, profiles, listings, rentals, auth)
+      ProfileViewModel(userId, profiles, listings, rentals, auth, connectivity)
 
-  /** [listings], calling [onRead] at each read of the own listings. */
+  /** [listings], calling [onRead] at each read of someone's listings, own or not. */
   private fun countingListings(onRead: () -> Unit) =
       object : ListingRepository by listings {
-        override suspend fun getListingsByOwner(ownerId: String): Result<List<Listing>> {
+        override suspend fun getListingsByOwner(
+            ownerId: String,
+            fromServer: Boolean,
+        ): Result<List<Listing>> {
           onRead()
-          return listings.getListingsByOwner(ownerId)
+          return listings.getListingsByOwner(ownerId, fromServer)
         }
+      }
+
+  /** A ViewModel for the profile of [userId], calling [onRead] at each read of the listings. */
+  private fun countingViewModel(userId: String?, onRead: () -> Unit) =
+      ProfileViewModel(userId, profiles, countingListings(onRead), rentals, auth, connectivity)
+
+  /** Like a phone reporting it is online that cannot reach the server: only the cache answers. */
+  private fun serverOutOfReach(cached: List<Listing>) =
+      object : ListingRepository by listings {
+        override suspend fun getListingsByOwner(
+            ownerId: String,
+            fromServer: Boolean,
+        ): Result<List<Listing>> =
+            if (fromServer) Result.failure(IllegalStateException("Unavailable"))
+            else Result.success(cached)
+      }
+
+  /** A network status that arrives only when the test emits it. */
+  private fun connectivityFrom(status: Flow<Boolean>) =
+      object : ConnectivityRepository {
+        override val isOnline: Flow<Boolean> = status
       }
 
   // ---------- own profile ----------
@@ -170,12 +200,284 @@ class ProfileViewModelTest {
   // ---------- someone else's profile ----------
 
   @Test
-  fun otherProfileShowsTheirProfileWithoutListings() {
-    val state = viewModel(userId = "jane").uiState.value
+  fun otherProfileShowsOnlyTheirPublishedListingsWithoutWhereTheyStand() {
+    val gate = CompletableDeferred<Unit>()
+    listings.gate = gate
+    val vm = viewModel(userId = "jane")
+    assertTrue(vm.uiState.value.listingsLoading)
 
+    gate.complete(Unit)
+
+    val state = vm.uiState.value
     assertFalse(state.isOwnProfile)
     assertEquals(jane, state.profile)
+    assertFalse(state.listingsLoading)
+    // Her draft is left out, and her rentals are not read.
+    assertEquals(listOf(MyListing(janesBike, rentalState = null)), state.listings)
+  }
+
+  @Test
+  fun otherProfileNeverReadsRentals() {
+    val reads = mutableListOf<String>()
+    val recorded =
+        object : RentalRepository by rentals {
+          override fun observeRentalsAsLender(uid: String): Flow<List<Rental>> {
+            reads += "as lender: $uid"
+            return rentals.observeRentalsAsLender(uid)
+          }
+
+          override fun observeRentalsAsBorrower(uid: String): Flow<List<Rental>> {
+            reads += "as borrower: $uid"
+            return rentals.observeRentalsAsBorrower(uid)
+          }
+
+          override suspend fun getRental(id: String): Result<Rental?> {
+            reads += "rental: $id"
+            return rentals.getRental(id)
+          }
+        }
+    val vm = ProfileViewModel("jane", profiles, listings, recorded, auth, connectivity)
+
+    vm.onScreenResumed()
+    vm.onScreenResumed()
+    vm.refreshListings()
+
+    assertEquals(emptyList<String>(), reads)
+    assertEquals(listOf(MyListing(janesBike, rentalState = null)), vm.uiState.value.listings)
+  }
+
+  @Test
+  fun otherProfileWithOnlyDraftsShowsNoListing() {
+    listings.listings = listOf(janesDraft, myTent)
+
+    val state = viewModel(userId = "jane").uiState.value
+
     assertTrue(state.listings.isEmpty())
+    assertFalse(state.listingsLoading)
+    assertFalse(state.listingsError)
+  }
+
+  @Test
+  fun otherProfileListingsErrorKeepsTheProfileAndRetryLoadsThem() {
+    listings.failure = IllegalStateException("No connection")
+    val vm = viewModel(userId = "jane")
+    assertTrue(vm.uiState.value.listingsError)
+    assertEquals(jane, vm.uiState.value.profile)
+
+    listings.failure = null
+    vm.refreshListings()
+
+    assertFalse(vm.uiState.value.listingsError)
+    assertEquals(listOf(MyListing(janesBike, rentalState = null)), vm.uiState.value.listings)
+  }
+
+  @Test
+  fun comingBackToSomeoneElsesProfileShowsTheirListingsAsTheyAreNow() {
+    val vm = viewModel(userId = "jane")
+    vm.onScreenResumed()
+
+    // e.g. Jane unpublished her bike while it was open on Listing detail
+    listings.listings = listOf(janesBike.copy(status = ListingStatus.DRAFT))
+    vm.onScreenResumed()
+
+    assertTrue(vm.uiState.value.listings.isEmpty())
+  }
+
+  @Test
+  fun otherProfileRefreshThatFailsKeepsTheirListingsAsStale() {
+    val vm = viewModel(userId = "jane")
+
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+
+    assertFalse(vm.uiState.value.listingsError)
+    assertTrue(vm.uiState.value.listingsStale)
+    assertEquals(listOf(MyListing(janesBike, rentalState = null)), vm.uiState.value.listings)
+  }
+
+  // ---------- someone else's profile, connection ----------
+
+  @Test
+  fun otherProfileOfflineReadsNothingAndKeepsTheProfile() {
+    connectivity.setOnline(false)
+    var reads = 0
+
+    val state = countingViewModel(userId = "jane") { reads++ }.uiState.value
+
+    assertEquals(0, reads)
+    assertTrue(state.listingsOffline)
+    assertFalse(state.listingsLoading)
+    assertTrue(state.listings.isEmpty())
+    assertEquals(jane, state.profile)
+  }
+
+  @Test
+  fun otherProfileLoadsTheListingsWhenTheConnectionComesBack() {
+    connectivity.setOnline(false)
+    val vm = viewModel(userId = "jane")
+
+    connectivity.setOnline(true)
+
+    assertFalse(vm.uiState.value.listingsOffline)
+    assertEquals(listOf(MyListing(janesBike, rentalState = null)), vm.uiState.value.listings)
+  }
+
+  @Test
+  fun otherProfileLoadsUntilTheFirstNetworkStatusArrives() {
+    val status = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
+    val vm = ProfileViewModel("jane", profiles, listings, rentals, auth, connectivityFrom(status))
+    assertTrue(vm.uiState.value.listingsLoading)
+    assertTrue(vm.uiState.value.listings.isEmpty())
+
+    status.tryEmit(true)
+
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertEquals(listOf(MyListing(janesBike, rentalState = null)), vm.uiState.value.listings)
+  }
+
+  @Test
+  fun retryBeforeTheNetworkStatusArrivesClearsTheStaleNote() {
+    val status = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
+    val vm = ProfileViewModel("jane", profiles, listings, rentals, auth, connectivityFrom(status))
+    status.tryEmit(true)
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    assertTrue(vm.uiState.value.listingsStale)
+
+    vm.retry()
+
+    assertTrue(vm.uiState.value.listingsLoading)
+    assertFalse(vm.uiState.value.listingsStale)
+  }
+
+  @Test
+  fun retryBeforeTheNetworkStatusArrivesClearsTheListingsError() {
+    val status = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
+    listings.failure = IllegalStateException("No connection")
+    val vm = ProfileViewModel("jane", profiles, listings, rentals, auth, connectivityFrom(status))
+    status.tryEmit(true)
+    assertTrue(vm.uiState.value.listingsError)
+
+    vm.retry()
+
+    assertTrue(vm.uiState.value.listingsLoading)
+    assertFalse(vm.uiState.value.listingsError)
+  }
+
+  @Test
+  fun otherProfileWithTheServerOutOfReachShowsTheErrorNotTheCache() {
+    val vm =
+        ProfileViewModel(
+            "jane",
+            profiles,
+            serverOutOfReach(cached = emptyList()),
+            rentals,
+            auth,
+            connectivity,
+        )
+
+    assertTrue(vm.uiState.value.listingsError)
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertTrue(vm.uiState.value.listings.isEmpty())
+  }
+
+  @Test
+  fun ownProfileWithTheServerOutOfReachShowsTheCache() {
+    val vm =
+        ProfileViewModel(
+            null,
+            profiles,
+            serverOutOfReach(cached = listOf(myTent)),
+            rentals,
+            auth,
+            connectivity,
+        )
+
+    assertFalse(vm.uiState.value.listingsError)
+    assertEquals(
+        listOf(MyListing(myTent, ListingRentalState.AVAILABLE)),
+        vm.uiState.value.listings,
+    )
+  }
+
+  @Test
+  fun goingOfflineWhileTheListingsLoadStopsTheLoad() {
+    val gate = CompletableDeferred<Unit>()
+    listings.gate = gate
+    val vm = viewModel(userId = "jane")
+    assertTrue(vm.uiState.value.listingsLoading)
+
+    connectivity.setOnline(false)
+    gate.complete(Unit)
+
+    assertTrue(vm.uiState.value.listingsOffline)
+    assertFalse(vm.uiState.value.listingsLoading)
+    assertTrue(vm.uiState.value.listings.isEmpty())
+  }
+
+  @Test
+  fun goingOfflineClearsTheListingsError() {
+    listings.failure = IllegalStateException("No connection")
+    val vm = viewModel(userId = "jane")
+    assertTrue(vm.uiState.value.listingsError)
+
+    connectivity.setOnline(false)
+
+    assertFalse(vm.uiState.value.listingsError)
+    assertTrue(vm.uiState.value.listingsOffline)
+  }
+
+  @Test
+  fun goingOfflineClearsTheStaleNote() {
+    val vm = viewModel(userId = "jane")
+    listings.failure = IllegalStateException("No connection")
+    vm.refreshListings()
+    assertTrue(vm.uiState.value.listingsStale)
+
+    connectivity.setOnline(false)
+
+    assertFalse(vm.uiState.value.listingsStale)
+    assertTrue(vm.uiState.value.listingsOffline)
+  }
+
+  @Test
+  fun refreshingWhileOfflineReadsNothing() {
+    var reads = 0
+    val vm = countingViewModel(userId = "jane") { reads++ }
+    assertEquals(1, reads)
+
+    connectivity.setOnline(false)
+    vm.refreshListings()
+    vm.onScreenResumed()
+    vm.onScreenResumed()
+
+    assertEquals(1, reads)
+    assertTrue(vm.uiState.value.listingsOffline)
+  }
+
+  @Test
+  fun retryOfflineThenReconnectingReadsTheListingsOnce() {
+    connectivity.setOnline(false)
+    var reads = 0
+    val vm = countingViewModel(userId = "jane") { reads++ }
+
+    vm.retry()
+    assertTrue(vm.uiState.value.listingsOffline)
+    connectivity.setOnline(true)
+
+    // Not twice: retry stops following the connection before following it again.
+    assertEquals(1, reads)
+    assertFalse(vm.uiState.value.listingsOffline)
+  }
+
+  @Test
+  fun ownProfileOfflineStillShowsMyListings() {
+    connectivity.setOnline(false)
+
+    val state = viewModel().uiState.value
+
+    assertFalse(state.listingsOffline)
+    assertEquals(2, state.listings.size)
   }
 
   @Test
@@ -254,7 +556,7 @@ class ProfileViewModelTest {
           override fun observeRentalsAsLender(uid: String): Flow<List<Rental>> =
               rentals.observeRentalsAsLender(uid).onStart { subscriptions++ }
         }
-    val vm = ProfileViewModel(null, profiles, listings, counted, auth)
+    val vm = ProfileViewModel(null, profiles, listings, counted, auth, connectivity)
 
     vm.refreshListings()
 
@@ -345,7 +647,7 @@ class ProfileViewModelTest {
             rentalsFailure.await()
           }
         }
-    val vm = ProfileViewModel(null, profiles, listings, failing, auth)
+    val vm = ProfileViewModel(null, profiles, listings, failing, auth, connectivity)
     listings.failure = IllegalStateException("No connection")
     vm.refreshListings()
     assertTrue(vm.uiState.value.listingsStale)
@@ -359,7 +661,7 @@ class ProfileViewModelTest {
   @Test
   fun onlyComingBackToTheScreenReadsTheListingsAgain() {
     var reads = 0
-    val vm = ProfileViewModel(null, profiles, countingListings { reads++ }, rentals, auth)
+    val vm = countingViewModel(userId = null) { reads++ }
 
     vm.onScreenResumed()
     assertEquals(1, reads)
@@ -390,7 +692,7 @@ class ProfileViewModelTest {
     var reads = 0
     val gate = CompletableDeferred<Unit>()
     listings.gate = gate
-    val vm = ProfileViewModel(null, profiles, countingListings { reads++ }, rentals, auth)
+    val vm = countingViewModel(userId = null) { reads++ }
 
     vm.refreshListings()
     gate.complete(Unit)
@@ -406,16 +708,6 @@ class ProfileViewModelTest {
 
     assertTrue(state.listingsError)
     assertEquals(me, state.profile)
-  }
-
-  @Test
-  fun otherProfileNeverLoadsListings() {
-    val vm = viewModel(userId = "jane")
-
-    vm.refreshListings()
-
-    assertFalse(vm.uiState.value.listingsLoading)
-    assertTrue(vm.uiState.value.listings.isEmpty())
   }
 
   @Test
@@ -451,7 +743,7 @@ class ProfileViewModelTest {
   @Test
   fun refreshListingsAfterSigningOutReadsNothing() {
     var reads = 0
-    val vm = ProfileViewModel(null, profiles, countingListings { reads++ }, rentals, auth)
+    val vm = countingViewModel(userId = null) { reads++ }
 
     vm.signOut()
     vm.refreshListings()
@@ -484,7 +776,7 @@ class ProfileViewModelTest {
   @Test
   fun factoryCreatesTheViewModel() {
     val created =
-        ProfileViewModel.Factory("jane", profiles, listings, rentals, auth)
+        ProfileViewModel.Factory("jane", profiles, listings, rentals, auth, connectivity)
             .create(ProfileViewModel::class.java)
 
     assertEquals(jane, created.uiState.value.profile)
@@ -495,7 +787,8 @@ class ProfileViewModelTest {
     class Other : ViewModel()
 
     assertThrows(IllegalArgumentException::class.java) {
-      ProfileViewModel.Factory(null, profiles, listings, rentals, auth).create(Other::class.java)
+      ProfileViewModel.Factory(null, profiles, listings, rentals, auth, connectivity)
+          .create(Other::class.java)
     }
   }
 }

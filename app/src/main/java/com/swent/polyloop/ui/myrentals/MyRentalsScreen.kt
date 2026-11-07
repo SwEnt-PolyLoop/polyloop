@@ -51,16 +51,14 @@ import java.time.LocalDate
 
 /**
  * The My rentals screen, showing what the signed-in user borrows and lends (Figma frames 10, 11).
- * [onReviewRequest] receives the rental id of a request whose "Review request" button is tapped,
- * and [onOpenChat] the one of a tapped Borrowing request. [onRentalClick] receives the one of any
- * tapped CURRENT card.
+ * [onReviewRequest] receives the rental id of a request whose "Review request" button is tapped.
+ * [onRentalClick] receives the one of any other tapped card: a Borrowing request or a CURRENT card.
  */
 @Composable
 fun MyRentalsScreen(
     viewModel: MyRentalsViewModel,
     onRentalClick: (String) -> Unit = {},
     onReviewRequest: (String) -> Unit = {},
-    onOpenChat: (String) -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   MyRentalsContent(
@@ -69,7 +67,6 @@ fun MyRentalsScreen(
       onRentalClick = onRentalClick,
       onRetry = viewModel::retry,
       onReviewRequest = onReviewRequest,
-      onOpenChat = onOpenChat,
   )
 }
 
@@ -86,7 +83,6 @@ fun MyRentalsContent(
     onRentalClick: (String) -> Unit,
     onRetry: () -> Unit,
     onReviewRequest: (String) -> Unit = {},
-    onOpenChat: (String) -> Unit = {},
     today: LocalDate = LocalDate.now(),
 ) {
   Column(
@@ -163,15 +159,14 @@ fun MyRentalsContent(
             }
             items(requests, key = { it.rentalId }) { row ->
               // Only the request card differs: the lender has a request to answer, while the
-              // borrower can only wait, so a plain card is enough. It opens the Chat because
-              // that is what is left to do before acceptance: agree on the deposit and meeting
-              // point.
+              // borrower can only wait, so a plain card is enough. It opens Rental detail like a
+              // CURRENT card, which links to the chat and lets the borrower cancel the request.
               if (isBorrowing) {
                 RentalCard(
                     row = row,
                     personLine = row.personLine(tab),
                     today = today,
-                    onClick = { onOpenChat(row.rentalId) },
+                    onClick = { onRentalClick(row.rentalId) },
                 )
               } else {
                 RequestCard(row = row, onReviewRequest = { onReviewRequest(row.rentalId) })

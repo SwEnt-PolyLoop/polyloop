@@ -4,6 +4,7 @@ package com.swent.polyloop.ui.components
 
 import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.bookedDays
+import com.swent.polyloop.model.listing.bufferDays
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals

@@ -7,11 +7,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.profile.ProfileRepository
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * State of the Edit profile screen, where the signed-in user changes their name and photo.
@@ -108,37 +110,42 @@ class EditProfileViewModel(
       return
     }
     _uiState.update { it.copy(isSaving = true, saveFailed = false) }
+    // Leaving the screen clears this ViewModel and would cancel the save halfway, after the photo
+    // replaced the old one but before the profile points to it, so it runs to the end regardless
+    // (at most 30 s for the upload and 10 s for the profile).
     viewModelScope.launch {
-      // 1. Upload the new photo, if one was taken and not uploaded yet; otherwise keep the saved
-      //    one.
-      val newPhotoUri = form.newPhotoUri
-      val alreadyUploaded = uploadedPhoto?.takeIf { it.first == newPhotoUri }?.second
-      val photoUrl =
-          when {
-            newPhotoUri == null -> form.photoUrl
-            alreadyUploaded != null -> alreadyUploaded
-            else ->
-                profileRepository.uploadProfilePhoto(uid, newPhotoUri).getOrElse {
-                  onSaveFailed()
-                  return@launch
-                }
-          }
-      if (newPhotoUri != null) uploadedPhoto = newPhotoUri to photoUrl
-      // 2. Save the name and the photo's URL in the profile.
-      profileRepository
-          .updateProfile(uid, name, photoUrl)
-          .onSuccess {
-            _uiState.update {
-              it.copy(
-                  name = name,
-                  photoUrl = photoUrl,
-                  newPhotoUri = null,
-                  isSaving = false,
-                  isSaved = true,
-              )
+      withContext(NonCancellable) {
+        // 1. Upload the new photo, if one was taken and not uploaded yet; otherwise keep the saved
+        //    one.
+        val newPhotoUri = form.newPhotoUri
+        val alreadyUploaded = uploadedPhoto?.takeIf { it.first == newPhotoUri }?.second
+        val photoUrl =
+            when {
+              newPhotoUri == null -> form.photoUrl
+              alreadyUploaded != null -> alreadyUploaded
+              else ->
+                  profileRepository.uploadProfilePhoto(uid, newPhotoUri).getOrElse {
+                    onSaveFailed()
+                    return@withContext
+                  }
             }
-          }
-          .onFailure { onSaveFailed() }
+        if (newPhotoUri != null) uploadedPhoto = newPhotoUri to photoUrl
+        // 2. Save the name and the photo's URL in the profile.
+        profileRepository
+            .updateProfile(uid, name, photoUrl)
+            .onSuccess {
+              _uiState.update {
+                it.copy(
+                    name = name,
+                    photoUrl = photoUrl,
+                    newPhotoUri = null,
+                    isSaving = false,
+                    isSaved = true,
+                )
+              }
+            }
+            .onFailure { onSaveFailed() }
+      }
     }
   }
 
