@@ -251,6 +251,7 @@ object C {
     const val handover_failed_photo = "handover_failed_photo"
     const val handover_photos_status = "handover_photos_status"
     const val handover_photos_error = "handover_photos_error"
+    const val handover_photos_retry_button = "handover_photos_retry_button"
     const val handover_not_pickup_day = "handover_not_pickup_day"
     const val handover_photo_viewer = "handover_photo_viewer"
     const val handover_photo_viewer_close = "handover_photo_viewer_close"

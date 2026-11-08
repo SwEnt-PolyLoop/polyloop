@@ -33,6 +33,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -173,6 +174,7 @@ fun HandoverContent(
                   onAddPhoto,
                   onRetryUpload,
                   onPhotoClick = { enlargedId = it },
+                  onRetryPhotos = onRetry,
               )
               CameraPermissionMessage(cameraPermissionGranted)
             }
@@ -296,6 +298,7 @@ private fun PhotosCard(
     onAddPhoto: () -> Unit,
     onRetryUpload: () -> Unit,
     onPhotoClick: (id: String) -> Unit,
+    onRetryPhotos: () -> Unit,
 ) {
   val photoTiles: List<@Composable () -> Unit> =
       uiState.photos.map { photo ->
@@ -345,6 +348,12 @@ private fun PhotosCard(
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.testTag(C.Tag.handover_photos_error),
         )
+        OutlinedButton(
+            onClick = onRetryPhotos,
+            modifier = Modifier.testTag(C.Tag.handover_photos_retry_button),
+        ) {
+          Text(stringResource(R.string.handover_retry))
+        }
       } else {
         TileGrid(photoTiles + pendingTiles + emptyTiles)
         if (uiState.isPickupDay) PhotosStatus(uiState.photosNeeded)

@@ -247,12 +247,14 @@ class HandoverScreenTest {
   }
 
   @Test
-  fun photosThatCannotBeLoadedShowAnErrorInsteadOfTheTiles() {
+  fun photosThatCannotBeLoadedShowAnErrorWithRetryInsteadOfTheTiles() {
     setContent(pickup.copy(photosFailed = true))
 
     assertShown(C.Tag.handover_photos_error)
     assertTiles(photos = 0, empty = 0)
     assertAbsent(C.Tag.handover_photos_status)
+    composeTestRule.onNodeWithTag(C.Tag.handover_photos_retry_button).performClick()
+    assertEquals(1, retries)
   }
 
   @Test
