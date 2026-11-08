@@ -3,10 +3,12 @@
 package com.swent.polyloop.ui.createlisting
 
 import android.Manifest
+import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.positionOnScreen
@@ -19,8 +21,6 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.toSize
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -31,6 +31,9 @@ import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.resources.C
 import java.io.File
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -72,6 +75,7 @@ class CreateListingCameraTest {
           onRemovePhoto = {},
           onPhotoTaken = viewModel::onPhotoTaken,
           onCloseCamera = viewModel::closeCamera,
+          onCaptureFailed = {},
           onPublish = {},
       )
     }
@@ -192,6 +196,8 @@ class CreateListingCameraTest {
       onPhotoTaken: (String) -> Unit = {},
       onClose: () -> Unit = {},
       maxPhotos: Int = Listing.MAX_PHOTOS,
+      onCaptureFailed: (String) -> Unit = {},
+      fileDispatcher: CoroutineDispatcher = Dispatchers.Main,
   ) {
     composeTestRule.setContent {
       PolyLoopCameraContent(
@@ -201,6 +207,8 @@ class CreateListingCameraTest {
           onClose = onClose,
           preview = { _, modifier -> Box(modifier) },
           capture = fake::capture,
+          onCaptureFailed = onCaptureFailed,
+          fileDispatcher = fileDispatcher,
       )
     }
   }
@@ -236,7 +244,12 @@ class CreateListingCameraTest {
 
   @Test
   fun removingATakenPhotoDeletesItsFile() {
-    val vm = CreateListingViewModel(UnusedListingRepository(), FakeAuthRepository())
+    val vm =
+        storedCreateListingViewModel(
+            ViewModelStore(),
+            UnusedListingRepository(),
+            FakeAuthRepository(),
+        )
     val file = takePhotoInto(vm)
 
     vm.onRemovePhoto(0)
@@ -248,15 +261,7 @@ class CreateListingCameraTest {
   @Test
   fun clearingTheViewModelWithoutPublishingDeletesTheTakenPhotoFile() {
     val store = ViewModelStore()
-    val vm =
-        ViewModelProvider(
-            store,
-            object : ViewModelProvider.Factory {
-              @Suppress("UNCHECKED_CAST")
-              override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                  CreateListingViewModel(UnusedListingRepository(), FakeAuthRepository()) as T
-            },
-        )[CreateListingViewModel::class.java]
+    val vm = storedCreateListingViewModel(store, UnusedListingRepository(), FakeAuthRepository())
     val file = takePhotoInto(vm)
 
     store.clear()
@@ -305,14 +310,25 @@ class CreateListingCameraTest {
     val fake = FakeCapture()
     var closed = false
     val taken = mutableListOf<String>()
-    setCameraContent(fake, onPhotoTaken = { taken.add(it) }, onClose = { closed = true })
+    val failed = mutableListOf<String>()
+    setCameraContent(
+        fake,
+        onPhotoTaken = { taken.add(it) },
+        onClose = { closed = true },
+        onCaptureFailed = { failed.add(it) },
+    )
     node(C.Tag.create_listing_camera_error).assertDoesNotExist()
 
     node(C.Tag.create_listing_camera_shutter).performClick()
+    composeTestRule.waitForIdle()
     assertTrue(fake.file!!.exists())
     composeTestRule.runOnIdle { fake.onError() }
 
-    assertFalse(fake.file!!.exists())
+    composeTestRule.waitForIdle()
+    // The screen only reports the failure; deleting the file is the caller's job.
+    assertEquals(listOf(Uri.fromFile(fake.file).toString()), failed)
+    assertTrue(fake.file!!.exists())
+    fake.file!!.delete()
     node(C.Tag.create_listing_camera_error).assertIsDisplayed()
     node(C.Tag.create_listing_camera).assertIsDisplayed()
     node(C.Tag.create_listing_camera_shutter).assertIsEnabled()
@@ -333,6 +349,8 @@ class CreateListingCameraTest {
           onClose = { closed = true },
           preview = { _, modifier -> Box(modifier) },
           capture = fake::capture,
+          onCaptureFailed = {},
+          fileDispatcher = Dispatchers.Main,
       )
     }
 
@@ -352,5 +370,92 @@ class CreateListingCameraTest {
 
     node(C.Tag.create_listing_camera_shutter).assertIsNotEnabled()
     composeTestRule.runOnIdle { assertTrue(closed) }
+  }
+
+  @Test
+  fun openingTheCameraDeletesStalePhotosExceptTheOnesTheFormHolds() {
+    val held = staleFile(context, "held-${System.nanoTime()}.jpg")
+    val notHeld = staleFile(context, "not-held-${System.nanoTime()}.jpg")
+    try {
+      viewModel.onPhotoTaken(Uri.fromFile(held).toString())
+      viewModel.openCamera()
+      setContent()
+
+      composeTestRule.waitUntil(5_000) { !notHeld.exists() }
+      composeTestRule.waitForIdle()
+      assertTrue(held.exists())
+    } finally {
+      held.delete()
+      notHeld.delete()
+    }
+  }
+
+  /** Makes the photo folder impossible to create: a plain file sits where it should be. */
+  private fun blockPhotoFolder(): File {
+    val folder = File(context.filesDir, LISTING_PHOTOS_DIR)
+    folder.deleteRecursively()
+    folder.writeText("not a folder")
+    return folder
+  }
+
+  @Test
+  fun aFailedFilePreparationShowsTheErrorAndLetsTheUserTapAgain() {
+    val folder = blockPhotoFolder()
+    try {
+      val fake = FakeCapture()
+      setCameraContent(fake)
+
+      node(C.Tag.create_listing_camera_shutter).performClick()
+
+      composeTestRule.waitForIdle()
+      node(C.Tag.create_listing_camera_error).assertIsDisplayed()
+      node(C.Tag.create_listing_camera_shutter).assertIsEnabled()
+      assertEquals(0, fake.captures)
+
+      // The folder works again: a new tap takes the photo and clears the error.
+      folder.delete()
+      node(C.Tag.create_listing_camera_shutter).performClick()
+      composeTestRule.waitForIdle()
+      assertEquals(1, fake.captures)
+      node(C.Tag.create_listing_camera_error).assertDoesNotExist()
+    } finally {
+      folder.deleteRecursively()
+    }
+  }
+
+  @Test
+  fun closingTheCameraWhileTheFileIsPreparedStartsNoCapture() {
+    val queued = mutableListOf<Runnable>()
+    val manual =
+        object : CoroutineDispatcher() {
+          override fun dispatch(context: CoroutineContext, block: Runnable) {
+            queued += block
+          }
+        }
+    val fake = FakeCapture()
+    var showCamera by mutableStateOf(true)
+    composeTestRule.setContent {
+      if (showCamera) {
+        PolyLoopCameraContent(
+            photoCount = 0,
+            onPhotoTaken = {},
+            onClose = {},
+            preview = { _, modifier -> Box(modifier) },
+            capture = fake::capture,
+            onCaptureFailed = {},
+            fileDispatcher = manual,
+        )
+      }
+    }
+    node(C.Tag.create_listing_camera_shutter).performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.runOnIdle { showCamera = false }
+    composeTestRule.waitForIdle()
+    // The preparation (and the opening cleanup) finishes only now, after the camera is gone.
+    while (queued.isNotEmpty()) queued.removeAt(0).run()
+    composeTestRule.waitForIdle()
+
+    assertEquals(0, fake.captures)
   }
 }

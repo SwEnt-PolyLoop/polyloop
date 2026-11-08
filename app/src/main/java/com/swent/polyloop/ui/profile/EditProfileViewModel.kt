@@ -7,7 +7,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.profile.ProfileRepository
+import com.swent.polyloop.ui.createlisting.deletePhotoFile
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,10 +52,19 @@ data class EditProfileUiState(
 /**
  * Edits the signed-in user's profile: loads it once, then saves the name and, if one was taken, a
  * new photo (uploaded first, then saved with the name).
+ *
+ * @param profileRepository where the profile is loaded and saved.
+ * @param authRepository where the signed-in user is read.
+ * @param deletePhoto deletes the photo file at a `file:` URI; production uses [deletePhotoFile].
+ * @param fileScope the scope the deletion runs in, so the disk is never touched on the main thread.
+ *   Production uses a [SupervisorJob] on [Dispatchers.IO]; tests pass a scope on a test dispatcher
+ *   to control when the deletion runs.
  */
 class EditProfileViewModel(
     private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
+    private val deletePhoto: (uri: String) -> Unit = ::deletePhotoFile,
+    private val fileScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(EditProfileUiState())
@@ -79,6 +92,15 @@ class EditProfileViewModel(
   }
 
   fun openCamera() = _uiState.update { if (it.canSave) it.copy(isCameraOpen = true) else it }
+
+  /**
+   * Deletes the file prepared for a shot that failed, which never became the new photo.
+   *
+   * @param uri the `file:` URI the camera had prepared for the shot.
+   */
+  fun onCaptureFailed(uri: String) {
+    fileScope.launch { deletePhoto(uri) }
+  }
 
   /** Closes the camera without changing the photo. */
   fun closeCamera() = _uiState.update { it.copy(isCameraOpen = false) }

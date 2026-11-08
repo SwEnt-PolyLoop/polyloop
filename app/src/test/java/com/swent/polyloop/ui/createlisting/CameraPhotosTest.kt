@@ -101,7 +101,75 @@ class CameraPhotosTest {
   }
 
   @Test
-  fun newPhotoFileDeletesFilesOlderThanADay() {
+  fun deleteStalePhotosDeletesFilesOlderThanADay() {
+    val dir = tempFolder.newFolder(LISTING_PHOTOS_DIR)
+    val now = 10 * STALE_PHOTO_AGE_MS
+    val old = File(dir, "old.jpg").apply { writeText("jpeg") }
+    old.setLastModified(now - STALE_PHOTO_AGE_MS - 1)
+
+    deleteStalePhotos(dir, nowMillis = now)
+
+    assertFalse(old.exists())
+  }
+
+  @Test
+  fun deleteStalePhotosKeepsRecentFiles() {
+    val dir = tempFolder.newFolder(LISTING_PHOTOS_DIR)
+    val now = 10 * STALE_PHOTO_AGE_MS
+    val recent = File(dir, "recent.jpg").apply { writeText("jpeg") }
+    recent.setLastModified(now - STALE_PHOTO_AGE_MS + 60_000)
+
+    deleteStalePhotos(dir, nowMillis = now)
+
+    assertTrue(recent.exists())
+  }
+
+  @Test
+  fun deleteStalePhotosKeepsAStaleFileThatIsInTheKeepList() {
+    val dir = tempFolder.newFolder(LISTING_PHOTOS_DIR)
+    val now = 10 * STALE_PHOTO_AGE_MS
+    val held = File(dir, "held.jpg").apply { writeText("jpeg") }
+    val notHeld = File(dir, "not_held.jpg").apply { writeText("jpeg") }
+    held.setLastModified(now - STALE_PHOTO_AGE_MS - 1)
+    notHeld.setLastModified(now - STALE_PHOTO_AGE_MS - 1)
+
+    // A "file:///" URI, as Uri.fromFile gives, not the "file:/" of File.toURI().
+    deleteStalePhotos(dir, nowMillis = now, keep = listOf("file://${held.absolutePath}"))
+
+    assertTrue(held.exists())
+    assertFalse(notHeld.exists())
+  }
+
+  @Test
+  fun deleteStalePhotosIgnoresKeepEntriesThatAreNotFileUris() {
+    val dir = tempFolder.newFolder(LISTING_PHOTOS_DIR)
+    val now = 10 * STALE_PHOTO_AGE_MS
+    val old = File(dir, "old.jpg").apply { writeText("jpeg") }
+    old.setLastModified(now - STALE_PHOTO_AGE_MS - 1)
+
+    deleteStalePhotos(
+        dir,
+        nowMillis = now,
+        keep = listOf("content://media/${old.name}", "not a uri", old.absolutePath),
+    )
+
+    assertFalse(old.exists())
+  }
+
+  @Test
+  fun deleteStalePhotosNeverDeletesOutsideTheListingPhotosFolder() {
+    val dir = tempFolder.newFolder("other_folder")
+    val now = 10 * STALE_PHOTO_AGE_MS
+    val old = File(dir, "old.jpg").apply { writeText("jpeg") }
+    old.setLastModified(now - STALE_PHOTO_AGE_MS - 1)
+
+    deleteStalePhotos(dir, nowMillis = now)
+
+    assertTrue(old.exists())
+  }
+
+  @Test
+  fun newPhotoFileDoesNotDeleteStaleFiles() {
     val dir = tempFolder.newFolder(LISTING_PHOTOS_DIR)
     val now = 10 * STALE_PHOTO_AGE_MS
     val old = File(dir, "old.jpg").apply { writeText("jpeg") }
@@ -109,19 +177,7 @@ class CameraPhotosTest {
 
     newPhotoFile(dir, nowMillis = now)
 
-    assertFalse(old.exists())
-  }
-
-  @Test
-  fun newPhotoFileKeepsRecentFiles() {
-    val dir = tempFolder.newFolder(LISTING_PHOTOS_DIR)
-    val now = 10 * STALE_PHOTO_AGE_MS
-    val recent = File(dir, "recent.jpg").apply { writeText("jpeg") }
-    recent.setLastModified(now - STALE_PHOTO_AGE_MS + 60_000)
-
-    newPhotoFile(dir, nowMillis = now)
-
-    assertTrue(recent.exists())
+    assertTrue(old.exists())
   }
 
   @Test
@@ -135,7 +191,11 @@ class CameraPhotosTest {
 
   @Test
   fun deleteStalePhotosIgnoresAMissingFolder() {
-    deleteStalePhotos(File(tempFolder.root, "missing"), nowMillis = 10 * STALE_PHOTO_AGE_MS)
+    val missing = File(tempFolder.root, "missing")
+
+    deleteStalePhotos(missing, nowMillis = 10 * STALE_PHOTO_AGE_MS)
+
+    assertFalse(missing.exists())
   }
 
   @Test
@@ -156,6 +216,13 @@ class CameraPhotosTest {
     newPhotoFile(dir)
 
     assertTrue(dir.isDirectory)
+  }
+
+  @Test(expected = java.io.IOException::class)
+  fun newPhotoFileThrowsWhenTheFolderCannotBeCreated() {
+    val notAFolder = tempFolder.newFile("file")
+
+    newPhotoFile(File(notAFolder, LISTING_PHOTOS_DIR))
   }
 
   @Test

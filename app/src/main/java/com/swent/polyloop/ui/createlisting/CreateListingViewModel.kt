@@ -3,8 +3,10 @@
 package com.swent.polyloop.ui.createlisting
 
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.listing.Listing
@@ -13,6 +15,9 @@ import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import java.time.LocalDate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -115,12 +120,23 @@ data class CreateListingUiState(
  *
  * The photo files are deleted through [deletePhoto] when a photo is removed, when the form is
  * closed without publishing, and after a successful publish; they are kept when publishing fails,
- * so the user can try again.
+ * so the user can try again. Deleting touches the disk, so it runs on [fileScope], never on the
+ * main thread.
+ *
+ * @param listingRepository where the listing is published.
+ * @param authRepository where the signed-in owner is read.
+ * @param deletePhoto deletes the photo file at a `file:` URI; production uses [deletePhotoFile].
+ * @param fileScope the scope the photo deletions run in. It is the ViewModel's own, not
+ *   [viewModelScope], because clearing the ViewModel cancels [viewModelScope] before [onCleared]
+ *   runs, and the photos still in the form must be deleted there. It is never cancelled: each job
+ *   is a few deletions and ends by itself. Production uses a [SupervisorJob] on [Dispatchers.IO];
+ *   tests pass a scope on a test dispatcher to control when the deletions run.
  */
 class CreateListingViewModel(
     private val listingRepository: ListingRepository,
     private val authRepository: AuthRepository,
     private val deletePhoto: (uri: String) -> Unit = ::deletePhotoFile,
+    private val fileScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(CreateListingUiState())
@@ -182,8 +198,15 @@ class CreateListingViewModel(
   fun onPhotoTaken(uri: String) {
     if (_uiState.value.canAddPhoto && !_uiState.value.isPublishing)
         _uiState.update { it.copy(photos = it.photos + uri) }
-    else deletePhoto(uri)
+    else deleteFiles(listOf(uri))
   }
+
+  /**
+   * Deletes the file prepared for a shot that failed, which was never added to the form.
+   *
+   * @param uri the `file:` URI the camera had prepared for the shot.
+   */
+  fun onCaptureFailed(uri: String) = deleteFiles(listOf(uri))
 
   /**
    * Removes the photo at [index] and deletes its file. Ignored when there is no photo there, and
@@ -195,7 +218,7 @@ class CreateListingViewModel(
     if (_uiState.value.isPublishing) return
     val removed = _uiState.value.photos.getOrNull(index) ?: return
     _uiState.update { it.copy(photos = it.photos.filterIndexed { i, _ -> i != index }) }
-    deletePhoto(removed)
+    deleteFiles(listOf(removed))
   }
 
   /**
@@ -235,7 +258,7 @@ class CreateListingViewModel(
           .createListing(listing, addresses, form.photos.map(Uri::parse))
           .onSuccess { id ->
             published = true
-            form.photos.forEach(deletePhoto)
+            deleteFiles(form.photos)
             _uiState.update { it.copy(isPublishing = false, publishedListingId = id) }
           }
           .onFailure { _uiState.update { it.copy(isPublishing = false, publishFailed = true) } }
@@ -247,7 +270,17 @@ class CreateListingViewModel(
 
   /** The form is closed: deletes the photos still in it, unless the listing was published. */
   override fun onCleared() {
-    if (!published) _uiState.value.photos.forEach(deletePhoto)
+    if (!published) deleteFiles(_uiState.value.photos)
+  }
+
+  /**
+   * Deletes the photo files at [uris] on [fileScope], off the main thread. It also works from
+   * [onCleared], where [viewModelScope] is already cancelled.
+   *
+   * @param uris the `file:` URIs of the photos to delete.
+   */
+  private fun deleteFiles(uris: List<String>) {
+    fileScope.launch { uris.forEach(deletePhoto) }
   }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */
@@ -264,6 +297,37 @@ class CreateListingViewModel(
     }
   }
 }
+
+/**
+ * A [CreateListingViewModel] held by [store], so a test can clear it with `store.clear()` like the
+ * navigation does, with the given repositories and photo deleter. Only tests use it: it exists once
+ * here because `androidTest` cannot see the unit tests' folder.
+ *
+ * @param store the store that holds the ViewModel; clearing it calls the ViewModel's `onCleared`.
+ * @param listingRepository the repository the ViewModel publishes to; tests pass a fake.
+ * @param authRepository the repository the ViewModel reads the owner from; tests pass a fake.
+ * @param fileScope where the deletions run; by default a scope on [Dispatchers.Unconfined], so a
+ *   test sees them done as soon as the call returns. Tests that control the timing pass a scope on
+ *   a test dispatcher.
+ * @param deletePhoto how a photo file is deleted; tests pass a recorder or a fake.
+ * @return the ViewModel stored in [store] (the same one if the store already holds it).
+ */
+@VisibleForTesting
+internal fun storedCreateListingViewModel(
+    store: ViewModelStore,
+    listingRepository: ListingRepository,
+    authRepository: AuthRepository,
+    fileScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+    deletePhoto: (uri: String) -> Unit = ::deletePhotoFile,
+): CreateListingViewModel =
+    ViewModelProvider(
+        store,
+        object : ViewModelProvider.Factory {
+          @Suppress("UNCHECKED_CAST")
+          override fun <T : ViewModel> create(modelClass: Class<T>): T =
+              CreateListingViewModel(listingRepository, authRepository, deletePhoto, fileScope) as T
+        },
+    )[CreateListingViewModel::class.java]
 
 /** Only the digits 0-9 ("007" is 7), from 1 to [Listing.MAX_AMOUNT]. */
 internal fun String.isWholeNumberAboveZero(): Boolean =
