@@ -50,7 +50,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Listing detail | ListingDetailViewModel | Listing (the item and its booked days); Rental (sending the request); Profile (the owner's name and rating); Auth (the borrower sending the request) |
 | Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active); Auth (the owner publishing the listing) |
 | My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
-| Review request | ReviewRequestViewModel | Rental (the request, sending the offer, declining); Listing (the item value, shown as the suggested deposit); Profile (the borrower's rating) |
+| Review request | ReviewRequestViewModel | Rental (the request, sending the offer, declining, the lender's other requests whose dates overlap); Listing (the item value, shown as the suggested deposit); Profile (the borrower's rating) |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |
 | Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos, not used yet); Rental (the item, the other person and the user's role; the deposit once rentals have one, #176) |
