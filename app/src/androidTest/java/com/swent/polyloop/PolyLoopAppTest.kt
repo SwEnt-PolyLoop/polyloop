@@ -489,7 +489,9 @@ class PolyLoopAppTest {
                         borrowerId = "user-1",
                         status = RentalStatus.REQUESTED,
                     )
-                )
+                ),
+            // Before the rental's first day, or the offer is refused.
+            clock = { Instant.parse("2026-10-01T10:00:00Z") },
         )
     RepositoryProvider.rentalRepository = rentals
     setAppSignedIn()
