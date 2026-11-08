@@ -7,6 +7,7 @@ import {
   Timestamp,
   Transaction,
 } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import {
   LLM_PROPOSAL,
   PROPOSAL_CHANGED,
@@ -35,6 +36,12 @@ interface StoredProposal {
   authorId: string;
   lenderPercent: number;
   createdAt: Timestamp;
+}
+
+/** What a sweep did: the disputes it escalated, and those it could not, retried by the next one. */
+export interface EscalationSweepResult {
+  escalated: number;
+  failed: number;
 }
 
 /** A dispute and its rental, read in a transaction. */
@@ -148,17 +155,85 @@ export async function escalateDispute(
 }
 
 /**
- * Moves a dispute on to the LLM proposal, with [escalatedBy] and a SYSTEM message in the rental's
- * chat. Runs inside the caller's transaction, after its reads.
+ * Moves on to the LLM proposal every dispute still in direct settlement whose `escalatesAt` has
+ * passed at [now]. One failure is logged and does not stop the others. The query is on one field,
+ * so it needs no composite index; the stage and the agreement are checked in each transaction.
+ *
+ * @param db the Firestore database.
+ * @param now the current time, passed so that tests can set it.
+ * @param escalate handles one dispute; tests pass one that fails.
+ * @returns how many disputes were escalated and how many could not be.
+ */
+export async function escalateOverdueDisputes(
+  db: Firestore,
+  now: Date,
+  escalate: typeof escalateIfOverdue = escalateIfOverdue,
+): Promise<EscalationSweepResult> {
+  const overdue = await db
+    .collection(DISPUTES)
+    .where("escalatesAt", "<=", Timestamp.fromDate(now))
+    .select()
+    .get();
+  const results = await Promise.allSettled(
+    overdue.docs.map((doc) =>
+      escalate(doc.ref, now).catch((error) => {
+        logger.error(`Could not escalate the dispute of rental ${doc.id}`, error);
+        throw error;
+      }),
+    ),
+  );
+  return {
+    escalated: results.filter((result) => result.status === "fulfilled" && result.value).length,
+    failed: results.filter((result) => result.status === "rejected").length,
+  };
+}
+
+/**
+ * Moves one dispute on to the LLM proposal if, at [now], it is still in direct settlement, not
+ * settled and past its `escalatesAt`, in one transaction. The check is made again because a party
+ * may have agreed or escalated since the query.
+ *
+ * @param disputeRef the dispute to check.
+ * @param now the current time.
+ * @returns true if the dispute was escalated, false if there was nothing to do.
+ */
+export async function escalateIfOverdue(
+  disputeRef: DocumentReference,
+  now: Date,
+): Promise<boolean> {
+  return disputeRef.firestore.runTransaction(async (tx) => {
+    const dispute = (await tx.get(disputeRef)).data();
+    const escalatesAt = dispute?.escalatesAt as Timestamp | undefined;
+    if (
+      dispute?.stage !== SETTLE ||
+      dispute.agreedAt ||
+      !escalatesAt ||
+      escalatesAt.toMillis() > now.getTime()
+    ) {
+      return false;
+    }
+    const rentalRef = disputeRef.firestore.collection(RENTALS).doc(disputeRef.id);
+    moveToLlmProposal(tx, disputeRef, rentalRef, null);
+    return true;
+  });
+}
+
+/**
+ * Moves a dispute on to the LLM proposal, with [escalatedBy] (null when it moved on by itself) and
+ * a SYSTEM message in the rental's chat. Runs inside the caller's transaction, after its reads.
  */
 function moveToLlmProposal(
   tx: Transaction,
   disputeRef: DocumentReference,
   rentalRef: DocumentReference,
-  escalatedBy: string,
+  escalatedBy: string | null,
 ): void {
   tx.update(disputeRef, { stage: LLM_PROPOSAL, escalatedBy });
-  writeWithSystemMessage(tx, rentalRef, "Dispute escalated · waiting for the LLM proposal", {});
+  const text =
+    escalatedBy === null
+      ? "No agreement after 30 days · waiting for the LLM proposal"
+      : "Dispute escalated · waiting for the LLM proposal";
+  writeWithSystemMessage(tx, rentalRef, text, {});
 }
 
 /**
