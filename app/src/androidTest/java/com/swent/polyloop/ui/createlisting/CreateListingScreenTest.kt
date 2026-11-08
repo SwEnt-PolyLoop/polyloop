@@ -79,6 +79,7 @@ class CreateListingScreenTest {
           onRemovePhoto = {},
           onPhotoTaken = {},
           onCloseCamera = {},
+          onCaptureFailed = {},
           onPublish = { publishClicks++ },
       )
     }
@@ -176,6 +177,7 @@ class CreateListingScreenTest {
           onRemovePhoto = {},
           onPhotoTaken = {},
           onCloseCamera = {},
+          onCaptureFailed = {},
           onPublish = {},
       )
     }
@@ -323,6 +325,7 @@ class CreateListingScreenTest {
           onRemovePhoto = {},
           onPhotoTaken = {},
           onCloseCamera = {},
+          onCaptureFailed = {},
           onPublish = {},
           onListingPublished = { opened = it },
       )
@@ -417,6 +420,7 @@ class CreateListingScreenTest {
           onRemovePhoto = {},
           onPhotoTaken = {},
           onCloseCamera = {},
+          onCaptureFailed = {},
           onPublish = {},
           today = today,
       )

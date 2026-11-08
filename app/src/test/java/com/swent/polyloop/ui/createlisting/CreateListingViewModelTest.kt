@@ -2,8 +2,6 @@
 
 package com.swent.polyloop.ui.createlisting
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.listing.Listing
@@ -156,19 +154,9 @@ class CreateListingViewModelTest {
 
   /** A ViewModel that records the deleted photos, held by [store] so the test can clear it. */
   private fun recordingViewModel(store: ViewModelStore = ViewModelStore()): CreateListingViewModel =
-      ViewModelProvider(
-          store,
-          object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                CreateListingViewModel(
-                    FakeListingRepository(),
-                    FakeAuthRepository(),
-                    deletePhoto = { deleted += it },
-                )
-                    as T
-          },
-      )[CreateListingViewModel::class.java]
+      storedCreateListingViewModel(store, FakeListingRepository(), FakeAuthRepository()) {
+        deleted += it
+      }
 
   @Test
   fun onRemovePhotoDeletesTheRemovedFileOnly() {

@@ -12,7 +12,10 @@ import com.swent.polyloop.model.profile.UserProfile
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -51,6 +54,20 @@ class EditProfileViewModelTest {
   private fun viewModel() = EditProfileViewModel(profiles, auth)
 
   private fun savedProfile(): UserProfile = profiles.profiles.single { it.uid == "me" }
+
+  @Test
+  fun aFailedCaptureDeletesItsFileOnTheFileScopeAndKeepsThePhoto() {
+    val deleted = mutableListOf<String>()
+    val fileScope = TestScope(StandardTestDispatcher())
+    val vm = EditProfileViewModel(profiles, auth, { deleted += it }, fileScope)
+
+    vm.onCaptureFailed("file:///data/listing_photos/failed.jpg")
+    assertTrue(deleted.isEmpty())
+    fileScope.advanceUntilIdle()
+
+    assertEquals(listOf("file:///data/listing_photos/failed.jpg"), deleted)
+    assertNull(vm.uiState.value.newPhotoUri)
+  }
 
   // ---------- loading ----------
 

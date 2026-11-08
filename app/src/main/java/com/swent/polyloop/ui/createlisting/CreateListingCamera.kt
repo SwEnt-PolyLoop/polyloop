@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,8 +52,12 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.resources.C
 import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The in-app camera: a live [CameraPreview] with a [CameraOverlay] (shutter, close button, count
@@ -65,16 +70,32 @@ import kotlinx.coroutines.CancellationException
  * [maxPhotos] (10 for a listing). With [maxPhotos] 1, e.g. for a profile photo, the count is
  * hidden. A camera or capture error shows a short message and keeps the camera open.
  *
+ * When the camera opens, photo files older than a day are deleted in the background, except the
+ * ones in [keepPhotos], the photos the caller's form still holds (`file:` URIs).
+ *
  * This is the only source of listing and profile photos: no gallery picker and no system camera
  * app.
+ *
+ * @param photoCount how many photos the caller's form holds, shown as the count and used to close
+ *   the camera at [maxPhotos].
+ * @param onPhotoTaken called with the `file:` URI of each photo saved.
+ * @param onClose called when the camera should close.
+ * @param modifier the modifier of the camera.
+ * @param maxPhotos how many photos fit: 10 for a listing, 1 for a profile photo.
+ * @param keepPhotos the photos the caller's form still holds, as `file:` URIs; the cleanup of old
+ *   photo files made when the camera opens never deletes them.
+ * @param onCaptureFailed called with the `file:` URI prepared for a shot that then failed, so the
+ *   caller deletes the leftover file; the camera itself deletes nothing.
  */
 @Composable
 fun PolyLoopCamera(
     photoCount: Int,
     onPhotoTaken: (uri: String) -> Unit,
     onClose: () -> Unit,
+    onCaptureFailed: (uri: String) -> Unit,
     modifier: Modifier = Modifier,
     maxPhotos: Int = Listing.MAX_PHOTOS,
+    keepPhotos: List<String> = emptyList(),
 ) {
   val context = LocalContext.current
   val imageCapture = remember {
@@ -89,6 +110,8 @@ fun PolyLoopCamera(
       onClose = onClose,
       modifier = modifier,
       maxPhotos = maxPhotos,
+      keepPhotos = keepPhotos,
+      onCaptureFailed = onCaptureFailed,
       preview = { onBindError, previewModifier ->
         CameraPreview(imageCapture, onBindError, previewModifier)
       },
@@ -102,6 +125,22 @@ fun PolyLoopCamera(
  * The state and shutter flow of [PolyLoopCamera], without CameraX: [preview] shows the live image
  * and calls its `onBindError` when the camera cannot start, and [capture] saves a shot into the
  * given file then calls `onSaved` or `onError`. Tests pass fakes for both.
+ *
+ * @param photoCount how many photos the caller's form holds, shown as the count and used to close
+ *   the camera at [maxPhotos].
+ * @param onPhotoTaken called with the `file:` URI of each photo saved.
+ * @param onClose called when the camera should close.
+ * @param preview shows the live image; it calls `onBindError` when the camera cannot start.
+ * @param capture saves a shot into the given file, then calls `onSaved` or `onError`.
+ * @param modifier the modifier of the camera.
+ * @param maxPhotos how many photos fit: 10 for a listing, 1 for a profile photo.
+ * @param keepPhotos the photos the caller's form still holds, as `file:` URIs; the cleanup of old
+ *   photo files made when the camera opens never deletes them.
+ * @param onCaptureFailed called with the `file:` URI prepared for a shot that then failed, so the
+ *   caller deletes the leftover file; the camera itself deletes nothing.
+ * @param fileDispatcher where the files are listed, created and deleted, so the main thread never
+ *   touches the disk. Production uses [Dispatchers.IO]; tests pass [Dispatchers.Main] so the
+ *   Compose test rule waits for the file work.
  */
 @Composable
 internal fun PolyLoopCameraContent(
@@ -110,14 +149,29 @@ internal fun PolyLoopCameraContent(
     onClose: () -> Unit,
     preview: @Composable (onBindError: () -> Unit, modifier: Modifier) -> Unit,
     capture: (file: File, onSaved: () -> Unit, onError: () -> Unit) -> Unit,
+    onCaptureFailed: (uri: String) -> Unit,
     modifier: Modifier = Modifier,
     maxPhotos: Int = Listing.MAX_PHOTOS,
+    keepPhotos: List<String> = emptyList(),
+    fileDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
   val context = LocalContext.current
-  var isCapturing by remember { mutableStateOf(false) }
+  val scope = rememberCoroutineScope()
+  // A state write is visible to the next read at once; only recomposition waits. So a second tap
+  // right after the first already sees it and is ignored.
+  var capturing by remember { mutableStateOf(false) }
   var hasError by remember { mutableStateOf(false) }
-  // Set before the capture starts, so a second tap before the next recomposition is ignored.
-  val captureInFlight = remember { AtomicBoolean(false) }
+
+  // Once, when the camera opens, and off the main thread: it lists and deletes files.
+  LaunchedEffect(Unit) {
+    withContext(fileDispatcher) {
+      deleteStalePhotos(
+          File(context.filesDir, LISTING_PHOTOS_DIR),
+          System.currentTimeMillis(),
+          keepPhotos,
+      )
+    }
+  }
 
   LaunchedEffect(photoCount) { if (shouldCloseCamera(photoCount, maxPhotos)) onClose() }
 
@@ -126,27 +180,38 @@ internal fun PolyLoopCameraContent(
     CameraOverlay(
         photoCount = photoCount,
         maxPhotos = maxPhotos,
-        canTakePhoto = canTakePhoto(photoCount, isCapturing, maxPhotos),
+        canTakePhoto = canTakePhoto(photoCount, capturing, maxPhotos),
         errorMessage = if (hasError) stringResource(R.string.create_listing_camera_error) else null,
         onShutter = {
-          if (captureInFlight.compareAndSet(false, true)) {
-            isCapturing = true
+          if (!capturing) {
+            capturing = true
             hasError = false
-            val file = newPhotoFile(File(context.filesDir, LISTING_PHOTOS_DIR))
-            capture(
-                file,
-                {
-                  captureInFlight.set(false)
-                  isCapturing = false
-                  onPhotoTaken(Uri.fromFile(file).toString())
-                },
-                {
-                  captureInFlight.set(false)
-                  isCapturing = false
-                  hasError = true
-                  deletePhotoFile(Uri.fromFile(file).toString())
-                },
-            )
+            scope.launch {
+              // The capture is marked started above, before this runs, so a second tap is ignored
+              // meanwhile; if no shot can start, it must be cleared here.
+              val file =
+                  try {
+                    withContext(fileDispatcher) {
+                      newPhotoFile(File(context.filesDir, LISTING_PHOTOS_DIR))
+                    }
+                  } catch (_: IOException) {
+                    hasError = true
+                    capturing = false
+                    return@launch
+                  }
+              capture(
+                  file,
+                  {
+                    capturing = false
+                    onPhotoTaken(Uri.fromFile(file).toString())
+                  },
+                  {
+                    capturing = false
+                    hasError = true
+                    onCaptureFailed(Uri.fromFile(file).toString())
+                  },
+              )
+            }
           }
         },
         onClose = onClose,
