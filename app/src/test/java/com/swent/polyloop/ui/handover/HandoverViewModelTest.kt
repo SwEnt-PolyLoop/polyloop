@@ -238,6 +238,15 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun aFailedShotHasItsFileDeletedAndAddsNothing() {
+    val vm = viewModel()
+
+    vm.onCaptureFailed("file1")
+    assertEquals(listOf("file1"), deleted)
+    assertEquals(0, handoverRepository.addPhotoCalls)
+  }
+
+  @Test
   fun aNewPhotoReplacesTheOneThatFailed() {
     val vm = viewModel()
     handoverRepository.failure = RuntimeException("offline")

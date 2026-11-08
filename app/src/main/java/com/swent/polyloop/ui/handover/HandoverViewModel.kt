@@ -112,6 +112,9 @@ class HandoverViewModel(
     if (_uiState.value.canAddPhoto) upload(uri)
   }
 
+  /** Deletes the file the camera prepared for a shot that failed; it was never a photo. */
+  fun onCaptureFailed(photoUri: String) = deletePhoto(photoUri)
+
   private fun upload(photoUri: String) {
     val phase = _uiState.value.phase ?: return
     _uiState.update { it.copy(isUploading = true, failedPhotoUri = null) }

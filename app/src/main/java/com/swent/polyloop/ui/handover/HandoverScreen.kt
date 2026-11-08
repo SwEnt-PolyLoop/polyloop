@@ -100,6 +100,7 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
         viewModel.addPhoto(uri)
       },
       onCloseCamera = { isCameraOpen = false },
+      onCaptureFailed = viewModel::onCaptureFailed,
   )
 }
 
@@ -108,7 +109,8 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
  * rental, a rental that takes no photos, or the pickup itself. [onAddPhoto] is called when an empty
  * photo tile is tapped, [onRetryUpload] when the photo that failed to upload is; photo times are
  * shown in [zone]. While [isCameraOpen], the in-app camera fills the screen for one photo, given to
- * [onPhotoTaken]; [cameraPermissionGranted] false shows how to allow the camera.
+ * [onPhotoTaken], or to [onCaptureFailed] if the shot fails; [cameraPermissionGranted] false shows
+ * how to allow the camera.
  */
 @Composable
 fun HandoverContent(
@@ -121,6 +123,7 @@ fun HandoverContent(
     cameraPermissionGranted: Boolean? = null,
     onPhotoTaken: (uri: String) -> Unit = {},
     onCloseCamera: () -> Unit = {},
+    onCaptureFailed: (uri: String) -> Unit = {},
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
   // The photo shown full screen after a tap, by id; null when none is.
@@ -196,7 +199,10 @@ fun HandoverContent(
           photoCount = 0,
           onPhotoTaken = onPhotoTaken,
           onClose = onCloseCamera,
+          onCaptureFailed = onCaptureFailed,
           maxPhotos = 1,
+          // The photo waiting for a retry is still needed, however old.
+          keepPhotos = listOfNotNull(uiState.failedPhotoUri),
       )
     }
   }
