@@ -335,11 +335,8 @@ class DisputeViewModel(
       return
     }
     observing = viewModelScope.launch {
-      val rental =
-          rentalRepository.getRental(rentalId).getOrElse {
-            fail()
-            return@launch
-          }
+      // A rental that cannot be read fails like a missing one.
+      val rental = rentalRepository.getRental(rentalId).getOrNull()
       if (rental == null || uid !in rental.participants) {
         fail()
         return@launch
