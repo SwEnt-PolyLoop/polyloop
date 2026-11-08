@@ -46,4 +46,62 @@ interface RentalRepository {
    * cannot be read.
    */
   suspend fun getRental(id: String): Result<Rental?>
+
+  /**
+   * The rental with this [id], emitted again every time it changes, or null if there is none. A
+   * read error is thrown to the collector, which handles it with `catch`.
+   */
+  fun observeRental(id: String): Flow<Rental?>
+
+  /**
+   * Sends the lender's offer on a request with no offer yet. The borrower sees the addresses only
+   * once the rental is accepted.
+   *
+   * @param rentalId the request to answer.
+   * @param deposit the deposit offered, in PP.
+   * @param pickupAddress the exact pickup address.
+   * @param returnAddress the exact drop-off address.
+   * @return a failure with the cause if the server refuses or cannot be reached.
+   */
+  suspend fun makeOffer(
+      rentalId: String,
+      deposit: Int,
+      pickupAddress: String,
+      returnAddress: String,
+  ): Result<Unit>
+
+  /**
+   * Accepts the offer waiting on a rental, which the other participant wrote. The rental becomes
+   * accepted, and the other requests whose dates overlap are declined.
+   *
+   * @param rentalId the rental whose offer is accepted.
+   * @return a failure with the cause if the server refuses or cannot be reached.
+   */
+  suspend fun acceptOffer(rentalId: String): Result<Unit>
+
+  /**
+   * Declines the offer waiting on a rental, which the other participant wrote. The rental becomes
+   * declined.
+   *
+   * @param rentalId the rental whose offer is declined.
+   * @return a failure with the cause if the server refuses or cannot be reached.
+   */
+  suspend fun declineOffer(rentalId: String): Result<Unit>
+
+  /**
+   * Answers the lender's offer with the borrower's single counteroffer.
+   *
+   * @param rentalId the rental whose offer is countered.
+   * @param deposit the deposit proposed instead, in PP.
+   * @return a failure with the cause if the server refuses or cannot be reached.
+   */
+  suspend fun counterOffer(rentalId: String, deposit: Int): Result<Unit>
+
+  /**
+   * Declines a request with no offer yet.
+   *
+   * @param rentalId the request to decline.
+   * @return a failure with the cause if the server refuses or cannot be reached.
+   */
+  suspend fun declineRequest(rentalId: String): Result<Unit>
 }

@@ -39,6 +39,7 @@
     <string name="listing_detail_date_range">%1$s – %2$s</string>
     <string name="listing_detail_deposit_note">The final deposit is agreed in chat before acceptance.</string>
     <string name="listing_detail_pickup_caption">Pickup area · exact address after acceptance</string>
+    <string name="pickup_map_description">Map of the pickup area</string>
     <string name="listing_detail_request_dates">Request dates</string>
     <string name="listing_detail_error_fallback">Could not load the listing</string>
     <string name="listing_detail_retry">Retry</string>
@@ -47,6 +48,7 @@
 
     <!-- Profile -->
     <string name="profile_name_placeholder">No name yet</string>
+    <string name="profile_photo_description">Profile photo</string>
     <plurals name="profile_rating">
         <item quantity="one">%1$.1f · %2$d review</item>
         <item quantity="other">%1$.1f · %2$d reviews</item>
@@ -56,14 +58,29 @@
     <string name="profile_no_listings">You haven\'t listed anything yet</string>
     <string name="profile_listings_error">Could not load your listings</string>
     <string name="profile_listings_stale">Could not refresh your listings. These are the last ones loaded.</string>
+    <string name="profile_listings_stale_empty">Could not refresh your listings.</string>
+    <string name="profile_other_listings">Listings</string>
+    <string name="profile_other_no_listings">%1$s has no listings yet</string>
+    <string name="profile_other_no_listings_unnamed">This user has no listings yet</string>
+    <string name="profile_other_listings_error">Could not load the listings</string>
+    <string name="profile_other_listings_stale">Could not refresh the listings. These are the last ones loaded.</string>
+    <string name="profile_other_listings_stale_empty">Could not refresh the listings.</string>
+    <string name="profile_other_listings_offline">Listings are unavailable offline</string>
     <string name="profile_listing_status_available">Available</string>
     <string name="profile_listing_status_booked">Booked</string>
     <string name="profile_listing_status_on_loan">On loan</string>
     <string name="profile_listing_status_draft">Draft</string>
     <string name="profile_sign_out">Sign out</string>
+    <string name="profile_edit">Edit profile</string>
     <string name="profile_error_fallback">Could not load the profile</string>
     <string name="profile_retry">Retry</string>
     <string name="profile_not_found">This profile doesn\'t exist.</string>
+    <string name="edit_profile_take_photo">Take photo</string>
+    <string name="edit_profile_name_label">Name</string>
+    <string name="edit_profile_name_required">Enter your name</string>
+    <string name="edit_profile_save">Save</string>
+    <string name="edit_profile_save_error">Your profile could not be saved. Check your connection and try again.</string>
+    <string name="edit_profile_load_error">Could not load your profile</string>
 
     <!-- My rentals -->
     <string name="my_rentals_title">My rentals</string>
@@ -297,6 +314,80 @@
     <!-- The total rental price in PolyPoints, e.g. "120 PP · reserved" -->
     <string name="rental_detail_price">%1$d PP · reserved</string>
     <string name="rental_detail_deposit_label">Suggested deposit</string>
+    <string name="rental_detail_chat">Chat</string>
+    <string name="rental_detail_pickup_label">PICKUP AREA</string>
+    <string name="rental_detail_area_placeholder">Area not known yet</string>
+    <string name="rental_detail_pickup_note">Only the area is shown for now. The exact address appears once the request is accepted.</string>
+    <!-- The last day the rental can be cancelled, e.g. "You can cancel until Wed 30 Sep" -->
+    <string name="rental_detail_cancel_until">You can cancel until %1$s</string>
+    <string name="rental_detail_cancel_request">Cancel request</string>
+
+    <!-- Dispute -->
+    <string name="dispute_title">Dispute</string>
+    <string name="dispute_role_lender">You lend</string>
+    <string name="dispute_role_borrower">You borrow</string>
+    <string name="dispute_settled">Settled</string>
+    <!-- The item, then the deposit, e.g. "Bike pump · deposit 60 PP" -->
+    <string name="dispute_item_deposit">%1$s · deposit %2$d PP</string>
+    <string name="dispute_step_settle">Settle</string>
+    <string name="dispute_step_llm">LLM proposal</string>
+    <string name="dispute_step_court">Court</string>
+    <string name="dispute_evidence">Evidence</string>
+    <string name="dispute_evidence_hint">pickup vs return</string>
+    <string name="dispute_unknown_person">Unknown user</string>
+    <string name="dispute_they_propose">%1$s proposes</string>
+    <string name="dispute_you_propose">You propose</string>
+    <string name="dispute_agreed">Agreed split</string>
+    <string name="dispute_no_proposal">No proposal yet</string>
+    <string name="dispute_you_would_get_back">You would get back</string>
+    <string name="dispute_you_get_back">You get back</string>
+    <!-- An amount of PolyPoints, which can have one decimal, e.g. "18 PP" or "16.5 PP" -->
+    <string name="dispute_amount">%1$s PP</string>
+    <string name="dispute_percent_sign">%</string>
+    <string name="dispute_counter">Counter</string>
+    <string name="dispute_update">Update</string>
+    <string name="dispute_accept">Accept</string>
+    <string name="dispute_propose">Propose a split</string>
+    <string name="dispute_waiting">Waiting for %1$s</string>
+    <string name="dispute_history">History</string>
+    <!-- Who proposed, then the day, e.g. "Ana · 2 Oct" -->
+    <string name="dispute_history_author">%1$s · %2$s</string>
+    <string name="dispute_history_you">You</string>
+    <!-- The lender's share, then the borrower's, e.g. "70% / 30%" -->
+    <string name="dispute_history_split">%1$d%% / %2$d%%</string>
+    <plurals name="dispute_auto_escalates">
+        <item quantity="one">Auto-escalates in %1$d day</item>
+        <item quantity="other">Auto-escalates in %1$d days</item>
+    </plurals>
+    <string name="dispute_auto_escalates_today">Auto-escalates today</string>
+    <string name="dispute_escalate_now">Escalate now</string>
+    <string name="dispute_settled_footer">This dispute is settled. The deposit will be split as agreed.</string>
+    <string name="dispute_coming_soon">Coming soon</string>
+    <string name="dispute_error_fallback">Could not load this dispute. Try again.</string>
+    <string name="dispute_refresh_failed">Could not refresh the dispute. This is the last version loaded. Try again.</string>
+    <string name="dispute_propose_failed">Could not send your proposal. Try again.</string>
+    <string name="dispute_accept_failed">Could not accept the proposal. Try again.</string>
+    <string name="dispute_proposal_changed">The proposal changed. Check the new one and try again.</string>
+    <string name="dispute_escalate_failed">Could not escalate the dispute. Try again.</string>
+    <!-- The other person's name -->
+    <string name="dispute_offer_updated">%1$s just updated their offer.</string>
+    <!-- The other person's name, then their new split as lender % / borrower %, e.g. "Ana just changed their offer to 80% / 20%." -->
+    <string name="dispute_offer_changed_to">%1$s just changed their offer to %2$d%% / %3$d%%.</string>
+    <string name="dispute_accepted_by_other">%1$s accepted your proposal.</string>
+    <string name="dispute_escalated_by_other">%1$s escalated the dispute.</string>
+    <string name="dispute_escalated_automatically">The dispute moved on to the next stage.</string>
+    <string name="dispute_escalate_title">Escalate the dispute?</string>
+    <string name="dispute_escalate_text">It will move on to the LLM proposal stage. This cannot be undone.</string>
+    <string name="dispute_escalate_confirm">Escalate</string>
+    <string name="dispute_retry">Retry</string>
+    <string name="dispute_send">Send</string>
+    <string name="dispute_cancel">Cancel</string>
+    <string name="dispute_your_proposal">Your proposal</string>
+    <string name="dispute_lender">Lender</string>
+    <string name="dispute_borrower">Borrower</string>
+    <!-- Read by screen readers on the lender's and the borrower's percent fields -->
+    <string name="dispute_lender_share_description">Lender\'s share in percent</string>
+    <string name="dispute_borrower_share_description">Borrower\'s share in percent</string>
 
     <!-- Handover -->
     <string name="handover_error">Could not load this rental.</string>

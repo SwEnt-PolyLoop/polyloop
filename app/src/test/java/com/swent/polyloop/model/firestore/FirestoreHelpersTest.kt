@@ -9,9 +9,11 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.EventListener
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import com.swent.polyloop.model.location.MapPoint
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -86,6 +88,14 @@ class FirestoreHelpersTest {
     assertEquals(instant, instantOrNull(Timestamp(instant)))
     assertNull(instantOrNull("2026-10-14T10:00:00Z"))
     assertNull(instantOrNull(null))
+  }
+
+  @Test
+  fun mapPointOrNullReadsGeoPointsOnly() {
+    assertEquals(MapPoint(46.52, 6.57), mapPointOrNull(GeoPoint(46.52, 6.57)))
+    assertNull(mapPointOrNull(mapOf("latitude" to 46.52, "longitude" to 6.57)))
+    assertNull(mapPointOrNull("46.52, 6.57"))
+    assertNull(mapPointOrNull(null))
   }
 
   // ---------- withFirebaseErrors ----------

@@ -18,6 +18,7 @@ import com.swent.polyloop.model.firestore.isValidDocumentId
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
 import java.util.concurrent.TimeoutException
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
@@ -71,9 +72,16 @@ class HandoverRepositoryFirestore(
       val upload = ref.putFile(photoUri.toUri(), storageMetadata { contentType = "image/jpeg" })
       // Offline, Storage keeps retrying for minutes, so stop waiting after a while.
       val url =
-          withTimeoutOrNull(UPLOAD_TIMEOUT_MS) {
-            upload.await()
-            ref.downloadUrl.await().toString()
+          try {
+            withTimeoutOrNull(UPLOAD_TIMEOUT_MS) {
+              upload.await()
+              ref.downloadUrl.await().toString()
+            }
+          } catch (e: CancellationException) {
+            // The screen was left: stop the upload too, or its file would stay in Storage with no
+            // document, and the rules forbid deleting it.
+            upload.cancel()
+            throw e
           }
       if (url == null) {
         upload.cancel()

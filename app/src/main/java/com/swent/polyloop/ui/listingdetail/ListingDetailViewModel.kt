@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
@@ -28,6 +29,8 @@ import kotlinx.coroutines.launch
  * [sentRentalId] holds the new rental's id until the screen has opened its chat. [disabledDates]
  * are the days booked by accepted rentals, and [datesTaken] is true when the picked dates are no
  * longer available (booked by someone else, or their start day passed) when the request is sent.
+ * [isOffline] is true while the phone has no connection; the screen then shows the pickup area as
+ * text, since the map tiles need a connection.
  */
 data class ListingDetailUiState(
     val listing: Listing? = null,
@@ -43,11 +46,13 @@ data class ListingDetailUiState(
     val sentRentalId: String? = null,
     val disabledDates: Set<LocalDate> = emptySet(),
     val datesTaken: Boolean = false,
+    val isOffline: Boolean = false,
 )
 
 /**
- * Shows one published listing, holds the dates the borrower picks and sends the request. [today]
- * gives the phone's date, the same one the date picker uses.
+ * Shows one published listing, holds the dates the borrower picks and sends the request. It follows
+ * the network status from [connectivityRepository], so the screen knows when to replace the map.
+ * [today] gives the phone's date, the same one the date picker uses.
  */
 class ListingDetailViewModel(
     private val listingId: String,
@@ -55,6 +60,7 @@ class ListingDetailViewModel(
     private val rentalRepository: RentalRepository,
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
+    private val connectivityRepository: ConnectivityRepository,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
 
@@ -63,6 +69,11 @@ class ListingDetailViewModel(
 
   init {
     load()
+    viewModelScope.launch {
+      connectivityRepository.isOnline.collect { online ->
+        _uiState.update { it.copy(isOffline = !online) }
+      }
+    }
   }
 
   /** Loads the listing again, e.g. after an error. */
@@ -218,6 +229,7 @@ class ListingDetailViewModel(
       private val rentalRepository: RentalRepository,
       private val authRepository: AuthRepository,
       private val profileRepository: ProfileRepository,
+      private val connectivityRepository: ConnectivityRepository,
       private val today: () -> LocalDate = LocalDate::now,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -231,6 +243,7 @@ class ListingDetailViewModel(
           rentalRepository,
           authRepository,
           profileRepository,
+          connectivityRepository,
           today,
       )
           as T

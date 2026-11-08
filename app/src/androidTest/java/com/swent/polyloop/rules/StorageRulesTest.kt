@@ -35,7 +35,11 @@ class StorageRulesTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val listingId = "listing-${UUID.randomUUID()}"
   private val bytes = byteArrayOf(1, 2, 3, 4)
-  private val jpeg = storageMetadata { contentType = "image/jpeg" }
+
+  // A JPEG tagged with the uid of the user signed in when it is uploaded, as
+  // ListingRepositoryFirestore tags listing photos. The profile photo rules ignore the tag.
+  private val jpeg
+    get() = photoMetadata(uploader = Firebase.auth.currentUser?.uid)
 
   private lateinit var ownerEmail: String
   private lateinit var ownerUid: String
@@ -54,6 +58,12 @@ class StorageRulesTest {
 
   private fun photo(name: String = "0.jpg") =
       Firebase.storage.reference.child("listings/$listingId/$name")
+
+  /** The metadata of a file of [type], tagged with the uid of its [uploader] unless it is null. */
+  private fun photoMetadata(uploader: String?, type: String = "image/jpeg") = storageMetadata {
+    contentType = type
+    uploader?.let { setCustomMetadata(UPLOADER, it) }
+  }
 
   /**
    * The listing document, as the batch in ListingRepositoryFirestore writes it after the upload.
@@ -117,12 +127,54 @@ class StorageRulesTest {
       }
 
   @Test
+  fun photosMustBeTaggedWithTheUidOfTheirUploader() =
+      runBlocking<Unit> {
+        assertDenied { photo().putBytes(bytes, photoMetadata(uploader = null)).await() }
+        assertDenied { photo().putBytes(bytes, photoMetadata(uploader = OTHER_UID)).await() }
+      }
+
+  @Test
+  fun onceTheListingIsDeletedOnlyTheUploaderChangesItsPhotos() =
+      runBlocking<Unit> {
+        photo().putBytes(bytes, jpeg).await()
+        publishListing()
+        FirebaseEmulator.deleteDocumentAsAdmin("listings/$listingId")
+
+        FirebaseEmulator.signUpVerified()
+        assertDenied { photo().putBytes(bytes, jpeg).await() }
+        assertDenied { photo().updateMetadata(jpeg).await() }
+        assertDenied { photo().delete().await() }
+
+        signInAsOwner()
+        photo().putBytes(bytes, jpeg).await()
+        photo().delete().await()
+      }
+
+  @Test
+  fun theUploaderCannotTagTheirPhotoWithSomeoneElse() =
+      runBlocking<Unit> {
+        photo().putBytes(bytes, jpeg).await()
+
+        assertDenied { photo().putBytes(bytes, photoMetadata(uploader = OTHER_UID)).await() }
+        assertDenied { photo().updateMetadata(photoMetadata(uploader = OTHER_UID)).await() }
+        photo().updateMetadata(jpeg).await()
+      }
+
+  @Test
+  fun onlyPhotosNamed0To9JpgAreAccepted() =
+      runBlocking<Unit> {
+        photo("9.jpg").putBytes(bytes, jpeg).await()
+
+        assertDenied { photo("10.jpg").putBytes(bytes, jpeg).await() }
+        assertDenied { photo("tent.jpg").putBytes(bytes, jpeg).await() }
+        assertDenied { photo("0.png").putBytes(bytes, jpeg).await() }
+      }
+
+  @Test
   fun onlyImagesAreAccepted() =
       runBlocking<Unit> {
         assertDenied {
-          photo("notes.pdf")
-              .putBytes(bytes, storageMetadata { contentType = "application/pdf" })
-              .await()
+          photo().putBytes(bytes, photoMetadata(ownerUid, type = "application/pdf")).await()
         }
       }
 
@@ -265,5 +317,9 @@ class StorageRulesTest {
   private companion object {
     const val PASSWORD = "password123"
     const val MAX_BYTES = 1024L
+
+    // The custom metadata holding the uid of the user who uploaded a listing photo.
+    const val UPLOADER = "uploader"
+    const val OTHER_UID = "someone-else"
   }
 }
