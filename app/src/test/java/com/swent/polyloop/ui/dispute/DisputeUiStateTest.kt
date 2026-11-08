@@ -18,24 +18,30 @@ class DisputeUiStateTest {
 
   @Test
   fun borrowerGetsBackTheirShareOfTheDeposit() {
-    assertEquals(180, open.youGetBackTenths)
+    assertEquals(18, open.youGetBack)
   }
 
   @Test
   fun lenderGetsTheRestOfTheDeposit() {
-    assertEquals(420, open.copy(isLender = true).youGetBackTenths)
+    assertEquals(42, open.copy(isLender = true).youGetBack)
   }
 
   @Test
-  fun borrowerShareIsRoundedDownToATenthAndTheLenderGetsTheRest() {
-    // 67% of 55 PP is 36.85 PP.
-    assertEquals(368, shareInTenths(deposit = 55, lenderPercent = 33, toLender = false))
-    assertEquals(182, shareInTenths(deposit = 55, lenderPercent = 33, toLender = true))
+  fun borrowerShareIsRoundedDownAndTheLenderGetsTheRest() {
+    // Half of 33 PP is 16.5 PP.
+    assertEquals(16, splitDeposit(deposit = 33, lenderPercent = 50, toLender = false))
+    assertEquals(17, splitDeposit(deposit = 33, lenderPercent = 50, toLender = true))
+  }
+
+  @Test
+  fun draftShareFollowsTheDraftSplit() {
+    assertNull(open.draftGetBack)
+    assertEquals(24, open.copy(draftLenderPercent = 60).draftGetBack)
   }
 
   @Test
   fun nothingToGetBackWithoutAProposal() {
-    assertNull(open.copy(history = emptyList()).youGetBackTenths)
+    assertNull(open.copy(history = emptyList()).youGetBack)
   }
 
   @Test
