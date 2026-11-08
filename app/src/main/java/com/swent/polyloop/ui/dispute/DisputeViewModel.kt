@@ -107,11 +107,11 @@ data class DisputeUiState(
     get() = history.firstOrNull()
 
   /**
-   * What the user would get back from the deposit if [latestProposal] were applied, in tenths of a
-   * PolyPoint, or null without a proposal. See [shareInTenths].
+   * What the user would get back from the deposit if [latestProposal] were applied, in PolyPoints,
+   * or null without a proposal. See [splitDeposit].
    */
-  val youGetBackTenths: Int?
-    get() = latestProposal?.let { shareInTenths(deposit, it.lenderPercent, isLender) }
+  val youGetBack: Int?
+    get() = latestProposal?.let { splitDeposit(deposit, it.lenderPercent, isLender) }
 
   /** True when the user can send a proposal: loaded, online, not sending, still settling. */
   val canPropose: Boolean
@@ -121,9 +121,9 @@ data class DisputeUiState(
   val isEditing: Boolean
     get() = draftLenderPercent != null
 
-  /** What the user would get back if the draft were applied, in tenths of a PolyPoint. */
-  val draftGetBackTenths: Int?
-    get() = draftLenderPercent?.let { shareInTenths(deposit, it, isLender) }
+  /** What the user would get back if the draft were applied, in PolyPoints. */
+  val draftGetBack: Int?
+    get() = draftLenderPercent?.let { splitDeposit(deposit, it, isLender) }
 
   /** True when the draft can be sent: the user can propose and it is not the split on the table. */
   val canSend: Boolean
@@ -156,16 +156,16 @@ data class DisputeUiState(
 }
 
 /**
- * The share of a [deposit] (in PolyPoints) that goes to the lender (if [toLender]) or to the
- * borrower when the lender gets [lenderPercent] percent, in tenths of a PolyPoint.
+ * The share of a [deposit] that goes to the lender (if [toLender]) or to the borrower when the
+ * lender gets [lenderPercent] percent, in whole PolyPoints.
  *
- * Display only, until the team decides how the Cloud Function splits a deposit into whole
- * PolyPoints: the borrower's share is rounded down to a tenth, and the lender gets the rest, so the
- * two shares always add up to the deposit.
+ * The borrower's share is rounded down and the lender gets the rest, so the two shares always add
+ * up to the deposit: 33 PP at 50% gives 16 PP to the borrower and 17 PP to the lender. The Cloud
+ * Function that applies a split must round the same way (see "Disputes" in ARCHITECTURE.md).
  */
-fun shareInTenths(deposit: Int, lenderPercent: Int, toLender: Boolean): Int {
-  val borrowerTenths = deposit * (100 - lenderPercent) / 10
-  return if (toLender) deposit * 10 - borrowerTenths else borrowerTenths
+internal fun splitDeposit(deposit: Int, lenderPercent: Int, toLender: Boolean): Int {
+  val borrower = deposit * (100 - lenderPercent) / 100
+  return if (toLender) deposit - borrower else borrower
 }
 
 /**
@@ -349,7 +349,7 @@ class DisputeViewModel(
             itemTitle = rental.listingTitle,
             otherPersonName = rental.otherPersonName(uid),
             isLender = uid == rental.ownerId,
-            deposit = PLACEHOLDER_DEPOSIT,
+            deposit = rental.deposit,
         )
       }
       disputeRepository
@@ -464,9 +464,6 @@ class DisputeViewModel(
   }
 
   private companion object {
-    /** The deposit shown until rentals have one (#176), in PolyPoints. */
-    const val PLACEHOLDER_DEPOSIT = 100
-
     const val SECONDS_PER_DAY = 86_400L
     const val MILLIS_PER_MINUTE = 60_000L
   }

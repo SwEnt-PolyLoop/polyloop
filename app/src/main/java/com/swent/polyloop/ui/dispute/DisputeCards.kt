@@ -143,7 +143,7 @@ internal fun ProposalCard(
                     if (uiState.isSettled) R.string.dispute_you_get_back
                     else R.string.dispute_you_would_get_back
                 ),
-            tenths = uiState.youGetBackTenths ?: 0,
+            amount = uiState.youGetBack ?: 0,
             modifier = Modifier.testTag(C.Tag.dispute_get_back),
         )
         if (!uiState.isSettled)
@@ -195,7 +195,7 @@ private fun SplitEditor(
   }
   GetBackRow(
       label = stringResource(R.string.dispute_you_would_get_back),
-      tenths = uiState.draftGetBackTenths ?: 0,
+      amount = uiState.draftGetBack ?: 0,
       modifier = Modifier.testTag(C.Tag.dispute_get_back),
   )
   Row(
