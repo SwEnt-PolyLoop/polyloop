@@ -16,11 +16,15 @@ export type RequestErrorCode =
   | "failed-precondition"
   | "internal";
 
-/** A refused request: a code and a message for the user. */
+/**
+ * A refused request: a code, a message for the user, and, when the request lost a race, the reason
+ * the app reads in `details` (e.g. `{reason: "STAGE_CHANGED"}`, see disputeRules.ts).
+ */
 export class RequestError extends Error {
   constructor(
     readonly code: RequestErrorCode,
     message: string,
+    readonly details?: { reason: string },
   ) {
     super(message);
     this.name = "RequestError";
