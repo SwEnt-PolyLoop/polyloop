@@ -10,6 +10,7 @@ import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.profile.ProfileRepository
+import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import java.time.Instant
@@ -19,6 +20,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -35,7 +37,8 @@ import kotlinx.coroutines.launch
  * [pickupPoint] is the listing's public point, or null when the listing is missing, could not be
  * read or is not geocoded yet. [otherPerson] is the borrower for the lender and the owner for the
  * borrower. [isOffline] is true while the phone has no connection; the screen then shows the pickup
- * area as a placeholder instead of the map.
+ * area as a placeholder instead of the map. [offer] is the deposit offer waiting for an answer, if
+ * any, and [isOfferMine] is true when the signed-in user wrote it.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -54,6 +57,8 @@ data class RentalDetailUiState(
     val pickupPoint: MapPoint? = null,
     val otherPerson: OtherPerson? = null,
     val isOffline: Boolean = false,
+    val offer: DepositOffer? = null,
+    val isOfferMine: Boolean = false,
 )
 
 /**
@@ -71,7 +76,8 @@ data class OtherPerson(
 )
 
 /**
- * Shows one rental, read once, as seen by the signed-in user. Only Requested is handled so far. It
+ * Shows one rental as seen by the signed-in user. Only Requested is handled so far. The rental is
+ * read once, then followed so that the offer stays up to date when coming back from the chat. It
  * follows the network status from [connectivityRepository], so the screen knows when to replace the
  * map.
  */
@@ -162,8 +168,32 @@ class RentalDetailViewModel(
             pickupPoint = listing?.pickupPoint,
             otherPerson = otherPerson,
             isOffline = it.isOffline,
+            offer = rental.offer,
+            isOfferMine = rental.offer?.authorId == uid,
         )
       }
+      // A read error here stops the updates: the rental read above stays on screen, but not its
+      // offer, which could be out of date. The chat hides its offer card in the same way.
+      rentalRepository
+          .observeRental(rentalId)
+          .catch { _uiState.update { it.copy(offer = null, isOfferMine = false) } }
+          .collect { live ->
+            when {
+              live == null -> Unit
+              live.status != RentalStatus.REQUESTED ->
+                  _uiState.update {
+                    RentalDetailUiState(
+                        isSupported = false,
+                        itemTitle = live.listingTitle,
+                        isOffline = it.isOffline,
+                    )
+                  }
+              else ->
+                  _uiState.update {
+                    it.copy(offer = live.offer, isOfferMine = live.offer?.authorId == uid)
+                  }
+            }
+          }
     }
   }
 

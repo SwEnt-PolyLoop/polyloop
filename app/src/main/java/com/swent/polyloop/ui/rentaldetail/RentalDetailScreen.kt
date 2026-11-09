@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.rentaldetail
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.location.MapPoint
+import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.PickupMap
@@ -137,7 +139,7 @@ fun RentalDetailContent(
           ) {
             RentalTitle(title = uiState.itemTitle)
             StageStrip()
-            StatusCard(status = uiState.status, sentAt = uiState.sentAt, today = today, zone = zone)
+            StatusCard(uiState = uiState, today = today, zone = zone)
             DetailsCard(uiState = uiState, today = today)
             uiState.otherPerson?.let { person ->
               PersonCard(
@@ -198,11 +200,15 @@ private fun StageStrip() {
 
 /**
  * The status badge, the headline and when the request was sent. The sent day is read in [zone] and
- * written with its year only when it is not [today]'s year.
+ * written with its year only when it is not [today]'s year. While an offer waits for an answer, the
+ * card says where it stands instead (Figma frame 13.10).
  */
 @Composable
-private fun StatusCard(status: RentalStatus?, sentAt: Instant?, today: LocalDate, zone: ZoneId) {
+private fun StatusCard(uiState: RentalDetailUiState, today: LocalDate, zone: ZoneId) {
   val locale = LocalConfiguration.current.locales[0]
+  val status = uiState.status
+  val sentAt = uiState.sentAt
+  val offer = uiState.offer
   OutlinedCard(modifier = Modifier.fillMaxWidth()) {
     Column(
         modifier = Modifier.padding(16.dp),
@@ -214,14 +220,21 @@ private fun StatusCard(status: RentalStatus?, sentAt: Instant?, today: LocalDate
       ) {
         status?.let { StatusBadge(it) }
         Text(
-            text = stringResource(R.string.rental_detail_status_headline),
+            text = stringResource(offerHeadline(offer, uiState.isOfferMine)),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.testTag(C.Tag.rental_detail_status_headline),
         )
       }
-      sentAt?.let {
-        val sentDay = it.atZone(zone).toLocalDate()
+      if (offer != null) {
+        Text(
+            text = offerBody(offer, uiState.isOfferMine, zone),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(C.Tag.rental_detail_status_body),
+        )
+      } else if (sentAt != null) {
+        val sentDay = sentAt.atZone(zone).toLocalDate()
         Text(
             text =
                 stringResource(
@@ -237,7 +250,35 @@ private fun StatusCard(status: RentalStatus?, sentAt: Instant?, today: LocalDate
   }
 }
 
-/** The dates, the return day, the reserved rental price and the suggested deposit. */
+/** The headline of the status card: where the offer stands, or the default without one. */
+@StringRes
+private fun offerHeadline(offer: DepositOffer?, isMine: Boolean): Int =
+    when {
+      offer == null -> R.string.rental_detail_status_headline
+      isMine && offer.isCounter -> R.string.rental_detail_status_counter_sent
+      isMine -> R.string.rental_detail_status_offer_sent
+      offer.isCounter -> R.string.rental_detail_status_counter_received
+      else -> R.string.rental_detail_status_offer_received
+    }
+
+/** The amount of the offer, when it expires, and what comes next. */
+@Composable
+private fun offerBody(offer: DepositOffer, isMine: Boolean, zone: ZoneId): String {
+  val locale = LocalConfiguration.current.locales[0]
+  val expiry = formatDay(offer.expiresAt.atZone(zone).toLocalDate(), locale = locale)
+  return stringResource(
+      when {
+        isMine && offer.isCounter -> R.string.rental_detail_counter_body_waiting
+        isMine -> R.string.rental_detail_offer_body_waiting
+        offer.isCounter -> R.string.rental_detail_counter_body_answer
+        else -> R.string.rental_detail_offer_body_answer
+      },
+      offer.amount,
+      expiry,
+  )
+}
+
+/** The dates, the return day, the reserved rental price, and the offer or the suggested deposit. */
 @Composable
 private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
   val locale = LocalConfiguration.current.locales[0]
@@ -271,16 +312,25 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
           value = stringResource(R.string.rental_detail_price, uiState.rentalPrice),
           valueTag = C.Tag.rental_detail_price,
       )
-      // Null means the listing could not be read, not that the deposit is 0: "0 PP" would be
-      // wrong, so the row is left out instead.
-      uiState.suggestedDeposit?.let {
+      uiState.offer?.let {
         InfoRow(
-            label = stringResource(R.string.rental_detail_deposit_label),
-            value = stringResource(R.string.listing_card_price, it),
-            valueTag = C.Tag.rental_detail_deposit,
-            isBold = false,
+            label = stringResource(R.string.rental_detail_offer_label),
+            value = stringResource(R.string.listing_card_price, it.amount),
+            valueTag = C.Tag.rental_detail_offer,
         )
       }
+      // Null means the listing could not be read, not that the deposit is 0: "0 PP" would be
+      // wrong, so the row is left out instead.
+      uiState.suggestedDeposit
+          ?.takeIf { uiState.offer == null }
+          ?.let {
+            InfoRow(
+                label = stringResource(R.string.rental_detail_deposit_label),
+                value = stringResource(R.string.listing_card_price, it),
+                valueTag = C.Tag.rental_detail_deposit,
+                isBold = false,
+            )
+          }
     }
   }
 }
