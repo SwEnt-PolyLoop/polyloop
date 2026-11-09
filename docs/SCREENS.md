@@ -120,7 +120,7 @@ My rentals is the user's overview of everything they borrow and lend, and it wor
 
 - Two tabs: “Borrowing” and “Lending”, each with the same two sections, “REQUESTS” and “CURRENT”. A section shows only when it has rows.
 - “REQUESTS” holds pending requests only, newest first. “CURRENT” holds every other rental, what needs attention first (overdue, then disputed, frozen and lost, then active, accepted, finished, and declined or cancelled last), newest first within each status.
-- Each card shows the listing photo, the item, the other person (“from [Lender name]” on Borrowing), a status label, and one “what comes next” line: the dates while requested (with the status “Offer sent” or “Offer received” while an offer waits for an answer, Figma frames 10.10 and 11.10), “Pickup 15 Oct · area” once accepted, “Return by 8 Oct · area” while active or overdue, the area while disputed, frozen or lost, and “Closed 2 Oct” once closed. Returned, declined and cancelled rentals have no line. The area is the public one; the closed date is the rental's last day for now.
+- Each card shows the listing photo, the item, the other person (“from [Lender name]” on Borrowing), a status label, and one “what comes next” line: the dates while requested (with the status “Offer sent”, “Offer received”, “Counteroffer sent” or “Counteroffer received” while an offer waits for an answer, Figma frames 10.10 and 11.10; Rental detail uses the same names), “Pickup 15 Oct · area” once accepted, “Return by 8 Oct · area” while active or overdue, the area while disputed, frozen or lost, and “Closed 2 Oct” once closed. Returned, declined and cancelled rentals have no line. The area is the public one; the closed date is the rental's last day for now.
 - On “Lending”, a request shows the borrower, the dates and the reserved price, and only its “Review request” button reacts, which opens Review request. Once an offer exists, the card shows where it stands, and its button opens the chat instead. On “Borrowing”, tapping a request opens Rental detail. Tapping a row in “CURRENT” opens Rental detail.
 - Offline: the whole list, deadlines and meeting points stay available from cache.
 - The items the user has put up for rent are listed in Profile, not here.
@@ -145,7 +145,7 @@ So far only the Requested state is built (other statuses show the item's title a
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
 - The deposit, once an offer is accepted, and its state: held, released, or frozen. “Held” appears only once deposits are really reserved, which needs the wallet's Firestore implementation; until then only the amount shows.
-- While an offer waits for an answer, its amount and when it expires (Figma frame 13.10).
+- While an offer waits for an answer, its amount and when it expires (Figma frame 13.10). If the rental can no longer be followed live, the offer is hidden, as in the chat, rather than left out of date.
 - The meeting point: the lender sets the pickup and drop-off addresses when sending the offer, after agreeing with the borrower in chat if needed. The exact addresses show only once the rental is accepted, on a map with a “Navigate” button; offline, as text.
 - A “Chat” button.
 - A “Take photo” button while the rental is active, for condition photos between pickup and return.

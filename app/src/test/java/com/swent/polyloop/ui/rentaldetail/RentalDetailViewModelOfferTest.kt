@@ -127,7 +127,8 @@ class RentalDetailViewModelOfferTest {
   }
 
   @Test
-  fun aReadErrorWhileFollowingKeepsWhatWasRead() {
+  fun aReadErrorWhileFollowingKeepsTheRentalButHidesItsOffer() {
+    rentals = FakeRentalRepository(listOf(request.copy(offer = offer)), clock = { now })
     val failing =
         object : RentalRepository by rentals {
           override fun observeRental(id: String): Flow<Rental?> = flow { error("down") }
@@ -137,5 +138,7 @@ class RentalDetailViewModelOfferTest {
 
     assertEquals("Camping tent", state.itemTitle)
     assertNull(state.errorMsg)
+    assertNull(state.offer)
+    assertFalse(state.isOfferMine)
   }
 }

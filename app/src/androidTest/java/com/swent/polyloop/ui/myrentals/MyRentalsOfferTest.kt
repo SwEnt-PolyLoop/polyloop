@@ -2,8 +2,10 @@
 
 package com.swent.polyloop.ui.myrentals
 
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -48,6 +50,7 @@ class MyRentalsOfferTest {
       )
 
   private var chats = mutableListOf<String>()
+  private var opened = mutableListOf<String>()
   private var reviews = 0
 
   private fun setLending(row: RentalRow) =
@@ -73,7 +76,7 @@ class MyRentalsOfferTest {
       MyRentalsContent(
           uiState = state,
           onTabSelected = {},
-          onRentalClick = {},
+          onRentalClick = { opened += it },
           onRetry = {},
           onReviewRequest = { reviews++ },
           today = LocalDate.of(2026, 10, 1),
@@ -139,6 +142,23 @@ class MyRentalsOfferTest {
 
     inCard(C.Tag.my_rentals_row_status)
         .assertTextEquals(string(R.string.my_rentals_badge_counter_sent))
+  }
+
+  @Test
+  fun tappingABorrowingRequestWithAnOfferOpensRentalDetail() {
+    setBorrowing(row(first))
+
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent").performClick()
+
+    assertEquals(listOf("tent"), opened)
+    assertEquals(emptyList<String>(), chats)
+  }
+
+  @Test
+  fun aLendingRequestWithAnOfferReactsOnlyThroughItsButton() {
+    setLending(row(first, isMine = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_request_ + "tent").assert(hasClickAction().not())
   }
 
   @Test

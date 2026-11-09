@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -167,14 +168,17 @@ fun MyRentalsContent(
             }
             items(requests, key = { it.rentalId }) { row ->
               // Only the request card differs: the lender has a request to answer, while the
-              // borrower can only wait, so a plain card is enough. It opens Rental detail like a
-              // CURRENT card, which links to the chat and lets the borrower cancel the request.
+              // borrower can only wait, so a plain card is enough. On Borrowing, a request opens
+              // Rental detail like a CURRENT card, with or without an offer; that screen links to
+              // the chat and lets the borrower cancel the request. On Lending, only the card's
+              // button reacts.
               if (row.offer != null) {
                 OfferRequestCard(
                     row = row,
                     offer = row.offer,
                     personLine = row.personLine(tab),
                     onOpenChat = { onOpenChat(row.rentalId) },
+                    onClick = if (isBorrowing) ({ onRentalClick(row.rentalId) }) else null,
                 )
               } else if (isBorrowing) {
                 RentalCard(
@@ -262,7 +266,8 @@ private fun RequestCard(row: RentalRow, onReviewRequest: () -> Unit) {
 /**
  * A pending request with a deposit offer waiting for an answer (Figma frames 10.10 and 11.10): the
  * listing photo, the title and where the offer stands, the other person and the dates, the offer,
- * and a button calling [onOpenChat], where it is answered.
+ * and a button calling [onOpenChat], where it is answered. Tapping the card calls [onClick]; when
+ * it is null, as on Lending, only the button reacts.
  */
 @Composable
 private fun OfferRequestCard(
@@ -270,6 +275,7 @@ private fun OfferRequestCard(
     offer: DepositOffer,
     personLine: String,
     onOpenChat: () -> Unit,
+    onClick: (() -> Unit)?,
 ) {
   val locale = LocalConfiguration.current.locales[0]
   val (from, to) = formatRangeEnds(row.startDate, row.returnDate)
@@ -289,9 +295,8 @@ private fun OfferRequestCard(
             stringResource(R.string.my_rentals_offer_sent_line, row.totalPrice, offer.amount)
         else -> stringResource(R.string.my_rentals_offer_received_line, offer.amount, expiry)
       }
-  OutlinedCard(
-      modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_request_ + row.rentalId),
-  ) {
+  val modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_request_ + row.rentalId)
+  val content: @Composable ColumnScope.() -> Unit = {
     Column(
         modifier = Modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -325,6 +330,11 @@ private fun OfferRequestCard(
         )
       }
     }
+  }
+  if (onClick != null) {
+    OutlinedCard(onClick = onClick, modifier = modifier, content = content)
+  } else {
+    OutlinedCard(modifier = modifier, content = content)
   }
 }
 

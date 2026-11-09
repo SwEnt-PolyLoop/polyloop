@@ -103,7 +103,7 @@
     <string name="my_rentals_badge_offer_sent">Offer sent</string>
     <string name="my_rentals_badge_offer_received">Offer received</string>
     <string name="my_rentals_badge_counter_sent">Counteroffer sent</string>
-    <string name="my_rentals_badge_counter_received">Counteroffer</string>
+    <string name="my_rentals_badge_counter_received">Counteroffer received</string>
     <!-- e.g. "45 PP reserved · 180 PP deposit offered" -->
     <string name="my_rentals_offer_sent_line">%1$d PP reserved · %2$d PP deposit offered</string>
     <!-- e.g. "180 PP deposit offered · expires 22 Oct" -->

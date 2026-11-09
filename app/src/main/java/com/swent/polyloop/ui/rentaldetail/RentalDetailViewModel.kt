@@ -172,10 +172,11 @@ class RentalDetailViewModel(
             isOfferMine = rental.offer?.authorId == uid,
         )
       }
-      // A read error here only stops the updates: what was read above stays on screen.
+      // A read error here stops the updates: the rental read above stays on screen, but not its
+      // offer, which could be out of date. The chat hides its offer card in the same way.
       rentalRepository
           .observeRental(rentalId)
-          .catch {}
+          .catch { _uiState.update { it.copy(offer = null, isOfferMine = false) } }
           .collect { live ->
             when {
               live == null -> Unit
