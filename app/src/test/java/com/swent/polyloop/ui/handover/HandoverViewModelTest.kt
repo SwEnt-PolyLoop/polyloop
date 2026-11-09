@@ -251,15 +251,17 @@ class HandoverViewModelTest {
   }
 
   @Test
-  fun aNewPhotoReplacesTheOneThatFailed() {
+  fun noNewPhotoIsTakenWhileOneWaitsForARetry() {
     val vm = viewModel()
-    handoverRepository.failure = RuntimeException("offline")
+    handoverRepository.failure = RuntimeException("down")
     vm.addPhoto("file1")
+    assertFalse(vm.uiState.value.canAddPhoto)
 
     handoverRepository.failure = null
-    vm.addPhoto("file2")
-    assertEquals(listOf("file1", "file2"), deleted)
-    assertEquals(listOf("file2"), handoverRepository.photos.map { it.photo.url })
+    vm.addPhoto("file2") // refused: the failed photo is kept, the new one deleted
+    assertEquals("file1", vm.uiState.value.failedPhotoUri)
+    assertEquals(listOf("file2"), deleted)
+    assertEquals(1, handoverRepository.addPhotoCalls)
   }
 
   @Test
@@ -270,7 +272,7 @@ class HandoverViewModelTest {
 
     connectivity.setOnline(false)
     assertTrue(vm.uiState.value.isOffline)
-    assertFalse(vm.uiState.value.canAddPhoto)
+    assertFalse(vm.uiState.value.canUpload)
     vm.retryUpload()
     vm.addPhoto("file2")
     assertEquals(1, handoverRepository.addPhotoCalls)

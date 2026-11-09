@@ -208,13 +208,13 @@ class HandoverScreenTest {
   }
 
   @Test
-  fun aPhotoThatFailedToUploadIsRetriedWhenTapped() {
+  fun aPhotoThatFailedToUploadIsRetriedWhenTappedAndNoNewOneCanBeTaken() {
     setContent(pickup.copy(failedPhotoUri = "file:///photo.jpg"))
 
     composeTestRule
         .onNodeWithContentDescription("Photo not uploaded. Tap to try again.")
         .assertIsDisplayed()
-    assertTiles(photos = 0, empty = 2)
+    assertTiles(photos = 0, empty = 0)
     composeTestRule.onNodeWithTag(C.Tag.handover_failed_photo).performClick()
     assertEquals(1, uploadRetries)
   }

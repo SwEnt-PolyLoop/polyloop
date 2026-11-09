@@ -55,14 +55,18 @@ data class HandoverUiState(
   val photosNeeded: Int
     get() = (HandoverPhoto.MIN_PHOTOS - photos.size).coerceAtLeast(0)
 
-  /** True when a photo can be added: on the pickup day, online, under 20, none uploading. */
-  val canAddPhoto: Boolean
+  /** True when a photo can be uploaded: on the pickup day, online, under 20, none uploading. */
+  val canUpload: Boolean
     get() =
         phase == HandoverPhase.PICKUP &&
             isPickupDay &&
             !isOffline &&
             photos.size < HandoverPhoto.MAX_PHOTOS &&
             !isUploading
+
+  /** True when a new photo can be taken: one can be uploaded, and none is waiting for a retry. */
+  val canAddPhoto: Boolean
+    get() = canUpload && failedPhotoUri == null
 }
 
 /**
@@ -104,22 +108,17 @@ class HandoverViewModel(
   }
 
   /**
-   * Uploads the photo just taken at [photoUri], replacing one that failed. A photo that cannot be
-   * added (see [HandoverUiState.canAddPhoto]) is deleted.
+   * Uploads the photo just taken at [photoUri]. A photo that cannot be added (see
+   * [HandoverUiState.canAddPhoto]) is deleted.
    */
   fun addPhoto(photoUri: String) {
-    if (!_uiState.value.canAddPhoto) {
-      deletePhoto(photoUri)
-      return
-    }
-    _uiState.value.failedPhotoUri?.let(deletePhoto)
-    upload(photoUri)
+    if (_uiState.value.canAddPhoto) upload(photoUri) else deletePhoto(photoUri)
   }
 
   /** Uploads again the photo whose upload failed. */
   fun retryUpload() {
     val uri = _uiState.value.failedPhotoUri ?: return
-    if (_uiState.value.canAddPhoto) upload(uri)
+    if (_uiState.value.canUpload) upload(uri)
   }
 
   /** Deletes the file the camera prepared for a shot that failed; it was never a photo. */

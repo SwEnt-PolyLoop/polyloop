@@ -320,10 +320,11 @@ private fun PhotosCard(
     uiState.failedPhotoUri?.let { add { FailedTile(it, onRetryUpload) } }
   }
   val shownCount = photoTiles.size + pendingTiles.size
+  // No camera tile while a photo has failed: it must be uploaded again before the next one.
+  val cameraTileCount =
+      if (uiState.failedPhotoUri != null) 0 else emptyTileCount(shownCount, uiState.isPickupDay)
   val emptyTiles: List<@Composable () -> Unit> =
-      List(emptyTileCount(shownCount, uiState.isPickupDay)) {
-        { EmptyTile(enabled = uiState.canAddPhoto, onClick = onAddPhoto) }
-      }
+      List(cameraTileCount) { { EmptyTile(enabled = uiState.canAddPhoto, onClick = onAddPhoto) } }
   Surface(
       shape = RoundedCornerShape(16.dp),
       color = MaterialTheme.colorScheme.surface,
