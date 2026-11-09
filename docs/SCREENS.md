@@ -171,7 +171,7 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
 - After the return scan, the lender sees the pickup and return photos side by side, with two buttons:
     - “Item is fine” releases the full deposit to the borrower.
     - “Flag damage” opens a dispute and keeps the deposit held.
-- A footer showing the deposit held.
+- A footer showing the deposit (“Deposit held” once deposits are really reserved; until then only “Deposit”).
 - Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading. Until the queue exists, the offline banner shows and no photo can be taken: the camera tiles are disabled.
 
 ## Dispute

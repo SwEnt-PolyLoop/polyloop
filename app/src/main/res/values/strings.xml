@@ -474,8 +474,8 @@
     <!-- Under a pickup photo shown full screen, e.g. "Pickup · 14:02" -->
     <string name="handover_photo_label">Pickup · %1$s</string>
     <string name="handover_close_photo">Close the photo</string>
-    <string name="handover_deposit_held">Deposit held</string>
-    <!-- The deposit held on Handover, in PolyPoints, e.g. "80 PP" -->
+    <string name="handover_deposit">Deposit</string>
+    <!-- The deposit on Handover, in PolyPoints, e.g. "80 PP" -->
     <string name="handover_deposit_amount">%1$d PP</string>
 
     <!-- Review request: the lender's answer to a request. -->

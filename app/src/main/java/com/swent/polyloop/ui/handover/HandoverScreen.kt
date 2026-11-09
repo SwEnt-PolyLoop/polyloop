@@ -343,6 +343,7 @@ private fun PhotosCard(
             text = stringResource(R.string.handover_photos_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
+            modifier = Modifier.testTag(C.Tag.handover_photos_title),
         )
         Text(
             text =
@@ -553,13 +554,20 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
           text = label,
           style = MaterialTheme.typography.bodyMedium,
           color = Color.White,
-          modifier = Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(16.dp),
+          modifier =
+              Modifier.align(Alignment.BottomCenter)
+                  .safeDrawingPadding()
+                  .padding(16.dp)
+                  .testTag(C.Tag.handover_photo_viewer_label),
       )
     }
   }
 }
 
-/** "Deposit held" and its amount, pinned under the scrolling content. */
+/**
+ * "Deposit" and its amount, pinned under the scrolling content. Not "Deposit held" until deposits
+ * are really reserved (`reserveDeposit` is not called yet), as on Rental detail.
+ */
 @Composable
 private fun DepositFooter(deposit: Int) {
   Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
@@ -569,10 +577,10 @@ private fun DepositFooter(deposit: Int) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(
-          text = stringResource(R.string.handover_deposit_held),
+          text = stringResource(R.string.handover_deposit),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.weight(1f),
+          modifier = Modifier.weight(1f).testTag(C.Tag.handover_deposit_label),
       )
       Text(
           text = stringResource(R.string.handover_deposit_amount, deposit),

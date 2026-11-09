@@ -277,6 +277,7 @@ object C {
     const val handover_item = "handover_item"
     const val handover_other_person = "handover_other_person"
     const val handover_photos_card = "handover_photos_card"
+    const val handover_photos_title = "handover_photos_title"
     const val handover_photos_range = "handover_photos_range"
     const val handover_photo = "handover_photo"
     const val handover_add_photo = "handover_add_photo"
@@ -288,6 +289,8 @@ object C {
     const val handover_not_pickup_day = "handover_not_pickup_day"
     const val handover_photo_viewer = "handover_photo_viewer"
     const val handover_photo_viewer_close = "handover_photo_viewer_close"
+    const val handover_photo_viewer_label = "handover_photo_viewer_label"
+    const val handover_deposit_label = "handover_deposit_label"
     const val handover_deposit = "handover_deposit"
 
     const val top_bar = "top_bar"

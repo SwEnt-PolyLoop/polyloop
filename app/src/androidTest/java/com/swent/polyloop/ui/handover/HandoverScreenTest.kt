@@ -15,7 +15,6 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.polyloop.model.handover.HandoverPhase
@@ -129,10 +128,10 @@ class HandoverScreenTest {
   }
 
   @Test
-  fun theFooterShowsTheDepositHeld() {
+  fun theFooterShowsTheDeposit() {
     setContent(pickup.copy(deposit = 80))
 
-    composeTestRule.onNodeWithText("Deposit held").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.handover_deposit_label).assertTextEquals("Deposit")
     composeTestRule.onNodeWithTag(C.Tag.handover_deposit).assertTextEquals("80 PP")
   }
 
@@ -161,13 +160,13 @@ class HandoverScreenTest {
   @Test
   fun photosShowTheirTimeAndCameraTilesFillUpToThreeThenOneUntilTwenty() {
     setContent()
-    composeTestRule.onNodeWithText("Condition photos").assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.handover_photos_title).assertTextEquals("Condition photos")
     composeTestRule.onNodeWithTag(C.Tag.handover_photos_range).assertTextEquals("3–20 photos")
     assertTiles(photos = 0, empty = 3)
 
     uiState = pickup.copy(photos = photos(2))
     assertTiles(photos = 2, empty = 1)
-    composeTestRule.onNodeWithText("14:03").assertIsDisplayed()
+    composeTestRule.onAllNodesWithTag(C.Tag.handover_photo)[1].assertTextEquals("14:03")
     composeTestRule.onNodeWithContentDescription("Pickup photo, 14:02").assertIsDisplayed()
 
     uiState = pickup.copy(photos = photos(5))
@@ -228,7 +227,9 @@ class HandoverScreenTest {
 
     composeTestRule.onAllNodesWithTag(C.Tag.handover_photo)[1].performClick()
     assertShown(C.Tag.handover_photo_viewer)
-    composeTestRule.onNodeWithText("Pickup · 14:03").assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.handover_photo_viewer_label)
+        .assertTextEquals("Pickup · 14:03")
 
     composeTestRule.onNodeWithTag(C.Tag.handover_photo_viewer_close).performClick()
     assertAbsent(C.Tag.handover_photo_viewer)
