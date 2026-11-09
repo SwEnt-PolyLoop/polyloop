@@ -53,7 +53,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Review request | ReviewRequestViewModel | Rental (the request, sending the offer, declining, the lender's other requests whose dates overlap); Listing (the item value, shown as the suggested deposit); Profile (the borrower's rating) |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt) |
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage") |
-| Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos, not used yet); Rental (the item, the other person and the user's role; the deposit once rentals have one, #176) |
+| Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos, not used yet); Rental (the item, the other person and the user's role, the deposit) |
 | Admin court ruling | AdminCourtRulingViewModel | Dispute; Handover (the photos); Rental (the deposit); Listing (the item); Profile (both parties) |
 | Navigation drawer (every screen) | DrawerViewModel | Profile (the signed-in user's name, photo and rating in the header) |
 
@@ -121,6 +121,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 1. Direct settlement: parties propose splits in percent; accept or counter. Auto-escalates after 30 days without agreement; either party can escalate sooner. It is the only stage that escalates, by hand or on its own.
 2. LLM proposal: a Cloud Function sends pickup and return photos to Gemini and gets a split + reasoning. Both parties accept or reject.
 3. Court: once the dispute reaches court, because either party rejected the LLM proposal, the deposit is frozen. Either party uploads the court ruling PDF; Gemini pre-fills the split; an admin reviews it on the Admin court ruling screen and applies or rejects it.
+- A split is applied in whole PolyPoints: the borrower's share is rounded down and the lender gets the rest, so the shares always add up to the deposit (50% of 33 PP gives 16 PP to the borrower, 17 PP to the lender). The Cloud Functions that apply a split must round the same way as the app.
 - Chat is disabled while a dispute is open. Reviews (1–5 stars, no text for now) are prompted when a rental closes, however it closed.
 
 ## Technical choices

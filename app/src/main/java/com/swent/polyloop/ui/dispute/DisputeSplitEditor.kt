@@ -48,8 +48,6 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import com.swent.polyloop.R
 import com.swent.polyloop.resources.C
-import java.text.DecimalFormatSymbols
-import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -211,9 +209,9 @@ internal fun SplitBar(lenderPercent: Int, modifier: Modifier = Modifier) {
   }
 }
 
-/** [label] on the left, and [tenths] of a PolyPoint in bold on the right. */
+/** [label] on the left, and [amount] PolyPoints in bold on the right. */
 @Composable
-internal fun GetBackRow(label: String, tenths: Int, modifier: Modifier = Modifier) {
+internal fun GetBackRow(label: String, amount: Int, modifier: Modifier = Modifier) {
   Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
     Text(
         text = label,
@@ -221,19 +219,9 @@ internal fun GetBackRow(label: String, tenths: Int, modifier: Modifier = Modifie
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Text(
-        text = stringResource(R.string.dispute_amount, formatTenths(tenths)),
+        text = stringResource(R.string.dispute_amount, amount),
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.Bold,
     )
   }
-}
-
-/**
- * [tenths] of a PolyPoint written with one decimal, or none when it is whole: "18", or "16.5" with
- * the decimal separator of [locale] ("16,5" in French).
- */
-internal fun formatTenths(tenths: Int, locale: Locale = Locale.getDefault()): String {
-  if (tenths % 10 == 0) return "${tenths / 10}"
-  val separator = DecimalFormatSymbols.getInstance(locale).decimalSeparator
-  return "${tenths / 10}$separator${tenths % 10}"
 }

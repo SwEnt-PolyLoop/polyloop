@@ -395,8 +395,8 @@
     <string name="dispute_no_proposal">No proposal yet</string>
     <string name="dispute_you_would_get_back">You would get back</string>
     <string name="dispute_you_get_back">You get back</string>
-    <!-- An amount of PolyPoints, which can have one decimal, e.g. "18 PP" or "16.5 PP" -->
-    <string name="dispute_amount">%1$s PP</string>
+    <!-- A whole amount of PolyPoints, e.g. "18 PP" -->
+    <string name="dispute_amount">%1$d PP</string>
     <string name="dispute_percent_sign">%</string>
     <string name="dispute_counter">Counter</string>
     <string name="dispute_update">Update</string>
