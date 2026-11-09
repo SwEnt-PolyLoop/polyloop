@@ -54,8 +54,8 @@ interface OpenDispute {
  * @param input the rental and the lender's share, already checked by `parseSplitInput`.
  * @param now the current time, stored as the proposal's `createdAt`; passed so tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant) or
- *   `failed-precondition` (settled, no longer in direct settlement, the same split as the latest
- *   proposal, or [MAX_PROPOSALS] reached). Nothing is written then.
+ *   `failed-precondition` (settled or no longer in direct settlement: `STAGE_CHANGED`; the same
+ *   split as the latest proposal, or [MAX_PROPOSALS] reached). Nothing is written then.
  */
 export async function proposeSplit(
   db: Firestore,
@@ -95,8 +95,10 @@ export async function proposeSplit(
  * @param input the rental and the split the caller saw, already checked by `parseSplitInput`.
  * @param now the current time, stored as `agreedAt`; passed so that tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant, or the caller's own
- *   proposal) or `failed-precondition` (settled, no longer in direct settlement, no proposal, or
- *   the latest proposal is not the split the caller saw). Nothing is written then.
+ *   proposal) or `failed-precondition` (settled or no longer in direct settlement:
+ *   `STAGE_CHANGED`; no proposal; the latest proposal is not the split the caller saw:
+ *   `PROPOSAL_CHANGED`, checked before the author so that a percentage changed meanwhile, even
+ *   by the caller's own new proposal, reads as changed). Nothing is written then.
  */
 export async function acceptSplit(
   db: Firestore,
@@ -110,13 +112,13 @@ export async function acceptSplit(
     if (!latest) {
       throw new RequestError("failed-precondition", "No proposal is waiting for an answer.");
     }
-    if (latest.authorId === callerId) {
-      throw new RequestError("permission-denied", "You cannot accept your own proposal.");
-    }
     if (latest.lenderPercent !== input.lenderPercent) {
       throw new RequestError("failed-precondition", "The proposal changed.", {
         reason: PROPOSAL_CHANGED,
       });
+    }
+    if (latest.authorId === callerId) {
+      throw new RequestError("permission-denied", "You cannot accept your own proposal.");
     }
     settle(tx, open, latest.lenderPercent, now);
   });
@@ -131,7 +133,7 @@ export async function acceptSplit(
  * @param callerId the participant escalating, stored as `escalatedBy`.
  * @param rentalId the rental of the dispute.
  * @throws RequestError `not-found`, `permission-denied` (not a participant) or
- *   `failed-precondition` (settled, or no longer in direct settlement: `STAGE_CHANGED`, so two
+ *   `failed-precondition` (settled or no longer in direct settlement: `STAGE_CHANGED`, so two
  *   escalations sent at once never skip a stage). Nothing is written then.
  */
 export async function escalateDispute(
@@ -176,7 +178,9 @@ function settle(tx: Transaction, open: OpenDispute, lenderPercent: number, now: 
 
 /**
  * The dispute of [rentalId] and its rental, or a refusal: the dispute or the rental is missing, the
- * caller takes no part in the rental, the dispute is settled, or it left direct settlement.
+ * caller takes no part in the rental, the dispute is settled, or it left direct settlement. The
+ * last two carry `STAGE_CHANGED`: a request that lost the race to an agreement or an escalation
+ * tells the app the dispute moved on, so it follows the dispute instead of showing an error.
  */
 async function requireSettlingDispute(
   tx: Transaction,
@@ -196,7 +200,9 @@ async function requireSettlingDispute(
     throw new RequestError("permission-denied", "Only the two participants can take part.");
   }
   if (dispute.agreedAt) {
-    throw new RequestError("failed-precondition", "This dispute is already settled.");
+    throw new RequestError("failed-precondition", "This dispute is already settled.", {
+      reason: STAGE_CHANGED,
+    });
   }
   if (dispute.stage !== SETTLE) {
     throw new RequestError(

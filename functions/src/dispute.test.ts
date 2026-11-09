@@ -127,7 +127,10 @@ describe("proposeSplit", () => {
 
     await expect(
       proposeSplit(db, LENDER, { rentalId: settled, lenderPercent: 50 }, NOW),
-    ).rejects.toMatchObject({ code: "failed-precondition", details: undefined });
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "STAGE_CHANGED" },
+    });
     await expect(
       proposeSplit(db, LENDER, { rentalId: escalated, lenderPercent: 50 }, NOW),
     ).rejects.toMatchObject({
@@ -182,13 +185,29 @@ describe("acceptSplit", () => {
     ).rejects.toMatchObject({ code: "failed-precondition" });
   });
 
+  it("reports a changed split before refusing the caller's own", async () => {
+    // The lender saw the borrower's 30 on one phone, then proposed 70 from another.
+    const id = await disputed({ proposals: [proposal(BORROWER, 30), proposal(LENDER, 70)] });
+
+    await expect(
+      acceptSplit(db, LENDER, { rentalId: id, lenderPercent: 30 }, NOW),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "PROPOSAL_CHANGED" },
+    });
+    expect((await dispute(id))?.agreedAt).toBeNull();
+  });
+
   it("refuses a dispute already settled, so it is never settled twice", async () => {
     const id = await disputed({ proposals: [proposal(LENDER, 50)] });
     await acceptSplit(db, BORROWER, { rentalId: id, lenderPercent: 50 }, NOW);
 
     await expect(
       acceptSplit(db, BORROWER, { rentalId: id, lenderPercent: 50 }, NOW),
-    ).rejects.toMatchObject({ code: "failed-precondition" });
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "STAGE_CHANGED" },
+    });
     expect(await systemMessages(id)).toHaveLength(1);
   });
 
@@ -250,6 +269,7 @@ describe("escalateDispute", () => {
 
     await expect(escalateDispute(db, LENDER, settled)).rejects.toMatchObject({
       code: "failed-precondition",
+      details: { reason: "STAGE_CHANGED" },
     });
     await expect(escalateDispute(db, STRANGER, open)).rejects.toMatchObject({
       code: "permission-denied",
