@@ -37,10 +37,10 @@ import kotlinx.coroutines.launch
  * geocoded. [pickupPoint] is the listing's public point, or null when the listing is missing, could
  * not be read or is not geocoded yet. [otherPerson] is the borrower for the lender and the owner
  * for the borrower. [isOffline] is true while the phone has no connection; the screen then shows
- * the pickup area as a placeholder instead of the map. [offer] is the deposit offer waiting for an
- * answer, if any, and [isOfferMine] is true when the signed-in user wrote it. [deposit] is the
- * accepted amount in PolyPoints, and [pickupAddress] and [returnAddress] are the exact addresses,
- * set once the rental is accepted.
+ * the pickup area of a request as a placeholder instead of the map. [offer] is the deposit offer
+ * waiting for an answer, if any, and [isOfferMine] is true when the signed-in user wrote it.
+ * [deposit] is the accepted amount in PolyPoints, and [pickupAddress] and [returnAddress] are the
+ * exact addresses, set once the rental is accepted.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,

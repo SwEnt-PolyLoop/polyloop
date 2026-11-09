@@ -485,7 +485,8 @@ private fun PickupPoint(uiState: RentalDetailUiState) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.testTag(C.Tag.rental_detail_pickup_point_label),
     )
-    // A placeholder for the map, as on the pickup area.
+    // A grey placeholder until the meeting point gets its own map (the pickup area's map shows only
+    // the public area).
     Box(
         modifier =
             Modifier.fillMaxWidth()

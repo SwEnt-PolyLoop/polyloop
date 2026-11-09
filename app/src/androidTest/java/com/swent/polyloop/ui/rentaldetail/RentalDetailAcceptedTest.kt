@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.formatDay
@@ -36,6 +37,7 @@ class RentalDetailAcceptedTest {
           rentalPrice = 120,
           suggestedDeposit = 200,
           pickupArea = "Ecublens",
+          pickupPoint = MapPoint(latitude = 46.52, longitude = 6.57),
           deposit = 60,
           pickupAddress = "Route Cantonale 1, Ecublens",
           returnAddress = "Rue de Lausanne 10, Renens",
@@ -134,6 +136,8 @@ class RentalDetailAcceptedTest {
         .assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_area).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_note).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertDoesNotExist()
   }
 
   @Test
