@@ -62,19 +62,83 @@ jobs:
       - name: Run tests
         run: firebase emulators:exec --only firestore "npm test"
 
-  ci:
-    name: CI
-    # Execute the CI on the course's runners
+  # Everything Android that needs no emulator: formatting, the debug and release builds, lint and
+  # the unit tests. Runs at the same time as the instrumented tests.
+  checks:
+    name: Checks
     runs-on: ubuntu-latest
 
     steps:
-      # First step : Checkout the repository on the runner
       - name: Checkout
         uses: actions/checkout@v7
         with:
           submodules: recursive
-          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of Sonar analysis
-      #Second step: Decode the GitHub secrets
+
+      - name: Decode secrets
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES" ]; then
+            echo "$GOOGLE_SERVICES" | base64 --decode > ./app/google-services.json
+          else
+            echo "::error::GOOGLE_SERVICES secret is not set. google-services.json will not be created."
+            exit 1
+          fi
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      # A workflow runs in a clean environment every time, so the Gradle folder is cached to avoid
+      # downloading and processing the Gradle files again on every run.
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission for gradlew
+        run: |
+          chmod +x ./gradlew
+
+      - name: KTFmt Check
+        run: |
+          ./gradlew ktfmtCheck
+
+      - name: Assemble
+        run: |
+          # To run the CI with debug information, add --info
+          ./gradlew assemble lint --parallel --build-cache
+
+      - name: Run tests
+        run: |
+          # To run the CI with debug information, add --info
+          ./gradlew check --parallel --build-cache
+
+      # What the CI job needs for the coverage report and Sonar: the unit tests' coverage and
+      # results, the lint report, and the compiled classes the coverage is matched against.
+      - name: Upload results for Sonar
+        uses: actions/upload-artifact@v7
+        with:
+          name: checks-results
+          path: |
+            app/build/outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec
+            app/build/test-results/testDebugUnitTest/
+            app/build/reports/lint-results-debug.xml
+            app/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/
+          if-no-files-found: error
+          retention-days: 1
+
+  # The instrumented tests, on an Android emulator with the Firebase emulators running.
+  instrumented:
+    name: Instrumented tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
       - name: Decode secrets
         env:
           GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
@@ -99,10 +163,6 @@ jobs:
           distribution: "temurin"
           java-version: "21"
 
-      # Caching is a very useful part of a CI, as a workflow is executed in a clean environment every time,
-      # this means that one would need to re-download and re-process gradle files for every run. Which is very time consuming.
-      #
-      # To avoid that, we cache the the gradle folder to reuse it later.
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v6
 
@@ -145,23 +205,6 @@ jobs:
         run: |
           chmod +x ./gradlew
 
-      # Check formatting
-      - name: KTFmt Check
-        run: |
-          ./gradlew ktfmtCheck
-
-      # This step runs gradle commands to build the application
-      - name: Assemble
-        run: |
-          # To run the CI with debug information, add --info
-          ./gradlew assemble lint --parallel --build-cache
-
-      # Run Unit tests
-      - name: Run tests
-        run: |
-          # To run the CI with debug information, add --info
-          ./gradlew check --parallel --build-cache
-
       # Run connected tests on the emulator, with the Firebase emulators running (see firebase.json)
       - name: run tests
         uses: reactivecircus/android-emulator-runner@v2
@@ -173,6 +216,75 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: firebase emulators:exec --only auth,firestore,storage "./gradlew connectedCheck --parallel --build-cache"
+
+      # Only the coverage file is uploaded, so the CI job finds it at
+      # connected/<artifact name>/coverage.ec, where jacocoTestReport looks.
+      - name: Upload coverage for Sonar
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-instrumented
+          path: app/build/outputs/code_coverage/debugAndroidTest/connected/*/coverage.ec
+          if-no-files-found: error
+          retention-days: 1
+
+  # The coverage report of both test jobs, uploaded to SonarCloud. It is named CI because main
+  # requires a check with that name. A job whose needs failed is skipped, and GitHub counts a
+  # skipped required check as passed, so this job runs anyway and fails itself instead.
+  ci:
+    name: CI
+    needs: [ checks, instrumented ]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fail if the checks or the instrumented tests did not pass
+        if: needs.checks.result != 'success' || needs.instrumented.result != 'success'
+        run: |
+          echo "::error::Checks: ${{ needs.checks.result }}, instrumented tests: ${{ needs.instrumented.result }}."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of Sonar analysis
+
+      - name: Decode secrets
+        env:
+          GOOGLE_SERVICES: ${{ secrets.GOOGLE_SERVICES }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES" ]; then
+            echo "$GOOGLE_SERVICES" | base64 --decode > ./app/google-services.json
+          else
+            echo "::error::GOOGLE_SERVICES secret is not set. google-services.json will not be created."
+            exit 1
+          fi
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Download the checks' results
+        uses: actions/download-artifact@v8
+        with:
+          name: checks-results
+          path: app/build
+
+      # Each coverage-* artifact goes in its own folder, connected/<artifact name>/coverage.ec.
+      - name: Download the instrumented tests' coverage
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-*
+          path: app/build/outputs/code_coverage/debugAndroidTest/connected
+
+      - name: Grant execute permission for gradlew
+        run: |
+          chmod +x ./gradlew
 
       # This step generates the coverage report which will be uploaded to sonar
       - name: Generate Coverage Report
