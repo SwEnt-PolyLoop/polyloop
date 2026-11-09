@@ -502,6 +502,7 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
         )
       }
       if (isDisputed) {
+        // Shown even at 0, unlike Accepted: the dispute is about the deposit, so the row stays.
         InfoRow(
             label = stringResource(R.string.rental_detail_accepted_deposit_label),
             value = stringResource(R.string.rental_detail_deposit_held, uiState.deposit),
