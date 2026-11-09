@@ -266,7 +266,7 @@ describe("escalateDispute", () => {
   });
 });
 
-describe("once escalatesAt has passed, before the sweep", () => {
+describe("escalatesAt, before the sweep", () => {
   const SWEEP_MESSAGE = "No agreement after 30 days · waiting for the LLM proposal";
 
   it("escalates instead of adding a proposal, from escalatesAt on", async () => {
@@ -322,5 +322,17 @@ describe("once escalatesAt has passed, before the sweep", () => {
 
     expect(await dispute(id)).toMatchObject({ stage: "LLM_PROPOSAL", escalatedBy: null });
     expect(await systemMessages(id)).toEqual([SWEEP_MESSAGE]);
+  });
+
+  it("never escalates a dispute without escalatesAt", async () => {
+    const id = await disputed({ escalatesAt: null });
+
+    await proposeSplit(db, LENDER, { rentalId: id, lenderPercent: 60 }, ESCALATES_AT);
+
+    expect(await dispute(id)).toMatchObject({
+      stage: "SETTLE",
+      proposals: [{ lenderPercent: 60 }],
+    });
+    expect(await systemMessages(id)).toEqual([]);
   });
 });

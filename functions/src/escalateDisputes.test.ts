@@ -75,7 +75,7 @@ describe("escalateOverdueDisputes", () => {
   it("moves an overdue dispute on by itself, and tells the chat", async () => {
     const ref = await dispute(OVERDUE);
 
-    expect(await escalateOverdueDisputes(db, NOW)).toEqual({ escalated: 1, failed: 0 });
+    expect(await escalateOverdueDisputes(db, NOW)).toEqual({ done: 1, failed: 0 });
 
     expect((await ref.get()).data()).toMatchObject({ stage: "LLM_PROPOSAL", escalatedBy: null });
     expect(await messages(ref)).toEqual([
@@ -87,7 +87,7 @@ describe("escalateOverdueDisputes", () => {
     const due = await dispute(NOW);
     const notYet = await dispute(LATER);
 
-    expect(await escalateOverdueDisputes(db, NOW)).toEqual({ escalated: 1, failed: 0 });
+    expect(await escalateOverdueDisputes(db, NOW)).toEqual({ done: 1, failed: 0 });
 
     expect((await due.get()).get("stage")).toBe("LLM_PROPOSAL");
     expect((await notYet.get()).get("stage")).toBe("SETTLE");
@@ -103,7 +103,7 @@ describe("escalateOverdueDisputes", () => {
       return escalateIfOverdue(ref, now);
     });
 
-    expect(result).toEqual({ escalated: 1, failed: 1 });
+    expect(result).toEqual({ done: 1, failed: 1 });
     expect((await escalating.get()).get("stage")).toBe("LLM_PROPOSAL");
     expect((await failing.get()).get("stage")).toBe("SETTLE");
     expect(logger.error).toHaveBeenCalledWith(
@@ -124,7 +124,7 @@ describe("escalateOverdueDisputes", () => {
     });
 
     expect(handled).toEqual([open.id]);
-    expect(result).toEqual({ escalated: 1, failed: 0 });
+    expect(result).toEqual({ done: 1, failed: 0 });
   });
 });
 
@@ -191,7 +191,7 @@ describe("an agreement racing the sweep", () => {
       return escalateIfOverdue(found, now);
     });
 
-    expect(result).toEqual({ escalated: 0, failed: 0 });
+    expect(result).toEqual({ done: 0, failed: 0 });
     expect((await ref.get()).get("stage")).toBe("SETTLE");
     expect((await db.doc(`rentals/${ref.id}`).get()).get("status")).toBe("CLOSED");
     expect(await messages(ref)).toEqual([

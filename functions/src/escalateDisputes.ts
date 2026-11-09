@@ -12,7 +12,7 @@ import { escalateOverdueDisputes } from "./dispute";
 export const escalateDisputes = onSchedule(
   { schedule: "every 60 minutes", timeZone: "Europe/Zurich" },
   async () => {
-    const { escalated, failed } = await escalateOverdueDisputes(getFirestore(), new Date());
+    const { done: escalated, failed } = await escalateOverdueDisputes(getFirestore(), new Date());
     if (failed > 0) {
       logger.warn(`Escalated ${escalated} disputes; ${failed} could not be escalated.`);
     } else {

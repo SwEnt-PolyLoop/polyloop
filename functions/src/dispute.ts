@@ -17,7 +17,7 @@ import {
 } from "./disputeRules";
 import { writeWithSystemMessage } from "./negotiation";
 import { RequestError } from "./rentalRules";
-import { runSweep } from "./sweep";
+import { SweepCounts, runSweep } from "./sweep";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
 const DISPUTES = "disputes";
@@ -38,12 +38,6 @@ interface StoredProposal {
   createdAt: Timestamp;
 }
 
-/** What a sweep did: the disputes it escalated, and those it could not, retried by the next one. */
-export interface EscalationSweepResult {
-  escalated: number;
-  failed: number;
-}
-
 /** A dispute and its rental, read in a transaction. */
 interface OpenDispute {
   disputeRef: DocumentReference;
@@ -62,7 +56,8 @@ interface OpenDispute {
  * @param db the Firestore database.
  * @param callerId the participant proposing.
  * @param input the rental and the lender's share, already checked by `parseSplitInput`.
- * @param now the current time, stored as the proposal's `createdAt`; passed so tests can set it.
+ * @param now the current time, stored as the proposal's `createdAt` and compared with
+ *   `escalatesAt`; passed so tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant) or
  *   `failed-precondition` (settled, no longer in direct settlement or past `escalatesAt`:
  *   `STAGE_CHANGED`; the same split as the latest proposal, or [MAX_PROPOSALS] reached). Nothing
@@ -104,7 +99,8 @@ export async function proposeSplit(
  * @param db the Firestore database.
  * @param callerId the participant accepting, who must not be the latest proposal's author.
  * @param input the rental and the split the caller saw, already checked by `parseSplitInput`.
- * @param now the current time, stored as `agreedAt`; passed so that tests can set it.
+ * @param now the current time, stored as `agreedAt` and compared with `escalatesAt`; passed so
+ *   that tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant, or the caller's own
  *   proposal) or `failed-precondition` (settled, no longer in direct settlement or past
  *   `escalatesAt`: `STAGE_CHANGED`; no proposal; the latest proposal is not the split the caller
@@ -198,32 +194,33 @@ async function inDirectSettlement(
 /**
  * Moves on to the LLM proposal every dispute still in direct settlement whose `escalatesAt` has
  * passed at [now]. One failure is logged and does not stop the others. The query is on one field,
- * so it needs no composite index, and `escalatesAt` stays set once a dispute moves on: disputes
- * already escalated or settled are left out before any transaction, then each transaction checks
- * the stage and the agreement again.
+ * so it needs no composite index. `escalatesAt` is never cleared, by decision: disputes already
+ * escalated or settled are left out before any transaction, but each run still reads every
+ * dispute ever past its date (only `stage` and `agreedAt`), a cost that grows with the number of
+ * disputes. Each transaction then checks the stage and the agreement again.
  *
  * @param db the Firestore database.
  * @param now the current time, passed so that tests can set it.
  * @param escalate handles one dispute; tests pass one that fails.
- * @returns how many disputes were escalated and how many could not be.
+ * @returns how many disputes were escalated (`done`) and how many could not be (`failed`), retried
+ *   by the next run.
  */
 export async function escalateOverdueDisputes(
   db: Firestore,
   now: Date,
   escalate: typeof escalateIfOverdue = escalateIfOverdue,
-): Promise<EscalationSweepResult> {
+): Promise<SweepCounts> {
   const overdue = await db
     .collection(DISPUTES)
     .where("escalatesAt", "<=", Timestamp.fromDate(now))
     .select("stage", "agreedAt")
     .get();
   const open = overdue.docs.filter((doc) => doc.get("stage") === SETTLE && !doc.get("agreedAt"));
-  const { done, failed } = await runSweep(
+  return runSweep(
     open.map((doc) => doc.ref),
     (ref) => escalate(ref, now),
     (id) => `Could not escalate the dispute of rental ${id}`,
   );
-  return { escalated: done, failed };
 }
 
 /**
