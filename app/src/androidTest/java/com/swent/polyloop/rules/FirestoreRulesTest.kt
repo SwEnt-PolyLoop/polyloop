@@ -756,6 +756,26 @@ class FirestoreRulesTest {
       }
 
   @Test
+  fun aParticipantWithoutAVerifiedEpflAccountCannotReadTheDispute() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        // Each sign-up signs the new account in, so each dispute is read as its borrower.
+        val gmail =
+            FirebaseEmulator.signUpVerified("rules-${UUID.randomUUID()}@gmail.com", PASSWORD)
+        val gmailDispute = seedDispute(seedRental(owner.uid, gmail))
+        assertDenied { gmailDispute.get(Source.SERVER).await() }
+
+        val unverified =
+            Firebase.auth
+                .createUserWithEmailAndPassword("rules-${UUID.randomUUID()}@epfl.ch", PASSWORD)
+                .await()
+                .user!!
+                .uid
+        val unverifiedDispute = seedDispute(seedRental(owner.uid, unverified))
+        assertDenied { unverifiedDispute.get(Source.SERVER).await() }
+      }
+
+  @Test
   fun onlyCloudFunctionsWriteADispute() =
       runBlocking<Unit> {
         val owner = newAccount()
