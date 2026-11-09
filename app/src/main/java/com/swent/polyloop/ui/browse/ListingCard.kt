@@ -31,8 +31,8 @@ import com.swent.polyloop.ui.components.PriceText
 fun ListingCard(
     listing: Listing,
     distanceText: String,
-    onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
 ) {
   OutlinedCard(
       onClick = onClick,
