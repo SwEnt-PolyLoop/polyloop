@@ -749,6 +749,8 @@ class FirestoreRulesTest {
         signInAs(borrower)
         dispute.get(Source.SERVER).await()
         noDispute.get(Source.SERVER).await() // a rental without a dispute reads as missing
+        // A dispute whose rental is missing has no participants, so nobody reads it.
+        assertDenied { seedDispute(db.collection("rentals").document()).get(Source.SERVER).await() }
         newAccount()
         assertDenied { dispute.get(Source.SERVER).await() }
       }

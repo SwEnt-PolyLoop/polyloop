@@ -23,6 +23,13 @@ const DISPUTES = "disputes";
 const RENTALS = "rentals";
 const CLOSED = "CLOSED";
 
+/**
+ * The most proposals a dispute holds. A real negotiation stays far below it; it only stops a
+ * script or an app bug from growing the document towards Firestore's 1 MiB limit, which would
+ * block every write to the dispute, and from making each change heavy for both phones listening.
+ */
+export const MAX_PROPOSALS = 500;
+
 /** A split proposed by one party, as stored in `disputes/{rentalId}.proposals`. */
 interface StoredProposal {
   authorId: string;
@@ -47,8 +54,8 @@ interface OpenDispute {
  * @param input the rental and the lender's share, already checked by `parseSplitInput`.
  * @param now the current time, stored as the proposal's `createdAt`; passed so tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant) or
- *   `failed-precondition` (settled, no longer in direct settlement, or the same split as the
- *   latest proposal). Nothing is written then.
+ *   `failed-precondition` (settled, no longer in direct settlement, the same split as the latest
+ *   proposal, or [MAX_PROPOSALS] reached). Nothing is written then.
  */
 export async function proposeSplit(
   db: Firestore,
@@ -60,6 +67,12 @@ export async function proposeSplit(
     const open = await requireSettlingDispute(tx, db, input.rentalId, callerId);
     if (latestOf(open.proposals)?.lenderPercent === input.lenderPercent) {
       throw new RequestError("failed-precondition", "This split is already on the table.");
+    }
+    if (open.proposals.length >= MAX_PROPOSALS) {
+      throw new RequestError(
+        "failed-precondition",
+        "Too many proposals: accept the latest one or escalate.",
+      );
     }
     const proposal: StoredProposal = {
       authorId: callerId,
@@ -133,21 +146,17 @@ export async function escalateDispute(
 }
 
 /**
- * Moves a dispute on to the LLM proposal, with [escalatedBy] (null when it moved on by itself) and
- * a SYSTEM message in the rental's chat. Runs inside the caller's transaction, after its reads.
+ * Moves a dispute on to the LLM proposal, with [escalatedBy] and a SYSTEM message in the rental's
+ * chat. Runs inside the caller's transaction, after its reads.
  */
-export function moveToLlmProposal(
+function moveToLlmProposal(
   tx: Transaction,
   disputeRef: DocumentReference,
   rentalRef: DocumentReference,
-  escalatedBy: string | null,
+  escalatedBy: string,
 ): void {
   tx.update(disputeRef, { stage: LLM_PROPOSAL, escalatedBy });
-  const text =
-    escalatedBy === null
-      ? "No agreement after 30 days · waiting for the LLM proposal"
-      : "Dispute escalated · waiting for the LLM proposal";
-  writeWithSystemMessage(tx, rentalRef, text, {});
+  writeWithSystemMessage(tx, rentalRef, "Dispute escalated · waiting for the LLM proposal", {});
 }
 
 /**

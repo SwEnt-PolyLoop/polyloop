@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
-import { acceptSplit, escalateDispute, proposeSplit } from "./dispute";
+import { MAX_PROPOSALS, acceptSplit, escalateDispute, proposeSplit } from "./dispute";
 
 // The transactions are tested on the emulator; the pure rules are in disputeRules.test.ts.
 let db: Firestore;
@@ -95,6 +95,18 @@ describe("proposeSplit", () => {
       ).rejects.toMatchObject({ code: "failed-precondition" });
     }
     expect((await dispute(id))?.proposals).toHaveLength(1);
+  });
+
+  it("refuses a proposal once the dispute holds the most it can", async () => {
+    const full = Array.from({ length: MAX_PROPOSALS }, (_, i) =>
+      proposal(i % 2 === 0 ? LENDER : BORROWER, i % 2 === 0 ? 50 : 51),
+    );
+    const id = await disputed({ proposals: full });
+
+    await expect(
+      proposeSplit(db, LENDER, { rentalId: id, lenderPercent: 60 }, NOW),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+    expect((await dispute(id))?.proposals).toHaveLength(MAX_PROPOSALS);
   });
 
   it("refuses someone who takes no part in the rental, and a missing dispute", async () => {

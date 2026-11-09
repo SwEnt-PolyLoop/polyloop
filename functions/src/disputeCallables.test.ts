@@ -85,14 +85,13 @@ describe("who can call", () => {
 });
 
 describe("what can be sent", () => {
-  it("refuses a percentage that is not a whole number from 0 to 100", async () => {
+  // Every wrong input is in disputeRules.test.ts; here only that both callables check it.
+  it("checks the input of both callables", async () => {
     const id = await disputed();
 
-    for (const lenderPercent of [101, 12.5]) {
-      await expect(
-        proposeSplit.run(asUser(LENDER, { rentalId: id, lenderPercent })),
-      ).rejects.toMatchObject({ code: "invalid-argument" });
-    }
+    await expect(
+      proposeSplit.run(asUser(LENDER, { rentalId: id, lenderPercent: 12.5 })),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
     await expect(acceptSplit.run(asUser(BORROWER, { rentalId: id }))).rejects.toMatchObject({
       code: "invalid-argument",
     });

@@ -4,7 +4,7 @@
  * Pure rules for disputes: the stages, the input checks and the split of a deposit. No Firestore
  * here, so they are tested without the emulator. A refusal is a RequestError (see rentalRules.ts).
  */
-import { RequestError, parseText } from "./rentalRules";
+import { RequestError, asFields, parseText } from "./rentalRules";
 
 /** The stages of a dispute, as stored in `disputes/{rentalId}.stage`. */
 export const SETTLE = "SETTLE";
@@ -34,7 +34,7 @@ export interface DepositSplit {
  * Throws an `invalid-argument` error if one is wrong.
  */
 export function parseSplitInput(data: unknown): SplitInput {
-  const fields = (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>;
+  const fields = asFields(data);
   const rentalId = parseText(fields.rentalId, "rentalId");
   const lenderPercent = fields.lenderPercent;
   if (

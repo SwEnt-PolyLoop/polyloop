@@ -186,6 +186,6 @@ export function requireVerifiedEpfl(
 }
 
 /** The fields of a callable's input, or none if it is not an object. */
-function asFields(data: unknown): Record<string, unknown> {
+export function asFields(data: unknown): Record<string, unknown> {
   return (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>;
 }
