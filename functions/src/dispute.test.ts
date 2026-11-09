@@ -97,14 +97,16 @@ describe("proposeSplit", () => {
     expect((await dispute(id))?.proposals).toHaveLength(1);
   });
 
-  it("refuses a proposal once the dispute holds the most it can", async () => {
-    const full = Array.from({ length: MAX_PROPOSALS }, (_, i) =>
+  it("takes proposals up to the most a dispute can hold, then refuses the next", async () => {
+    // Ends with the lender's 50, so neither call below repeats the split on the table.
+    const almostFull = Array.from({ length: MAX_PROPOSALS - 1 }, (_, i) =>
       proposal(i % 2 === 0 ? LENDER : BORROWER, i % 2 === 0 ? 50 : 51),
     );
-    const id = await disputed({ proposals: full });
+    const id = await disputed({ proposals: almostFull });
 
+    await proposeSplit(db, BORROWER, { rentalId: id, lenderPercent: 60 }, NOW);
     await expect(
-      proposeSplit(db, LENDER, { rentalId: id, lenderPercent: 60 }, NOW),
+      proposeSplit(db, LENDER, { rentalId: id, lenderPercent: 70 }, NOW),
     ).rejects.toMatchObject({ code: "failed-precondition" });
     expect((await dispute(id))?.proposals).toHaveLength(MAX_PROPOSALS);
   });
