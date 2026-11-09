@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
-import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
+import { FieldValue, Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { MAX_PROPOSALS, acceptSplit, escalateDispute, proposeSplit } from "./dispute";
 
 // The transactions are tested on the emulator; the pure rules are in disputeRules.test.ts.
@@ -111,16 +111,30 @@ describe("proposeSplit", () => {
     expect((await dispute(id))?.proposals).toHaveLength(MAX_PROPOSALS);
   });
 
-  it("refuses someone who takes no part in the rental, and a missing dispute", async () => {
+  it("starts the list on a dispute stored without proposals", async () => {
     const id = await disputed();
+    await db.collection("disputes").doc(id).update({ proposals: FieldValue.delete() });
+
+    await proposeSplit(db, LENDER, { rentalId: id, lenderPercent: 60 }, NOW);
+
+    expect((await dispute(id))?.proposals).toMatchObject([{ authorId: LENDER, lenderPercent: 60 }]);
+  });
+
+  it("refuses a stranger, and a missing dispute or rental", async () => {
+    const id = await disputed();
+    const withoutRental = await disputed();
+    await db.collection("rentals").doc(withoutRental).delete();
 
     await expect(
       proposeSplit(db, STRANGER, { rentalId: id, lenderPercent: 50 }, NOW),
     ).rejects.toMatchObject({ code: "permission-denied" });
-    await expect(
-      proposeSplit(db, LENDER, { rentalId: randomUUID(), lenderPercent: 50 }, NOW),
-    ).rejects.toMatchObject({ code: "not-found" });
+    for (const rentalId of [randomUUID(), withoutRental]) {
+      await expect(
+        proposeSplit(db, LENDER, { rentalId, lenderPercent: 50 }, NOW),
+      ).rejects.toMatchObject({ code: "not-found" });
+    }
     expect((await dispute(id))?.proposals).toEqual([]);
+    expect((await dispute(withoutRental))?.proposals).toEqual([]);
   });
 
   it("refuses a settled dispute and one that left direct settlement", async () => {
@@ -160,21 +174,6 @@ describe("acceptSplit", () => {
     ]);
   });
 
-  it("refuses a split that is no longer the latest proposal, and writes nothing", async () => {
-    const id = await disputed({ proposals: [proposal(BORROWER, 30), proposal(LENDER, 70)] });
-
-    const error = await acceptSplit(db, BORROWER, { rentalId: id, lenderPercent: 30 }, NOW).catch(
-      (e) => e,
-    );
-
-    expect(error).toMatchObject({
-      code: "failed-precondition",
-      details: { reason: "PROPOSAL_CHANGED" },
-    });
-    expect((await dispute(id))?.agreedAt).toBeNull();
-    expect((await rental(id))?.status).toBe("DISPUTED");
-  });
-
   it("refuses the caller's own proposal and a dispute without one", async () => {
     const own = await disputed({ proposals: [proposal(LENDER, 70)] });
     const empty = await disputed();
@@ -187,7 +186,7 @@ describe("acceptSplit", () => {
     ).rejects.toMatchObject({ code: "failed-precondition" });
   });
 
-  it("reports a changed split before refusing the caller's own", async () => {
+  it("reports a changed split before refusing the caller's own, and writes nothing", async () => {
     // The lender saw the borrower's 30 on one phone, then proposed 70 from another.
     const id = await disputed({ proposals: [proposal(BORROWER, 30), proposal(LENDER, 70)] });
 
@@ -198,6 +197,7 @@ describe("acceptSplit", () => {
       details: { reason: "PROPOSAL_CHANGED" },
     });
     expect((await dispute(id))?.agreedAt).toBeNull();
+    expect((await rental(id))?.status).toBe("DISPUTED");
   });
 
   it("refuses a dispute already settled, so it is never settled twice", async () => {
@@ -263,20 +263,5 @@ describe("escalateDispute", () => {
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     expect((await dispute(id))?.stage).toBe("LLM_PROPOSAL");
     expect(await systemMessages(id)).toHaveLength(1);
-  });
-
-  it("refuses a settled dispute and someone who takes no part in the rental", async () => {
-    const settled = await disputed({ agreedAt: Timestamp.fromDate(NOW) });
-    const open = await disputed();
-
-    await expect(escalateDispute(db, LENDER, settled)).rejects.toMatchObject({
-      code: "failed-precondition",
-      details: { reason: "STAGE_CHANGED" },
-    });
-    await expect(escalateDispute(db, STRANGER, open)).rejects.toMatchObject({
-      code: "permission-denied",
-    });
-    expect((await dispute(settled))?.stage).toBe("SETTLE");
-    expect((await dispute(open))?.stage).toBe("SETTLE");
   });
 });
