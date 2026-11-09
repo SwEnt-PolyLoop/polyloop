@@ -222,13 +222,17 @@ jobs:
           disable-animations: true
           script: firebase emulators:exec --only auth,firestore,storage "./gradlew connectedCheck --parallel --build-cache -Pandroid.testInstrumentationRunnerArguments.numShards=2 -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}"
 
-      # Only the coverage file is uploaded, so the CI job finds it at
+      # The file is in a folder named after the emulator, which a wildcard upload would keep. It is
+      # copied out, so the artifact holds only coverage.ec and the CI job finds it at
       # connected/<artifact name>/coverage.ec, where jacocoTestReport looks.
+      - name: Take the coverage file out of the emulator's folder
+        run: cp app/build/outputs/code_coverage/debugAndroidTest/connected/*/coverage.ec coverage.ec
+
       - name: Upload coverage for Sonar
         uses: actions/upload-artifact@v7
         with:
           name: coverage-shard-${{ matrix.shard }}
-          path: app/build/outputs/code_coverage/debugAndroidTest/connected/*/coverage.ec
+          path: coverage.ec
           if-no-files-found: error
           retention-days: 1
 
