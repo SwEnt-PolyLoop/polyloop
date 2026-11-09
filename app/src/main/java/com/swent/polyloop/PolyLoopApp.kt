@@ -313,7 +313,7 @@ private fun PolyLoopScaffold(
             )
         RentalDetailScreen(
             viewModel = rentalDetailViewModel,
-            onChatClick = { navController.navigate(Screen.Chat.createRoute(rentalId)) },
+            onChatClick = { navController.navigateOrGoBack(Screen.Chat.createRoute(rentalId)) },
             onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
             onStartPickupClick = {
               navController.navigate(Screen.Handover.createRoute(rentalId))
@@ -364,7 +364,7 @@ private fun PolyLoopScaffold(
         ChatScreen(
             viewModel = chatViewModel,
             onRentalDetailsClick = {
-              navController.navigate(Screen.RentalDetail.createRoute(rentalId))
+              navController.navigateOrGoBack(Screen.RentalDetail.createRoute(rentalId))
             },
         )
       }
@@ -416,3 +416,19 @@ private fun stringArgument(name: String): List<NamedNavArgument> =
 
 private fun NavBackStackEntry.stringArg(name: String): String =
     requireNotNull(arguments?.getString(name)) { "Missing navigation argument $name" }
+
+/**
+ * Opens [route] (a route with a rental id, such as Chat or Rental detail), or goes back when the
+ * screen right behind is that same route for the same rental.
+ */
+private fun NavHostController.navigateOrGoBack(route: String) {
+  // Going back and forth between Chat and Rental detail would otherwise stack a new copy of each
+  // screen on every hop, and Back would replay them all.
+  val previous = previousBackStackEntry
+  // The entry keeps the route pattern (e.g. "chat/{rentalId}"), so its rental id is put back in.
+  val previousRoute =
+      previous?.arguments?.getString(Screen.ARG_RENTAL_ID)?.let { rentalId ->
+        previous.destination.route?.replace("{${Screen.ARG_RENTAL_ID}}", rentalId)
+      }
+  if (previousRoute == route) popBackStack() else navigate(route)
+}

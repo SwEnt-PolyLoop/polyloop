@@ -569,6 +569,83 @@ class PolyLoopAppTest {
     )
   }
 
+  /** Signs in the borrower of [rental], with its conversation, and opens [route] from Browse. */
+  private fun openAsBorrower(route: String) {
+    chatRepository.conversations =
+        listOf(
+            Conversation(
+                rental.id,
+                rental.listingTitle,
+                rental.ownerId,
+                rental.ownerName,
+                rental.borrowerId,
+                rental.borrowerName,
+                "",
+                rental.createdAt,
+                rental.status,
+                rental.startDate,
+                rental.endDate,
+            )
+        )
+    currentUser = AuthUser(rental.borrowerId, "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread { NavigationActions(navController).navigateTo(route) }
+    composeTestRule.waitForIdle()
+  }
+
+  private fun tapChatOnRentalDetail() {
+    waitForTag(C.Tag.rental_detail_chat_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+  }
+
+  private fun tapRentalDetailsInTheChat() {
+    waitForTag(C.Tag.chat_rental_details)
+    composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
+    composeTestRule.waitForIdle()
+  }
+
+  private fun currentEntryId(): String? = navController.currentBackStackEntry?.id
+
+  @Test
+  fun openingChatFromRentalDetailTheFirstTimeNavigatesForward() {
+    openAsBorrower(Screen.RentalDetail.createRoute(rental.id))
+    val rentalDetailEntry = currentEntryId()
+
+    tapChatOnRentalDetail()
+
+    assertCurrentScreen(Screen.Chat)
+    assertEquals(rentalDetailEntry, navController.previousBackStackEntry?.id)
+  }
+
+  @Test
+  fun rentalDetailsFromItsChatGoesBackToTheFirstRentalDetail() {
+    openAsBorrower(Screen.RentalDetail.createRoute(rental.id))
+    val rentalDetailEntry = currentEntryId()
+    tapChatOnRentalDetail()
+
+    tapRentalDetailsInTheChat()
+
+    assertCurrentScreen(Screen.RentalDetail)
+    assertEquals(rentalDetailEntry, currentEntryId())
+    // No second Chat was left behind: Back leaves Rental detail for the screen it was opened from.
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.Browse)
+  }
+
+  @Test
+  fun chatFromItsRentalDetailGoesBackToTheFirstChat() {
+    openAsBorrower(Screen.Chat.createRoute(rental.id))
+    val chatEntry = currentEntryId()
+    tapRentalDetailsInTheChat()
+    assertCurrentScreen(Screen.RentalDetail)
+
+    tapChatOnRentalDetail()
+
+    assertCurrentScreen(Screen.Chat)
+    assertEquals(chatEntry, currentEntryId())
+  }
+
   /** Opens Rental detail on [shown], signed in as its borrower, and taps its action button. */
   private fun tapActionButtonOnRentalDetail(shown: Rental) {
     RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(shown))
