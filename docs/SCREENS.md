@@ -134,6 +134,7 @@ Review request is where the lender answers a request that has no offer yet (Figm
 - The pickup and drop-off addresses, typed as text. The borrower sees them only once the rental is accepted.
 - “Send offer”, disabled until the deposit is valid and both addresses are filled in. It sends the offer and opens the chat, where the borrower answers.
 - “Decline”, which declines the request without an offer.
+- When other pending requests for the same item have dates that overlap this one (the 1-day buffer included), a warning above the buttons says how many: “If accepted, N requests with overlapping dates are declined.” It is only a warning: if those requests cannot be read, it is not shown.
 - While an action runs, both buttons are disabled; if it fails, the error is shown and the form keeps its content. Both are disabled offline.
 
 ## Rental detail
