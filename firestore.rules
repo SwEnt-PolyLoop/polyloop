@@ -255,5 +255,18 @@ service cloud.firestore {
             && get(rentalPath(rentalId)).data.status == 'ACCEPTED';
       }
     }
+
+    // ---------- wallets ----------
+
+    // The balance and its history are written by Cloud Functions only; a user reads their own.
+    match /wallets/{uid} {
+      allow read: if isUser(uid);
+      allow write: if false;
+
+      match /transactions/{transactionId} {
+        allow read: if isUser(uid);
+        allow write: if false;
+      }
+    }
   }
 }

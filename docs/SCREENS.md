@@ -144,7 +144,7 @@ Rental detail is the hub for one rental: what it is, where it stands, and the ne
 So far only the Requested state is built (other statuses show the item's title and a short “not available yet” text). Its pickup area uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read.
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
-- The deposit, once an offer is accepted, and its state: held, released, or frozen. “Held” appears only once deposits are really reserved, which needs the wallet's Firestore implementation; until then only the amount shows.
+- The deposit, once an offer is accepted, and its state: held, released, or frozen. “Held” appears only once deposits are really reserved, which needs the `reserveDeposit` Cloud Function; until then only the amount shows.
 - While an offer waits for an answer, its amount and when it expires (Figma frame 13.10).
 - The meeting point: the lender sets the pickup and drop-off addresses when sending the offer, after agreeing with the borrower in chat if needed. The exact addresses show only once the rental is accepted, on a map with a “Navigate” button; offline, as text.
 - A “Chat” button.
