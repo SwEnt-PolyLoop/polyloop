@@ -315,9 +315,7 @@ private fun PolyLoopScaffold(
             viewModel = rentalDetailViewModel,
             onChatClick = { navController.navigateOrGoBack(Screen.Chat.createRoute(rentalId)) },
             onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
-            onStartPickupClick = {
-              navController.navigate(Screen.Handover.createRoute(rentalId))
-            },
+            onStartPickupClick = { navController.navigate(Screen.Handover.createRoute(rentalId)) },
             onViewDisputeClick = { navController.navigate(Screen.Dispute.createRoute(rentalId)) },
         )
       }
