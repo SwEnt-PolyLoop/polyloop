@@ -135,6 +135,8 @@ jobs:
     name: Instrumented tests (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     strategy:
+      # A failing shard does not cancel the other, so a run still reports every failing test.
+      fail-fast: false
       matrix:
         shard: [ 0, 1 ]
 
