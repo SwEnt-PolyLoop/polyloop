@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -87,9 +88,9 @@ fun RentalDetailScreen(
 
 /**
  * Stateless Rental detail content: a loading indicator, an error with a Retry button, a not-found
- * message, a placeholder for a status not built yet, or the Requested or Accepted rental, depending
- * on [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is shown);
- * tests pass fixed values so their expected texts do not depend on the day they run.
+ * message, a placeholder for a status not built yet, or the Requested, Accepted or Disputed rental,
+ * depending on [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is
+ * shown); tests pass fixed values so their expected texts do not depend on the day they run.
  */
 @Composable
 fun RentalDetailContent(
@@ -141,14 +142,20 @@ fun RentalDetailContent(
             StageStrip(status = uiState.status)
             StatusCard(uiState = uiState, today = today, zone = zone)
             DetailsCard(uiState = uiState, today = today)
+            val isDisputed = uiState.status == RentalStatus.DISPUTED
             uiState.otherPerson?.let { person ->
               PersonCard(
                   person = person,
                   onClick = { onPersonClick(person.uid) },
                   onChatClick = onChatClick,
+                  // Chat is paused while the dispute is open; the card itself stays tappable, so
+                  // the other person's profile can still be opened.
+                  chatEnabled = !isDisputed,
               )
             }
-            if (uiState.status == RentalStatus.ACCEPTED) {
+            if (isDisputed) {
+              ChatPausedNote()
+            } else if (uiState.status == RentalStatus.ACCEPTED) {
               PickupPoint(uiState = uiState)
             } else {
               PickupArea(
@@ -168,8 +175,9 @@ fun RentalDetailContent(
 }
 
 /**
- * The stages after the request, one bar each. A Requested rental has reached none of them, so all
- * four stay grey; an Accepted one has reached the first, in red with a bold label.
+ * The stages after the request, one bar each; the reached ones are red and the current one has a
+ * bold label. A Requested rental has reached none of them, so all four stay grey; an Accepted one
+ * has reached the first, and a Disputed one the first three, up to Returned.
  */
 @Composable
 private fun StageStrip(status: RentalStatus?) {
@@ -180,12 +188,19 @@ private fun StageStrip(status: RentalStatus?) {
           R.string.rental_detail_stage_returned,
           R.string.rental_detail_stage_closed,
       )
+  val reachedCount =
+      when (status) {
+        RentalStatus.ACCEPTED -> 1
+        RentalStatus.DISPUTED -> 3
+        else -> 0
+      }
   Row(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.rental_detail_stage_strip),
       horizontalArrangement = Arrangement.spacedBy(4.dp),
   ) {
     labels.forEachIndexed { index, label ->
-      val reached = index == 0 && status == RentalStatus.ACCEPTED
+      val reached = index < reachedCount
+      val current = index == reachedCount - 1
       Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(
             modifier =
@@ -204,10 +219,12 @@ private fun StageStrip(status: RentalStatus?) {
         Text(
             text = stringResource(label),
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (reached) FontWeight.Bold else null,
+            fontWeight = if (current) FontWeight.Bold else null,
             color =
-                if (reached) MaterialTheme.colorScheme.onSurface
+                if (current) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier =
+                if (current) Modifier.testTag(C.Tag.rental_detail_stage_current) else Modifier,
         )
       }
     }
@@ -218,7 +235,8 @@ private fun StageStrip(status: RentalStatus?) {
  * The status badge, the headline and when the request was sent. The sent day is read in [zone] and
  * written with its year only when it is not [today]'s year. While an offer waits for an answer, the
  * card says where it stands instead (Figma frame 13.10). Once accepted, it gives the pickup day
- * (Figma frame 13.01).
+ * (Figma frame 13.01). Once disputed, it says that damage was flagged and the deposit stays held
+ * (Figma frame 13.09).
  */
 @Composable
 private fun StatusCard(uiState: RentalDetailUiState, today: LocalDate, zone: ZoneId) {
@@ -250,6 +268,13 @@ private fun StatusCard(uiState: RentalDetailUiState, today: LocalDate, zone: Zon
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag(C.Tag.rental_detail_status_body),
         )
+      } else if (status == RentalStatus.DISPUTED) {
+        Text(
+            text = stringResource(R.string.rental_detail_disputed_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(C.Tag.rental_detail_status_body),
+        )
       } else if (offer != null) {
         Text(
             text = offerBody(offer, uiState.isOfferMine, zone),
@@ -274,9 +299,15 @@ private fun StatusCard(uiState: RentalDetailUiState, today: LocalDate, zone: Zon
   }
 }
 
-/** The headline of the status card: the pickup day once accepted, else where the offer stands. */
+/**
+ * The headline of the status card: "Damage flagged" once disputed, the pickup day once accepted,
+ * else where the offer stands.
+ */
 @Composable
 private fun statusHeadline(uiState: RentalDetailUiState, today: LocalDate): String {
+  if (uiState.status == RentalStatus.DISPUTED) {
+    return stringResource(R.string.rental_detail_disputed_headline)
+  }
   val start = uiState.startDate
   if (uiState.status != RentalStatus.ACCEPTED || start == null) {
     return stringResource(offerHeadline(uiState.offer, uiState.isOfferMine))
@@ -318,11 +349,14 @@ private fun offerBody(offer: DepositOffer, isMine: Boolean, zone: ZoneId): Strin
 
 /**
  * The dates, the return day, the reserved rental price, and the accepted deposit, the offer or the
- * suggested deposit. "Held" is left out of the deposit until deposits are really reserved.
+ * suggested deposit. "Held" is left out of an accepted deposit until deposits are really reserved.
+ * A disputed rental shows the dates without the return day, the price as paid, the deposit as held
+ * and the late fees, even when they are 0 (Figma frame 13.09).
  */
 @Composable
 private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
   val locale = LocalConfiguration.current.locales[0]
+  val isDisputed = uiState.status == RentalStatus.DISPUTED
   OutlinedCard(modifier = Modifier.fillMaxWidth()) {
     Column(
         modifier = Modifier.padding(16.dp),
@@ -342,15 +376,22 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
             value = stringResource(R.string.listing_detail_date_range, from, to),
             valueTag = C.Tag.rental_detail_dates,
         )
-        InfoRow(
-            label = stringResource(R.string.rental_detail_return_label),
-            value = formatDay(end, withYear = end.year != today.year, locale = locale),
-            valueTag = C.Tag.rental_detail_return,
-        )
+        if (!isDisputed) {
+          InfoRow(
+              label = stringResource(R.string.rental_detail_return_label),
+              value = formatDay(end, withYear = end.year != today.year, locale = locale),
+              valueTag = C.Tag.rental_detail_return,
+          )
+        }
       }
       InfoRow(
           label = stringResource(R.string.rental_detail_price_label),
-          value = stringResource(R.string.rental_detail_price, uiState.rentalPrice),
+          value =
+              stringResource(
+                  if (isDisputed) R.string.rental_detail_price_paid
+                  else R.string.rental_detail_price,
+                  uiState.rentalPrice,
+              ),
           valueTag = C.Tag.rental_detail_price,
       )
       // 0 means the deposit is unknown, since an accepted one is at least 1: "0 PP" would be wrong.
@@ -359,6 +400,18 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
             label = stringResource(R.string.rental_detail_accepted_deposit_label),
             value = stringResource(R.string.listing_card_price, uiState.deposit),
             valueTag = C.Tag.rental_detail_accepted_deposit,
+        )
+      }
+      if (isDisputed) {
+        InfoRow(
+            label = stringResource(R.string.rental_detail_accepted_deposit_label),
+            value = stringResource(R.string.rental_detail_deposit_held, uiState.deposit),
+            valueTag = C.Tag.rental_detail_accepted_deposit,
+        )
+        InfoRow(
+            label = stringResource(R.string.rental_detail_late_fees_label),
+            value = stringResource(R.string.rental_detail_late_fees, uiState.lateFees),
+            valueTag = C.Tag.rental_detail_late_fees,
         )
       }
       uiState.offer?.let {
@@ -387,10 +440,16 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate) {
 /**
  * The other person, built like the Profile header: their initial, their name and their rating. The
  * card opens their profile; the Chat button opens the chat and, being its own clickable, does not
- * also open the profile.
+ * also open the profile. When [chatEnabled] is false the Chat button is shown disabled, while the
+ * card still opens the profile.
  */
 @Composable
-internal fun PersonCard(person: OtherPerson, onClick: () -> Unit, onChatClick: () -> Unit) {
+internal fun PersonCard(
+    person: OtherPerson,
+    onClick: () -> Unit,
+    onChatClick: () -> Unit,
+    chatEnabled: Boolean = true,
+) {
   OutlinedCard(
       onClick = onClick,
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.rental_detail_person_card),
@@ -428,6 +487,7 @@ internal fun PersonCard(person: OtherPerson, onClick: () -> Unit, onChatClick: (
       }
       OutlinedButton(
           onClick = onChatClick,
+          enabled = chatEnabled,
           modifier = Modifier.testTag(C.Tag.rental_detail_chat_button),
       ) {
         Icon(
@@ -439,6 +499,27 @@ internal fun PersonCard(person: OtherPerson, onClick: () -> Unit, onChatClick: (
         Text(stringResource(R.string.rental_detail_chat))
       }
     }
+  }
+}
+
+@Composable
+private fun ChatPausedNote() {
+  Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    Icon(
+        Icons.Outlined.Lock,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(16.dp),
+    )
+    Text(
+        text = stringResource(R.string.rental_detail_chat_paused),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(C.Tag.rental_detail_chat_paused),
+    )
   }
 }
 

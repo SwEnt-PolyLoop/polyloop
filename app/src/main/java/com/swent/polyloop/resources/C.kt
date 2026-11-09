@@ -251,6 +251,9 @@ object C {
     const val rental_detail_pickup_point_label = "rental_detail_pickup_point_label"
     const val rental_detail_pickup_address = "rental_detail_pickup_address"
     const val rental_detail_return_address = "rental_detail_return_address"
+    const val rental_detail_stage_current = "rental_detail_stage_current"
+    const val rental_detail_late_fees = "rental_detail_late_fees"
+    const val rental_detail_chat_paused = "rental_detail_chat_paused"
 
     const val review_request_screen = "review_request_screen"
     const val review_request_loading = "review_request_loading"

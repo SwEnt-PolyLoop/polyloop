@@ -375,6 +375,16 @@
     <!-- The last day the rental can be cancelled, e.g. "You can cancel until Wed 30 Sep" -->
     <string name="rental_detail_cancel_until">You can cancel until %1$s</string>
     <string name="rental_detail_cancel_request">Cancel request</string>
+    <string name="rental_detail_disputed_headline">Damage flagged</string>
+    <string name="rental_detail_disputed_body">The deposit stays held until a split is decided.</string>
+    <!-- The total rental price of a disputed rental, e.g. "120 PP · paid" -->
+    <string name="rental_detail_price_paid">%1$d PP · paid</string>
+    <!-- The deposit of a disputed rental, e.g. "60 PP · held" -->
+    <string name="rental_detail_deposit_held">%1$d PP · held</string>
+    <string name="rental_detail_late_fees_label">Late fees</string>
+    <!-- The late fees taken from the deposit, e.g. "0 PP" -->
+    <string name="rental_detail_late_fees">%1$d PP</string>
+    <string name="rental_detail_chat_paused">Chat is paused while the dispute is open.</string>
 
     <!-- Dispute -->
     <string name="dispute_title">Dispute</string>
