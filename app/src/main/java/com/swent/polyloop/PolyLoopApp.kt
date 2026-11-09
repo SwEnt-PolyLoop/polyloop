@@ -56,6 +56,8 @@ import com.swent.polyloop.ui.profile.ProfileScreen
 import com.swent.polyloop.ui.profile.ProfileViewModel
 import com.swent.polyloop.ui.rentaldetail.RentalDetailScreen
 import com.swent.polyloop.ui.rentaldetail.RentalDetailViewModel
+import com.swent.polyloop.ui.reviewrequest.ReviewRequestScreen
+import com.swent.polyloop.ui.reviewrequest.ReviewRequestViewModel
 import com.swent.polyloop.ui.wallet.WalletScreen
 import com.swent.polyloop.ui.wallet.WalletViewModel
 import kotlinx.coroutines.launch
@@ -214,6 +216,10 @@ private fun PolyLoopScaffold(
         MyRentalsScreen(
             viewModel = myRentalsViewModel,
             onRentalClick = { id -> navController.navigate(Screen.RentalDetail.createRoute(id)) },
+            onReviewRequest = { id ->
+              navController.navigate(Screen.ReviewRequest.createRoute(id))
+            },
+            onOpenChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
         )
       }
       composable(Screen.ChatList.route) {
@@ -313,6 +319,33 @@ private fun PolyLoopScaffold(
             onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
         )
       }
+      composable(Screen.ReviewRequest.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
+        val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)
+        val reviewRequestViewModel: ReviewRequestViewModel =
+            viewModel(
+                factory =
+                    ReviewRequestViewModel.Factory(
+                        rentalId = rentalId,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        listingRepository = RepositoryProvider.listingRepository,
+                        profileRepository = RepositoryProvider.profileRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
+                    )
+            )
+        ReviewRequestScreen(
+            viewModel = reviewRequestViewModel,
+            onOfferSent = {
+              // The chat replaces this form, so Back cannot send a second answer.
+              navController.navigate(Screen.Chat.createRoute(rentalId)) {
+                popUpTo(Screen.ReviewRequest.route) { inclusive = true }
+              }
+            },
+            onDeclined = { navController.popBackStack() },
+            onChatClick = { navController.navigate(Screen.Chat.createRoute(rentalId)) },
+            onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
+        )
+      }
       composable(Screen.Chat.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
         val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)
         val chatViewModel: ChatViewModel =
@@ -322,6 +355,8 @@ private fun PolyLoopScaffold(
                         rentalId = rentalId,
                         chatRepository = RepositoryProvider.chatRepository,
                         authRepository = RepositoryProvider.authRepository,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
                     )
             )
         ChatScreen(

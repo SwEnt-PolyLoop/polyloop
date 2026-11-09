@@ -13,6 +13,7 @@ import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
+import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.Instant
@@ -20,6 +21,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -415,6 +417,54 @@ class ReviewRequestViewModelTest {
 
     assertFalse(vm.uiState.value.canSendOffer)
     assertFalse(vm.uiState.value.canDecline)
+  }
+
+  // ---------- What the screen warns about ----------
+
+  @Test
+  fun givesTheSuggestedDeposit() {
+    assertEquals(180, viewModel().uiState.value.suggestedDeposit)
+  }
+
+  @Test
+  fun anUnreadableListingGivesNoSuggestedDeposit() {
+    listings.failure = IllegalStateException("down")
+
+    assertNull(viewModel().uiState.value.suggestedDeposit)
+  }
+
+  @Test
+  fun countsOnlyOtherPendingRequestsOfTheListingWhoseDatesConflict() {
+    val touching =
+        request.copy(
+            id = "touching",
+            startDate = LocalDate.of(2026, 12, 4),
+            endDate = LocalDate.of(2026, 12, 5),
+        )
+    val free =
+        request.copy(
+            id = "free",
+            startDate = LocalDate.of(2026, 12, 5),
+            endDate = LocalDate.of(2026, 12, 6),
+        )
+    val answered = touching.copy(id = "answered", status = RentalStatus.DECLINED)
+    val elsewhere = touching.copy(id = "elsewhere", listingId = "listing2")
+    rentals =
+        FakeRentalRepository(listOf(request, touching, free, answered, elsewhere), clock = { now })
+
+    assertEquals(1, viewModel().uiState.value.overlappingRequests)
+  }
+
+  @Test
+  fun unreadableRentalsGiveNoWarningAndKeepTheForm() {
+    val failing =
+        object : RentalRepository by rentals {
+          override fun observeRentalsAsLender(uid: String) = flow<List<Rental>> { error("down") }
+        }
+    val vm = ReviewRequestViewModel(request.id, failing, listings, profiles, auth, connectivity)
+
+    assertEquals(0, vm.uiState.value.overlappingRequests)
+    assertTrue(vm.uiState.value.canAnswer)
   }
 
   // ---------- Factory ----------

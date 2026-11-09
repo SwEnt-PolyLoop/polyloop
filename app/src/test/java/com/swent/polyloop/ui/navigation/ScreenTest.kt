@@ -35,6 +35,7 @@ class ScreenTest {
     assertEquals("listing_detail/l1", Screen.ListingDetail.createRoute("l1"))
     assertEquals("edit_listing/l1", Screen.EditListing.createRoute("l1"))
     assertEquals("rental_detail/r1", Screen.RentalDetail.createRoute("r1"))
+    assertEquals("review_request/r1", Screen.ReviewRequest.createRoute("r1"))
     assertEquals("chat/r1", Screen.Chat.createRoute("r1"))
     assertEquals("handover/r1", Screen.Handover.createRoute("r1"))
     assertEquals("dispute/r1", Screen.Dispute.createRoute("r1"))

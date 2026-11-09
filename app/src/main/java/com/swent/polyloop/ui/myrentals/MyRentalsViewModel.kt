@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
@@ -35,6 +36,8 @@ enum class RentalsTab {
  * @property totalPrice the rental price in PP, reserved from the borrower while it is requested.
  * @property listingPhotoUrl the listing's first photo; "" for older rentals, and the screen then
  *   shows a grey box.
+ * @property offer the deposit offer waiting for an answer, if any.
+ * @property isOfferMine true when the signed-in user wrote [offer] and waits for the answer.
  */
 data class RentalRow(
     val rentalId: String,
@@ -46,6 +49,8 @@ data class RentalRow(
     val status: RentalStatus,
     val totalPrice: Int = 0,
     val listingPhotoUrl: String = "",
+    val offer: DepositOffer? = null,
+    val isOfferMine: Boolean = false,
 )
 
 /**
@@ -217,6 +222,8 @@ class MyRentalsViewModel(
             status = status,
             totalPrice = totalPrice,
             listingPhotoUrl = listingPhotoUrl,
+            offer = offer,
+            isOfferMine = offer?.authorId == uid,
         )
   }
 }

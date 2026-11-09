@@ -6,6 +6,7 @@ import {
   conflicts,
   isDateString,
   offerExpiry,
+  isValidDeposit,
   parseDeposit,
   parseOfferAnswer,
   parseOfferInput,
@@ -91,6 +92,19 @@ describe("offerExpiry", () => {
 
   it("is the rental's first day when that comes sooner", () => {
     expect(offerExpiry(now, "2026-11-08")).toEqual(new Date("2026-11-08T00:00:00Z"));
+  });
+});
+
+describe("isValidDeposit", () => {
+  it("accepts a whole amount from 1 to the cap", () => {
+    expect(isValidDeposit(1)).toBe(true);
+    expect(isValidDeposit(MAX_DEPOSIT)).toBe(true);
+  });
+
+  it("refuses anything else", () => {
+    for (const deposit of [0, -5, 2.5, MAX_DEPOSIT + 1, "50", null, undefined]) {
+      expect(isValidDeposit(deposit)).toBe(false);
+    }
   });
 });
 

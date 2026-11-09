@@ -40,12 +40,14 @@ import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
 import com.swent.polyloop.ui.navigation.Screen
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -105,8 +107,7 @@ class PolyLoopAppTest {
 
   /**
    * One accepted rental borrowed by "uid", so My rentals shows a CURRENT row, which opens Rental
-   * detail, without reaching Firestore. Rental detail shows only its title, as for every status but
-   * Requested.
+   * detail, without reaching Firestore.
    */
   private val rental =
       Rental(
@@ -178,6 +179,7 @@ class PolyLoopAppTest {
     RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     RepositoryProvider.connectivityRepository = connectivity
     RepositoryProvider.handoverRepository = FakeHandoverRepository()
+    RepositoryProvider.walletRepository = FakeWalletRepository()
   }
 
   @After
@@ -279,6 +281,7 @@ class PolyLoopAppTest {
           Screen.Chat -> C.Tag.chat_screen
           Screen.RentalDetail -> C.Tag.rental_detail_screen
           Screen.Handover -> C.Tag.handover_screen
+          Screen.ReviewRequest -> C.Tag.review_request_screen
           Screen.Wallet -> C.Tag.wallet_screen
           Screen.Profile,
           Screen.UserProfile -> C.Tag.profile_screen
@@ -479,11 +482,80 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_title).assertTextEquals(rental.listingTitle)
   }
 
+  /** Signs in [me] as the lender of a request with no offer, then opens it from My rentals. */
+  private fun openReviewRequest(): FakeRentalRepository {
+    val rentals =
+        FakeRentalRepository(
+            rentals =
+                listOf(
+                    rental.copy(
+                        ownerId = me.uid,
+                        borrowerId = "user-1",
+                        status = RentalStatus.REQUESTED,
+                    )
+                ),
+            // Before the rental's first day, or the offer is refused.
+            clock = { Instant.parse("2026-10-01T10:00:00Z") },
+        )
+    RepositoryProvider.rentalRepository = rentals
+    setAppSignedIn()
+    openFromMenu(Screen.MyRentals)
+    waitForTag(C.Tag.my_rentals_tab_lending)
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_tab_lending).performClick()
+    waitForTag(C.Tag.my_rentals_review_request_button)
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_review_request_button).performClick()
+    waitForTag(C.Tag.review_request_send)
+    return rentals
+  }
+
+  @Test
+  fun reviewRequestOnLendingOpensTheReviewRequestScreen() {
+    openReviewRequest()
+
+    assertCurrentScreen(Screen.ReviewRequest)
+    assertEquals(
+        rental.id,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
+    )
+  }
+
+  @Test
+  fun sendOfferOpensTheChatAndBackSkipsTheForm() {
+    openReviewRequest()
+    composeTestRule
+        .onNodeWithTag(C.Tag.review_request_pickup)
+        .performScrollTo()
+        .performTextReplacement("Route Cantonale 1")
+    composeTestRule
+        .onNodeWithTag(C.Tag.review_request_return)
+        .performScrollTo()
+        .performTextReplacement("Rue de Lausanne 10")
+
+    composeTestRule.onNodeWithTag(C.Tag.review_request_send).performClick()
+
+    waitForTag(C.Tag.chat_screen)
+    assertCurrentScreen(Screen.Chat)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.MyRentals)
+  }
+
+  @Test
+  fun declineGoesBackToMyRentals() {
+    val rentals = openReviewRequest()
+
+    composeTestRule.onNodeWithTag(C.Tag.review_request_decline).performClick()
+
+    waitForTag(C.Tag.my_rentals_screen)
+    assertCurrentScreen(Screen.MyRentals)
+    assertEquals(
+        RentalStatus.DECLINED,
+        runBlocking { rentals.getRental(rental.id).getOrThrow()?.status },
+    )
+  }
+
   @Test
   fun chatOnRentalDetailOpensTheRentalsChat() {
-    // Only a Requested rental shows the person card and its Chat button.
-    RepositoryProvider.rentalRepository =
-        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED)))
+    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {

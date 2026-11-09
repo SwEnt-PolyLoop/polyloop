@@ -25,6 +25,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -606,6 +607,118 @@ class FirestoreRulesTest {
         assertDenied { accepted.document().set(photo(borrower.uid, phase = "RETURN")).await() }
         assertDenied { active.document().set(photo(borrower.uid)).await() } // pickup is over
         assertDenied { requested.document().set(photo(borrower.uid)).await() }
+      }
+
+  // ---------- wallets ----------
+
+  /**
+   * A wallet and one transaction of [uid], written as an admin (only Cloud Functions write them).
+   */
+  private fun seedWallet(uid: String): Pair<DocumentReference, DocumentReference> {
+    FirebaseEmulator.createDocumentAsAdmin("wallets/$uid", mapOf("available" to 50))
+    FirebaseEmulator.createDocumentAsAdmin(
+        "wallets/$uid/transactions/t1",
+        mapOf(
+            "type" to "RECHARGE",
+            "amount" to 50,
+            "itemTitle" to "",
+            "date" to Timestamp(1_000, 0),
+        ),
+    )
+    val wallet = db.collection("wallets").document(uid)
+    return wallet to wallet.collection("transactions").document("t1")
+  }
+
+  @Test
+  fun userReadsTheirOwnWalletAndTransactions() =
+      runBlocking<Unit> {
+        val me = newAccount()
+        val (wallet, transaction) = seedWallet(me.uid)
+
+        assertEquals(50L, wallet.get(Source.SERVER).await().getLong("available"))
+        assertEquals(50L, transaction.get(Source.SERVER).await().getLong("amount"))
+        assertEquals(1, wallet.collection("transactions").get(Source.SERVER).await().size())
+      }
+
+  @Test
+  fun userCannotReadSomeoneElsesWalletOrTransactions() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val (wallet, transaction) = seedWallet(owner.uid)
+        newAccount() // someone else
+
+        assertDenied { wallet.get(Source.SERVER).await() }
+        assertDenied { transaction.get(Source.SERVER).await() }
+        assertDenied { wallet.collection("transactions").get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun unverifiedNonEpflAndSignedOutUsersCannotReadAWallet() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val (wallet, transaction) = seedWallet(owner.uid)
+
+        // Accounts that must be refused: an unverified EPFL account, a verified non-EPFL one, and
+        // nobody.
+        Firebase.auth
+            .createUserWithEmailAndPassword("rules-${UUID.randomUUID()}@epfl.ch", PASSWORD)
+            .await()
+        assertDenied { wallet.get(Source.SERVER).await() }
+        assertDenied { transaction.get(Source.SERVER).await() }
+
+        FirebaseEmulator.signUpVerified("rules-${UUID.randomUUID()}@gmail.com", PASSWORD)
+        assertDenied { wallet.get(Source.SERVER).await() }
+        assertDenied { transaction.get(Source.SERVER).await() }
+
+        Firebase.auth.signOut()
+        assertDenied { wallet.get(Source.SERVER).await() }
+        assertDenied { transaction.get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun ownEmailAccountThatIsNotVerifiedCannotReadItsOwnWallet() =
+      runBlocking<Unit> {
+        val email = "rules-${UUID.randomUUID()}@epfl.ch"
+        val uid = Firebase.auth.createUserWithEmailAndPassword(email, PASSWORD).await().user!!.uid
+        val (wallet, _) = seedWallet(uid)
+
+        assertDenied { wallet.get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun noClientWritesAWalletOrATransactionTheOwnerIncluded() =
+      runBlocking<Unit> {
+        val me = newAccount()
+        val (wallet, transaction) = seedWallet(me.uid)
+
+        assertDenied { wallet.set(mapOf("available" to 1_000_000)).await() }
+        assertDenied { wallet.update("available", 1_000_000).await() }
+        assertDenied { wallet.delete().await() }
+        assertDenied { transaction.set(mapOf("amount" to 1)).await() }
+        assertDenied { transaction.update("amount", 1).await() }
+        assertDenied { transaction.delete().await() }
+        assertDenied {
+          wallet.collection("transactions").document("t2").set(mapOf("amount" to 1)).await()
+        }
+
+        // Nothing changed.
+        assertEquals(50L, wallet.get(Source.SERVER).await().getLong("available"))
+        assertEquals(50L, transaction.get(Source.SERVER).await().getLong("amount"))
+      }
+
+  @Test
+  fun newUserWithoutAWalletCannotCreateTheirOwnWalletOrTransaction() =
+      runBlocking<Unit> {
+        val me = newAccount()
+        val wallet = db.collection("wallets").document(me.uid)
+
+        assertDenied { wallet.set(mapOf("available" to 1_000_000)).await() }
+        assertDenied {
+          wallet.collection("transactions").document("t1").set(mapOf("amount" to 1)).await()
+        }
+
+        // Nothing was created.
+        assertFalse(wallet.get(Source.SERVER).await().exists())
       }
 
   private companion object {

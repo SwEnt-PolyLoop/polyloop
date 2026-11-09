@@ -100,6 +100,18 @@
     <string name="my_rentals_date_range">%1$s – %2$s</string>
     <string name="my_rentals_reserved">%1$d PP reserved · waiting for your answer</string>
     <string name="my_rentals_review_request">Review request</string>
+    <string name="my_rentals_badge_offer_sent">Offer sent</string>
+    <string name="my_rentals_badge_offer_received">Offer received</string>
+    <string name="my_rentals_badge_counter_sent">Counteroffer sent</string>
+    <string name="my_rentals_badge_counter_received">Counteroffer received</string>
+    <!-- e.g. "45 PP reserved · 180 PP deposit offered" -->
+    <string name="my_rentals_offer_sent_line">%1$d PP reserved · %2$d PP deposit offered</string>
+    <!-- e.g. "180 PP deposit offered · expires 22 Oct" -->
+    <string name="my_rentals_offer_received_line">%1$d PP deposit offered · expires %2$s</string>
+    <!-- e.g. "120 PP counteroffer · expires 22 Oct" -->
+    <string name="my_rentals_counter_line">%1$d PP counteroffer · expires %2$s</string>
+    <string name="my_rentals_open_chat">Open chat</string>
+    <string name="my_rentals_answer_in_chat">Answer in chat</string>
     <string name="my_rentals_pickup_on">Pickup %1$s</string>
     <string name="my_rentals_from">from %1$s</string>
     <string name="my_rentals_closed_on">Closed %1$s</string>
@@ -294,6 +306,31 @@
     <!-- A message written by the app, then its time, e.g. "Request sent · 15:02" -->
     <string name="chat_system_message">%1$s · %2$s</string>
     <string name="chat_send_failed">Message not sent. Press send to try again.</string>
+    <!-- The deposit offer card in the chat. -->
+    <string name="chat_offer_title">Deposit offer</string>
+    <string name="chat_offer_title_mine">Your offer</string>
+    <string name="chat_offer_title_counter">Counteroffer</string>
+    <string name="chat_offer_title_my_counter">Your counteroffer</string>
+    <string name="chat_offer_badge_answer">Your answer</string>
+    <string name="chat_offer_badge_waiting">Waiting</string>
+    <string name="chat_offer_amount_mine">%1$d PP deposit</string>
+    <!-- e.g. "Waiting for Ana. Expires 22 Oct." -->
+    <string name="chat_offer_note_waiting">Waiting for %1$s. Expires %2$s.</string>
+    <string name="chat_offer_note_expires">Expires %1$s.</string>
+    <!-- e.g. "Your offer was 180 PP. Expires 24 Oct." -->
+    <string name="chat_offer_note_counter">Your offer was %1$d PP. Expires %2$s.</string>
+    <string name="chat_offer_counter_hint">Their offer: %1$d PP. You can counter only once, and the lender can then only accept or decline.</string>
+    <plurals name="chat_offer_overlapping">
+        <item quantity="one">Accepting declines %1$d request with overlapping dates.</item>
+        <item quantity="other">Accepting declines %1$d requests with overlapping dates.</item>
+    </plurals>
+    <string name="chat_offer_accept">Accept</string>
+    <string name="chat_offer_decline">Decline</string>
+    <string name="chat_offer_counter">Counter</string>
+    <string name="chat_offer_back">Back</string>
+    <string name="chat_offer_send">Send</string>
+    <string name="chat_offer_suffix">PP</string>
+    <string name="chat_offer_error">Could not send your answer. Try again.</string>
 
     <!-- Rental detail -->
     <string name="rental_detail_error_fallback">Could not load the rental</string>
@@ -307,6 +344,23 @@
     <string name="rental_detail_status_headline">Waiting for agreement</string>
     <!-- The day the request was sent, e.g. "Sent 28 Sep. The rental price is reserved. …" -->
     <string name="rental_detail_status_body">Sent %1$s. The rental price is reserved. Agree on the deposit in chat.</string>
+    <string name="rental_detail_status_offer_sent">Offer sent</string>
+    <string name="rental_detail_status_offer_received">Offer received</string>
+    <string name="rental_detail_status_counter_sent">Counteroffer sent</string>
+    <string name="rental_detail_status_counter_received">Counteroffer received</string>
+    <!-- e.g. "Deposit offer: 180 PP. Expires 22 Oct. Answer in the chat." -->
+    <string name="rental_detail_offer_body_answer">Deposit offer: %1$d PP. Expires %2$s. Answer in the chat.</string>
+    <string name="rental_detail_offer_body_waiting">Deposit offer: %1$d PP. Expires %2$s. Waiting for the answer.</string>
+    <string name="rental_detail_counter_body_answer">Counteroffer: %1$d PP. Expires %2$s. Answer in the chat.</string>
+    <string name="rental_detail_counter_body_waiting">Counteroffer: %1$d PP. Expires %2$s. Waiting for the answer.</string>
+    <string name="rental_detail_offer_label">Deposit offer</string>
+    <!-- The headline of an accepted rental, e.g. "Pickup on 1 Oct" -->
+    <string name="rental_detail_accepted_headline">Pickup on %1$s</string>
+    <string name="rental_detail_accepted_body">Meet at the pickup point.</string>
+    <string name="rental_detail_accepted_deposit_label">Deposit</string>
+    <string name="rental_detail_pickup_point_label">PICKUP POINT</string>
+    <string name="rental_detail_return_address">Drop-off: %1$s</string>
+    <string name="rental_detail_address_placeholder">Address not known yet</string>
     <string name="rental_detail_details_title">Details</string>
     <string name="rental_detail_dates_label">Dates</string>
     <string name="rental_detail_return_label">Return</string>
@@ -423,5 +477,30 @@
     <string name="handover_deposit_held">Deposit held</string>
     <!-- The deposit held on Handover, in PolyPoints, e.g. "80 PP" -->
     <string name="handover_deposit_amount">%1$d PP</string>
+
+    <!-- Review request: the lender's answer to a request. -->
+    <string name="review_request_title">Review request</string>
+    <string name="review_request_role">You lend</string>
+    <!-- e.g. "Camping tent · 15 – 17 Oct · 3 days" -->
+    <string name="review_request_summary">%1$s · %2$s · %3$s</string>
+    <plurals name="review_request_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="review_request_deposit_label">Deposit offer</string>
+    <string name="review_request_deposit_suffix">PP</string>
+    <string name="review_request_deposit_hint">The borrower can accept, decline or counter once.</string>
+    <string name="review_request_pickup_label">Pickup address</string>
+    <string name="review_request_return_label">Drop-off address</string>
+    <string name="review_request_address_placeholder">Street, number, town</string>
+    <string name="review_request_address_hint">The borrower sees the addresses once the rental is accepted.</string>
+    <plurals name="review_request_overlapping">
+        <item quantity="one">If accepted, %1$d request with overlapping dates is declined.</item>
+        <item quantity="other">If accepted, %1$d requests with overlapping dates are declined.</item>
+    </plurals>
+    <string name="review_request_decline">Decline</string>
+    <string name="review_request_send">Send offer</string>
+    <string name="review_request_action_error">Could not send your answer. Try again.</string>
+    <string name="review_request_not_answerable">This request can no longer be answered here.</string>
 
 </resources>

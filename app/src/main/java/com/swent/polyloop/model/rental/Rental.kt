@@ -2,6 +2,8 @@
 
 package com.swent.polyloop.model.rental
 
+import com.swent.polyloop.model.listing.BookedRange
+import com.swent.polyloop.model.listing.conflictsWithBuffer
 import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -49,6 +51,19 @@ data class Rental(
    * the owner, the owner's name for anyone else). Can be "": the screen then shows a placeholder.
    */
   fun otherPersonName(uid: String): String = if (uid == ownerId) borrowerName else ownerName
+
+  /**
+   * True if this is another pending request of the same listing that accepting [request] would
+   * decline: its dates conflict with those of [request], buffer days included.
+   */
+  fun isDeclinedByAccepting(request: Rental): Boolean =
+      id != request.id &&
+          listingId == request.listingId &&
+          status == RentalStatus.REQUESTED &&
+          conflictsWithBuffer(
+              BookedRange(startDate, endDate),
+              BookedRange(request.startDate, request.endDate),
+          )
 
   companion object {
     /**

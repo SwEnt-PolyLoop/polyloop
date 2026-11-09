@@ -102,9 +102,14 @@ export function offerExpiry(now: Date, startDate: string): Date {
   return new Date(Math.min(afterLifetime, Date.parse(`${startDate}T00:00:00Z`)));
 }
 
+/** True for a whole deposit from 1 to [MAX_DEPOSIT]. */
+export function isValidDeposit(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= MAX_DEPOSIT;
+}
+
 /** A whole deposit from 1 to [MAX_DEPOSIT], or an `invalid-argument` error. */
 export function parseDeposit(value: unknown): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > MAX_DEPOSIT) {
+  if (!isValidDeposit(value)) {
     throw new RequestError(
       "invalid-argument",
       `The deposit must be a whole number from 1 to ${MAX_DEPOSIT}.`,
