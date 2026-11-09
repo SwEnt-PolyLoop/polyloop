@@ -352,6 +352,8 @@ private fun PolyLoopScaffold(
                         rentalId = rentalId,
                         chatRepository = RepositoryProvider.chatRepository,
                         authRepository = RepositoryProvider.authRepository,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
                     )
             )
         ChatScreen(

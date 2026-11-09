@@ -61,13 +61,19 @@ fun ChatScreen(viewModel: ChatViewModel, onRentalDetailsClick: () -> Unit = {}) 
       onSend = viewModel::send,
       onRetry = viewModel::retry,
       onRentalDetailsClick = onRentalDetailsClick,
+      onAcceptOffer = viewModel::acceptOffer,
+      onDeclineOffer = viewModel::declineOffer,
+      onStartCounter = viewModel::startCounter,
+      onCancelCounter = viewModel::cancelCounter,
+      onCounterDraftChange = viewModel::onCounterDraftChange,
+      onSendCounter = viewModel::sendCounter,
   )
 }
 
 /**
  * Stateless Chat content: the header, then a loading indicator, an error with a Retry button, the
  * empty state or the messages, and the bar to type and send a message. [now] decides which messages
- * are from today.
+ * are from today. The offer card, when there is an offer, sits above that bar.
  */
 @Composable
 fun ChatContent(
@@ -77,6 +83,12 @@ fun ChatContent(
     onRetry: () -> Unit,
     onRentalDetailsClick: () -> Unit,
     now: Instant = Instant.now(),
+    onAcceptOffer: () -> Unit = {},
+    onDeclineOffer: () -> Unit = {},
+    onStartCounter: () -> Unit = {},
+    onCancelCounter: () -> Unit = {},
+    onCounterDraftChange: (String) -> Unit = {},
+    onSendCounter: () -> Unit = {},
 ) {
   Column(
       modifier =
@@ -108,6 +120,18 @@ fun ChatContent(
     }
     // Typing is only possible once the chat is loaded.
     if (!uiState.isLoading && uiState.errorMsg == null) {
+      uiState.offer?.let { offer ->
+        ChatOfferCard(
+            offer = offer,
+            uiState = uiState,
+            onAccept = onAcceptOffer,
+            onDecline = onDeclineOffer,
+            onStartCounter = onStartCounter,
+            onCancelCounter = onCancelCounter,
+            onCounterDraftChange = onCounterDraftChange,
+            onSendCounter = onSendCounter,
+        )
+      }
       HorizontalDivider()
       InputBar(uiState = uiState, onDraftChange = onDraftChange, onSend = onSend)
     }
