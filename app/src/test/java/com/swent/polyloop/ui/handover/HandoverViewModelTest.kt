@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.handover
 import androidx.lifecycle.ViewModel
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository.StoredPhoto
 import com.swent.polyloop.model.handover.HandoverPhase
@@ -58,6 +59,7 @@ class HandoverViewModelTest {
   private lateinit var rentalRepository: FakeRentalRepository
   private lateinit var handoverRepository: FakeHandoverRepository
   private lateinit var authRepository: FakeAuthRepository
+  private lateinit var connectivity: FakeConnectivityRepository
   private var today = pickupDay
   private val deleted = mutableListOf<String>()
 
@@ -67,6 +69,7 @@ class HandoverViewModelTest {
     rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     handoverRepository = FakeHandoverRepository(currentUid = "borrower")
     authRepository = FakeAuthRepository(signedInUser = borrower)
+    connectivity = FakeConnectivityRepository()
   }
 
   @After
@@ -80,6 +83,7 @@ class HandoverViewModelTest {
           rentalRepository,
           handoverRepository,
           authRepository,
+          connectivity,
           today = { today },
           deletePhoto = { deleted += it },
       )
@@ -259,6 +263,39 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun offlineNoPhotoIsUploadedAndTheStateSaysSo() {
+    val vm = viewModel()
+    handoverRepository.failure = RuntimeException("down")
+    vm.addPhoto("file1")
+
+    connectivity.setOnline(false)
+    assertTrue(vm.uiState.value.isOffline)
+    assertFalse(vm.uiState.value.canAddPhoto)
+    vm.retryUpload()
+    vm.addPhoto("file2")
+    assertEquals(1, handoverRepository.addPhotoCalls)
+    assertEquals(listOf("file2"), deleted)
+
+    handoverRepository.failure = null
+    connectivity.setOnline(true)
+    vm.retryUpload()
+    assertNull(vm.uiState.value.failedPhotoUri)
+  }
+
+  @Test
+  fun reloadingKeepsTheOfflineState() {
+    connectivity.setOnline(false)
+    rentalRepository.failure = RuntimeException("down")
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.isOffline)
+
+    rentalRepository.failure = null
+    vm.retry()
+    assertEquals("Camping tent", vm.uiState.value.itemTitle)
+    assertTrue(vm.uiState.value.isOffline)
+  }
+
+  @Test
   fun photosAreRefusedAndDeletedOffThePickupDayAtTwentyOrWhileUploading() {
     today = pickupDay.plusDays(1)
     viewModel().addPhoto("late")
@@ -290,7 +327,13 @@ class HandoverViewModelTest {
   // ---------- factory ----------
 
   private fun factory() =
-      HandoverViewModel.Factory(rental.id, rentalRepository, handoverRepository, authRepository)
+      HandoverViewModel.Factory(
+          rental.id,
+          rentalRepository,
+          handoverRepository,
+          authRepository,
+          connectivity,
+      )
 
   @Test
   fun factoryCreatesTheViewModelForTheRental() {

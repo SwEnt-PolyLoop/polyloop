@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
+import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.HandoverRepository
@@ -31,6 +32,7 @@ import kotlinx.coroutines.launch
  * @property photos the photos the signed-in user took in [phase], oldest first.
  * @property photosFailed true when the photos could not be loaded.
  * @property failedPhotoUri the photo whose upload failed, kept to try again; null when none did.
+ * @property isOffline true while the phone has no connection; no photo can be uploaded then.
  */
 data class HandoverUiState(
     val isLoading: Boolean = true,
@@ -47,16 +49,18 @@ data class HandoverUiState(
     val photosFailed: Boolean = false,
     val isUploading: Boolean = false,
     val failedPhotoUri: String? = null,
+    val isOffline: Boolean = false,
 ) {
   /** How many more photos are needed before the handover can go on; 0 once there are enough. */
   val photosNeeded: Int
     get() = (HandoverPhoto.MIN_PHOTOS - photos.size).coerceAtLeast(0)
 
-  /** True when a photo can be added: on the pickup day, under 20 photos, none uploading. */
+  /** True when a photo can be added: on the pickup day, online, under 20, none uploading. */
   val canAddPhoto: Boolean
     get() =
         phase == HandoverPhase.PICKUP &&
             isPickupDay &&
+            !isOffline &&
             photos.size < HandoverPhoto.MAX_PHOTOS &&
             !isUploading
 }
@@ -70,6 +74,7 @@ class HandoverViewModel(
     private val rentalRepository: RentalRepository,
     private val handoverRepository: HandoverRepository,
     private val authRepository: AuthRepository,
+    private val connectivityRepository: ConnectivityRepository,
     private val today: () -> LocalDate = LocalDate::now,
     private val deletePhoto: (uri: String) -> Unit = ::deletePhotoFile,
 ) : ViewModel() {
@@ -78,6 +83,11 @@ class HandoverViewModel(
   val uiState: StateFlow<HandoverUiState> = _uiState.asStateFlow()
 
   init {
+    viewModelScope.launch {
+      connectivityRepository.isOnline.collect { online ->
+        _uiState.update { it.copy(isOffline = !online) }
+      }
+    }
     load()
   }
 
@@ -128,24 +138,24 @@ class HandoverViewModel(
   }
 
   private fun load() {
-    _uiState.value = HandoverUiState()
+    show(HandoverUiState())
     val uid = authRepository.getCurrentUser()?.uid
     if (uid == null) {
-      _uiState.value = HandoverUiState(isLoading = false, loadFailed = true)
+      show(HandoverUiState(isLoading = false, loadFailed = true))
       return
     }
     viewModelScope.launch {
       val rental =
           rentalRepository.getRental(rentalId).getOrElse {
-            _uiState.value = HandoverUiState(isLoading = false, loadFailed = true)
+            show(HandoverUiState(isLoading = false, loadFailed = true))
             return@launch
           }
       if (rental == null) {
-        _uiState.value = HandoverUiState(isLoading = false, notFound = true)
+        show(HandoverUiState(isLoading = false, notFound = true))
         return@launch
       }
       val phase = HandoverPhase.fromStatus(rental.status)
-      _uiState.value =
+      show(
           HandoverUiState(
               isLoading = false,
               isLender = uid == rental.ownerId,
@@ -156,8 +166,14 @@ class HandoverViewModel(
               isPickupDay = rental.startDate == today(),
               deposit = rental.deposit,
           )
+      )
       if (phase != null) observePhotos(phase)
     }
+  }
+
+  /** Shows [state], keeping whether the phone is online, which is followed apart. */
+  private fun show(state: HandoverUiState) = _uiState.update {
+    state.copy(isOffline = it.isOffline)
   }
 
   private fun observePhotos(phase: HandoverPhase) {
@@ -176,13 +192,21 @@ class HandoverViewModel(
       private val rentalRepository: RentalRepository,
       private val handoverRepository: HandoverRepository,
       private val authRepository: AuthRepository,
+      private val connectivityRepository: ConnectivityRepository,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass.isAssignableFrom(HandoverViewModel::class.java)) {
         "Unknown ViewModel class: ${modelClass.name}"
       }
       @Suppress("UNCHECKED_CAST")
-      return HandoverViewModel(rentalId, rentalRepository, handoverRepository, authRepository) as T
+      return HandoverViewModel(
+          rentalId,
+          rentalRepository,
+          handoverRepository,
+          authRepository,
+          connectivityRepository,
+      )
+          as T
     }
   }
 }

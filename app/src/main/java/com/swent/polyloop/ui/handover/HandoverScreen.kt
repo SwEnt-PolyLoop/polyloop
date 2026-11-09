@@ -63,6 +63,7 @@ import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
+import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.components.dashedOutline
 import com.swent.polyloop.ui.components.formatDay
 import com.swent.polyloop.ui.createlisting.CameraPermissionMessage
@@ -128,61 +129,65 @@ fun HandoverContent(
 ) {
   // The photo shown full screen after a tap, by id; null when none is.
   var enlargedId by rememberSaveable { mutableStateOf<String?>(null) }
-  Box(
+  Column(
       modifier =
           modifier
               .fillMaxSize()
               .background(MaterialTheme.colorScheme.background)
               .testTag(C.Tag.handover_screen)
   ) {
-    when {
-      uiState.isLoading ->
-          CircularProgressIndicator(
-              modifier = Modifier.align(Alignment.Center).testTag(C.Tag.handover_loading)
-          )
-      uiState.loadFailed ->
-          Column(
-              modifier = Modifier.align(Alignment.Center).padding(16.dp),
-              verticalArrangement = Arrangement.spacedBy(12.dp),
-              horizontalAlignment = Alignment.CenterHorizontally,
-          ) {
-            CenteredMessage(R.string.handover_error, C.Tag.handover_error)
-            Button(onClick = onRetry, modifier = Modifier.testTag(C.Tag.handover_retry_button)) {
-              Text(stringResource(R.string.handover_retry))
-            }
-          }
-      uiState.notFound ->
-          CenteredMessage(
-              R.string.handover_not_found,
-              C.Tag.handover_not_found,
-              Modifier.align(Alignment.Center),
-          )
-      uiState.phase == null ->
-          CenteredMessage(
-              R.string.handover_nothing,
-              C.Tag.handover_nothing,
-              Modifier.align(Alignment.Center),
-          )
-      else ->
-          Column(modifier = Modifier.fillMaxSize()) {
+    if (uiState.isOffline) OfflineBanner()
+    Box(modifier = Modifier.weight(1f)) {
+      when {
+        uiState.isLoading ->
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center).testTag(C.Tag.handover_loading)
+            )
+        uiState.loadFailed ->
             Column(
-                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.align(Alignment.Center).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-              HandoverHeader(uiState)
-              if (!uiState.isPickupDay) NotPickupDayNote(uiState.pickupDate)
-              PhotosCard(
-                  uiState,
-                  zone,
-                  onAddPhoto,
-                  onRetryUpload,
-                  onPhotoClick = { enlargedId = it },
-                  onRetryPhotos = onRetry,
-              )
-              CameraPermissionMessage(cameraPermissionGranted)
+              CenteredMessage(R.string.handover_error, C.Tag.handover_error)
+              Button(onClick = onRetry, modifier = Modifier.testTag(C.Tag.handover_retry_button)) {
+                Text(stringResource(R.string.handover_retry))
+              }
             }
-            DepositFooter(uiState.deposit)
-          }
+        uiState.notFound ->
+            CenteredMessage(
+                R.string.handover_not_found,
+                C.Tag.handover_not_found,
+                Modifier.align(Alignment.Center),
+            )
+        uiState.phase == null ->
+            CenteredMessage(
+                R.string.handover_nothing,
+                C.Tag.handover_nothing,
+                Modifier.align(Alignment.Center),
+            )
+        else ->
+            Column(modifier = Modifier.fillMaxSize()) {
+              Column(
+                  modifier =
+                      Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
+                  verticalArrangement = Arrangement.spacedBy(16.dp),
+              ) {
+                HandoverHeader(uiState)
+                if (!uiState.isPickupDay) NotPickupDayNote(uiState.pickupDate)
+                PhotosCard(
+                    uiState,
+                    zone,
+                    onAddPhoto,
+                    onRetryUpload,
+                    onPhotoClick = { enlargedId = it },
+                    onRetryPhotos = onRetry,
+                )
+                CameraPermissionMessage(cameraPermissionGranted)
+              }
+              DepositFooter(uiState.deposit)
+            }
+      }
     }
   }
   uiState.photos

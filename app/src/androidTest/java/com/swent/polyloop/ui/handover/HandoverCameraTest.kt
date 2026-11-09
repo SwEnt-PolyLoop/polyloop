@@ -12,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.rule.GrantPermissionRule
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.rental.FakeRentalRepository
@@ -96,6 +97,7 @@ class HandoverCameraTest {
             FakeRentalRepository(listOf(rental)),
             FakeHandoverRepository(currentUid = "borrower"),
             FakeAuthRepository(signedInUser = AuthUser("borrower", "loca@epfl.ch", "Loca")),
+            FakeConnectivityRepository(),
             today = { pickupDay },
         )
     composeTestRule.setContent { HandoverScreen(viewModel) }

@@ -258,8 +258,18 @@ class HandoverScreenTest {
   }
 
   @Test
+  fun offlineTheBannerShowsAndTheCameraTilesDoNothing() {
+    setContent(pickup.copy(isOffline = true))
+
+    assertShown(C.Tag.offline_banner)
+    composeTestRule.onAllNodesWithTag(C.Tag.handover_add_photo)[0].performClick()
+    assertEquals(0, cameraOpenings)
+  }
+
+  @Test
   fun aCameraTileOpensTheCameraOnlyWhenAPhotoCanBeAdded() {
     setContent(pickup.copy(isUploading = true))
+    assertAbsent(C.Tag.offline_banner)
     composeTestRule.onAllNodesWithTag(C.Tag.handover_add_photo)[0].performClick()
     assertEquals(0, cameraOpenings)
 

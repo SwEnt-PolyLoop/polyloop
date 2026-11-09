@@ -375,6 +375,7 @@ private fun PolyLoopScaffold(
                         rentalRepository = RepositoryProvider.rentalRepository,
                         handoverRepository = RepositoryProvider.handoverRepository,
                         authRepository = RepositoryProvider.authRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
                     )
             )
         HandoverScreen(viewModel = handoverViewModel)
