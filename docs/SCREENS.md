@@ -163,7 +163,7 @@ So far only the Requested, Accepted and Disputed states are built (other statuse
 One Handover screen covers both pickup and return, and adapts to the phase and to the user's role. ViewModel: HandoverViewModel, using HandoverRepository, RentalRepository and DisputeRepository. Mock-ups: [PolyLoop Handover screen](https://claude.ai/artifact/FH2RZaMrYTGYU2fNz6UpZc).
 
 - The pickup opens only on the pickup day: on another day the screen shows the pickup date, and no photo can be taken.
-- **Condition photos.** In-app camera, each photo labelled with its phase and time. Photos taken offline show a “Not synced” badge. Each person takes their own 3 to 20 photos per handover and sees only their own. Photos can also be taken mid-rental from Rental detail.
+- **Condition photos.** In-app camera, each photo labelled with its phase and time. Photos taken offline show a “Not synced” badge. Each person takes their own 3 to 20 photos per handover and sees only their own. They show 4 per row, oldest first, each with the time it was taken; tapping one shows it full screen. The camera closes after each photo, which uploads right away (Back does nothing until the upload ends); a photo that fails to upload can be tapped to try again, and no new photo can be taken until it is uploaded. Photos can also be taken mid-rental from Rental detail.
 - **QR code.** The person receiving the item scans:
     - At pickup, the lender shows the code and the borrower scans it.
     - At return, the borrower shows the code and the lender scans it.
@@ -171,8 +171,8 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
 - After the return scan, the lender sees the pickup and return photos side by side, with two buttons:
     - “Item is fine” releases the full deposit to the borrower.
     - “Flag damage” opens a dispute and keeps the deposit held.
-- A footer showing the deposit held.
-- Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading.
+- A footer showing the deposit (“Deposit held” once deposits are really reserved; until then only “Deposit”).
+- Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading. Until the queue exists, the offline banner shows and no photo can be taken: the camera tiles are disabled.
 
 ## Dispute
 
