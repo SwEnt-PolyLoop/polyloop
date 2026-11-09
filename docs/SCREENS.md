@@ -141,7 +141,7 @@ Review request is where the lender answers a request that has no offer yet (Figm
 
 Rental detail is the hub for one rental: what it is, where it stands, and the next action. ViewModel: RentalDetailViewModel, using RentalRepository, ListingRepository and ProfileRepository.
 
-So far only the Requested and Accepted states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Start pickup”, “Navigate”, cancelling or deposit state yet. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added.
+So far only the Requested, Accepted and Disputed states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Navigate”, cancelling or deposit state yet. A full-width button at the bottom gives the main action, for both roles: “Start Pickup” on Accepted, enabled from the pickup day (before it, disabled with “Pickup will be available on [day]”), and “View Dispute” on Disputed, always enabled; Requested has none. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added.
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
 - The deposit, once an offer is accepted, and its state: held, released, or frozen. “Held” appears only once deposits are really reserved, which needs the `reserveDeposit` Cloud Function; until then only the amount shows.
@@ -151,7 +151,7 @@ So far only the Requested and Accepted states are built (other statuses show the
 - A “Take photo” button while the rental is active, for condition photos between pickup and return.
 - The main action, which changes with status and role:
     - Requested: the “Chat” button leads to the chat, where the offer is answered (see Chat list & chat). Accepting reserves the deposit from the borrower's balance, and fails if it is too low. Accepting automatically declines other requests whose dates overlap, counting the 1-day buffer between rentals, with or without an offer.
-    - Accepted: “Start pickup”, shown only on the pickup day, which opens Handover.
+    - Accepted: “Start pickup”, which opens Handover; enabled from the pickup day, and shown disabled before it.
     - Active: “Start return”, which opens Handover.
     - Disputed: “View dispute”, which opens Dispute.
     - Closed: the review prompt (see Profile & reviews).
