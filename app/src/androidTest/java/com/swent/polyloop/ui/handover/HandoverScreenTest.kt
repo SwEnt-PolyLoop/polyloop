@@ -2,6 +2,9 @@
 
 package com.swent.polyloop.ui.handover
 
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -264,6 +267,27 @@ class HandoverScreenTest {
     assertShown(C.Tag.offline_banner)
     composeTestRule.onAllNodesWithTag(C.Tag.handover_add_photo)[0].performClick()
     assertEquals(0, cameraOpenings)
+  }
+
+  @Test
+  fun backIsBlockedOnlyWhileAPhotoUploads() {
+    var backs = 0
+    lateinit var backDispatcher: OnBackPressedDispatcher
+    uiState = pickup.copy(isUploading = true)
+    composeTestRule.setContent {
+      backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+      BackHandler { backs++ } // stands for the navigation, which would leave the screen
+      HandoverContent(uiState = uiState, onRetry = {}, onAddPhoto = {}, onRetryUpload = {})
+    }
+
+    // Through the dispatcher, as in EditProfileScreenTest: Espresso.pressBack() waits for focus.
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    composeTestRule.runOnIdle { assertEquals(0, backs) }
+
+    uiState = pickup
+    composeTestRule.waitForIdle()
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    composeTestRule.runOnIdle { assertEquals(1, backs) }
   }
 
   @Test

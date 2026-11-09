@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.handover
 
 import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
@@ -129,6 +130,8 @@ fun HandoverContent(
 ) {
   // The photo shown full screen after a tap, by id; null when none is.
   var enlargedId by rememberSaveable { mutableStateOf<String?>(null) }
+  // Leaving would cancel the upload and lose the photo, so Back waits for it to end.
+  BackHandler(enabled = uiState.isUploading) {}
   Column(
       modifier =
           modifier
