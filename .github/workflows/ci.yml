@@ -128,10 +128,15 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # The instrumented tests, on an Android emulator with the Firebase emulators running.
+  # The instrumented tests, on an Android emulator with the Firebase emulators running. They are
+  # split in 2 shards, each on its own runner and emulator, so each runs half of them at the same
+  # time.
   instrumented:
-    name: Instrumented tests
+    name: Instrumented tests (shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [ 0, 1 ]
 
     steps:
       - name: Checkout
@@ -215,14 +220,14 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: firebase emulators:exec --only auth,firestore,storage "./gradlew connectedCheck --parallel --build-cache"
+          script: firebase emulators:exec --only auth,firestore,storage "./gradlew connectedCheck --parallel --build-cache -Pandroid.testInstrumentationRunnerArguments.numShards=2 -Pandroid.testInstrumentationRunnerArguments.shardIndex=${{ matrix.shard }}"
 
       # Only the coverage file is uploaded, so the CI job finds it at
       # connected/<artifact name>/coverage.ec, where jacocoTestReport looks.
       - name: Upload coverage for Sonar
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-instrumented
+          name: coverage-shard-${{ matrix.shard }}
           path: app/build/outputs/code_coverage/debugAndroidTest/connected/*/coverage.ec
           if-no-files-found: error
           retention-days: 1
