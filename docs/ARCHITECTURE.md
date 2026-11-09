@@ -123,7 +123,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 3. Court: once the dispute reaches court, because either party rejected the LLM proposal, the deposit is frozen. Either party uploads the court ruling PDF; Gemini pre-fills the split; an admin reviews it on the Admin court ruling screen and applies or rejects it.
 - Chat is disabled while a dispute is open. Reviews (1–5 stars, no text for now) are prompted when a rental closes, however it closed.
 - For now an agreement only settles the dispute and closes the rental: no money moves, since the deposit is not reserved at acceptance until the wallet has a Firestore implementation.
-- For now nothing produces the LLM proposal: an escalated dispute stays in `LLM_PROPOSAL`, with no way forward, until the Gemini Cloud Function exists.
+- For now nothing produces the LLM proposal: an escalated dispute stays in `LLM_PROPOSAL`, with no way forward, until the Gemini Cloud Function exists. Nothing escalates a dispute by itself after 30 days yet either: only a participant's "Escalate" does.
 
 ## Technical choices
 
