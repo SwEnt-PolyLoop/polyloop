@@ -109,8 +109,8 @@ internal fun rentalFromDocument(id: String, data: Map<String, Any?>): Rental? {
       pickupAddress = data.stringOrEmpty(RentalFields.PICKUP_ADDRESS),
       returnAddress = data.stringOrEmpty(RentalFields.RETURN_ADDRESS),
       deposit = intOrNull(data[RentalFields.DEPOSIT]) ?: 0,
-      // Only the hourly Cloud Function writes lateFees, once a return is late, so a rental that
-      // was never late has no such field.
+      // Only Cloud Functions will write lateFees, the scheduled job that charges late fees, once a
+      // return is late, so a rental that was never late has no such field.
       lateFees = intOrNull(data[RentalFields.LATE_FEES]) ?: 0,
       offer = depositOfferFromDocument(data[RentalFields.OFFER]),
       createdAt = createdAt,

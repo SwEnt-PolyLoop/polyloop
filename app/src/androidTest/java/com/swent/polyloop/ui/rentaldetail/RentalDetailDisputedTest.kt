@@ -128,6 +128,16 @@ class RentalDetailDisputedTest {
   }
 
   @Test
+  fun aDepositOfZeroIsStillShownAsHeld() {
+    setContent(disputed.copy(deposit = 0))
+
+    assertShown(
+        C.Tag.rental_detail_accepted_deposit,
+        context.getString(R.string.rental_detail_deposit_held, 0),
+    )
+  }
+
+  @Test
   fun theDetailsGiveTheLateFeesTaken() {
     setContent(disputed.copy(lateFees = 34))
 

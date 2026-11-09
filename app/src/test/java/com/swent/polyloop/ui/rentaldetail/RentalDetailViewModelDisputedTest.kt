@@ -120,26 +120,7 @@ class RentalDetailViewModelDisputedTest {
 
   @Test
   fun missingLateFeesGiveZero() {
-    // A rental never late has no lateFees field; the model then reads the default of 0.
-    val neverLate =
-        Rental(
-            id = disputed.id,
-            listingId = disputed.listingId,
-            listingTitle = disputed.listingTitle,
-            ownerId = disputed.ownerId,
-            ownerName = disputed.ownerName,
-            borrowerId = disputed.borrowerId,
-            borrowerName = disputed.borrowerName,
-            startDate = disputed.startDate,
-            endDate = disputed.endDate,
-            status = RentalStatus.DISPUTED,
-            pricePerDay = disputed.pricePerDay,
-            totalPrice = disputed.totalPrice,
-            pickupArea = disputed.pickupArea,
-            dropOffArea = disputed.dropOffArea,
-            createdAt = now,
-        )
-    val rentals = FakeRentalRepository(listOf(neverLate), clock = { now })
+    val rentals = FakeRentalRepository(listOf(disputed.copy(lateFees = 0)), clock = { now })
 
     assertEquals(0, viewModel("borrower", rentals).uiState.value.lateFees)
   }
