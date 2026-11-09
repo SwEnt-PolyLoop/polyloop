@@ -65,9 +65,12 @@ async function messages(ref: DocumentReference): Promise<string[]> {
 }
 
 describe("deployment", () => {
-  it("runs escalateDisputes on a schedule, in the app's region", () => {
+  it("runs escalateDisputes every hour, Zurich time, in the app's region", () => {
     expect(escalateDisputes.__endpoint.region).toEqual(["europe-west1"]);
-    expect(escalateDisputes.__endpoint.scheduleTrigger).toBeDefined();
+    expect(escalateDisputes.__endpoint.scheduleTrigger).toMatchObject({
+      schedule: "every 60 minutes",
+      timeZone: "Europe/Zurich",
+    });
   });
 });
 
