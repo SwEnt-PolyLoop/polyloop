@@ -66,6 +66,8 @@ class RentalDetailScreenTest {
           onRetry = { retries++ },
           onChatClick = { chatClicks++ },
           onPersonClick = { personClicks += it },
+          onStartPickupClick = {},
+          onViewDisputeClick = {},
           today = today,
           zone = ZoneOffset.UTC,
       )
@@ -82,6 +84,14 @@ class RentalDetailScreenTest {
 
   private fun assertAbsent(tag: String) {
     composeTestRule.onNodeWithTag(tag).assertDoesNotExist()
+  }
+
+  @Test
+  fun aRequestHasNoActionButton() {
+    setContent()
+
+    assertAbsent(C.Tag.rental_detail_action_button)
+    assertAbsent(C.Tag.rental_detail_pickup_available_on)
   }
 
   @Test
@@ -370,6 +380,8 @@ class RentalDetailScreenTest {
           onRetry = {},
           onChatClick = {},
           onPersonClick = {},
+          onStartPickupClick = {},
+          onViewDisputeClick = {},
           today = today,
           zone = ZoneOffset.UTC,
       )

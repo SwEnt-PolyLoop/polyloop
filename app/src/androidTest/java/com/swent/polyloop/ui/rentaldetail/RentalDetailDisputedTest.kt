@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.rentaldetail
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
@@ -52,6 +53,7 @@ class RentalDetailDisputedTest {
       )
 
   private var chatClicks = 0
+  private var viewDisputeClicks = 0
   private val personClicks = mutableListOf<String>()
 
   private fun setContent(state: RentalDetailUiState = disputed) {
@@ -61,6 +63,8 @@ class RentalDetailDisputedTest {
           onRetry = {},
           onChatClick = { chatClicks++ },
           onPersonClick = { personClicks += it },
+          onStartPickupClick = {},
+          onViewDisputeClick = { viewDisputeClicks++ },
           today = LocalDate.of(2026, 10, 12),
           zone = ZoneOffset.UTC,
       )
@@ -166,6 +170,29 @@ class RentalDetailDisputedTest {
         .performTouchInput { click(centerLeft + Offset(8f, 0f)) }
 
     assertEquals(listOf("lea"), personClicks)
+  }
+
+  @Test
+  fun viewDisputeIsEnabledForTheBorrowerAndOpensTheDispute() {
+    assertViewDisputeOpensTheDispute(isLender = false)
+  }
+
+  @Test
+  fun viewDisputeIsEnabledForTheLenderAndOpensTheDispute() {
+    assertViewDisputeOpensTheDispute(isLender = true)
+  }
+
+  private fun assertViewDisputeOpensTheDispute(isLender: Boolean) {
+    setContent(disputed.copy(isLender = isLender))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_action_button)
+        .assertIsDisplayed()
+        .assertIsEnabled()
+        .assertTextEquals(context.getString(R.string.rental_detail_view_dispute))
+        .performClick()
+
+    assertEquals(1, viewDisputeClicks)
   }
 
   @Test

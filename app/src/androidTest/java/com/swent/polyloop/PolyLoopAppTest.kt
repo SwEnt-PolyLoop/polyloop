@@ -569,6 +569,33 @@ class PolyLoopAppTest {
     )
   }
 
+  /** Opens Rental detail on [shown], signed in as its borrower, and taps its action button. */
+  private fun tapActionButtonOnRentalDetail(shown: Rental) {
+    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(shown))
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(shown.id))
+    }
+    waitForTag(C.Tag.rental_detail_action_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).performClick()
+  }
+
+  @Test
+  fun startPickupOnItsPickupDayOpensTheHandover() {
+    val today = LocalDate.now()
+    tapActionButtonOnRentalDetail(rental.copy(startDate = today, endDate = today.plusDays(2)))
+
+    assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
+  }
+
+  @Test
+  fun viewDisputeOpensTheDispute() {
+    tapActionButtonOnRentalDetail(rental.copy(status = RentalStatus.DISPUTED, deposit = 60))
+
+    assertCurrentScreen(Screen.Dispute, shownRoute = Screen.Dispute.createRoute(rental.id))
+  }
+
   @Test
   fun menuHidesAdminCourtRulingFromNonAdmins() {
     setAppSignedIn(isAdmin = false)

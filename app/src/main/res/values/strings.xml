@@ -385,6 +385,10 @@
     <!-- The late fees taken from the deposit, e.g. "0 PP" -->
     <string name="rental_detail_late_fees">%1$d PP</string>
     <string name="rental_detail_chat_paused">Chat is paused while the dispute is open.</string>
+    <string name="rental_detail_start_pickup">Start Pickup</string>
+    <!-- Under the disabled Start Pickup button, e.g. "Pickup will be available on 1 Oct" -->
+    <string name="rental_detail_pickup_available_on">Pickup will be available on %1$s</string>
+    <string name="rental_detail_view_dispute">View Dispute</string>
 
     <!-- Dispute -->
     <string name="dispute_title">Dispute</string>

@@ -66,14 +66,17 @@ import java.time.format.DateTimeFormatter
 
 /**
  * The Rental detail screen, showing the rental loaded by [viewModel]. [onChatClick] opens the
- * rental's chat and [onPersonClick] the other person's profile. The app's top bar is drawn by the
- * navigation scaffold, not here.
+ * rental's chat, [onPersonClick] the other person's profile, [onStartPickupClick] the pickup
+ * (Handover) of an accepted rental and [onViewDisputeClick] the dispute of a disputed one. The
+ * app's top bar is drawn by the navigation scaffold, not here.
  */
 @Composable
 fun RentalDetailScreen(
     viewModel: RentalDetailViewModel,
     onChatClick: () -> Unit,
     onPersonClick: (uid: String) -> Unit,
+    onStartPickupClick: () -> Unit,
+    onViewDisputeClick: () -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   // Split from the stateless content below so that tests and previews can set the state directly,
@@ -83,14 +86,18 @@ fun RentalDetailScreen(
       onRetry = viewModel::retry,
       onChatClick = onChatClick,
       onPersonClick = onPersonClick,
+      onStartPickupClick = onStartPickupClick,
+      onViewDisputeClick = onViewDisputeClick,
   )
 }
 
 /**
  * Stateless Rental detail content: a loading indicator, an error with a Retry button, a not-found
  * message, a placeholder for a status not built yet, or the Requested, Accepted or Disputed rental,
- * depending on [uiState]. [today] and [zone] decide how dates are written (e.g. whether the year is
- * shown); tests pass fixed values so their expected texts do not depend on the day they run.
+ * depending on [uiState]. An Accepted rental has "Start Pickup" ([onStartPickupClick]) pinned at
+ * the bottom and a Disputed one "View Dispute" ([onViewDisputeClick]). [today] and [zone] decide
+ * how dates are written (e.g. whether the year is shown) and from which day Start Pickup is
+ * enabled; tests pass fixed values so their expected texts do not depend on the day they run.
  */
 @Composable
 fun RentalDetailContent(
@@ -98,6 +105,8 @@ fun RentalDetailContent(
     onRetry: () -> Unit,
     onChatClick: () -> Unit,
     onPersonClick: (uid: String) -> Unit,
+    onStartPickupClick: () -> Unit,
+    onViewDisputeClick: () -> Unit,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
     zone: ZoneId = ZoneId.systemDefault(),
@@ -132,45 +141,135 @@ fun RentalDetailContent(
                 modifier = Modifier.testTag(C.Tag.rental_detail_unsupported),
             )
           }
-      else ->
-          Column(
-              modifier =
-                  Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-              verticalArrangement = Arrangement.spacedBy(16.dp),
-          ) {
-            RentalTitle(title = uiState.itemTitle)
-            StageStrip(status = uiState.status)
-            StatusCard(uiState = uiState, today = today, zone = zone)
-            DetailsCard(uiState = uiState, today = today)
-            val isDisputed = uiState.status == RentalStatus.DISPUTED
-            uiState.otherPerson?.let { person ->
-              PersonCard(
-                  person = person,
-                  onClick = { onPersonClick(person.uid) },
-                  onChatClick = onChatClick,
-                  // Chat is paused while the dispute is open; the card itself stays tappable, so
-                  // the other person's profile can still be opened.
-                  chatEnabled = !isDisputed,
+      else -> {
+        Column(
+            modifier =
+                Modifier.fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+          RentalTitle(title = uiState.itemTitle)
+          StageStrip(status = uiState.status)
+          StatusCard(uiState = uiState, today = today, zone = zone)
+          DetailsCard(uiState = uiState, today = today)
+          val isDisputed = uiState.status == RentalStatus.DISPUTED
+          uiState.otherPerson?.let { person ->
+            PersonCard(
+                person = person,
+                onClick = { onPersonClick(person.uid) },
+                onChatClick = onChatClick,
+                // Chat is paused while the dispute is open; the card itself stays tappable, so the
+                // other person's profile can still be opened.
+                chatEnabled = !isDisputed,
+            )
+          }
+          if (isDisputed) {
+            ChatPausedNote()
+          } else if (uiState.status == RentalStatus.ACCEPTED) {
+            PickupPoint(uiState = uiState)
+          } else {
+            PickupArea(
+                area = uiState.pickupArea,
+                point = uiState.pickupPoint,
+                showMap = !uiState.isOffline,
+            )
+          }
+          // A request that was never accepted can always be withdrawn, even after its pickup day,
+          // so the borrower keeps the button for as long as the rental is Requested.
+          if (!uiState.isLender && uiState.status == RentalStatus.REQUESTED) {
+            CancelRow(lastCancelDay = uiState.startDate?.minusDays(1), today = today)
+          }
+        }
+        // Outside the scrolling column, so the main action stays at the bottom of the screen.
+        ActionBar(
+            uiState = uiState,
+            today = today,
+            onStartPickupClick = onStartPickupClick,
+            onViewDisputeClick = onViewDisputeClick,
+        )
+      }
+    }
+  }
+}
+
+/**
+ * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "View
+ * Dispute" once disputed, and nothing for a request.
+ */
+@Composable
+private fun ActionBar(
+    uiState: RentalDetailUiState,
+    today: LocalDate,
+    onStartPickupClick: () -> Unit,
+    onViewDisputeClick: () -> Unit,
+) {
+  val start = uiState.startDate
+  when (uiState.status) {
+    RentalStatus.ACCEPTED ->
+        if (start != null) {
+          // Compared with today here, not in the ViewModel: the screen already gets today to write
+          // its dates, and tests fix it there.
+          val pickupOpen = !today.isBefore(start)
+          ActionBarSurface {
+            ActionButton(
+                text = stringResource(R.string.rental_detail_start_pickup),
+                enabled = pickupOpen,
+                onClick = onStartPickupClick,
+            )
+            // Shown disabled rather than hidden before the pickup day, so the user sees what comes
+            // next and from when.
+            if (!pickupOpen) {
+              val locale = LocalConfiguration.current.locales[0]
+              Text(
+                  text =
+                      stringResource(
+                          R.string.rental_detail_pickup_available_on,
+                          formatDay(start, withYear = start.year != today.year, locale = locale),
+                      ),
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  textAlign = TextAlign.Center,
+                  modifier =
+                      Modifier.fillMaxWidth().testTag(C.Tag.rental_detail_pickup_available_on),
               )
-            }
-            if (isDisputed) {
-              ChatPausedNote()
-            } else if (uiState.status == RentalStatus.ACCEPTED) {
-              PickupPoint(uiState = uiState)
-            } else {
-              PickupArea(
-                  area = uiState.pickupArea,
-                  point = uiState.pickupPoint,
-                  showMap = !uiState.isOffline,
-              )
-            }
-            // A request that was never accepted can always be withdrawn, even after its pickup day,
-            // so the borrower keeps the button for as long as the rental is Requested.
-            if (!uiState.isLender && uiState.status == RentalStatus.REQUESTED) {
-              CancelRow(lastCancelDay = uiState.startDate?.minusDays(1), today = today)
             }
           }
+        }
+    RentalStatus.DISPUTED ->
+        ActionBarSurface {
+          // Never disabled: both roles can follow the dispute at every stage.
+          ActionButton(
+              text = stringResource(R.string.rental_detail_view_dispute),
+              enabled = true,
+              onClick = onViewDisputeClick,
+          )
+        }
+    else -> Unit
+  }
+}
+
+@Composable
+private fun ActionBarSurface(content: @Composable () -> Unit) {
+  Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      content()
     }
+  }
+}
+
+@Composable
+private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+  Button(
+      onClick = onClick,
+      enabled = enabled,
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.rental_detail_action_button),
+  ) {
+    Text(text)
   }
 }
 
@@ -787,7 +886,38 @@ private fun RentalDetailContentPreview() {
           onRetry = {},
           onChatClick = {},
           onPersonClick = {},
+          onStartPickupClick = {},
+          onViewDisputeClick = {},
           today = LocalDate.of(2026, 9, 28),
+      )
+    }
+  }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun RentalDetailDisputedPreview() {
+  PolyLoopTheme {
+    Column {
+      PolyLoopTopBar(onMenuClick = {}, onProfileClick = {})
+      RentalDetailContent(
+          uiState =
+              RentalDetailUiState(
+                  itemTitle = "Ski helmet, size M",
+                  status = RentalStatus.DISPUTED,
+                  startDate = LocalDate.of(2026, 10, 1),
+                  endDate = LocalDate.of(2026, 10, 8),
+                  rentalPrice = 120,
+                  deposit = 60,
+                  otherPerson =
+                      OtherPerson(uid = "lea", name = "Léa", averageRating = 4.6, reviewCount = 5),
+              ),
+          onRetry = {},
+          onChatClick = {},
+          onPersonClick = {},
+          onStartPickupClick = {},
+          onViewDisputeClick = {},
+          today = LocalDate.of(2026, 10, 12),
       )
     }
   }
