@@ -7,7 +7,6 @@ import {
   Timestamp,
   Transaction,
 } from "firebase-admin/firestore";
-import * as logger from "firebase-functions/logger";
 import {
   LLM_PROPOSAL,
   PROPOSAL_CHANGED,
@@ -18,6 +17,7 @@ import {
 } from "./disputeRules";
 import { writeWithSystemMessage } from "./negotiation";
 import { RequestError } from "./rentalRules";
+import { runSweep } from "./sweep";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
 const DISPUTES = "disputes";
@@ -50,19 +50,23 @@ interface OpenDispute {
   rentalRef: DocumentReference;
   rental: DocumentData;
   proposals: StoredProposal[];
+  /** As read: a Timestamp, or missing or null on a dispute that never escalates by itself. */
+  escalatesAt: unknown;
 }
 
 /**
  * Adds the caller's split to the dispute of [input.rentalId], in one transaction. It becomes the
- * latest proposal, the one the other party can accept. Nothing is added to the chat.
+ * latest proposal, the one the other party can accept. Nothing is added to the chat. Once
+ * `escalatesAt` has passed, the dispute escalates instead (see [inDirectSettlement]).
  *
  * @param db the Firestore database.
  * @param callerId the participant proposing.
  * @param input the rental and the lender's share, already checked by `parseSplitInput`.
  * @param now the current time, stored as the proposal's `createdAt`; passed so tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant) or
- *   `failed-precondition` (settled or no longer in direct settlement: `STAGE_CHANGED`; the same
- *   split as the latest proposal, or [MAX_PROPOSALS] reached). Nothing is written then.
+ *   `failed-precondition` (settled, no longer in direct settlement or past `escalatesAt`:
+ *   `STAGE_CHANGED`; the same split as the latest proposal, or [MAX_PROPOSALS] reached). Nothing
+ *   is written then, except the escalation once past `escalatesAt`.
  */
 export async function proposeSplit(
   db: Firestore,
@@ -70,8 +74,7 @@ export async function proposeSplit(
   input: SplitInput,
   now: Date = new Date(),
 ): Promise<void> {
-  await db.runTransaction(async (tx) => {
-    const open = await requireSettlingDispute(tx, db, input.rentalId, callerId);
+  await inDirectSettlement(db, callerId, input.rentalId, now, (tx, open) => {
     if (latestOf(open.proposals)?.lenderPercent === input.lenderPercent) {
       throw new RequestError("failed-precondition", "This split is already on the table.");
     }
@@ -95,17 +98,19 @@ export async function proposeSplit(
  * Accepts the latest proposal of the dispute of [input.rentalId], in one transaction: the dispute
  * is settled and the rental CLOSED, with the split in the chat. [input.lenderPercent] is the split
  * the caller saw, so a proposal changed meanwhile is never accepted. No money moves yet: the
- * deposit is not reserved at acceptance until the wallet has a Firestore implementation.
+ * deposit is not reserved at acceptance until the wallet has a Firestore implementation. Once
+ * `escalatesAt` has passed, the dispute escalates instead (see [inDirectSettlement]).
  *
  * @param db the Firestore database.
  * @param callerId the participant accepting, who must not be the latest proposal's author.
  * @param input the rental and the split the caller saw, already checked by `parseSplitInput`.
  * @param now the current time, stored as `agreedAt`; passed so that tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant, or the caller's own
- *   proposal) or `failed-precondition` (settled or no longer in direct settlement:
- *   `STAGE_CHANGED`; no proposal; the latest proposal is not the split the caller saw:
- *   `PROPOSAL_CHANGED`, checked before the author so that a percentage changed meanwhile, even
- *   by the caller's own new proposal, reads as changed). Nothing is written then.
+ *   proposal) or `failed-precondition` (settled, no longer in direct settlement or past
+ *   `escalatesAt`: `STAGE_CHANGED`; no proposal; the latest proposal is not the split the caller
+ *   saw: `PROPOSAL_CHANGED`, checked before the author so that a percentage changed meanwhile,
+ *   even by the caller's own new proposal, reads as changed). Nothing is written then, except the
+ *   escalation once past `escalatesAt`.
  */
 export async function acceptSplit(
   db: Firestore,
@@ -113,8 +118,7 @@ export async function acceptSplit(
   input: SplitInput,
   now: Date = new Date(),
 ): Promise<void> {
-  await db.runTransaction(async (tx) => {
-    const open = await requireSettlingDispute(tx, db, input.rentalId, callerId);
+  await inDirectSettlement(db, callerId, input.rentalId, now, (tx, open) => {
     const latest = latestOf(open.proposals);
     if (!latest) {
       throw new RequestError("failed-precondition", "No proposal is waiting for an answer.");
@@ -134,30 +138,69 @@ export async function acceptSplit(
 /**
  * Moves the dispute of [rentalId] from direct settlement to the LLM proposal at the caller's
  * request, in one transaction. `escalatesAt` is left as it was: it only applies to direct
- * settlement.
+ * settlement. Once `escalatesAt` has passed, the dispute escalates by itself instead, with no
+ * `escalatedBy` (see [inDirectSettlement]).
  *
  * @param db the Firestore database.
  * @param callerId the participant escalating, stored as `escalatedBy`.
  * @param rentalId the rental of the dispute.
+ * @param now the current time, compared with `escalatesAt`; passed so that tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant) or
- *   `failed-precondition` (settled or no longer in direct settlement: `STAGE_CHANGED`, so two
- *   escalations sent at once never skip a stage). Nothing is written then.
+ *   `failed-precondition` (settled, no longer in direct settlement or past `escalatesAt`:
+ *   `STAGE_CHANGED`, so two escalations sent at once never skip a stage). Nothing is written then,
+ *   except the escalation once past `escalatesAt`.
  */
 export async function escalateDispute(
   db: Firestore,
   callerId: string,
   rentalId: string,
+  now: Date = new Date(),
 ): Promise<void> {
-  await db.runTransaction(async (tx) => {
-    const open = await requireSettlingDispute(tx, db, rentalId, callerId);
+  await inDirectSettlement(db, callerId, rentalId, now, (tx, open) => {
     moveToLlmProposal(tx, open.disputeRef, open.rentalRef, callerId);
   });
 }
 
 /**
+ * Runs [act] on the dispute of [rentalId] in one transaction, if it is still in direct
+ * settlement. If its `escalatesAt` has passed at [now] but the hourly sweep has not run yet, the
+ * dispute escalates as the sweep would, [act] is not run, and the caller gets `STAGE_CHANGED` once
+ * the escalation is written: throwing inside the transaction would undo it.
+ *
+ * @param db the Firestore database.
+ * @param callerId the participant calling, who must be the rental's owner or borrower.
+ * @param rentalId the rental of the dispute.
+ * @param now the current time, compared with `escalatesAt`.
+ * @param act the change to make while the dispute is in direct settlement; it may throw a refusal
+ *   before writing anything.
+ * @throws RequestError the refusals of [requireSettlingDispute] and of [act], or `STAGE_CHANGED`
+ *   after the escalation.
+ */
+async function inDirectSettlement(
+  db: Firestore,
+  callerId: string,
+  rentalId: string,
+  now: Date,
+  act: (tx: Transaction, open: OpenDispute) => void,
+): Promise<void> {
+  const escalated = await db.runTransaction(async (tx) => {
+    const open = await requireSettlingDispute(tx, db, rentalId, callerId);
+    if (isDue(open.escalatesAt, now)) {
+      moveToLlmProposal(tx, open.disputeRef, open.rentalRef, null);
+      return true;
+    }
+    act(tx, open);
+    return false;
+  });
+  if (escalated) throw stageChanged();
+}
+
+/**
  * Moves on to the LLM proposal every dispute still in direct settlement whose `escalatesAt` has
  * passed at [now]. One failure is logged and does not stop the others. The query is on one field,
- * so it needs no composite index; the stage and the agreement are checked in each transaction.
+ * so it needs no composite index, and `escalatesAt` stays set once a dispute moves on: disputes
+ * already escalated or settled are left out before any transaction, then each transaction checks
+ * the stage and the agreement again.
  *
  * @param db the Firestore database.
  * @param now the current time, passed so that tests can set it.
@@ -172,20 +215,15 @@ export async function escalateOverdueDisputes(
   const overdue = await db
     .collection(DISPUTES)
     .where("escalatesAt", "<=", Timestamp.fromDate(now))
-    .select()
+    .select("stage", "agreedAt")
     .get();
-  const results = await Promise.allSettled(
-    overdue.docs.map((doc) =>
-      escalate(doc.ref, now).catch((error) => {
-        logger.error(`Could not escalate the dispute of rental ${doc.id}`, error);
-        throw error;
-      }),
-    ),
+  const open = overdue.docs.filter((doc) => doc.get("stage") === SETTLE && !doc.get("agreedAt"));
+  const { done, failed } = await runSweep(
+    open.map((doc) => doc.ref),
+    (ref) => escalate(ref, now),
+    (id) => `Could not escalate the dispute of rental ${id}`,
   );
-  return {
-    escalated: results.filter((result) => result.status === "fulfilled" && result.value).length,
-    failed: results.filter((result) => result.status === "rejected").length,
-  };
+  return { escalated: done, failed };
 }
 
 /**
@@ -203,12 +241,10 @@ export async function escalateIfOverdue(
 ): Promise<boolean> {
   return disputeRef.firestore.runTransaction(async (tx) => {
     const dispute = (await tx.get(disputeRef)).data();
-    const escalatesAt = dispute?.escalatesAt as Timestamp | undefined;
     if (
       dispute?.stage !== SETTLE ||
       dispute.agreedAt ||
-      !escalatesAt ||
-      escalatesAt.toMillis() > now.getTime()
+      !isDue(dispute.escalatesAt, now)
     ) {
       return false;
     }
@@ -275,19 +311,25 @@ async function requireSettlingDispute(
     throw new RequestError("permission-denied", "Only the two participants can take part.");
   }
   if (dispute.agreedAt) {
-    throw new RequestError("failed-precondition", "This dispute is already settled.", {
-      reason: STAGE_CHANGED,
-    });
+    throw stageChanged("This dispute is already settled.");
   }
   if (dispute.stage !== SETTLE) {
-    throw new RequestError(
-      "failed-precondition",
-      "This dispute is no longer in direct settlement.",
-      { reason: STAGE_CHANGED },
-    );
+    throw stageChanged();
   }
   const proposals = Array.isArray(dispute.proposals) ? (dispute.proposals as StoredProposal[]) : [];
-  return { disputeRef, rentalRef, rental, proposals };
+  return { disputeRef, rentalRef, rental, proposals, escalatesAt: dispute.escalatesAt };
+}
+
+/** The refusal sent when the dispute was settled or left direct settlement, with [message]. */
+function stageChanged(
+  message = "This dispute is no longer in direct settlement.",
+): RequestError {
+  return new RequestError("failed-precondition", message, { reason: STAGE_CHANGED });
+}
+
+/** Whether direct settlement should have escalated by [now]; a dispute without a date never does. */
+function isDue(escalatesAt: unknown, now: Date): boolean {
+  return escalatesAt instanceof Timestamp && escalatesAt.toMillis() <= now.getTime();
 }
 
 /** The proposal on the table: the last one sent, or undefined when nobody has proposed yet. */
