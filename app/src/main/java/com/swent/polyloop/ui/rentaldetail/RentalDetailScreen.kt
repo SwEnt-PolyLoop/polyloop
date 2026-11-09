@@ -360,35 +360,23 @@ private fun StatusCard(uiState: RentalDetailUiState, today: LocalDate, zone: Zon
             modifier = Modifier.testTag(C.Tag.rental_detail_status_headline),
         )
       }
-      if (status == RentalStatus.ACCEPTED) {
+      val body: String? =
+          when {
+            status == RentalStatus.ACCEPTED -> stringResource(R.string.rental_detail_accepted_body)
+            status == RentalStatus.DISPUTED -> stringResource(R.string.rental_detail_disputed_body)
+            offer != null -> offerBody(offer, uiState.isOfferMine, zone)
+            sentAt != null -> {
+              val sentDay = sentAt.atZone(zone).toLocalDate()
+              stringResource(
+                  R.string.rental_detail_status_body,
+                  formatDay(sentDay, withYear = sentDay.year != today.year, locale = locale),
+              )
+            }
+            else -> null
+          }
+      body?.let {
         Text(
-            text = stringResource(R.string.rental_detail_accepted_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.testTag(C.Tag.rental_detail_status_body),
-        )
-      } else if (status == RentalStatus.DISPUTED) {
-        Text(
-            text = stringResource(R.string.rental_detail_disputed_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.testTag(C.Tag.rental_detail_status_body),
-        )
-      } else if (offer != null) {
-        Text(
-            text = offerBody(offer, uiState.isOfferMine, zone),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.testTag(C.Tag.rental_detail_status_body),
-        )
-      } else if (sentAt != null) {
-        val sentDay = sentAt.atZone(zone).toLocalDate()
-        Text(
-            text =
-                stringResource(
-                    R.string.rental_detail_status_body,
-                    formatDay(sentDay, withYear = sentDay.year != today.year, locale = locale),
-                ),
+            text = it,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag(C.Tag.rental_detail_status_body),
