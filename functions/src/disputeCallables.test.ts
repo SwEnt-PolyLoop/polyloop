@@ -85,8 +85,9 @@ describe("who can call", () => {
 });
 
 describe("what can be sent", () => {
-  // Every wrong input is in disputeRules.test.ts; here only that both callables check it.
-  it("checks the input of both callables", async () => {
+  // Every wrong input is in disputeRules.test.ts and rentalRules.test.ts (parseRentalId); here
+  // only that each callable checks it.
+  it("checks the input of every callable", async () => {
     const id = await disputed();
 
     await expect(
@@ -95,6 +96,10 @@ describe("what can be sent", () => {
     await expect(acceptSplit.run(asUser(BORROWER, { rentalId: id }))).rejects.toMatchObject({
       code: "invalid-argument",
     });
+    await expect(escalateDispute.run(asUser(LENDER, {}))).rejects.toMatchObject({
+      code: "invalid-argument",
+    });
+    expect((await dispute(id))?.stage).toBe("SETTLE");
   });
 
   it("gives the app the reason of a lost race in the HttpsError's details", async () => {
