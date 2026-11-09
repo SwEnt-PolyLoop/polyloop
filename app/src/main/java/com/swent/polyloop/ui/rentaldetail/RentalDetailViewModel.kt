@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
  * [errorMsg] is non-null when the rental could not be read; it is blank when the failure carried no
  * message, and the screen then shows a generic text. [notFound] is true when there is no such
  * rental. [isSupported] is false for a status the screen does not handle yet (anything but
- * Requested and Accepted): only [itemTitle] is then set, for the placeholder. [isLender] is true
+ * Requested, Accepted and Disputed): only [itemTitle] is then set, for the placeholder. [isLender] is true
  * when the signed-in user owns the item. [sentAt] is when the request was sent, [endDate] the
  * return day and [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the listing's
  * item value in PolyPoints, or null when the listing is missing or could not be read. [pickupArea]
@@ -40,7 +40,8 @@ import kotlinx.coroutines.launch
  * the pickup area of a request as a placeholder instead of the map. [offer] is the deposit offer
  * waiting for an answer, if any, and [isOfferMine] is true when the signed-in user wrote it.
  * [deposit] is the accepted amount in PolyPoints, and [pickupAddress] and [returnAddress] are the
- * exact addresses, set once the rental is accepted.
+ * exact addresses, set once the rental is accepted. [lateFees] is the total taken from the deposit
+ * for a late return, in PolyPoints, and 0 when the return was never late.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -64,6 +65,7 @@ data class RentalDetailUiState(
     val deposit: Int = 0,
     val pickupAddress: String = "",
     val returnAddress: String = "",
+    val lateFees: Int = 0,
 )
 
 /**
@@ -81,8 +83,8 @@ data class OtherPerson(
 )
 
 /**
- * Shows one rental as seen by the signed-in user. Requested and Accepted are handled so far. The
- * rental is read once, then followed, so that the offer and an acceptance show without a reload. It
+ * Shows one rental as seen by the signed-in user. Requested, Accepted and Disputed are handled so
+ * far. The rental is read once, then followed, so that the offer and an acceptance show without a reload. It
  * follows the network status from [connectivityRepository], so the screen knows when to replace the
  * map.
  */
@@ -179,6 +181,7 @@ class RentalDetailViewModel(
             deposit = rental.deposit,
             pickupAddress = rental.pickupAddress,
             returnAddress = rental.returnAddress,
+            lateFees = rental.lateFees,
         )
       }
       // A read error here stops the updates: the rental read above stays on screen, but not its
@@ -206,6 +209,7 @@ class RentalDetailViewModel(
                         deposit = live.deposit,
                         pickupAddress = live.pickupAddress,
                         returnAddress = live.returnAddress,
+                        lateFees = live.lateFees,
                     )
                   }
             }
@@ -214,8 +218,9 @@ class RentalDetailViewModel(
   }
 
   private companion object {
-    /** The statuses the screen shows in full. */
-    val SUPPORTED_STATUSES = setOf(RentalStatus.REQUESTED, RentalStatus.ACCEPTED)
+    /** The statuses the screen shows in full; every other one shows the placeholder. */
+    val SUPPORTED_STATUSES =
+        setOf(RentalStatus.REQUESTED, RentalStatus.ACCEPTED, RentalStatus.DISPUTED)
   }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */
