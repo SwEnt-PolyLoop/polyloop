@@ -20,8 +20,8 @@ import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalRepositoryFirestore
-import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.model.wallet.WalletRepository
+import com.swent.polyloop.model.wallet.WalletRepositoryFirestore
 
 /**
  * The single place that creates the app's repositories, so screens and ViewModels share one
@@ -99,13 +99,9 @@ object RepositoryProvider {
       connectivity = value
     }
 
-  /**
-   * The wallet repository. There is no Firestore implementation yet, so until there is one the
-   * default is an in-memory [FakeWalletRepository]: it starts empty, keeps nothing between runs and
-   * is NOT the user's real wallet. Replace the default when the real repository exists.
-   */
+  /** The wallet repository: Firestore by default, read-only for the app (Cloud Functions write). */
   var walletRepository: WalletRepository
-    get() = wallet ?: FakeWalletRepository().also { wallet = it }
+    get() = wallet ?: WalletRepositoryFirestore().also { wallet = it }
     set(value) {
       wallet = value
     }
