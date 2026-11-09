@@ -229,7 +229,7 @@ describe("escalateDispute", () => {
   it("moves the dispute on to the LLM proposal, keeping escalatesAt", async () => {
     const id = await disputed();
 
-    await escalateDispute(db, BORROWER, id);
+    await escalateDispute(db, BORROWER, id, NOW);
 
     const data = await dispute(id);
     expect(data).toMatchObject({ stage: "LLM_PROPOSAL", escalatedBy: BORROWER });
@@ -242,9 +242,9 @@ describe("escalateDispute", () => {
 
   it("refuses a dispute that already moved on, without a second message", async () => {
     const id = await disputed();
-    await escalateDispute(db, LENDER, id);
+    await escalateDispute(db, LENDER, id, NOW);
 
-    await expect(escalateDispute(db, BORROWER, id)).rejects.toMatchObject({
+    await expect(escalateDispute(db, BORROWER, id, NOW)).rejects.toMatchObject({
       code: "failed-precondition",
       details: { reason: "STAGE_CHANGED" },
     });
@@ -256,12 +256,71 @@ describe("escalateDispute", () => {
     const id = await disputed();
 
     const results = await Promise.allSettled([
-      escalateDispute(db, LENDER, id),
-      escalateDispute(db, BORROWER, id),
+      escalateDispute(db, LENDER, id, NOW),
+      escalateDispute(db, BORROWER, id, NOW),
     ]);
 
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     expect((await dispute(id))?.stage).toBe("LLM_PROPOSAL");
     expect(await systemMessages(id)).toHaveLength(1);
+  });
+});
+
+describe("once escalatesAt has passed, before the sweep", () => {
+  const SWEEP_MESSAGE = "No agreement after 30 days · waiting for the LLM proposal";
+
+  it("escalates instead of adding a proposal, from escalatesAt on", async () => {
+    const id = await disputed();
+
+    await expect(
+      proposeSplit(db, LENDER, { rentalId: id, lenderPercent: 60 }, ESCALATES_AT),
+    ).rejects.toMatchObject({ details: { reason: "STAGE_CHANGED" } });
+
+    expect(await dispute(id)).toMatchObject({
+      stage: "LLM_PROPOSAL",
+      escalatedBy: null,
+      proposals: [],
+    });
+    expect(await systemMessages(id)).toEqual([SWEEP_MESSAGE]);
+  });
+
+  it("escalates instead of settling", async () => {
+    const id = await disputed({ proposals: [proposal(LENDER, 50)] });
+
+    await expect(
+      acceptSplit(db, BORROWER, { rentalId: id, lenderPercent: 50 }, ESCALATES_AT),
+    ).rejects.toMatchObject({ details: { reason: "STAGE_CHANGED" } });
+
+    expect(await dispute(id)).toMatchObject({ stage: "LLM_PROPOSAL", agreedAt: null });
+    expect((await rental(id))?.status).toBe("DISPUTED");
+    expect(await systemMessages(id)).toEqual([SWEEP_MESSAGE]);
+  });
+
+  it("lets neither a stranger nor a settled dispute trigger the escalation", async () => {
+    const open = await disputed();
+    const settled = await disputed({ agreedAt: Timestamp.fromDate(NOW) });
+
+    await expect(
+      proposeSplit(db, STRANGER, { rentalId: open, lenderPercent: 60 }, ESCALATES_AT),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(escalateDispute(db, LENDER, settled, ESCALATES_AT)).rejects.toMatchObject({
+      details: { reason: "STAGE_CHANGED" },
+    });
+
+    for (const id of [open, settled]) {
+      expect((await dispute(id))?.stage).toBe("SETTLE");
+      expect(await systemMessages(id)).toEqual([]);
+    }
+  });
+
+  it("records an escalation by hand as the automatic one", async () => {
+    const id = await disputed();
+
+    await expect(escalateDispute(db, LENDER, id, ESCALATES_AT)).rejects.toMatchObject({
+      details: { reason: "STAGE_CHANGED" },
+    });
+
+    expect(await dispute(id)).toMatchObject({ stage: "LLM_PROPOSAL", escalatedBy: null });
+    expect(await systemMessages(id)).toEqual([SWEEP_MESSAGE]);
   });
 });

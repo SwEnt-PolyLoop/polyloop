@@ -111,6 +111,21 @@ describe("escalateOverdueDisputes", () => {
       error,
     );
   });
+
+  it("opens no transaction for a dispute already settled or escalated", async () => {
+    await dispute(OVERDUE, { agreedAt: Timestamp.fromDate(OVERDUE) });
+    await dispute(OVERDUE, { stage: "LLM_PROPOSAL", escalatedBy: LENDER });
+    const open = await dispute(OVERDUE);
+    const handled: string[] = [];
+
+    const result = await escalateOverdueDisputes(db, NOW, async (ref, now) => {
+      handled.push(ref.id);
+      return escalateIfOverdue(ref, now);
+    });
+
+    expect(handled).toEqual([open.id]);
+    expect(result).toEqual({ escalated: 1, failed: 0 });
+  });
 });
 
 describe("escalateIfOverdue", () => {
@@ -129,10 +144,17 @@ describe("escalateIfOverdue", () => {
   it("does nothing to a missing dispute", async () => {
     expect(await escalateIfOverdue(db.collection("disputes").doc(randomUUID()), NOW)).toBe(false);
   });
+
+  it("does nothing to a dispute not yet due", async () => {
+    const notYet = await dispute(LATER);
+
+    expect(await escalateIfOverdue(notYet, NOW)).toBe(false);
+    expect((await notYet.get()).get("stage")).toBe("SETTLE");
+  });
 });
 
 describe("an agreement racing the sweep", () => {
-  it("lets exactly one win: settled in direct settlement, or escalated and not settled", async () => {
+  it("escalates the dispute once, whoever comes first, and never settles it", async () => {
     const ref = await dispute(OVERDUE, {
       proposals: [{ authorId: LENDER, lenderPercent: 50, createdAt: Timestamp.fromDate(OVERDUE) }],
     });
@@ -142,19 +164,38 @@ describe("an agreement racing the sweep", () => {
       escalateIfOverdue(ref, NOW),
     ]);
 
-    const data = (await ref.get()).data();
-    expect(await messages(ref)).toHaveLength(1);
-    if (data?.agreedAt) {
-      expect(data.stage).toBe("SETTLE");
-      expect(accept.status).toBe("fulfilled");
-      expect(sweep).toMatchObject({ status: "fulfilled", value: false });
-    } else {
-      expect(data?.stage).toBe("LLM_PROPOSAL");
-      expect(accept).toMatchObject({
-        status: "rejected",
-        reason: { details: { reason: "STAGE_CHANGED" } },
-      });
-      expect(sweep).toMatchObject({ status: "fulfilled", value: true });
-    }
+    expect(accept).toMatchObject({
+      status: "rejected",
+      reason: { details: { reason: "STAGE_CHANGED" } },
+    });
+    expect(sweep.status).toBe("fulfilled");
+    expect((await ref.get()).data()).toMatchObject({
+      stage: "LLM_PROPOSAL",
+      escalatedBy: null,
+      agreedAt: null,
+    });
+    expect(await messages(ref)).toEqual([
+      "No agreement after 30 days · waiting for the LLM proposal",
+    ]);
+  });
+
+  it("leaves a dispute settled between the query and its transaction", async () => {
+    const ref = await dispute(OVERDUE, {
+      proposals: [{ authorId: LENDER, lenderPercent: 50, createdAt: Timestamp.fromDate(OVERDUE) }],
+    });
+    const justInTime = new Date(OVERDUE.getTime() - 1);
+
+    // The query found the dispute still open; the borrower agrees before its transaction runs.
+    const result = await escalateOverdueDisputes(db, NOW, async (found, now) => {
+      await acceptSplit(db, BORROWER, { rentalId: found.id, lenderPercent: 50 }, justInTime);
+      return escalateIfOverdue(found, now);
+    });
+
+    expect(result).toEqual({ escalated: 0, failed: 0 });
+    expect((await ref.get()).get("stage")).toBe("SETTLE");
+    expect((await db.doc(`rentals/${ref.id}`).get()).get("status")).toBe("CLOSED");
+    expect(await messages(ref)).toEqual([
+      "Dispute settled · 20 PP to the lender, 20 PP back to the borrower",
+    ]);
   });
 });
