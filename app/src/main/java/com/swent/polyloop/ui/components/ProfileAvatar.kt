@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import coil3.compose.AsyncImage
@@ -34,9 +35,16 @@ import com.swent.polyloop.resources.C
  * photo replaced it before the profile was saved.
  *
  * @param photo the photo's download URL, or the local file of a photo just taken; "" for none.
+ * @param initialStyle the style of the first letter; the default suits an avatar about 80 dp wide.
  */
 @Composable
-fun ProfileAvatar(photo: String, name: String, size: Dp, modifier: Modifier = Modifier) {
+fun ProfileAvatar(
+    photo: String,
+    name: String,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    initialStyle: TextStyle = MaterialTheme.typography.headlineMedium,
+) {
   // Forgotten when the photo changes, so a new photo gets its own try.
   var failed by remember(photo) { mutableStateOf(false) }
   Box(
@@ -50,7 +58,7 @@ fun ProfileAvatar(photo: String, name: String, size: Dp, modifier: Modifier = Mo
     if (photo.isBlank() || failed) {
       Text(
           text = name.trim().firstOrNull()?.uppercase() ?: "?",
-          style = MaterialTheme.typography.headlineMedium,
+          style = initialStyle,
           fontWeight = FontWeight.Bold,
           modifier = Modifier.testTag(C.Tag.profile_avatar),
       )
