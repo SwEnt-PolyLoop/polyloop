@@ -290,7 +290,10 @@ class RentalDetailScreenTest {
   fun ratingShowsTheAverageAndReviewCount() {
     setContent()
 
-    assertShown(C.Tag.rental_detail_person_rating, "4.6 · 5 reviews")
+    assertShown(
+        C.Tag.rental_detail_person_rating,
+        context.resources.getQuantityString(R.plurals.profile_rating, 5, 4.6, 5),
+    )
   }
 
   @Test
