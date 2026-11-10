@@ -248,8 +248,8 @@ class DisputeViewModel(
   fun sendDraft() {
     val draft = _uiState.value.draftLenderPercent
     if (!_uiState.value.canSend || draft == null) return
-    send(DisputeActionError.PROPOSE, closesEditor = true) { uid ->
-      disputeRepository.propose(rentalId, uid, draft)
+    send(DisputeActionError.PROPOSE, closesEditor = true) {
+      disputeRepository.propose(rentalId, draft)
     }
   }
 
@@ -257,9 +257,7 @@ class DisputeViewModel(
   fun accept() {
     val seen = _uiState.value.latestProposal
     if (!_uiState.value.canAccept || seen == null) return
-    send(DisputeActionError.ACCEPT) { uid ->
-      disputeRepository.accept(rentalId, uid, seen.lenderPercent)
-    }
+    send(DisputeActionError.ACCEPT) { disputeRepository.accept(rentalId, seen.lenderPercent) }
   }
 
   /**
@@ -284,27 +282,28 @@ class DisputeViewModel(
     val confirmed = _uiState.value.isConfirmingEscalation
     dismissEscalate()
     if (!confirmed || !_uiState.value.canEscalate) return
-    send(DisputeActionError.ESCALATE) { uid -> disputeRepository.escalate(rentalId, uid) }
+    send(DisputeActionError.ESCALATE) { disputeRepository.escalate(rentalId) }
   }
 
   /**
-   * Runs [request] as the signed-in user, with [DisputeUiState.isSending] set meanwhile so no
-   * second action starts. The new dispute arrives through the observer; a failure (or nobody signed
+   * Runs [request], which the repository sends as the signed-in user, with
+   * [DisputeUiState.isSending] set meanwhile so no second action starts. Nothing is sent when
+   * nobody is signed in. The new dispute arrives through the observer; a failure (or nobody signed
    * in) sets [DisputeUiState.actionError] to [error], or to [DisputeActionError.PROPOSAL_CHANGED]
-   * when the proposal accepted was no longer the one on the table. An escalation refused because
-   * the dispute already moved on sets none. After either refusal, the dispute is loaded again if it
-   * could not be refreshed, so the new proposal or stage shows. A success also closes the split
-   * editor if [closesEditor].
+   * when the proposal accepted was no longer the one on the table. An action refused because the
+   * dispute was settled or moved on meanwhile sets none: the new state shows instead. After either
+   * refusal, the dispute is loaded again if it could not be refreshed, so the new proposal or stage
+   * shows. A success also closes the split editor if [closesEditor].
    */
   private fun send(
       error: DisputeActionError,
       closesEditor: Boolean = false,
-      request: suspend (uid: String) -> Result<Unit>,
+      request: suspend () -> Result<Unit>,
   ) {
     val uid = authRepository.getCurrentUser()?.uid
     _uiState.update { it.copy(isSending = true, actionError = null, offerUpdated = false) }
     viewModelScope.launch {
-      val failure = if (uid == null) null else request(uid).exceptionOrNull()
+      val failure = if (uid == null) null else request().exceptionOrNull()
       val actionError =
           when {
             failure is ProposalChangedException -> DisputeActionError.PROPOSAL_CHANGED
