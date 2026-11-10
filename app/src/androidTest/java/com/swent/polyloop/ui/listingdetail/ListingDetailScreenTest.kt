@@ -190,7 +190,7 @@ class ListingDetailScreenTest {
       assertSectionText(
           C.Tag.listing_detail_lender_rating,
           context.resources.getQuantityString(
-              R.plurals.listing_detail_rating,
+              R.plurals.profile_rating,
               reviewCount,
               averageRating,
               reviewCount,

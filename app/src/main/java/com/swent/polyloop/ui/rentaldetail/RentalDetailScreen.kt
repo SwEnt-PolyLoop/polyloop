@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.Button
@@ -40,7 +39,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +51,7 @@ import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.PickupMap
+import com.swent.polyloop.ui.components.RatingLine
 import com.swent.polyloop.ui.components.badgeColors
 import com.swent.polyloop.ui.components.formatDay
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
@@ -570,7 +569,11 @@ internal fun PersonCard(
         // Null means their profile could not be read, so the rating is unknown: "No reviews yet"
         // would be a claim we cannot make. 0 reviews is known, and says so.
         if (person.averageRating != null && person.reviewCount != null) {
-          RatingLine(averageRating = person.averageRating, reviewCount = person.reviewCount)
+          RatingLine(
+              averageRating = person.averageRating,
+              reviewCount = person.reviewCount,
+              modifier = Modifier.testTag(C.Tag.rental_detail_person_rating),
+          )
         }
       }
       OutlinedButton(
@@ -607,36 +610,6 @@ private fun ChatPausedNote() {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.testTag(C.Tag.rental_detail_chat_paused),
-    )
-  }
-}
-
-/** A star and "4.6 · 5 reviews", or "No reviews yet" when [reviewCount] is 0. */
-@Composable
-private fun RatingLine(averageRating: Double, reviewCount: Int) {
-  Row(verticalAlignment = Alignment.CenterVertically) {
-    if (reviewCount > 0) {
-      Icon(
-          Icons.Default.Star,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.tertiary,
-          modifier = Modifier.size(14.dp),
-      )
-      Spacer(Modifier.width(4.dp))
-    }
-    Text(
-        text =
-            if (reviewCount > 0)
-                pluralStringResource(
-                    R.plurals.profile_rating,
-                    reviewCount,
-                    averageRating,
-                    reviewCount,
-                )
-            else stringResource(R.string.profile_no_reviews),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.testTag(C.Tag.rental_detail_person_rating),
     )
   }
 }

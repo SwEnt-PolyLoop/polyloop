@@ -23,7 +23,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,6 +59,7 @@ import com.swent.polyloop.ui.components.PickupMap
 import com.swent.polyloop.ui.components.PolyLoopDateRangePicker
 import com.swent.polyloop.ui.components.PriceText
 import com.swent.polyloop.ui.components.ProfileAvatar
+import com.swent.polyloop.ui.components.RatingLine
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
@@ -324,41 +323,15 @@ private fun LenderCard(owner: UserProfile?, onClick: () -> Unit) {
         // Without a profile the rating is unknown: "No reviews yet" would be a claim we cannot
         // make.
         if (owner != null) {
-          LenderRating(averageRating = owner.averageRating, reviewCount = owner.reviewCount)
+          RatingLine(
+              averageRating = owner.averageRating,
+              reviewCount = owner.reviewCount,
+              modifier = Modifier.testTag(C.Tag.listing_detail_lender_rating),
+          )
         }
       }
       Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
     }
-  }
-}
-
-/** A star and "4.6 · 5 reviews", or "No reviews yet" when [reviewCount] is 0. */
-@Composable
-private fun LenderRating(averageRating: Double, reviewCount: Int) {
-  Row(verticalAlignment = Alignment.CenterVertically) {
-    if (reviewCount > 0) {
-      Icon(
-          Icons.Default.Star,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.tertiary,
-          modifier = Modifier.size(14.dp),
-      )
-      Spacer(Modifier.width(4.dp))
-    }
-    Text(
-        text =
-            if (reviewCount > 0)
-                pluralStringResource(
-                    R.plurals.listing_detail_rating,
-                    reviewCount,
-                    averageRating,
-                    reviewCount,
-                )
-            else stringResource(R.string.profile_no_reviews),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.testTag(C.Tag.listing_detail_lender_rating),
-    )
   }
 }
 
