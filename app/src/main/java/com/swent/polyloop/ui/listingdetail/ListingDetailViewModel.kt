@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
  * longer available (booked by someone else, or their start day passed) when the request is sent.
  * [isOffline] is true while the phone has no connection; the screen then shows the pickup area as
  * text, since the map tiles need a connection. [owner] is the lender's profile, or null when it is
- * missing or could not be read (the listing still shows, without the lender's name and rating).
+ * missing or could not be read (the listing still shows, without the lender's details).
  */
 data class ListingDetailUiState(
     val listing: Listing? = null,

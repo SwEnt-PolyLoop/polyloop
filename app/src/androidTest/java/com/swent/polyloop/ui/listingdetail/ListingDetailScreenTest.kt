@@ -229,7 +229,7 @@ class ListingDetailScreenTest {
         C.Tag.listing_detail_lender_name,
         context.getString(R.string.profile_name_placeholder),
     )
-    assertSectionText(C.Tag.listing_detail_lender_avatar, "?")
+    assertSectionText(C.Tag.profile_avatar, "?")
     assertLenderRating(averageRating = 4.6, reviewCount = 5)
   }
 
@@ -241,7 +241,7 @@ class ListingDetailScreenTest {
         C.Tag.listing_detail_lender_name,
         context.getString(R.string.profile_name_placeholder),
     )
-    assertSectionText(C.Tag.listing_detail_lender_avatar, "?")
+    assertSectionText(C.Tag.profile_avatar, "?")
     composeTestRule
         .onNodeWithTag(C.Tag.listing_detail_lender_rating, useUnmergedTree = true)
         .assertDoesNotExist()
@@ -389,7 +389,21 @@ class ListingDetailScreenTest {
   fun lenderAvatarShowsFirstLetterOfName() {
     setContent(uiState = ListingDetailUiState(listing = listing, owner = owner.copy(name = " léa")))
 
-    assertSectionText(C.Tag.listing_detail_lender_avatar, "L")
+    assertSectionText(C.Tag.profile_avatar, "L")
+  }
+
+  @Test
+  fun lenderAvatarShowsTheOwnersPhoto() {
+    setContent(
+        uiState =
+            ListingDetailUiState(listing = listing, owner = owner.copy(photoUrl = FakePhotos.RED))
+    )
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo()
+
+    composeTestRule.waitUntilCenterIs(Color.Red) {
+      composeTestRule.onNodeWithTag(C.Tag.profile_avatar_photo, useUnmergedTree = true)
+    }
+    composeTestRule.onNodeWithTag(C.Tag.profile_avatar, useUnmergedTree = true).assertDoesNotExist()
   }
 
   private fun photoPage(index: Int) =

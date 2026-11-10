@@ -60,6 +60,7 @@ import com.swent.polyloop.ui.components.ListingPhoto
 import com.swent.polyloop.ui.components.PickupMap
 import com.swent.polyloop.ui.components.PolyLoopDateRangePicker
 import com.swent.polyloop.ui.components.PriceText
+import com.swent.polyloop.ui.components.ProfileAvatar
 import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
@@ -291,8 +292,9 @@ private fun PhotoPager(photoUrls: List<String>) {
 }
 
 /**
- * The lender's initial, name and rating from [owner]; the whole card opens their profile. A blank
- * name shows a placeholder. A null [owner] (profile missing or unreadable) also hides the rating.
+ * The lender's photo (or initial), name and rating from [owner]; the whole card opens their
+ * profile. A blank name shows a placeholder. A null [owner] (profile missing or unreadable) also
+ * hides the rating.
  */
 @Composable
 private fun LenderCard(owner: UserProfile?, onClick: () -> Unit) {
@@ -306,19 +308,12 @@ private fun LenderCard(owner: UserProfile?, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Box(
-          modifier =
-              Modifier.size(40.dp)
-                  .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-          contentAlignment = Alignment.Center,
-      ) {
-        Text(
-            text = name.trim().firstOrNull()?.uppercase() ?: "?",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.testTag(C.Tag.listing_detail_lender_avatar),
-        )
-      }
+      ProfileAvatar(
+          photo = owner?.photoUrl.orEmpty(),
+          name = name,
+          size = 40.dp,
+          initialStyle = MaterialTheme.typography.titleMedium,
+      )
       Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
             text = name.ifBlank { stringResource(R.string.profile_name_placeholder) },

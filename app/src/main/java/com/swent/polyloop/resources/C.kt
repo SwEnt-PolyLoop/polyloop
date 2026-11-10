@@ -50,7 +50,6 @@ object C {
     const val listing_detail_price = "listing_detail_price"
     const val listing_detail_description = "listing_detail_description"
     const val listing_detail_lender_card = "listing_detail_lender_card"
-    const val listing_detail_lender_avatar = "listing_detail_lender_avatar"
     const val listing_detail_lender_name = "listing_detail_lender_name"
     const val listing_detail_lender_rating = "listing_detail_lender_rating"
     const val listing_detail_deposit = "listing_detail_deposit"
