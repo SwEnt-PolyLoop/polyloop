@@ -9,7 +9,9 @@ import com.google.firebase.auth.auth
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -78,22 +80,28 @@ class DisputeRepositoryFirestoreEmulatorTest {
     seedDispute(70)
 
     runBlocking {
-      assertEquals(
-          Dispute(
-              rentalId = rentalId,
-              stage = DisputeStage.SETTLE,
-              proposals = listOf(Proposal("lender", 70, at)),
-              escalatesAt = at.plusSeconds(86_400),
-          ),
-          withTimeout(TIMEOUT_MS) { repository.observeDispute(rentalId).first() },
-      )
-      FirebaseEmulator.deleteDocumentAsAdmin("disputes/$rentalId")
-      seedDispute(70, 60)
-      val updated =
-          withTimeout(TIMEOUT_MS) {
-            repository.observeDispute(rentalId).first { it?.proposals?.size == 2 }
-          }
-      assertEquals(60, updated?.latestProposal?.lenderPercent)
+      withTimeout(TIMEOUT_MS) {
+        // One listener for the whole test: the dispute changes while it listens.
+        val disputes = Channel<Dispute?>(Channel.UNLIMITED)
+        val listener = launch { repository.observeDispute(rentalId).collect { disputes.send(it) } }
+
+        assertEquals(
+            Dispute(
+                rentalId = rentalId,
+                stage = DisputeStage.SETTLE,
+                proposals = listOf(Proposal("lender", 70, at)),
+                escalatesAt = at.plusSeconds(86_400),
+            ),
+            disputes.receive(),
+        )
+
+        FirebaseEmulator.deleteDocumentAsAdmin("disputes/$rentalId")
+        seedDispute(70, 60)
+        var latest = disputes.receive()
+        while (latest?.proposals?.size != 2) latest = disputes.receive()
+        assertEquals(60, latest?.latestProposal?.lenderPercent)
+        listener.cancel()
+      }
     }
   }
 

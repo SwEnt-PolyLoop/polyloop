@@ -781,21 +781,13 @@ class PolyLoopAppTest {
   }
 
   @Test
-  fun viewDisputeOpensTheDispute() {
-    tapActionButtonOnRentalDetail(rental.copy(status = RentalStatus.DISPUTED, deposit = 60))
-
-    assertCurrentScreen(Screen.Dispute)
-  }
-
-  @Test
   fun borrowerCountersFromRentalDetailRetriesALostAcceptAndSettlesTheDispute() {
-    val vida = listing.ownerId
-    fun vidaProposes(vararg lenderPercents: Int) =
+    val lender = listing.ownerId
+    fun lenderProposes(lenderPercent: Int) =
         disputes.put(
             disputes.disputes.single().let { dispute ->
               dispute.copy(
-                  proposals =
-                      dispute.proposals + lenderPercents.map { Proposal(vida, it, Instant.now()) }
+                  proposals = dispute.proposals + Proposal(lender, lenderPercent, Instant.now())
               )
             }
         )
@@ -803,26 +795,26 @@ class PolyLoopAppTest {
         Dispute(
             rentalId = rental.id,
             stage = DisputeStage.SETTLE,
-            proposals = listOf(Proposal(vida, 70, Instant.now())),
+            proposals = listOf(Proposal(lender, 70, Instant.now())),
             escalatesAt = Instant.now().plus(Duration.ofDays(10)),
         )
     )
     tapActionButtonOnRentalDetail(rental.copy(status = RentalStatus.DISPUTED, deposit = 60))
     waitForTag(C.Tag.dispute_counter_button)
 
-    // I counter with 50/50 and wait for Vida.
+    // I counter with 50/50 and wait for the lender.
     composeTestRule.onNodeWithTag(C.Tag.dispute_counter_button).performClick()
     composeTestRule.onNodeWithTag(C.Tag.dispute_split_lender_field).performTextReplacement("50")
     composeTestRule.onNodeWithTag(C.Tag.dispute_split_send).performClick()
     waitForTag(C.Tag.dispute_waiting)
 
-    // Vida counters with 60; she changes it to 65 while my acceptance is on its way.
-    vidaProposes(60)
+    // The lender counters with 60, then changes it to 65 while my acceptance is on its way.
+    lenderProposes(60)
     waitForTag(C.Tag.dispute_accept_button)
     val gate = CompletableDeferred<Unit>()
     disputes.gate = gate
     composeTestRule.onNodeWithTag(C.Tag.dispute_accept_button).performClick()
-    vidaProposes(65)
+    lenderProposes(65)
     gate.complete(Unit)
     waitForTag(C.Tag.dispute_proposal_error)
     assertNull(disputes.disputes.single().agreedAt)

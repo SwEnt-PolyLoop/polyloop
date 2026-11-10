@@ -287,7 +287,7 @@ private fun DisputeContentPreview() {
         uiState =
             DisputeUiState(
                 itemTitle = "Bike pump",
-                otherPersonName = "Ana",
+                otherPersonName = "Lender",
                 deposit = 60,
                 history =
                     listOf(

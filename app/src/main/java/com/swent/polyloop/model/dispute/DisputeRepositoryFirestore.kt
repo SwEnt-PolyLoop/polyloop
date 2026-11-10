@@ -8,15 +8,14 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
+import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
+import com.swent.polyloop.model.firestore.callCloudFunction
 import com.swent.polyloop.model.firestore.isValidDocumentId
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
-import com.swent.polyloop.model.firestore.withFirebaseErrors
-import com.swent.polyloop.model.rental.RentalRepositoryFirestore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.tasks.await
 
 /**
  * [DisputeRepository] backed by Firestore: one document per dispute at `disputes/{rentalId}` (see
@@ -31,7 +30,7 @@ import kotlinx.coroutines.tasks.await
 class DisputeRepositoryFirestore(
     private val db: FirebaseFirestore = Firebase.firestore,
     private val functions: () -> FirebaseFunctions = {
-      FirebaseFunctions.getInstance(RentalRepositoryFirestore.REGION)
+      FirebaseFunctions.getInstance(FUNCTIONS_REGION)
     },
 ) : DisputeRepository {
 
@@ -66,10 +65,7 @@ class DisputeRepositoryFirestore(
    * from the refusal's `details.reason`, never from its message.
    */
   private suspend fun callFunction(name: String, data: Map<String, Any>): Result<Unit> {
-    val result = withFirebaseErrors {
-      functions().getHttpsCallable(name).call(data).await()
-      Result.success(Unit)
-    }
+    val result = callCloudFunction(functions(), name, data)
     return result.exceptionOrNull()?.let(::lostRace)?.let { Result.failure(it) } ?: result
   }
 

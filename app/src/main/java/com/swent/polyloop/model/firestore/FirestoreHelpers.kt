@@ -12,6 +12,7 @@ import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.functions.FirebaseFunctions
 import com.swent.polyloop.model.location.MapPoint
 import java.time.Instant
 import java.time.LocalDate
@@ -25,8 +26,9 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 
-// Tools shared by the Firestore repositories, so they all read fields and handle errors the same
-// way. Rental, Listing, Profile and Chat all use them.
+// Tools shared by the Firestore repositories, so they all read fields, handle errors and call the
+// Cloud Functions the same way. Rental, Listing, Profile, Chat, Handover, Wallet and Dispute use
+// them.
 
 /** How long a write waits for the server to confirm it; see [confirmWrite]. */
 internal const val WRITE_TIMEOUT_MS = 10_000L
@@ -78,6 +80,19 @@ internal suspend fun <T> withFirebaseErrors(block: suspend () -> Result<T>): Res
     } catch (e: FirebaseException) {
       Result.failure(e)
     }
+
+/** Region of the Cloud Functions, next to the Firestore database (see docs/ARCHITECTURE.md). */
+internal const val FUNCTIONS_REGION = "europe-west1"
+
+/** Calls the Cloud Function [name] with [data]; a refusal or a lost connection is a failure. */
+internal suspend fun callCloudFunction(
+    functions: FirebaseFunctions,
+    name: String,
+    data: Map<String, Any>,
+): Result<Unit> = withFirebaseErrors {
+  functions.getHttpsCallable(name).call(data).await()
+  Result.success(Unit)
+}
 
 /**
  * Runs [write] and returns whether the server confirmed it within [timeoutMs]. A write only

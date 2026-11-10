@@ -61,11 +61,11 @@ class DisputeScreenTest {
   private val mine =
       ProposalRow(byMe = true, lenderPercent = 40, createdAt = at.minusSeconds(86_400))
 
-  // I borrow Ana's bike pump with a 60 PP deposit; she proposes 70/30 after my 40/60.
+  // I borrow the lender's bike pump with a 60 PP deposit; the lender proposes 70/30 after my 40/60.
   private val open =
       DisputeUiState(
           itemTitle = "Bike pump",
-          otherPersonName = "Ana",
+          otherPersonName = "Lender",
           deposit = 60,
           history = listOf(theirs, mine),
           daysUntilEscalation = 28,
@@ -123,7 +123,7 @@ class DisputeScreenTest {
     node(C.Tag.dispute_item_deposit)
         .assertTextEquals(string(R.string.dispute_item_deposit, "Bike pump", 60))
     node(C.Tag.dispute_proposal_title)
-        .assertTextEquals(string(R.string.dispute_they_propose, "Ana"))
+        .assertTextEquals(string(R.string.dispute_they_propose, "Lender"))
     share(R.string.dispute_lender_share_description).assertTextEquals("70")
     share(R.string.dispute_borrower_share_description).assertTextEquals("30")
     textIn(C.Tag.dispute_get_back, string(R.string.dispute_amount, 18)).assertIsDisplayed()
@@ -140,7 +140,7 @@ class DisputeScreenTest {
 
     node(C.Tag.dispute_proposal_title).assertTextEquals(string(R.string.dispute_you_propose))
     node(C.Tag.dispute_counter_button).assertTextEquals(string(R.string.dispute_update))
-    node(C.Tag.dispute_waiting).assertTextEquals(string(R.string.dispute_waiting, "Ana"))
+    node(C.Tag.dispute_waiting).assertTextEquals(string(R.string.dispute_waiting, "Lender"))
     node(C.Tag.dispute_accept_button).assertDoesNotExist()
   }
 
@@ -175,7 +175,7 @@ class DisputeScreenTest {
     val rows = composeTestRule.onAllNodesWithTag(C.Tag.dispute_history_row)
     rows[0]
         .onChildAt(0)
-        .assertTextEquals(string(R.string.dispute_history_author, "Ana", formatDay(dayOf(at))))
+        .assertTextEquals(string(R.string.dispute_history_author, "Lender", formatDay(dayOf(at))))
     rows[0].onChildAt(1).assertTextEquals(string(R.string.dispute_history_split, 70, 30))
     rows[1]
         .onChildAt(0)
@@ -195,7 +195,7 @@ class DisputeScreenTest {
         .assertTextEquals(
             string(
                 R.string.dispute_history_author,
-                "Ana",
+                "Lender",
                 formatDay(dayOf(lastYear), withYear = true),
             )
         )
@@ -372,7 +372,7 @@ class DisputeScreenTest {
     setContent(open.copy(offerUpdated = true, draftLenderPercent = 50))
 
     node(C.Tag.dispute_proposal_notice)
-        .assertTextEquals(string(R.string.dispute_offer_changed_to, "Ana", 70, 30))
+        .assertTextEquals(string(R.string.dispute_offer_changed_to, "Lender", 70, 30))
   }
 
   @Test
@@ -380,7 +380,7 @@ class DisputeScreenTest {
     setContent(open.copy(history = listOf(mine), isSettled = true, acceptedByOther = true))
 
     node(C.Tag.dispute_proposal_notice)
-        .assertTextEquals(string(R.string.dispute_accepted_by_other, "Ana"))
+        .assertTextEquals(string(R.string.dispute_accepted_by_other, "Lender"))
   }
 
   @Test
@@ -393,7 +393,7 @@ class DisputeScreenTest {
     )
 
     node(C.Tag.dispute_escalation_notice)
-        .assertTextEquals(string(R.string.dispute_escalated_by_other, "Ana"))
+        .assertTextEquals(string(R.string.dispute_escalated_by_other, "Lender"))
   }
 
   @Test
@@ -436,8 +436,8 @@ class DisputeScreenTest {
           id = "pump",
           listingId = "listing",
           listingTitle = "Bike pump",
-          ownerId = "ana",
-          ownerName = "Ana",
+          ownerId = "lender",
+          ownerName = "Lender",
           borrowerId = "me",
           borrowerName = "Me",
           startDate = LocalDate.of(2026, 9, 20),
@@ -450,10 +450,12 @@ class DisputeScreenTest {
           createdAt = at,
       )
 
-  /** The user the disputes repository acts as: me, unless Ana's move is being played. */
+  /** The user the disputes repository acts as: me, unless the lender's move is being played. */
   private var actingUid = "me"
 
-  /** Shows the real screen for me, the borrower, with Ana's 70/30 on the table in [disputes]. */
+  /**
+   * Shows the real screen for me, the borrower, with the lender's 70/30 on the table in [disputes].
+   */
   private fun setScreen(): FakeDisputeRepository {
     val disputes =
         FakeDisputeRepository(
@@ -461,7 +463,7 @@ class DisputeScreenTest {
                 Dispute(
                     rentalId = "pump",
                     stage = DisputeStage.SETTLE,
-                    proposals = listOf(Proposal("ana", 70, at)),
+                    proposals = listOf(Proposal("lender", 70, at)),
                     escalatesAt = Instant.now().plus(Duration.ofDays(10)),
                 )
             ),
@@ -504,13 +506,13 @@ class DisputeScreenTest {
     disputes.failure = null
     node(C.Tag.dispute_split_send).performClick()
     node(C.Tag.dispute_proposal_error).assertDoesNotExist()
-    node(C.Tag.dispute_waiting).assertTextEquals(string(R.string.dispute_waiting, "Ana"))
+    node(C.Tag.dispute_waiting).assertTextEquals(string(R.string.dispute_waiting, "Lender"))
 
-    actingUid = "ana"
+    actingUid = "lender"
     runBlocking { disputes.propose("pump", 60) }
     actingUid = "me"
     node(C.Tag.dispute_proposal_notice)
-        .assertTextEquals(string(R.string.dispute_offer_updated, "Ana"))
+        .assertTextEquals(string(R.string.dispute_offer_updated, "Lender"))
     node(C.Tag.dispute_accept_button).performClick()
 
     node(C.Tag.dispute_settled_pill).assertIsDisplayed()
