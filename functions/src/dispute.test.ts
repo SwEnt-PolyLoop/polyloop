@@ -265,3 +265,27 @@ describe("escalateDispute", () => {
     expect(await systemMessages(id)).toHaveLength(1);
   });
 });
+
+describe("a rental that is not DISPUTED", () => {
+  it("refuses to propose, accept or escalate, without the race reason, and writes nothing", async () => {
+    const id = await disputed({ proposals: [proposal(LENDER, 50)] });
+    await db.collection("rentals").doc(id).update({ status: "LOST" });
+
+    for (const action of [
+      () => proposeSplit(db, LENDER, { rentalId: id, lenderPercent: 60 }, NOW),
+      () => acceptSplit(db, BORROWER, { rentalId: id, lenderPercent: 50 }, NOW),
+      () => escalateDispute(db, LENDER, id),
+    ]) {
+      const error = await action().catch((e) => e);
+      expect(error).toMatchObject({ code: "failed-precondition" });
+      expect(error.details).toBeUndefined();
+    }
+    expect(await rental(id)).toMatchObject({ status: "LOST" });
+    expect(await dispute(id)).toMatchObject({
+      stage: "SETTLE",
+      proposals: [{ authorId: LENDER, lenderPercent: 50 }],
+      agreedAt: null,
+    });
+    expect(await systemMessages(id)).toEqual([]);
+  });
+});
