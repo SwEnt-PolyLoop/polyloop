@@ -342,8 +342,8 @@ private fun StageStrip(status: RentalStatus?) {
 
 /**
  * The status badge, the headline and when the request was sent. The sent day is read in [zone] and
- * written in [locale], with its year only when it is not [today]'s year. While an offer waits for an
- * answer, the card says where it stands instead (Figma frame 13.10). Once accepted, it gives the
+ * written in [locale], with its year only when it is not [today]'s year. While an offer waits for
+ * an answer, the card says where it stands instead (Figma frame 13.10). Once accepted, it gives the
  * pickup day (Figma frame 13.01). Once disputed, it says that damage was flagged and the deposit
  * stays held (Figma frame 13.09).
  */
