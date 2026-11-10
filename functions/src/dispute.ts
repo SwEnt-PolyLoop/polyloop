@@ -228,18 +228,23 @@ export async function escalateOverdueDisputes(
 /**
  * Moves one dispute on to the LLM proposal if, at [now], it is still in direct settlement, not
  * settled and past its `escalatesAt`, in one transaction. The check is made again because a party
- * may have agreed or escalated since the query.
+ * may have agreed or escalated since the query. As in the callables, its rental must be DISPUTED,
+ * checked after the dispute so that one settled meanwhile (its rental CLOSED) is nothing to do.
  *
  * @param disputeRef the dispute to check.
  * @param now the current time.
  * @returns true if the dispute was escalated, false if there was nothing to do.
+ * @throws Error if the dispute is due but its rental is missing or not DISPUTED: corrupt data,
+ *   left as it is and logged by the sweep at each run.
  */
 export async function escalateIfOverdue(
   disputeRef: DocumentReference,
   now: Date,
 ): Promise<boolean> {
+  const rentalRef = disputeRef.firestore.collection(RENTALS).doc(disputeRef.id);
   return disputeRef.firestore.runTransaction(async (tx) => {
-    const dispute = (await tx.get(disputeRef)).data();
+    const [disputeSnap, rentalSnap] = await Promise.all([tx.get(disputeRef), tx.get(rentalRef)]);
+    const dispute = disputeSnap.data();
     if (
       dispute?.stage !== SETTLE ||
       dispute.agreedAt ||
@@ -247,7 +252,9 @@ export async function escalateIfOverdue(
     ) {
       return false;
     }
-    const rentalRef = disputeRef.firestore.collection(RENTALS).doc(disputeRef.id);
+    if (rentalSnap.get("status") !== DISPUTED) {
+      throw new Error(`The rental of the dispute ${disputeRef.id} is missing or not DISPUTED.`);
+    }
     moveToLlmProposal(tx, disputeRef, rentalRef, null);
     return true;
   });

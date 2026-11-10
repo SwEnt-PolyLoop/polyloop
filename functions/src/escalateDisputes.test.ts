@@ -148,6 +148,20 @@ describe("escalateIfOverdue", () => {
     expect(await escalateIfOverdue(db.collection("disputes").doc(randomUUID()), NOW)).toBe(false);
   });
 
+  it("refuses a due dispute whose rental is missing or not DISPUTED, and writes nothing", async () => {
+    const lost = await dispute(OVERDUE);
+    await db.doc(`rentals/${lost.id}`).update({ status: "LOST" });
+    const orphan = await dispute(OVERDUE);
+    await db.doc(`rentals/${orphan.id}`).delete();
+
+    for (const ref of [lost, orphan]) {
+      await expect(escalateIfOverdue(ref, NOW)).rejects.toThrow("missing or not DISPUTED");
+      expect((await ref.get()).get("stage")).toBe("SETTLE");
+      expect(await messages(ref)).toEqual([]);
+    }
+    expect((await db.doc(`rentals/${lost.id}`).get()).get("status")).toBe("LOST");
+  });
+
   it("does nothing to a dispute not yet due", async () => {
     const notYet = await dispute(LATER);
 
