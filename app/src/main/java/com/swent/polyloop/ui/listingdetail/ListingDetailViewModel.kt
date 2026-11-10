@@ -12,6 +12,7 @@ import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.bookedDays
 import com.swent.polyloop.model.profile.ProfileRepository
+import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.ui.components.isRequestable
 import java.time.LocalDate
@@ -30,10 +31,12 @@ import kotlinx.coroutines.launch
  * are the days booked by accepted rentals, and [datesTaken] is true when the picked dates are no
  * longer available (booked by someone else, or their start day passed) when the request is sent.
  * [isOffline] is true while the phone has no connection; the screen then shows the pickup area as
- * text, since the map tiles need a connection.
+ * text, since the map tiles need a connection. [owner] is the lender's profile, or null when it is
+ * missing or could not be read (the listing still shows, without the lender's name and rating).
  */
 data class ListingDetailUiState(
     val listing: Listing? = null,
+    val owner: UserProfile? = null,
     val isLoading: Boolean = false,
     val listingNotFound: Boolean = false,
     val errorMsg: String? = null,
@@ -87,10 +90,14 @@ class ListingDetailViewModel(
           .onSuccess { listing ->
             val published = listing?.takeIf { it.status == ListingStatus.PUBLISHED }
             val uid = authRepository.getCurrentUser()?.uid
+            // Only the listing is required: a missing or unreadable profile must not fail the
+            // screen. It is read before isLoading turns false, so the card does not fill in late.
+            val owner = published?.let { profileRepository.getProfile(it.ownerId).getOrNull() }
             _uiState.update {
               it.copy(
                   isLoading = false,
                   listing = published,
+                  owner = owner,
                   listingNotFound = published == null,
                   isOwnListing = uid != null && published?.ownerId == uid,
                   disabledDates = bookedDays(published?.bookedRanges.orEmpty()),

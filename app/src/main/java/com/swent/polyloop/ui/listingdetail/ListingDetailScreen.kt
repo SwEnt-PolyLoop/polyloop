@@ -53,6 +53,7 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.location.MapPoint
+import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.DateRangePickerMode
 import com.swent.polyloop.ui.components.ListingPhoto
@@ -65,12 +66,6 @@ import java.time.LocalDate
 
 /** Placeholder until the Wallet exists; replace with the user's real balance. */
 private const val PLACEHOLDER_BALANCE = 120
-
-// Placeholder until the owner's profile comes from ProfileRepository.
-internal const val FAKE_LENDER_RATING = 4.8
-internal const val FAKE_LENDER_REVIEW_COUNT = 12
-
-private const val STAR_COUNT = 5
 
 /** Height of the pickup area, whether it shows the map or its placeholder. */
 private val PICKUP_AREA_HEIGHT = 120.dp
@@ -152,6 +147,7 @@ fun ListingDetailContent(
       else -> {
         ListingDetailLoaded(
             listing = listing,
+            owner = uiState.owner,
             showRequestButton = !uiState.isOwnListing,
             showMap = !uiState.isOffline,
             onRequestDates = onRequestDates,
@@ -210,6 +206,7 @@ private fun ListingDetailError(errorMsg: String, onRetry: () -> Unit) {
 @Composable
 private fun ListingDetailLoaded(
     listing: Listing,
+    owner: UserProfile?,
     showRequestButton: Boolean,
     showMap: Boolean,
     onRequestDates: () -> Unit,
@@ -239,7 +236,7 @@ private fun ListingDetailLoaded(
           style = MaterialTheme.typography.bodyLarge,
           modifier = Modifier.testTag(C.Tag.listing_detail_description),
       )
-      LenderCard(onClick = onLenderClick)
+      LenderCard(owner = owner, onClick = onLenderClick)
       InfoCard(listing = listing)
       PickupArea(area = listing.pickupArea, point = listing.pickupPoint, showMap = showMap)
     }
@@ -293,10 +290,13 @@ private fun PhotoPager(photoUrls: List<String>) {
   }
 }
 
-/** The lender with a placeholder name and rating; the whole card opens their profile. */
+/**
+ * The lender's initial, name and rating from [owner]; the whole card opens their profile. A blank
+ * name shows a placeholder. A null [owner] (profile missing or unreadable) also hides the rating.
+ */
 @Composable
-private fun LenderCard(onClick: () -> Unit) {
-  val name = stringResource(R.string.listing_detail_lender_placeholder)
+private fun LenderCard(owner: UserProfile?, onClick: () -> Unit) {
+  val name = owner?.name.orEmpty()
   OutlinedCard(
       onClick = onClick,
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.listing_detail_lender_card),
@@ -313,7 +313,7 @@ private fun LenderCard(onClick: () -> Unit) {
           contentAlignment = Alignment.Center,
       ) {
         Text(
-            text = name.firstOrNull()?.uppercase().orEmpty(),
+            text = name.trim().firstOrNull()?.uppercase() ?: "?",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.testTag(C.Tag.listing_detail_lender_avatar),
@@ -321,37 +321,49 @@ private fun LenderCard(onClick: () -> Unit) {
       }
       Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
-            text = name,
+            text = name.ifBlank { stringResource(R.string.profile_name_placeholder) },
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.testTag(C.Tag.listing_detail_lender_name),
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          repeat(STAR_COUNT) {
-            Icon(
-                Icons.Default.Star,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier.size(14.dp),
-            )
-          }
-          Spacer(Modifier.width(4.dp))
-          Text(
-              text =
-                  pluralStringResource(
-                      R.plurals.listing_detail_rating,
-                      FAKE_LENDER_REVIEW_COUNT,
-                      FAKE_LENDER_RATING,
-                      FAKE_LENDER_REVIEW_COUNT,
-                  ),
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.testTag(C.Tag.listing_detail_lender_rating),
-          )
+        // Without a profile the rating is unknown: "No reviews yet" would be a claim we cannot
+        // make.
+        if (owner != null) {
+          LenderRating(averageRating = owner.averageRating, reviewCount = owner.reviewCount)
         }
       }
       Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
     }
+  }
+}
+
+/** A star and "4.6 · 5 reviews", or "No reviews yet" when [reviewCount] is 0. */
+@Composable
+private fun LenderRating(averageRating: Double, reviewCount: Int) {
+  Row(verticalAlignment = Alignment.CenterVertically) {
+    if (reviewCount > 0) {
+      Icon(
+          Icons.Default.Star,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.tertiary,
+          modifier = Modifier.size(14.dp),
+      )
+      Spacer(Modifier.width(4.dp))
+    }
+    Text(
+        text =
+            if (reviewCount > 0)
+                pluralStringResource(
+                    R.plurals.listing_detail_rating,
+                    reviewCount,
+                    averageRating,
+                    reviewCount,
+                )
+            else stringResource(R.string.profile_no_reviews),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(C.Tag.listing_detail_lender_rating),
+    )
   }
 }
 
@@ -480,6 +492,15 @@ private val previewListing =
         pickupArea = "Ecublens",
     )
 
+private val previewOwner =
+    UserProfile(
+        uid = "sample-owner",
+        name = "Mara",
+        email = "mara@epfl.ch",
+        averageRating = 4.8,
+        reviewCount = 12,
+    )
+
 @Preview(showBackground = true)
 @Composable
 private fun ListingDetailContentPreview() {
@@ -487,7 +508,7 @@ private fun ListingDetailContentPreview() {
     Column {
       PolyLoopTopBar(onMenuClick = {}, onProfileClick = {})
       ListingDetailContent(
-          uiState = ListingDetailUiState(listing = previewListing),
+          uiState = ListingDetailUiState(listing = previewListing, owner = previewOwner),
           onRequestDates = {},
           onConfirmDates = { _, _ -> },
           onDismissDatePicker = {},

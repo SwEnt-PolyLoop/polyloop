@@ -120,6 +120,57 @@ class ListingDetailViewModelTest {
   }
 
   @Test
+  fun holdsTheOwnersProfile() {
+    val mara = UserProfile("owner", "Mara", "mara@epfl.ch", averageRating = 4.5, reviewCount = 3)
+    profileRepository = FakeProfileRepository(profiles = listOf(mara))
+    repository.listings = listOf(listing.copy(ownerId = "owner"))
+
+    assertEquals(mara, viewModel().uiState.value.owner)
+  }
+
+  @Test
+  fun staysLoadingUntilTheOwnersProfileIsRead() {
+    val gate = CompletableDeferred<Unit>()
+    profileRepository.gate = gate
+    repository.listings = listOf(listing.copy(ownerId = "owner"))
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.isLoading)
+
+    gate.complete(Unit)
+
+    assertFalse(vm.uiState.value.isLoading)
+    assertEquals("Mara", vm.uiState.value.owner?.name)
+  }
+
+  @Test
+  fun missingOrFailedOwnerProfileStillShowsTheListing() {
+    // "user1", the listing's owner, has no profile.
+    val missing = viewModel().uiState.value
+    assertEquals(listing, missing.listing)
+    assertNull(missing.owner)
+    assertNull(missing.errorMsg)
+
+    profileRepository = FakeProfileRepository(failure = IllegalStateException("Network down"))
+    val failed = viewModel().uiState.value
+    assertEquals(listing, failed.listing)
+    assertNull(failed.owner)
+    assertNull(failed.errorMsg)
+  }
+
+  @Test
+  fun retryReadsTheOwnersProfileAgain() {
+    repository.listings = listOf(listing.copy(ownerId = "owner"))
+    profileRepository.failure = IllegalStateException("Network down")
+    val vm = viewModel()
+    assertNull(vm.uiState.value.owner)
+
+    profileRepository.failure = null
+    vm.retry()
+
+    assertEquals("Mara", vm.uiState.value.owner?.name)
+  }
+
+  @Test
   fun missingOrUnpublishedListingIsNotFound() {
     assertTrue(viewModel(id = "unknown").uiState.value.listingNotFound)
 
