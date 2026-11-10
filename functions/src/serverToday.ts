@@ -26,13 +26,17 @@ export function zurichDay(now: Date): string {
 }
 
 /**
- * Callable `serverToday`: today's date in Zurich, as `{today: "YYYY-MM-DD"}`. No input. The app asks
- * it instead of reading the phone's date, which the user can change in the phone's settings.
+ * Callable `serverToday`: today's date in Zurich and the server's time, as
+ * `{today: "YYYY-MM-DD", now: epoch ms}`. No input. The app asks it instead of reading the phone's
+ * date, which the user can change in the phone's settings. `now` lets the app work out today
+ * offline, from the time since the phone booted, which the user cannot change.
  */
 export const serverToday = onCall(async (request) => {
   try {
     requireVerifiedEpfl(request.auth);
-    return { today: zurichDay(new Date()) };
+    // One instant, so that `today` is the day of `now`.
+    const now = new Date();
+    return { today: zurichDay(now), now: now.getTime() };
   } catch (error) {
     throw toCallableError(error);
   }

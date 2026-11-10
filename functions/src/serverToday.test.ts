@@ -34,12 +34,11 @@ describe("zurichDay", () => {
 });
 
 describe("serverToday", () => {
-  it("gives a verified EPFL user today's date in Zurich", async () => {
-    const before = zurichDay(new Date());
+  it("gives a verified EPFL user the server's time and its day in Zurich", async () => {
     const result = await serverToday.run(asUser("today-user"));
-    const after = zurichDay(new Date());
-    // Either day, in case midnight in Zurich passes during the call.
-    expect([before, after]).toContain(result.today);
+    expect(typeof result.now).toBe("number");
+    expect(Math.abs(result.now - Date.now())).toBeLessThan(5_000);
+    expect(result.today).toBe(zurichDay(new Date(result.now)));
   });
 
   it("refuses a caller who is not signed in", async () => {
