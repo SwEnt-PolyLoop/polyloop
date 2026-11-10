@@ -34,6 +34,10 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.dispute.Dispute
+import com.swent.polyloop.model.dispute.DisputeStage
+import com.swent.polyloop.model.dispute.FakeDisputeRepository
+import com.swent.polyloop.model.dispute.Proposal
 import com.swent.polyloop.model.handover.FakeHandoverRepository
 import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
@@ -53,8 +57,10 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
 import com.swent.polyloop.ui.navigation.Screen
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -175,6 +181,9 @@ class PolyLoopAppTest {
           )
       )
 
+  /** In-memory disputes, acting as the signed-in user, so Dispute never reaches Firestore. */
+  private val disputes = FakeDisputeRepository(currentUid = { currentUser?.uid })
+
   /** In-memory conversations, so the Chat list never reaches Firestore. */
   private val chatRepository = FakeChatRepository(currentUid = "me")
 
@@ -188,6 +197,7 @@ class PolyLoopAppTest {
     RepositoryProvider.connectivityRepository = connectivity
     RepositoryProvider.handoverRepository = FakeHandoverRepository()
     RepositoryProvider.walletRepository = FakeWalletRepository()
+    RepositoryProvider.disputeRepository = disputes
   }
 
   @After
@@ -299,6 +309,7 @@ class PolyLoopAppTest {
           Screen.Chat -> C.Tag.chat_screen
           Screen.RentalDetail -> C.Tag.rental_detail_screen
           Screen.Handover -> C.Tag.handover_screen
+          Screen.Dispute -> C.Tag.dispute_screen
           Screen.ReviewRequest -> C.Tag.review_request_screen
           Screen.Wallet -> C.Tag.wallet_screen
           Screen.Profile,
@@ -773,7 +784,53 @@ class PolyLoopAppTest {
   fun viewDisputeOpensTheDispute() {
     tapActionButtonOnRentalDetail(rental.copy(status = RentalStatus.DISPUTED, deposit = 60))
 
-    assertCurrentScreen(Screen.Dispute, shownRoute = Screen.Dispute.createRoute(rental.id))
+    assertCurrentScreen(Screen.Dispute)
+  }
+
+  @Test
+  fun borrowerCountersFromRentalDetailRetriesALostAcceptAndSettlesTheDispute() {
+    val vida = listing.ownerId
+    fun vidaProposes(vararg lenderPercents: Int) =
+        disputes.put(
+            disputes.disputes.single().let { dispute ->
+              dispute.copy(
+                  proposals =
+                      dispute.proposals + lenderPercents.map { Proposal(vida, it, Instant.now()) }
+              )
+            }
+        )
+    disputes.put(
+        Dispute(
+            rentalId = rental.id,
+            stage = DisputeStage.SETTLE,
+            proposals = listOf(Proposal(vida, 70, Instant.now())),
+            escalatesAt = Instant.now().plus(Duration.ofDays(10)),
+        )
+    )
+    tapActionButtonOnRentalDetail(rental.copy(status = RentalStatus.DISPUTED, deposit = 60))
+    waitForTag(C.Tag.dispute_counter_button)
+
+    // I counter with 50/50 and wait for Vida.
+    composeTestRule.onNodeWithTag(C.Tag.dispute_counter_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.dispute_split_lender_field).performTextReplacement("50")
+    composeTestRule.onNodeWithTag(C.Tag.dispute_split_send).performClick()
+    waitForTag(C.Tag.dispute_waiting)
+
+    // Vida counters with 60; she changes it to 65 while my acceptance is on its way.
+    vidaProposes(60)
+    waitForTag(C.Tag.dispute_accept_button)
+    val gate = CompletableDeferred<Unit>()
+    disputes.gate = gate
+    composeTestRule.onNodeWithTag(C.Tag.dispute_accept_button).performClick()
+    vidaProposes(65)
+    gate.complete(Unit)
+    waitForTag(C.Tag.dispute_proposal_error)
+    assertNull(disputes.disputes.single().agreedAt)
+
+    // I accept the new split.
+    composeTestRule.onNodeWithTag(C.Tag.dispute_accept_button).performClick()
+    waitForTag(C.Tag.dispute_settled_pill)
+    assertEquals(65, disputes.disputes.single().latestProposal?.lenderPercent)
   }
 
   @Test
