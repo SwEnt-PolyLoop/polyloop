@@ -12,6 +12,7 @@ import {
   parseOfferInput,
   parseRentalId,
   readRange,
+  requirePerson,
   requireVerifiedEpfl,
 } from "./rentalRules";
 
@@ -204,5 +205,18 @@ describe("requireVerifiedEpfl", () => {
     const other = { uid: "u1", token: { email: "a@gmail.com", email_verified: true } };
     expect(errorCode(() => requireVerifiedEpfl(unverified))).toBe("permission-denied");
     expect(errorCode(() => requireVerifiedEpfl(other))).toBe("permission-denied");
+  });
+});
+
+describe("requirePerson", () => {
+  it("returns the id of the person", () => {
+    expect(requirePerson("user-1", "borrower")).toBe("user-1");
+  });
+
+  it("refuses a missing, blank or non-string id with an internal error naming the role", () => {
+    for (const value of [undefined, null, "", 42, {}]) {
+      expect(errorCode(() => requirePerson(value, "lender"))).toBe("internal");
+    }
+    expect(() => requirePerson("", "lender")).toThrow("The rental has no lender.");
   });
 });
