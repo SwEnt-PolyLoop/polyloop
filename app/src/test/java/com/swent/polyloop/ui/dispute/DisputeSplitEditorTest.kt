@@ -2,7 +2,6 @@
 
 package com.swent.polyloop.ui.dispute
 
-import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -22,18 +21,6 @@ class DisputeSplitEditorTest {
     for (text in listOf("", "101", "250", "1000", "-1", "2.5", "1a", " 5")) {
       assertNull(text, parsePercent(text))
     }
-  }
-
-  @Test
-  fun formatTenthsShowsADecimalOnlyWhenNeeded() {
-    assertEquals("18", formatTenths(180, Locale.ENGLISH))
-    assertEquals("16.5", formatTenths(165, Locale.ENGLISH))
-    assertEquals("0.3", formatTenths(3, Locale.ENGLISH))
-  }
-
-  @Test
-  fun formatTenthsUsesTheDecimalSeparatorOfTheLocale() {
-    assertEquals("16,5", formatTenths(165, Locale.FRENCH))
   }
 
   @Test

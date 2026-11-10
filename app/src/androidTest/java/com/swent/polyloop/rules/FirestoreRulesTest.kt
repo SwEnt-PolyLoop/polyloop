@@ -721,6 +721,77 @@ class FirestoreRulesTest {
         assertFalse(wallet.get(Source.SERVER).await().exists())
       }
 
+  // ---------- disputes ----------
+
+  /** The dispute of [rental], written as an admin as the Cloud Functions write it. */
+  private fun seedDispute(rental: DocumentReference): DocumentReference {
+    FirebaseEmulator.createDocumentAsAdmin(
+        "disputes/${rental.id}",
+        mapOf(
+            "stage" to "SETTLE",
+            "proposals" to emptyList<Any>(),
+            "escalatesAt" to Timestamp(2_000_000_000, 0),
+        ),
+    )
+    return db.collection("disputes").document(rental.id)
+  }
+
+  @Test
+  fun onlyTheTwoParticipantsReadTheDispute() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val dispute = seedDispute(seedRental(owner.uid, borrower.uid))
+        val noDispute = db.collection("disputes").document(seedRental(owner.uid, borrower.uid).id)
+
+        signInAs(owner)
+        dispute.get(Source.SERVER).await()
+        signInAs(borrower)
+        dispute.get(Source.SERVER).await()
+        noDispute.get(Source.SERVER).await() // a rental without a dispute reads as missing
+        // A dispute whose rental is missing has no participants, so nobody reads it.
+        assertDenied { seedDispute(db.collection("rentals").document()).get(Source.SERVER).await() }
+        newAccount()
+        assertDenied { dispute.get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun aParticipantWithoutAVerifiedEpflAccountCannotReadTheDispute() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        // Each sign-up signs the new account in, so each dispute is read as its borrower.
+        val gmail =
+            FirebaseEmulator.signUpVerified("rules-${UUID.randomUUID()}@gmail.com", PASSWORD)
+        val gmailDispute = seedDispute(seedRental(owner.uid, gmail))
+        assertDenied { gmailDispute.get(Source.SERVER).await() }
+
+        val unverified =
+            Firebase.auth
+                .createUserWithEmailAndPassword("rules-${UUID.randomUUID()}@epfl.ch", PASSWORD)
+                .await()
+                .user!!
+                .uid
+        val unverifiedDispute = seedDispute(seedRental(owner.uid, unverified))
+        assertDenied { unverifiedDispute.get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun onlyCloudFunctionsWriteADispute() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val dispute = seedDispute(seedRental(owner.uid, borrower.uid))
+        val noDispute = db.collection("disputes").document(seedRental(owner.uid, borrower.uid).id)
+
+        for (account in listOf(owner, borrower)) {
+          signInAs(account)
+          assertDenied { dispute.update("agreedAt", FieldValue.serverTimestamp()).await() }
+          assertDenied { dispute.update("stage", "COURT").await() }
+          assertDenied { dispute.delete().await() }
+          assertDenied { noDispute.set(mapOf("stage" to "SETTLE")).await() }
+        }
+      }
+
   private companion object {
     const val PASSWORD = "password123"
   }

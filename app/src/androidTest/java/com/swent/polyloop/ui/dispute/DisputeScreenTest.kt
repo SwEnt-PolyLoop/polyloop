@@ -126,7 +126,7 @@ class DisputeScreenTest {
         .assertTextEquals(string(R.string.dispute_they_propose, "Ana"))
     share(R.string.dispute_lender_share_description).assertTextEquals("70")
     share(R.string.dispute_borrower_share_description).assertTextEquals("30")
-    textIn(C.Tag.dispute_get_back, string(R.string.dispute_amount, "18")).assertIsDisplayed()
+    textIn(C.Tag.dispute_get_back, string(R.string.dispute_amount, 18)).assertIsDisplayed()
     node(C.Tag.dispute_counter_button)
         .assertTextEquals(string(R.string.dispute_counter))
         .performClick()
@@ -216,7 +216,7 @@ class DisputeScreenTest {
         .assert(
             hasContentDescription(context.getString(R.string.dispute_borrower_share_description))
         )
-    textIn(C.Tag.dispute_get_back, string(R.string.dispute_amount, "45")).assertIsDisplayed()
+    textIn(C.Tag.dispute_get_back, string(R.string.dispute_amount, 45)).assertIsDisplayed()
     node(C.Tag.dispute_split_borrower_field).performTextClearance()
     node(C.Tag.dispute_split_borrower_field).performTextInput("40")
     node(C.Tag.dispute_split_slider).performTouchInput { click(center) }
@@ -416,7 +416,7 @@ class DisputeScreenTest {
     setContent(open.copy(isLender = true))
 
     node(C.Tag.dispute_role_pill).assertTextEquals(string(R.string.dispute_role_lender))
-    textIn(C.Tag.dispute_get_back, string(R.string.dispute_amount, "42")).assertIsDisplayed()
+    textIn(C.Tag.dispute_get_back, string(R.string.dispute_amount, 42)).assertIsDisplayed()
   }
 
   @Test

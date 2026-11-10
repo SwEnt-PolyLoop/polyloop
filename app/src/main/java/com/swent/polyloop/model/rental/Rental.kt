@@ -35,6 +35,7 @@ data class Rental(
     val pickupAddress: String = "", // exact, set when the rental is accepted
     val returnAddress: String = "", // exact, set when the rental is accepted
     val deposit: Int = 0, // in PP: the accepted amount, 0 until then
+    val lateFees: Int = 0, // in PP: taken from the deposit for a late return, 0 if never late
     val offer: DepositOffer? = null, // the offer waiting for an answer, if any
     val createdAt: Instant,
     val lastMessage: String = "",

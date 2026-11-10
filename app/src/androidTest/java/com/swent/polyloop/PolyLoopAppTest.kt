@@ -28,6 +28,7 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.handover.FakeHandoverRepository
 import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
@@ -106,8 +107,7 @@ class PolyLoopAppTest {
 
   /**
    * One accepted rental borrowed by "uid", so My rentals shows a CURRENT row, which opens Rental
-   * detail, without reaching Firestore. Rental detail shows only its title, as for every status but
-   * Requested.
+   * detail, without reaching Firestore.
    */
   private val rental =
       Rental(
@@ -178,6 +178,7 @@ class PolyLoopAppTest {
     RepositoryProvider.chatRepository = chatRepository
     RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     RepositoryProvider.connectivityRepository = connectivity
+    RepositoryProvider.handoverRepository = FakeHandoverRepository()
     RepositoryProvider.walletRepository = FakeWalletRepository()
   }
 
@@ -279,6 +280,7 @@ class PolyLoopAppTest {
           Screen.ChatList -> C.Tag.chat_list_screen
           Screen.Chat -> C.Tag.chat_screen
           Screen.RentalDetail -> C.Tag.rental_detail_screen
+          Screen.Handover -> C.Tag.handover_screen
           Screen.ReviewRequest -> C.Tag.review_request_screen
           Screen.Wallet -> C.Tag.wallet_screen
           Screen.Profile,
@@ -553,9 +555,7 @@ class PolyLoopAppTest {
 
   @Test
   fun chatOnRentalDetailOpensTheRentalsChat() {
-    // Only a Requested rental shows the person card and its Chat button.
-    RepositoryProvider.rentalRepository =
-        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED)))
+    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {
@@ -570,6 +570,110 @@ class PolyLoopAppTest {
         rental.id,
         navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
     )
+  }
+
+  /** Signs in the borrower of [rental], with its conversation, and opens [route] from Browse. */
+  private fun openAsBorrower(route: String) {
+    chatRepository.conversations =
+        listOf(
+            Conversation(
+                rental.id,
+                rental.listingTitle,
+                rental.ownerId,
+                rental.ownerName,
+                rental.borrowerId,
+                rental.borrowerName,
+                "",
+                rental.createdAt,
+                rental.status,
+                rental.startDate,
+                rental.endDate,
+            )
+        )
+    currentUser = AuthUser(rental.borrowerId, "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread { NavigationActions(navController).navigateTo(route) }
+    composeTestRule.waitForIdle()
+  }
+
+  private fun tapChatOnRentalDetail() {
+    waitForTag(C.Tag.rental_detail_chat_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+  }
+
+  private fun tapRentalDetailsInTheChat() {
+    waitForTag(C.Tag.chat_rental_details)
+    composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
+    composeTestRule.waitForIdle()
+  }
+
+  private fun currentEntryId(): String? = navController.currentBackStackEntry?.id
+
+  @Test
+  fun openingChatFromRentalDetailTheFirstTimeNavigatesForward() {
+    openAsBorrower(Screen.RentalDetail.createRoute(rental.id))
+    val rentalDetailEntry = currentEntryId()
+
+    tapChatOnRentalDetail()
+
+    assertCurrentScreen(Screen.Chat)
+    assertEquals(rentalDetailEntry, navController.previousBackStackEntry?.id)
+  }
+
+  @Test
+  fun rentalDetailsFromItsChatGoesBackToTheFirstRentalDetail() {
+    openAsBorrower(Screen.RentalDetail.createRoute(rental.id))
+    val rentalDetailEntry = currentEntryId()
+    tapChatOnRentalDetail()
+
+    tapRentalDetailsInTheChat()
+
+    assertCurrentScreen(Screen.RentalDetail)
+    assertEquals(rentalDetailEntry, currentEntryId())
+    // No second Chat was left behind: Back leaves Rental detail for the screen it was opened from.
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.Browse)
+  }
+
+  @Test
+  fun chatFromItsRentalDetailGoesBackToTheFirstChat() {
+    openAsBorrower(Screen.Chat.createRoute(rental.id))
+    val chatEntry = currentEntryId()
+    tapRentalDetailsInTheChat()
+    assertCurrentScreen(Screen.RentalDetail)
+
+    tapChatOnRentalDetail()
+
+    assertCurrentScreen(Screen.Chat)
+    assertEquals(chatEntry, currentEntryId())
+  }
+
+  /** Opens Rental detail on [shown], signed in as its borrower, and taps its action button. */
+  private fun tapActionButtonOnRentalDetail(shown: Rental) {
+    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(shown))
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(shown.id))
+    }
+    waitForTag(C.Tag.rental_detail_action_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).performClick()
+  }
+
+  @Test
+  fun startPickupOnItsPickupDayOpensTheHandover() {
+    val today = LocalDate.now()
+    tapActionButtonOnRentalDetail(rental.copy(startDate = today, endDate = today.plusDays(2)))
+
+    assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
+  }
+
+  @Test
+  fun viewDisputeOpensTheDispute() {
+    tapActionButtonOnRentalDetail(rental.copy(status = RentalStatus.DISPUTED, deposit = 60))
+
+    assertCurrentScreen(Screen.Dispute, shownRoute = Screen.Dispute.createRoute(rental.id))
   }
 
   @Test

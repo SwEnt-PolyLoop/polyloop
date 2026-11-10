@@ -29,16 +29,19 @@ import kotlinx.coroutines.launch
  * [errorMsg] is non-null when the rental could not be read; it is blank when the failure carried no
  * message, and the screen then shows a generic text. [notFound] is true when there is no such
  * rental. [isSupported] is false for a status the screen does not handle yet (anything but
- * Requested): only [itemTitle] is then set, for the placeholder. [isLender] is true when the
- * signed-in user owns the item. [sentAt] is when the request was sent, [endDate] the return day and
- * [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the listing's item value in
- * PolyPoints, or null when the listing is missing or could not be read. [pickupArea] is the name
- * copied on the rental, or the listing's if the request was sent before the listing was geocoded.
- * [pickupPoint] is the listing's public point, or null when the listing is missing, could not be
- * read or is not geocoded yet. [otherPerson] is the borrower for the lender and the owner for the
- * borrower. [isOffline] is true while the phone has no connection; the screen then shows the pickup
- * area as a placeholder instead of the map. [offer] is the deposit offer waiting for an answer, if
- * any, and [isOfferMine] is true when the signed-in user wrote it.
+ * Requested, Accepted and Disputed): only [itemTitle] is then set, for the placeholder. [isLender]
+ * is true when the signed-in user owns the item. [sentAt] is when the request was sent, [endDate]
+ * the return day and [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the
+ * listing's item value in PolyPoints, or null when the listing is missing or could not be read.
+ * [pickupArea] is the name copied on the rental, or the listing's if the request was sent before
+ * the listing was geocoded. [pickupPoint] is the listing's public point, or null when the listing
+ * is missing, could not be read or is not geocoded yet. [otherPerson] is the borrower for the
+ * lender and the owner for the borrower. [isOffline] is true while the phone has no connection; the
+ * screen then shows the pickup area of a request as a placeholder instead of the map. [offer] is
+ * the deposit offer waiting for an answer, if any, and [isOfferMine] is true when the signed-in
+ * user wrote it. [deposit] is the accepted amount in PolyPoints, and [pickupAddress] and
+ * [returnAddress] are the exact addresses, set once the rental is accepted. [lateFees] is the total
+ * taken from the deposit for a late return, in PolyPoints, and 0 when the return was never late.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -59,6 +62,10 @@ data class RentalDetailUiState(
     val isOffline: Boolean = false,
     val offer: DepositOffer? = null,
     val isOfferMine: Boolean = false,
+    val deposit: Int = 0,
+    val pickupAddress: String = "",
+    val returnAddress: String = "",
+    val lateFees: Int = 0,
 )
 
 /**
@@ -76,10 +83,10 @@ data class OtherPerson(
 )
 
 /**
- * Shows one rental as seen by the signed-in user. Only Requested is handled so far. The rental is
- * read once, then followed so that the offer stays up to date when coming back from the chat. It
- * follows the network status from [connectivityRepository], so the screen knows when to replace the
- * map.
+ * Shows one rental as seen by the signed-in user. Requested, Accepted and Disputed are handled so
+ * far. The rental is read once, then followed, so that the offer and an acceptance show without a
+ * reload. It follows the network status from [connectivityRepository], so the screen knows when to
+ * replace the map.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
@@ -122,8 +129,9 @@ class RentalDetailViewModel(
         _uiState.update { it.copy(isLoading = false, notFound = true) }
         return@launch
       }
-      if (rental.status != RentalStatus.REQUESTED) {
-        // Only Requested is built so far: the screen shows a placeholder with the title until the
+      if (rental.status !in SUPPORTED_STATUSES) {
+        // Only these statuses are built so far: the screen shows a placeholder with the title until
+        // the
         // other statuses are, so everything else stays at its default and neither the listing nor
         // the other person's profile is read.
         _uiState.update {
@@ -170,6 +178,10 @@ class RentalDetailViewModel(
             isOffline = it.isOffline,
             offer = rental.offer,
             isOfferMine = rental.offer?.authorId == uid,
+            deposit = rental.deposit,
+            pickupAddress = rental.pickupAddress,
+            returnAddress = rental.returnAddress,
+            lateFees = rental.lateFees,
         )
       }
       // A read error here stops the updates: the rental read above stays on screen, but not its
@@ -180,7 +192,7 @@ class RentalDetailViewModel(
           .collect { live ->
             when {
               live == null -> Unit
-              live.status != RentalStatus.REQUESTED ->
+              live.status !in SUPPORTED_STATUSES ->
                   _uiState.update {
                     RentalDetailUiState(
                         isSupported = false,
@@ -190,11 +202,25 @@ class RentalDetailViewModel(
                   }
               else ->
                   _uiState.update {
-                    it.copy(offer = live.offer, isOfferMine = live.offer?.authorId == uid)
+                    it.copy(
+                        status = live.status,
+                        offer = live.offer,
+                        isOfferMine = live.offer?.authorId == uid,
+                        deposit = live.deposit,
+                        pickupAddress = live.pickupAddress,
+                        returnAddress = live.returnAddress,
+                        lateFees = live.lateFees,
+                    )
                   }
             }
           }
     }
+  }
+
+  private companion object {
+    /** The statuses the screen shows in full; every other one shows the placeholder. */
+    val SUPPORTED_STATUSES =
+        setOf(RentalStatus.REQUESTED, RentalStatus.ACCEPTED, RentalStatus.DISPUTED)
   }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */

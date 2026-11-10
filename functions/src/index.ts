@@ -17,3 +17,6 @@ export { declineRequest } from "./declineRequest";
 export { expireOffers } from "./expireOffers";
 export { reserveDeposit } from "./reserveDeposit";
 export { payLender } from "./payLender";
+export { proposeSplit } from "./proposeSplit";
+export { acceptSplit } from "./acceptSplit";
+export { escalateDispute } from "./escalateDispute";

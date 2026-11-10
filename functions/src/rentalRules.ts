@@ -16,11 +16,15 @@ export type RequestErrorCode =
   | "failed-precondition"
   | "internal";
 
-/** A refused request: a code and a message for the user. */
+/**
+ * A refused request: a code, a message for the user, and, when the request lost a race, the reason
+ * the app reads in `details` (e.g. `{reason: "STAGE_CHANGED"}`, see disputeRules.ts).
+ */
 export class RequestError extends Error {
   constructor(
     readonly code: RequestErrorCode,
     message: string,
+    readonly details?: { reason: string },
   ) {
     super(message);
     this.name = "RequestError";
@@ -190,6 +194,6 @@ export function requirePerson(value: unknown, role: string): string {
 }
 
 /** The fields of a callable's input, or none if it is not an object. */
-function asFields(data: unknown): Record<string, unknown> {
+export function asFields(data: unknown): Record<string, unknown> {
   return (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>;
 }

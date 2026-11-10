@@ -71,6 +71,20 @@ class RentalDocumentTest {
   }
 
   @Test
+  fun readsTheLateFees() {
+    val rental = rentalFromDocument("rental-1", validData + (RentalFields.LATE_FEES to 14L))
+
+    assertEquals(14, rental?.lateFees)
+  }
+
+  @Test
+  fun missingLateFeesReadAsZero() {
+    val rental = rentalFromDocument("rental-1", validData)
+
+    assertEquals(0, rental?.lateFees)
+  }
+
+  @Test
   fun aMalformedOfferReadsAsNoOfferAndKeepsTheRental() {
     val complete =
         mapOf(

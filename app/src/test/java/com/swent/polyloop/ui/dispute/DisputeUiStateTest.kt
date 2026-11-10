@@ -18,24 +18,50 @@ class DisputeUiStateTest {
 
   @Test
   fun borrowerGetsBackTheirShareOfTheDeposit() {
-    assertEquals(180, open.youGetBackTenths)
+    assertEquals(18, open.youGetBack)
   }
 
   @Test
   fun lenderGetsTheRestOfTheDeposit() {
-    assertEquals(420, open.copy(isLender = true).youGetBackTenths)
+    assertEquals(42, open.copy(isLender = true).youGetBack)
+  }
+
+  // The same cases as disputeRules.test.ts in functions/: the Cloud Function that applies a split
+  // must give the amounts the app shows.
+
+  /** The lender's and the borrower's shares of [deposit] when the lender gets [lenderPercent]. */
+  private fun shares(deposit: Int, lenderPercent: Int) =
+      splitDeposit(deposit, lenderPercent, toLender = true) to
+          splitDeposit(deposit, lenderPercent, toLender = false)
+
+  @Test
+  fun borrowerShareIsRoundedDownAndTheLenderGetsTheRest() {
+    // Half of 33 PP is 16.5 PP.
+    assertEquals(17 to 16, shares(deposit = 33, lenderPercent = 50))
+    assertEquals(19 to 36, shares(deposit = 55, lenderPercent = 33))
+    assertEquals(1 to 0, shares(deposit = 1, lenderPercent = 50))
   }
 
   @Test
-  fun borrowerShareIsRoundedDownToATenthAndTheLenderGetsTheRest() {
-    // 67% of 55 PP is 36.85 PP.
-    assertEquals(368, shareInTenths(deposit = 55, lenderPercent = 33, toLender = false))
-    assertEquals(182, shareInTenths(deposit = 55, lenderPercent = 33, toLender = true))
+  fun wholeDepositGoesToOneSideAtZeroOrHundredPercent() {
+    assertEquals(0 to 60, shares(deposit = 60, lenderPercent = 0))
+    assertEquals(60 to 0, shares(deposit = 60, lenderPercent = 100))
+  }
+
+  @Test
+  fun nothingToShareWithoutADeposit() {
+    assertEquals(0 to 0, shares(deposit = 0, lenderPercent = 30))
+  }
+
+  @Test
+  fun draftShareFollowsTheDraftSplit() {
+    assertNull(open.draftGetBack)
+    assertEquals(24, open.copy(draftLenderPercent = 60).draftGetBack)
   }
 
   @Test
   fun nothingToGetBackWithoutAProposal() {
-    assertNull(open.copy(history = emptyList()).youGetBackTenths)
+    assertNull(open.copy(history = emptyList()).youGetBack)
   }
 
   @Test
