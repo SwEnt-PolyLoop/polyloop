@@ -26,6 +26,7 @@ import com.swent.polyloop.resources.C
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -70,6 +71,8 @@ class RentalDetailScreenTest {
           onViewDisputeClick = {},
           today = today,
           zone = ZoneOffset.UTC,
+          // English is fixed so the expected dates pass on an emulator in any language.
+          locale = Locale.ENGLISH,
       )
     }
   }
@@ -384,6 +387,7 @@ class RentalDetailScreenTest {
           onViewDisputeClick = {},
           today = today,
           zone = ZoneOffset.UTC,
+          locale = Locale.ENGLISH,
       )
     }
     assertPickupMapShown()

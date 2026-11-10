@@ -19,6 +19,7 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.formatDay
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -63,6 +64,8 @@ class RentalDetailAcceptedTest {
           onViewDisputeClick = {},
           today = today,
           zone = ZoneOffset.UTC,
+          // English is fixed so the expected dates pass on an emulator in any language.
+          locale = Locale.ENGLISH,
       )
     }
   }
@@ -83,7 +86,7 @@ class RentalDetailAcceptedTest {
         C.Tag.rental_detail_status_headline,
         context.getString(
             R.string.rental_detail_accepted_headline,
-            formatDay(LocalDate.of(2026, 10, 1)),
+            formatDay(LocalDate.of(2026, 10, 1), locale = Locale.ENGLISH),
         ),
     )
     assertShown(
@@ -100,7 +103,7 @@ class RentalDetailAcceptedTest {
         C.Tag.rental_detail_status_headline,
         context.getString(
             R.string.rental_detail_accepted_headline,
-            formatDay(LocalDate.of(2027, 1, 5), withYear = true),
+            formatDay(LocalDate.of(2027, 1, 5), withYear = true, locale = Locale.ENGLISH),
         ),
     )
   }
@@ -191,7 +194,7 @@ class RentalDetailAcceptedTest {
         C.Tag.rental_detail_pickup_available_on,
         context.getString(
             R.string.rental_detail_pickup_available_on,
-            formatDay(LocalDate.of(2027, 1, 5), withYear = true),
+            formatDay(LocalDate.of(2027, 1, 5), withYear = true, locale = Locale.ENGLISH),
         ),
     )
   }

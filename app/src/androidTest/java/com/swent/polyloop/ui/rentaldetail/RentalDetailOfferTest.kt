@@ -14,6 +14,7 @@ import com.swent.polyloop.resources.C
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.Locale
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,6 +54,8 @@ class RentalDetailOfferTest {
           onViewDisputeClick = {},
           today = LocalDate.of(2026, 10, 1),
           zone = ZoneOffset.UTC,
+          // English is fixed so the expected dates pass on an emulator in any language.
+          locale = Locale.ENGLISH,
       )
     }
   }
