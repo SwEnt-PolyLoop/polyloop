@@ -3,6 +3,15 @@
 import { randomUUID } from "node:crypto";
 import { FieldValue, Firestore, getFirestore } from "firebase-admin/firestore";
 import { reserveDeposit } from "./index";
+import {
+  People,
+  asUser,
+  fund,
+  people,
+  rental as newRental,
+  rows,
+  wallet,
+} from "./testing/walletFixtures";
 
 // Firebase loads this ES module to verify tokens, which Jest cannot load; `run` skips that step.
 jest.mock("jose", () => ({}));
@@ -21,48 +30,9 @@ beforeAll(() => {
   db = getFirestore();
 });
 
-/** The request of the signed-in, verified EPFL user [uid], sending [data]. */
-function asUser(uid: string, data: object, email = `${uid}@epfl.ch`, verified = true) {
-  return { auth: { uid, token: { email, email_verified: verified } }, data } as never;
-}
-
-/** A rental with its own people, so tests do not share wallets. */
-function people() {
-  const id = randomUUID();
-  return { lender: `lender-${id}`, borrower: `borrower-${id}` };
-}
-
-async function rental(
-  who: { lender: string; borrower: string },
-  fields: object = {},
-): Promise<string> {
-  const id = randomUUID();
-  await db
-    .collection("rentals")
-    .doc(id)
-    .set({
-      ownerId: who.lender,
-      borrowerId: who.borrower,
-      status: "ACCEPTED",
-      deposit: 40,
-      totalPrice: 15,
-      listingTitle: "Camping tent",
-      ...fields,
-    });
-  return id;
-}
-
-async function fund(uid: string, wallet: object): Promise<void> {
-  await db.collection("wallets").doc(uid).set(wallet);
-}
-
-async function wallet(uid: string) {
-  return (await db.collection("wallets").doc(uid).get()).data();
-}
-
-async function rows(uid: string) {
-  const snapshot = await db.collection("wallets").doc(uid).collection("transactions").get();
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+/** An ACCEPTED rental by default. */
+function rental(who: People, fields: object = {}): Promise<string> {
+  return newRental(who, "ACCEPTED", fields);
 }
 
 describe("holding the deposit", () => {
