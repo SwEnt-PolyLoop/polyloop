@@ -141,7 +141,7 @@ Review request is where the lender answers a request that has no offer yet (Figm
 
 Rental detail is the hub for one rental: what it is, where it stands, and the next action. ViewModel: RentalDetailViewModel, using RentalRepository, ListingRepository and ProfileRepository.
 
-So far only the Requested and Accepted states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Start pickup”, “Navigate”, cancelling or deposit state yet. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added.
+So far only the Requested, Accepted and Disputed states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Navigate”, cancelling or deposit state yet. A full-width button at the bottom gives the main action, for both roles: “Start Pickup” on Accepted, enabled from the pickup day (before it, disabled with “Pickup will be available on [day]”), and “View Dispute” on Disputed, always enabled; Requested has none. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added.
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
 - The deposit, once an offer is accepted, and its state: held, released, or frozen. “Held” appears only once deposits are really reserved, which needs the `reserveDeposit` Cloud Function; until then only the amount shows.
@@ -151,7 +151,7 @@ So far only the Requested and Accepted states are built (other statuses show the
 - A “Take photo” button while the rental is active, for condition photos between pickup and return.
 - The main action, which changes with status and role:
     - Requested: the “Chat” button leads to the chat, where the offer is answered (see Chat list & chat). Accepting reserves the deposit from the borrower's balance, and fails if it is too low. Accepting automatically declines other requests whose dates overlap, counting the 1-day buffer between rentals, with or without an offer.
-    - Accepted: “Start pickup”, shown only on the pickup day, which opens Handover.
+    - Accepted: “Start pickup”, which opens Handover; enabled from the pickup day, and shown disabled before it.
     - Active: “Start return”, which opens Handover.
     - Disputed: “View dispute”, which opens Dispute.
     - Closed: the review prompt (see Profile & reviews).
@@ -163,7 +163,7 @@ So far only the Requested and Accepted states are built (other statuses show the
 One Handover screen covers both pickup and return, and adapts to the phase and to the user's role. ViewModel: HandoverViewModel, using HandoverRepository, RentalRepository and DisputeRepository. Mock-ups: [PolyLoop Handover screen](https://claude.ai/artifact/FH2RZaMrYTGYU2fNz6UpZc).
 
 - The pickup opens only on the pickup day: on another day the screen shows the pickup date, and no photo can be taken.
-- **Condition photos.** In-app camera, each photo labelled with its phase and time. Photos taken offline show a “Not synced” badge. Each person takes their own 3 to 20 photos per handover and sees only their own. Photos can also be taken mid-rental from Rental detail.
+- **Condition photos.** In-app camera, each photo labelled with its phase and time. Photos taken offline show a “Not synced” badge. Each person takes their own 3 to 20 photos per handover and sees only their own. They show 4 per row, oldest first, each with the time it was taken; tapping one shows it full screen. The camera closes after each photo, which uploads right away (Back does nothing until the upload ends); a photo that fails to upload can be tapped to try again, and no new photo can be taken until it is uploaded. Photos can also be taken mid-rental from Rental detail.
 - **QR code.** The person receiving the item scans:
     - At pickup, the lender shows the code and the borrower scans it.
     - At return, the borrower shows the code and the lender scans it.
@@ -171,19 +171,19 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
 - After the return scan, the lender sees the pickup and return photos side by side, with two buttons:
     - “Item is fine” releases the full deposit to the borrower.
     - “Flag damage” opens a dispute and keeps the deposit held.
-- A footer showing the deposit held.
-- Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading.
+- A footer showing the deposit (“Deposit held” once deposits are really reserved; until then only “Deposit”).
+- Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading. Until the queue exists, the offline banner shows and no photo can be taken: the camera tiles are disabled.
 
 ## Dispute
 
-The Dispute screen walks both parties through the three settlement stages until the deposit is split. ViewModel: DisputeViewModel, using DisputeRepository, HandoverRepository (the photos, not used yet) and RentalRepository (the item, the other person and, once rentals have one (#176), the deposit; a placeholder of 100 PolyPoints until then).
+The Dispute screen walks both parties through the three settlement stages until the deposit is split. ViewModel: DisputeViewModel, using DisputeRepository, HandoverRepository (the photos, not used yet) and RentalRepository (the item, the other person and the deposit).
 
 - A header with the item, the deposit amount, and the current stage.
 - Pickup and return photos side by side, as evidence.
 - **Stage 1, direct settlement.** Each party proposes a split as a percentage of the deposit (for example 70% to the lender, 30% to the borrower). The other can accept it or counter. The history of proposals is visible. An “Escalate now” button moves to stage 2 at once; otherwise escalation happens automatically after 30 days without agreement, and the screen shows the days left.
 - **Stage 2, LLM proposal.** A card with the proposed split and the LLM's reasoning, plus “Accept” and “Reject” for each party. If both accept, the split is applied and the rental closes. There is no “Escalate now” and no automatic escalation here: the dispute goes to court only if either party rejects.
 - **Stage 3, court ruling.** Once the dispute reaches court, because either party rejected the LLM proposal, the deposit stays frozen. Either party can then upload the court ruling as a PDF. The screen shows its status: “Waiting for review”, then applied or rejected by an admin.
-- **The proposal card.** It offers “Propose a split” when there is no proposal, “Update” on the user's own proposal while they wait for the other person, and “Counter” or “Accept” on the other person's. The user sets the split by typing a whole percentage for either party, next to the bar (the other share follows), or by dragging or tapping the bar. The bar is hidden from screen readers, whose users set the split with the percent fields.
+- **The proposal card.** It offers “Propose a split” when there is no proposal, “Update” on the user's own proposal while they wait for the other person, and “Counter” or “Accept” on the other person's. The user sets the split by typing a whole percentage for either party, next to the bar (the other share follows), or by dragging or tapping the bar. The bar is hidden from screen readers, whose users set the split with the percent fields. The card shows what the user gets back in whole PolyPoints: the borrower's share is rounded down and the lender gets the rest, so 50% of a 33 PP deposit gives 16 PP to the borrower and 17 PP to the lender.
 - “Escalate now” first asks to confirm, naming the LLM proposal stage; the question closes by itself if the dispute moves on or settles meanwhile. An escalation sent just after the dispute moved on changes nothing, so no stage is skipped.
 - **What the other person does** shows while the screen is open: a new offer (with the new split while the user edits their own, whose draft is kept), until the user opens the split editor or sends something, or the dispute leaves direct settlement; their acceptance of the user's proposal, until the screen is opened again; an escalation, by them or by itself, until the dispute moves on again. Nothing is shown for the user's own actions.
 - Accepting accepts only the split the user saw: if the offer changed just before, nothing is accepted and the card asks to check the new one.

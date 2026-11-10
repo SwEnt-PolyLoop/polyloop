@@ -3,9 +3,12 @@
 package com.swent.polyloop.ui.rentaldetail
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -16,6 +19,7 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.formatDay
 import java.time.LocalDate
 import java.time.ZoneOffset
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,14 +47,21 @@ class RentalDetailAcceptedTest {
           returnAddress = "Rue de Lausanne 10, Renens",
       )
 
-  private fun setContent(state: RentalDetailUiState = accepted) {
+  private var startPickupClicks = 0
+
+  private fun setContent(
+      state: RentalDetailUiState = accepted,
+      today: LocalDate = LocalDate.of(2026, 9, 28),
+  ) {
     composeTestRule.setContent {
       RentalDetailContent(
           uiState = state,
           onRetry = {},
           onChatClick = {},
           onPersonClick = {},
-          today = LocalDate.of(2026, 9, 28),
+          onStartPickupClick = { startPickupClicks++ },
+          onViewDisputeClick = {},
+          today = today,
           zone = ZoneOffset.UTC,
       )
     }
@@ -150,6 +161,62 @@ class RentalDetailAcceptedTest {
         C.Tag.rental_detail_return_address,
         context.getString(R.string.rental_detail_return_address, placeholder),
     )
+  }
+
+  @Test
+  fun theDayBeforeThePickupStartPickupIsDisabledWithTheDay() {
+    setContent(today = LocalDate.of(2026, 9, 30))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_action_button)
+        .assertIsDisplayed()
+        .assertIsNotEnabled()
+        .assertTextEquals(context.getString(R.string.rental_detail_start_pickup))
+    assertPinned(
+        C.Tag.rental_detail_pickup_available_on,
+        context.getString(R.string.rental_detail_pickup_available_on, "1 Oct"),
+    )
+  }
+
+  /** Like [assertShown], for a node pinned under the scrolling column, so not scrolled to. */
+  private fun assertPinned(tag: String, text: String) {
+    composeTestRule.onNodeWithTag(tag).assertIsDisplayed().assertTextEquals(text)
+  }
+
+  @Test
+  fun aPickupInAnotherYearGivesTheYearUnderStartPickup() {
+    setContent(accepted.copy(startDate = LocalDate.of(2027, 1, 5)))
+
+    assertPinned(
+        C.Tag.rental_detail_pickup_available_on,
+        context.getString(
+            R.string.rental_detail_pickup_available_on,
+            formatDay(LocalDate.of(2027, 1, 5), withYear = true),
+        ),
+    )
+  }
+
+  @Test
+  fun onThePickupDayStartPickupIsEnabledAndOpensThePickup() {
+    assertStartPickupOpensThePickupOn(LocalDate.of(2026, 10, 1))
+  }
+
+  @Test
+  fun theDayAfterThePickupStartPickupIsStillEnabled() {
+    assertStartPickupOpensThePickupOn(LocalDate.of(2026, 10, 2))
+  }
+
+  private fun assertStartPickupOpensThePickupOn(today: LocalDate) {
+    setContent(today = today)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_action_button)
+        .assertIsEnabled()
+        .assertTextEquals(context.getString(R.string.rental_detail_start_pickup))
+        .performClick()
+
+    assertEquals(1, startPickupClicks)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_available_on).assertDoesNotExist()
   }
 
   @Test

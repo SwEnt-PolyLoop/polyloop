@@ -375,6 +375,20 @@
     <!-- The last day the rental can be cancelled, e.g. "You can cancel until Wed 30 Sep" -->
     <string name="rental_detail_cancel_until">You can cancel until %1$s</string>
     <string name="rental_detail_cancel_request">Cancel request</string>
+    <string name="rental_detail_disputed_headline">Damage flagged</string>
+    <string name="rental_detail_disputed_body">The deposit stays held until a split is decided.</string>
+    <!-- The total rental price of a disputed rental, e.g. "120 PP · paid" -->
+    <string name="rental_detail_price_paid">%1$d PP · paid</string>
+    <!-- The deposit of a disputed rental, e.g. "60 PP · held" -->
+    <string name="rental_detail_deposit_held">%1$d PP · held</string>
+    <string name="rental_detail_late_fees_label">Late fees</string>
+    <!-- The late fees taken from the deposit, e.g. "0 PP" -->
+    <string name="rental_detail_late_fees">%1$d PP</string>
+    <string name="rental_detail_chat_paused">Chat is paused while the dispute is open.</string>
+    <string name="rental_detail_start_pickup">Start Pickup</string>
+    <!-- Under the disabled Start Pickup button, e.g. "Pickup will be available on 1 Oct" -->
+    <string name="rental_detail_pickup_available_on">Pickup will be available on %1$s</string>
+    <string name="rental_detail_view_dispute">View Dispute</string>
 
     <!-- Dispute -->
     <string name="dispute_title">Dispute</string>
@@ -395,8 +409,8 @@
     <string name="dispute_no_proposal">No proposal yet</string>
     <string name="dispute_you_would_get_back">You would get back</string>
     <string name="dispute_you_get_back">You get back</string>
-    <!-- An amount of PolyPoints, which can have one decimal, e.g. "18 PP" or "16.5 PP" -->
-    <string name="dispute_amount">%1$s PP</string>
+    <!-- A whole amount of PolyPoints, e.g. "18 PP" -->
+    <string name="dispute_amount">%1$d PP</string>
     <string name="dispute_percent_sign">%</string>
     <string name="dispute_counter">Counter</string>
     <string name="dispute_update">Update</string>
@@ -442,6 +456,41 @@
     <!-- Read by screen readers on the lender's and the borrower's percent fields -->
     <string name="dispute_lender_share_description">Lender\'s share in percent</string>
     <string name="dispute_borrower_share_description">Borrower\'s share in percent</string>
+
+    <!-- Handover -->
+    <string name="handover_error">Could not load this rental.</string>
+    <string name="handover_retry">Retry</string>
+    <string name="handover_not_found">This rental no longer exists.</string>
+    <string name="handover_nothing">Nothing to hand over right now.</string>
+    <string name="handover_pickup_title">Pickup</string>
+    <string name="handover_you_lend">You lend</string>
+    <string name="handover_you_borrow">You borrow</string>
+    <!-- The other person on Handover: "with Loca" for the lender, "from Mara" for the borrower -->
+    <string name="handover_with">with %1$s</string>
+    <string name="handover_from">from %1$s</string>
+    <string name="handover_with_the_borrower">with the borrower</string>
+    <string name="handover_from_the_lender">from the lender</string>
+    <string name="handover_photos_title">Condition photos</string>
+    <!-- The number of photos each person takes, e.g. "3–20 photos" -->
+    <string name="handover_photos_range">%1$d–%2$d photos</string>
+    <!-- Read by screen readers for a pickup photo, e.g. "Pickup photo, 14:02" -->
+    <string name="handover_photo_description">Pickup photo, %1$s</string>
+    <string name="handover_take_photo">Take a photo</string>
+    <string name="handover_photos_done">Pickup photos done</string>
+    <plurals name="handover_photos_missing">
+        <item quantity="one">Take %1$d more photo</item>
+        <item quantity="other">Take %1$d more photos</item>
+    </plurals>
+    <string name="handover_photos_error">Could not load your photos.</string>
+    <string name="handover_upload_failed">Photo not uploaded. Tap to try again.</string>
+    <!-- Shown on Handover outside the pickup day, e.g. "Pickup is on 15 Oct" -->
+    <string name="handover_not_pickup_day">Pickup is on %1$s</string>
+    <!-- Under a pickup photo shown full screen, e.g. "Pickup · 14:02" -->
+    <string name="handover_photo_label">Pickup · %1$s</string>
+    <string name="handover_close_photo">Close the photo</string>
+    <string name="handover_deposit">Deposit</string>
+    <!-- The deposit on Handover, in PolyPoints, e.g. "80 PP" -->
+    <string name="handover_deposit_amount">%1$d PP</string>
 
     <!-- Review request: the lender's answer to a request. -->
     <string name="review_request_title">Review request</string>

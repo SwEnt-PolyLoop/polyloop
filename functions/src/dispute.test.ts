@@ -266,6 +266,30 @@ describe("escalateDispute", () => {
   });
 });
 
+describe("a rental that is not DISPUTED", () => {
+  it("refuses to propose, accept or escalate, without the race reason, and writes nothing", async () => {
+    const id = await disputed({ proposals: [proposal(LENDER, 50)] });
+    await db.collection("rentals").doc(id).update({ status: "LOST" });
+
+    for (const action of [
+      () => proposeSplit(db, LENDER, { rentalId: id, lenderPercent: 60 }, NOW),
+      () => acceptSplit(db, BORROWER, { rentalId: id, lenderPercent: 50 }, NOW),
+      () => escalateDispute(db, LENDER, id, NOW),
+    ]) {
+      const error = await action().catch((e) => e);
+      expect(error).toMatchObject({ code: "failed-precondition" });
+      expect(error.details).toBeUndefined();
+    }
+    expect(await rental(id)).toMatchObject({ status: "LOST" });
+    expect(await dispute(id)).toMatchObject({
+      stage: "SETTLE",
+      proposals: [{ authorId: LENDER, lenderPercent: 50 }],
+      agreedAt: null,
+    });
+    expect(await systemMessages(id)).toEqual([]);
+  });
+});
+
 describe("escalatesAt, before the sweep", () => {
   const SWEEP_MESSAGE = "No agreement after 30 days · waiting for the LLM proposal";
 

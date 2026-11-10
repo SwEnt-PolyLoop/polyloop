@@ -23,6 +23,7 @@ import { SweepCounts, runSweep } from "./sweep";
 const DISPUTES = "disputes";
 const RENTALS = "rentals";
 const CLOSED = "CLOSED";
+const DISPUTED = "DISPUTED";
 
 /**
  * The most proposals a dispute holds. A real negotiation stays far below it; it only stops a
@@ -60,8 +61,9 @@ interface OpenDispute {
  *   `escalatesAt`; passed so tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant) or
  *   `failed-precondition` (settled, no longer in direct settlement or past `escalatesAt`:
- *   `STAGE_CHANGED`; the same split as the latest proposal, or [MAX_PROPOSALS] reached). Nothing
- *   is written then, except the escalation once past `escalatesAt`.
+ *   `STAGE_CHANGED`; the rental not DISPUTED; the same split as the latest proposal, or
+ *   [MAX_PROPOSALS] reached). Nothing is written then, except the escalation once past
+ *   `escalatesAt`.
  */
 export async function proposeSplit(
   db: Firestore,
@@ -92,9 +94,9 @@ export async function proposeSplit(
 /**
  * Accepts the latest proposal of the dispute of [input.rentalId], in one transaction: the dispute
  * is settled and the rental CLOSED, with the split in the chat. [input.lenderPercent] is the split
- * the caller saw, so a proposal changed meanwhile is never accepted. No money moves yet: the
- * deposit is not reserved at acceptance until the wallet has a Firestore implementation. Once
- * `escalatesAt` has passed, the dispute escalates instead (see [inDirectSettlement]).
+ * the caller saw, so a proposal changed meanwhile is never accepted. No money moves yet: nothing
+ * calls `reserveDeposit` when an offer is accepted, so no deposit is held to release or split.
+ * Once `escalatesAt` has passed, the dispute escalates instead (see [inDirectSettlement]).
  *
  * @param db the Firestore database.
  * @param callerId the participant accepting, who must not be the latest proposal's author.
@@ -103,10 +105,10 @@ export async function proposeSplit(
  *   that tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant, or the caller's own
  *   proposal) or `failed-precondition` (settled, no longer in direct settlement or past
- *   `escalatesAt`: `STAGE_CHANGED`; no proposal; the latest proposal is not the split the caller
- *   saw: `PROPOSAL_CHANGED`, checked before the author so that a percentage changed meanwhile,
- *   even by the caller's own new proposal, reads as changed). Nothing is written then, except the
- *   escalation once past `escalatesAt`.
+ *   `escalatesAt`: `STAGE_CHANGED`; the rental not DISPUTED; no proposal; the latest proposal is
+ *   not the split the caller saw: `PROPOSAL_CHANGED`, checked before the author so that a
+ *   percentage changed meanwhile, even by the caller's own new proposal, reads as changed).
+ *   Nothing is written then, except the escalation once past `escalatesAt`.
  */
 export async function acceptSplit(
   db: Firestore,
@@ -143,8 +145,8 @@ export async function acceptSplit(
  * @param now the current time, compared with `escalatesAt`; passed so that tests can set it.
  * @throws RequestError `not-found`, `permission-denied` (not a participant) or
  *   `failed-precondition` (settled, no longer in direct settlement or past `escalatesAt`:
- *   `STAGE_CHANGED`, so two escalations sent at once never skip a stage). Nothing is written then,
- *   except the escalation once past `escalatesAt`.
+ *   `STAGE_CHANGED`, so two escalations sent at once never skip a stage; the rental not DISPUTED).
+ *   Nothing is written then, except the escalation once past `escalatesAt`.
  */
 export async function escalateDispute(
   db: Firestore,
@@ -286,9 +288,12 @@ function settle(tx: Transaction, open: OpenDispute, lenderPercent: number, now: 
 
 /**
  * The dispute of [rentalId] and its rental, or a refusal: the dispute or the rental is missing, the
- * caller takes no part in the rental, the dispute is settled, or it left direct settlement. The
- * last two carry `STAGE_CHANGED`: a request that lost the race to an agreement or an escalation
- * tells the app the dispute moved on, so it follows the dispute instead of showing an error.
+ * caller takes no part in the rental, the dispute is settled, it left direct settlement, or the
+ * rental is not DISPUTED. The settled and left cases carry `STAGE_CHANGED`: a request that lost
+ * the race to an agreement or an escalation tells the app the dispute moved on, so it follows the
+ * dispute instead of showing an error. They are checked before the status, because an agreement
+ * also closes the rental. Only a Function opens a dispute, setting its rental to DISPUTED, so any
+ * other status means corrupt data: it gets a plain refusal, and an agreement never overwrites it.
  */
 async function requireSettlingDispute(
   tx: Transaction,
@@ -312,6 +317,9 @@ async function requireSettlingDispute(
   }
   if (dispute.stage !== SETTLE) {
     throw stageChanged();
+  }
+  if (rental.status !== DISPUTED) {
+    throw new RequestError("failed-precondition", "This rental is not in dispute.");
   }
   const proposals = Array.isArray(dispute.proposals) ? (dispute.proposals as StoredProposal[]) : [];
   return { disputeRef, rentalRef, rental, proposals, escalatesAt: dispute.escalatesAt };
