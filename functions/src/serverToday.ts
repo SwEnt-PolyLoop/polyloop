@@ -1,5 +1,9 @@
 // Made with Claude.
 
+import { onCall } from "firebase-functions/v2/https";
+import { toCallableError } from "./callable";
+import { requireVerifiedEpfl } from "./rentalRules";
+
 // Rental dates are Swiss days, so today is the day in Zurich, not in UTC: between midnight and
 // 1 a.m. (2 a.m. in summer) in Zurich, UTC is still on the day before.
 const zurichDate = new Intl.DateTimeFormat("en-US", {
@@ -20,3 +24,16 @@ export function zurichDay(now: Date): string {
   );
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
+
+/**
+ * Callable `serverToday`: today's date in Zurich, as `{today: "YYYY-MM-DD"}`. No input. The app asks
+ * it instead of reading the phone's date, which the user can change in the phone's settings.
+ */
+export const serverToday = onCall(async (request) => {
+  try {
+    requireVerifiedEpfl(request.auth);
+    return { today: zurichDay(new Date()) };
+  } catch (error) {
+    throw toCallableError(error);
+  }
+});
