@@ -307,6 +307,17 @@ class ListingDetailViewModelTest {
   }
 
   @Test
+  fun sendsTheOwnersNameReadWithTheListing() {
+    val vm = openPickerOn()
+    // A second read of the profile would now fail and send a blank name.
+    profileRepository.failure = IllegalStateException("Network down")
+
+    vm.sendRequest(oct6, oct8)
+
+    assertEquals(listOf("Mara"), rentalRepository.rentals.map { it.ownerName })
+  }
+
+  @Test
   fun failedRequestShowsTheErrorAndKeepsTheSheetOpen() {
     rentalRepository.failure = IllegalStateException("Network down")
     val vm = openPickerOn()

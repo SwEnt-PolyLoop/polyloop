@@ -143,7 +143,8 @@ class ListingDetailViewModel(
    * error. A range that can no longer be picked (see [selectDates]), e.g. because its start day has
    * passed, also sets [ListingDetailUiState.datesTaken] without reading anything. Ignored until the
    * listing is loaded, on the user's own listing, or while a request is already being sent. The
-   * owner's name is left blank if their profile is missing or cannot be read.
+   * owner's name is the one read with the listing, blank if their profile was missing or could not
+   * be read.
    */
   fun sendRequest(start: LocalDate, end: LocalDate) {
     val state = _uiState.value
@@ -184,7 +185,7 @@ class ListingDetailViewModel(
         }
         return@launch
       }
-      val ownerName = profileRepository.getProfile(listing.ownerId).getOrNull()?.name ?: ""
+      val ownerName = state.owner?.name.orEmpty()
       rentalRepository
           .requestRental(listing, ownerName, borrower, start, end)
           .onSuccess { rental ->
