@@ -3,7 +3,13 @@
 import { DocumentData, Firestore, getFirestore } from "firebase-admin/firestore";
 import { onCall } from "firebase-functions/v2/https";
 import { toCallableError } from "./callable";
-import { RequestError, isValidDeposit, parseRentalId, requireVerifiedEpfl } from "./rentalRules";
+import {
+  RequestError,
+  isValidDeposit,
+  parseRentalId,
+  requirePerson,
+  requireVerifiedEpfl,
+} from "./rentalRules";
 import { hasTransaction, readWallet, writeWallet } from "./wallet";
 
 const ACCEPTED = "ACCEPTED";
@@ -41,7 +47,7 @@ export async function reserveRentalDeposit(
     if (callerId !== rental.ownerId && callerId !== rental.borrowerId) {
       throw new RequestError("permission-denied", "Only the two participants can do this.");
     }
-    const borrowerId = requireBorrower(rental);
+    const borrowerId = requirePerson(rental.borrowerId, "borrower");
     const rowId = `deposit_held_${rentalId}`;
     if (await hasTransaction(tx, db, borrowerId, rowId)) return;
     if (rental.status !== ACCEPTED) {
@@ -89,14 +95,6 @@ export const reserveDeposit = onCall(async (request) => {
     throw toCallableError(error);
   }
 });
-
-/** The borrower's id, or a refusal if the rental has none. */
-function requireBorrower(rental: DocumentData): string {
-  if (typeof rental.borrowerId !== "string" || rental.borrowerId === "") {
-    throw new RequestError("internal", "The rental has no borrower.");
-  }
-  return rental.borrowerId;
-}
 
 /** The rental's deposit, a whole number from 1 to [MAX_DEPOSIT], or a refusal. */
 function requireDeposit(rental: DocumentData): number {
