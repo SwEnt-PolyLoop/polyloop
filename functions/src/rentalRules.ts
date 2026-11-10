@@ -181,6 +181,14 @@ export function requireVerifiedEpfl(
   return auth.uid;
 }
 
+/** The id of the rental's [role] (e.g. "borrower"), or an `internal` error if the rental has none. */
+export function requirePerson(value: unknown, role: string): string {
+  if (typeof value !== "string" || value === "") {
+    throw new RequestError("internal", `The rental has no ${role}.`);
+  }
+  return value;
+}
+
 /** The fields of a callable's input, or none if it is not an object. */
 function asFields(data: unknown): Record<string, unknown> {
   return (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>;

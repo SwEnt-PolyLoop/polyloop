@@ -3,9 +3,35 @@
 import { randomUUID } from "node:crypto";
 import { FieldValue, Firestore, getFirestore } from "firebase-admin/firestore";
 import { payLender } from "./index";
+import {
+  People,
+  asUser,
+  fund,
+  people,
+  rental as newRental,
+  rows,
+  wallet,
+} from "./testing/walletFixtures";
+import { PAID_STATUSES } from "./payLender";
 
 // Firebase loads this ES module to verify tokens, which Jest cannot load; `run` skips that step.
 jest.mock("jose", () => ({}));
+
+// The rental statuses (docs/ARCHITECTURE.md, "Rental statuses").
+const ALL_STATUSES = [
+  "REQUESTED",
+  "ACCEPTED",
+  "ACTIVE",
+  "RETURNED",
+  "CLOSED",
+  "DECLINED",
+  "CANCELLED",
+  "OVERDUE",
+  "LOST",
+  "DISPUTED",
+  "FROZEN",
+];
+const UNPAID_STATUSES = ["REQUESTED", "ACCEPTED", "DECLINED", "CANCELLED"];
 
 // payLender as index.ts exports it, called with what the app sends, on the Firestore emulator.
 let db: Firestore;
@@ -21,48 +47,9 @@ beforeAll(() => {
   db = getFirestore();
 });
 
-/** The request of the signed-in, verified EPFL user [uid], sending [data]. */
-function asUser(uid: string, data: object, email = `${uid}@epfl.ch`, verified = true) {
-  return { auth: { uid, token: { email, email_verified: verified } }, data } as never;
-}
-
-/** A rental with its own people, so tests do not share wallets. */
-function people() {
-  const id = randomUUID();
-  return { lender: `lender-${id}`, borrower: `borrower-${id}` };
-}
-
-async function rental(
-  who: { lender: string; borrower: string },
-  fields: object = {},
-): Promise<string> {
-  const id = randomUUID();
-  await db
-    .collection("rentals")
-    .doc(id)
-    .set({
-      ownerId: who.lender,
-      borrowerId: who.borrower,
-      status: "ACTIVE",
-      deposit: 40,
-      totalPrice: 15,
-      listingTitle: "Camping tent",
-      ...fields,
-    });
-  return id;
-}
-
-async function fund(uid: string, wallet: object): Promise<void> {
-  await db.collection("wallets").doc(uid).set(wallet);
-}
-
-async function wallet(uid: string) {
-  return (await db.collection("wallets").doc(uid).get()).data();
-}
-
-async function rows(uid: string) {
-  const snapshot = await db.collection("wallets").doc(uid).collection("transactions").get();
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+/** An ACTIVE rental by default. */
+function rental(who: People, fields: object = {}): Promise<string> {
+  return newRental(who, "ACTIVE", fields);
 }
 
 describe("paying the lender", () => {
@@ -157,6 +144,23 @@ describe("paying the lender", () => {
     expect(await rows(who.lender)).toEqual([expect.objectContaining({ amount: 15, itemTitle: "" })]);
   });
 
+  it.each(PAID_STATUSES)("pays a rental that is %s", async (status) => {
+    const who = people();
+    const id = await rental(who, { status });
+    await fund(who.borrower, { available: 100 });
+
+    await payLender.run(asUser(who.borrower, { rentalId: id }));
+
+    expect(await wallet(who.borrower)).toMatchObject({ available: 85 });
+    expect(await wallet(who.lender)).toMatchObject({ available: 15 });
+    expect(await rows(who.borrower)).toHaveLength(1);
+    expect(await rows(who.lender)).toHaveLength(1);
+  });
+
+  it("knows every rental status as paid or not paid, so a new status is noticed", () => {
+    expect([...PAID_STATUSES, ...UNPAID_STATUSES].sort()).toEqual([...ALL_STATUSES].sort());
+  });
+
   it("succeeds twice and pays once when the borrower and then the lender call", async () => {
     const who = people();
     const id = await rental(who);
@@ -235,11 +239,11 @@ describe("when it refuses", () => {
     expect(await wallet(who.lender)).toBeUndefined();
   });
 
-  it("refuses a rental that is not ACTIVE, writing nothing", async () => {
+  it("refuses a rental that has not been picked up, writing nothing", async () => {
     const who = people();
     await fund(who.borrower, { available: 100 });
 
-    for (const status of ["REQUESTED", "ACCEPTED", "RETURNED", "DECLINED"]) {
+    for (const status of UNPAID_STATUSES) {
       const id = await rental(who, { status });
       await expect(payLender.run(asUser(who.borrower, { rentalId: id }))).rejects.toMatchObject({
         code: "failed-precondition",
