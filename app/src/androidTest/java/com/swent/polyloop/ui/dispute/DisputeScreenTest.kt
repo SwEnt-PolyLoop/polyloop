@@ -450,6 +450,9 @@ class DisputeScreenTest {
           createdAt = at,
       )
 
+  /** The user the disputes repository acts as: me, unless Ana's move is being played. */
+  private var actingUid = "me"
+
   /** Shows the real screen for me, the borrower, with Ana's 70/30 on the table in [disputes]. */
   private fun setScreen(): FakeDisputeRepository {
     val disputes =
@@ -461,7 +464,8 @@ class DisputeScreenTest {
                     proposals = listOf(Proposal("ana", 70, at)),
                     escalatesAt = Instant.now().plus(Duration.ofDays(10)),
                 )
-            )
+            ),
+            currentUid = { actingUid },
         )
     val viewModel =
         DisputeViewModel(
@@ -502,7 +506,9 @@ class DisputeScreenTest {
     node(C.Tag.dispute_proposal_error).assertDoesNotExist()
     node(C.Tag.dispute_waiting).assertTextEquals(string(R.string.dispute_waiting, "Ana"))
 
-    runBlocking { disputes.propose("pump", "ana", 60) }
+    actingUid = "ana"
+    runBlocking { disputes.propose("pump", 60) }
+    actingUid = "me"
     node(C.Tag.dispute_proposal_notice)
         .assertTextEquals(string(R.string.dispute_offer_updated, "Ana"))
     node(C.Tag.dispute_accept_button).performClick()

@@ -19,8 +19,11 @@ class FakeDisputeRepositoryTest {
   private val open =
       Dispute("rental", DisputeStage.SETTLE, listOf(proposal), now.plusSeconds(86_400))
 
+  /** The user each call acts as; null when nobody is signed in. */
+  private var uid: String? = "borrower"
+
   private fun repository(dispute: Dispute = open) =
-      FakeDisputeRepository(listOf(dispute), clock = { now })
+      FakeDisputeRepository(listOf(dispute), currentUid = { uid }, clock = { now })
 
   private suspend fun FakeDisputeRepository.current() = observeDispute("rental").first()!!
 
@@ -45,7 +48,7 @@ class FakeDisputeRepositoryTest {
   fun proposeAddsTheLatestProposal() = runTest {
     val repository = repository()
 
-    assertTrue(repository.propose("rental", "borrower", 40).isSuccess)
+    assertTrue(repository.propose("rental", 40).isSuccess)
 
     assertEquals(listOf(proposal, Proposal("borrower", 40, now)), repository.current().proposals)
   }
@@ -54,7 +57,7 @@ class FakeDisputeRepositoryTest {
   fun acceptSettlesTheDispute() = runTest {
     val repository = repository()
 
-    assertTrue(repository.accept("rental", "borrower", 70).isSuccess)
+    assertTrue(repository.accept("rental", 70).isSuccess)
 
     assertEquals(now, repository.current().agreedAt)
   }
@@ -62,8 +65,9 @@ class FakeDisputeRepositoryTest {
   @Test
   fun acceptFailsOnTheUsersOwnProposal() = runTest {
     val repository = repository()
+    uid = "lender"
 
-    assertTrue(repository.accept("rental", "lender", 70).isFailure)
+    assertTrue(repository.accept("rental", 70).isFailure)
     assertNull(repository.current().agreedAt)
   }
 
@@ -71,7 +75,7 @@ class FakeDisputeRepositoryTest {
   fun acceptFailsAndSettlesNothingWhenTheProposalChanged() = runTest {
     val repository = repository()
 
-    val result = repository.accept("rental", "borrower", 60)
+    val result = repository.accept("rental", 60)
 
     assertTrue(result.exceptionOrNull() is ProposalChangedException)
     assertNull(repository.current().agreedAt)
@@ -79,19 +83,52 @@ class FakeDisputeRepositoryTest {
 
   @Test
   fun acceptFailsWithoutAProposal() = runTest {
-    assertTrue(repository(open.copy(proposals = emptyList())).accept("rental", "x", 70).isFailure)
+    assertTrue(repository(open.copy(proposals = emptyList())).accept("rental", 70).isFailure)
   }
 
   @Test
-  fun proposeFailsOnceSettled() = runTest {
-    assertTrue(repository(open.copy(agreedAt = now)).propose("rental", "lender", 50).isFailure)
+  fun proposeFailsOnTheSplitAlreadyOnTheTable() = runTest {
+    val repository = repository()
+
+    assertTrue(repository.propose("rental", 70).isFailure)
+    assertEquals(listOf(proposal), repository.current().proposals)
+  }
+
+  @Test
+  fun proposeOnceSettledIsAStageChange() = runTest {
+    val result = repository(open.copy(agreedAt = now)).propose("rental", 50)
+
+    assertTrue(result.exceptionOrNull() is StageChangedException)
+  }
+
+  @Test
+  fun aCallPastEscalatesAtMovesTheDisputeOnByItselfAndIsAStageChange() = runTest {
+    val repository = repository(open.copy(escalatesAt = now))
+
+    val result = repository.accept("rental", 70)
+
+    assertTrue(result.exceptionOrNull() is StageChangedException)
+    val dispute = repository.current()
+    assertEquals(DisputeStage.LLM_PROPOSAL, dispute.stage)
+    assertNull(dispute.escalatedBy)
+    assertNull(dispute.agreedAt)
+  }
+
+  @Test
+  fun callsFailWhenNobodyIsSignedIn() = runTest {
+    val repository = repository()
+    uid = null
+
+    assertTrue(repository.propose("rental", 40).isFailure)
+    assertEquals(listOf(proposal), repository.current().proposals)
   }
 
   @Test
   fun escalateMovesOnToTheLlmProposalAndRecordsWhoEscalated() = runTest {
     val repository = repository()
+    uid = "lender"
 
-    assertTrue(repository.escalate("rental", "lender").isSuccess)
+    assertTrue(repository.escalate("rental").isSuccess)
 
     val dispute = repository.current()
     assertEquals(DisputeStage.LLM_PROPOSAL, dispute.stage)
@@ -102,7 +139,7 @@ class FakeDisputeRepositoryTest {
   fun escalateOutsideDirectSettlementIsAStageChangeAndChangesNothing() = runTest {
     val repository = repository(open.copy(stage = DisputeStage.LLM_PROPOSAL))
 
-    val result = repository.escalate("rental", "lender")
+    val result = repository.escalate("rental")
 
     assertTrue(result.exceptionOrNull() is StageChangedException)
     assertEquals(DisputeStage.LLM_PROPOSAL, repository.current().stage)
@@ -110,7 +147,7 @@ class FakeDisputeRepositoryTest {
 
   @Test
   fun callsFailForAMissingDispute() = runTest {
-    assertTrue(repository().propose("other", "lender", 50).isFailure)
+    assertTrue(repository().propose("other", 50).isFailure)
   }
 
   @Test
@@ -118,7 +155,7 @@ class FakeDisputeRepositoryTest {
     val repository = repository()
     repository.failure = IOException("offline")
 
-    assertTrue(repository.escalate("rental", "lender").isFailure)
+    assertTrue(repository.escalate("rental").isFailure)
     try {
       repository.observeDispute("rental").first()
       fail("The observer should throw the failure")
