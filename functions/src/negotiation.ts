@@ -274,7 +274,7 @@ function decline(tx: Transaction, rentalRef: DocumentReference, text: string): v
 }
 
 /** Updates the rental with [fields], and adds [text] to its chat as a SYSTEM message. */
-function writeWithSystemMessage(
+export function writeWithSystemMessage(
   tx: Transaction,
   rentalRef: DocumentReference,
   text: string,
