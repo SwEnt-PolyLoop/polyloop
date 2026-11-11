@@ -64,9 +64,10 @@ enum class EscalationNotice {
  * [otherPersonName] is "" when the name is missing; the screen then shows a placeholder.
  * [daysUntilEscalation] is the number of days, rounded up, before the dispute moves on to the next
  * stage on its own, kept up to date while the screen is shown; 0 once it has passed, and after
- * direct settlement or once settled, where it never moves on by itself. [loadFailed] is true when
- * the dispute cannot be loaded (or nobody is signed in, or the user does not take part in the
- * rental) and nothing was shown yet; [refreshFailed] is true when it could not be loaded again
+ * direct settlement or once settled, where it never moves on by itself; null in direct settlement
+ * when the dispute has no [Dispute.escalatesAt], so it never moves on by itself. [loadFailed] is
+ * true when the dispute cannot be loaded (or nobody is signed in, or the user does not take part in
+ * the rental) and nothing was shown yet; [refreshFailed] is true when it could not be loaded again
  * after it was shown, which keeps the last state on screen. [actionError] is what the last
  * proposal, acceptance or escalation could not do; the next action, opening the split editor, a new
  * stage or an agreement clears it, since the action it names then no longer applies.
@@ -89,7 +90,7 @@ data class DisputeUiState(
     val stage: DisputeStage = DisputeStage.SETTLE,
     val history: List<ProposalRow> = emptyList(),
     val isSettled: Boolean = false,
-    val daysUntilEscalation: Int = 0,
+    val daysUntilEscalation: Int? = 0,
     val isOnline: Boolean = true,
     val isSending: Boolean = false,
     val draftLenderPercent: Int? = null,
@@ -387,14 +388,15 @@ class DisputeViewModel(
                 ProposalRow(p.authorId == uid, p.lenderPercent, p.createdAt)
               },
           isSettled = dispute.isSettled,
-          daysUntilEscalation = if (stillSettling) daysUntil(dispute.escalatesAt) else 0,
+          daysUntilEscalation = if (stillSettling) dispute.escalatesAt?.let(::daysUntil) else 0,
           isLoading = false,
           loadFailed = false,
           refreshFailed = false,
       )
     }
     ticking?.cancel()
-    if (stillSettling) countDownTo(dispute.escalatesAt)
+    val deadline = dispute.escalatesAt
+    if (stillSettling && deadline != null) countDownTo(deadline)
   }
 
   /** How [dispute] moved on to its current stage, as seen by [uid]; null when they moved it on. */

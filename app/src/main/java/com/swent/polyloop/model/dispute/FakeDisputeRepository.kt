@@ -98,7 +98,8 @@ class FakeDisputeRepository(
       val uid = checkNotNull(currentUid()) { "Nobody is signed in" }
       val dispute = checkNotNull(stored.value[rentalId]) { "No dispute for rental $rentalId" }
       if (dispute.stage != DisputeStage.SETTLE || dispute.isSettled) throw StageChangedException()
-      if (clock() >= dispute.escalatesAt) {
+      val deadline = dispute.escalatesAt
+      if (deadline != null && clock() >= deadline) {
         put(dispute.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = null))
         throw StageChangedException()
       }

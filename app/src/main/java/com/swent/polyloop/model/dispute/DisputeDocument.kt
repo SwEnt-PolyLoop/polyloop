@@ -22,9 +22,10 @@ internal object DisputeFields {
 /**
  * The dispute of the rental [rentalId] stored as [data]. Only Cloud Functions write disputes, so a
  * document that breaks the schema is a bug, not a state to show: it throws an
- * [IllegalStateException] (an unknown or missing `stage`, a missing `escalatesAt`, or a proposal
- * without an author, a date or a whole `lenderPercent` from 0 to 100). As in the Cloud Functions,
- * missing `proposals` read as none; a missing `agreedAt` or `escalatedBy` reads as null.
+ * [IllegalStateException] (an unknown or missing `stage`, an `escalatesAt` that is not a date, or a
+ * proposal without an author, a date or a whole `lenderPercent` from 0 to 100). As in the Cloud
+ * Functions, missing `proposals` read as none, and a missing `escalatesAt` reads as null: the
+ * dispute never moves on by itself. A missing `agreedAt` or `escalatedBy` reads as null.
  */
 internal fun disputeFromDocument(rentalId: String, data: Map<String, Any?>): Dispute {
   val proposals = data[DisputeFields.PROPOSALS]?.let { it as? List<*> ?: malformed("proposals") }
@@ -32,7 +33,8 @@ internal fun disputeFromDocument(rentalId: String, data: Map<String, Any?>): Dis
       rentalId = rentalId,
       stage = enumOrNull<DisputeStage>(data[DisputeFields.STAGE]) ?: malformed("stage"),
       proposals = proposals.orEmpty().map(::proposalFromDocument),
-      escalatesAt = instantOrNull(data[DisputeFields.ESCALATES_AT]) ?: malformed("escalatesAt"),
+      escalatesAt =
+          data[DisputeFields.ESCALATES_AT]?.let { instantOrNull(it) ?: malformed("escalatesAt") },
       agreedAt = instantOrNull(data[DisputeFields.AGREED_AT]),
       escalatedBy = data[DisputeFields.ESCALATED_BY] as? String,
   )

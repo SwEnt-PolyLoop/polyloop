@@ -126,6 +126,14 @@ class FakeDisputeRepositoryTest {
   }
 
   @Test
+  fun aDisputeWithoutEscalatesAtNeverMovesOnByItself() = runTest {
+    val repository = repository(open.copy(escalatesAt = null))
+
+    assertTrue(repository.accept("rental", 70).isSuccess)
+    assertEquals(DisputeStage.SETTLE, repository.current().stage)
+  }
+
+  @Test
   fun callsFailWhenNobodyIsSignedIn() = runTest {
     val repository = repository()
     uid = null

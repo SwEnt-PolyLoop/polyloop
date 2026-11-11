@@ -269,6 +269,14 @@ class DisputeScreenTest {
   }
 
   @Test
+  fun noDeadlineHidesTheDaysLeftButKeepsEscalateNow() {
+    setContent(open.copy(daysUntilEscalation = null))
+
+    node(C.Tag.dispute_escalation).assertDoesNotExist()
+    node(C.Tag.dispute_escalate_button).performScrollTo().assertIsEnabled()
+  }
+
+  @Test
   fun confirmationNamesTheLlmStageAndEscalatesOrDismisses() {
     setContent(open.copy(isConfirmingEscalation = true))
 

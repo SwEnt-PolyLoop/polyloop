@@ -42,18 +42,19 @@ class DisputeDocumentTest {
   }
 
   @Test
-  fun missingProposalsAgreementAndEscalationReadAsNone() {
+  fun missingOptionalFieldsReadAsNone() {
     val dispute =
         disputeFromDocument(
             "r1",
             stored(
                 DisputeFields.PROPOSALS to null,
+                DisputeFields.ESCALATES_AT to null,
                 DisputeFields.AGREED_AT to null,
                 DisputeFields.ESCALATED_BY to null,
             ),
         )
 
-    assertEquals(Dispute("r1", DisputeStage.LLM_PROPOSAL, emptyList(), at), dispute)
+    assertEquals(Dispute("r1", DisputeStage.LLM_PROPOSAL, emptyList(), null), dispute)
   }
 
   @Test
@@ -62,7 +63,7 @@ class DisputeDocumentTest {
         listOf(
             stored(DisputeFields.STAGE to "ARBITRATION"),
             stored(DisputeFields.STAGE to null),
-            stored(DisputeFields.ESCALATES_AT to null),
+            stored(DisputeFields.ESCALATES_AT to "2026-10-14"),
             stored(DisputeFields.PROPOSALS to "70"),
             stored(DisputeFields.PROPOSALS to listOf("70")),
             stored(DisputeFields.PROPOSALS to listOf(proposal(lenderPercent = 101L))),

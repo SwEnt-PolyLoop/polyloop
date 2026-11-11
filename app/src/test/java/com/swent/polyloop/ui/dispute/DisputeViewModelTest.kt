@@ -161,6 +161,19 @@ class DisputeViewModelTest {
     assertEquals(0, viewModel().uiState.value.daysUntilEscalation)
   }
 
+  @Test
+  fun aDisputeWithoutEscalatesAtHasNoDaysLeftAndStaysOpen() {
+    disputes = fakeDisputes(open.copy(escalatesAt = null))
+    val vm = viewModel(clock = { time })
+    val screen = show(vm)
+
+    elapse(Duration.ofDays(40))
+
+    assertNull(vm.uiState.value.daysUntilEscalation)
+    assertTrue(vm.uiState.value.canEscalate)
+    screen.cancel()
+  }
+
   /**
    * Collects the state of [vm], as the screen does while it is shown, until the job is cancelled.
    */
