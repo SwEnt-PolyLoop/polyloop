@@ -127,6 +127,22 @@ class ChatScreenTest {
   }
 
   @Test
+  fun theBarIsHiddenWhileTheChatLoads() {
+    setContent(loaded.copy(pickupDate = start, isLoading = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_loading).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+  }
+
+  @Test
+  fun theBarIsHiddenWhenTheChatCannotBeLoaded() {
+    setContent(loaded.copy(pickupDate = start, errorMsg = "Network error"))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+  }
+
+  @Test
   fun theStartPickupButtonStaysEnabledOfflineUnderTheHeader() {
     setContent(loaded.copy(pickupDate = start, isOffline = true))
 

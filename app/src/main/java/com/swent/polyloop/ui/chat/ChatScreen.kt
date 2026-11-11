@@ -107,8 +107,9 @@ fun ChatContent(
       ChatHeaderBar(header = it, onRentalDetailsClick = onRentalDetailsClick)
       HorizontalDivider()
     }
-    // Only on the pickup day itself: Handover takes pickup photos on that day only.
-    if (uiState.pickupDate == today) {
+    // Only on the pickup day itself: Handover takes pickup photos on that day only. Like the offer
+    // card, only once the chat is loaded, not above its spinner or its error.
+    if (!uiState.isLoading && uiState.errorMsg == null && uiState.pickupDate == today) {
       PickupBar(onStartPickupClick = onStartPickupClick)
       HorizontalDivider()
     }
