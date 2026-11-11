@@ -82,6 +82,17 @@ class FakeDisputeRepositoryTest {
   }
 
   @Test
+  fun acceptingASplitTheUserReplacedWithTheirOwnIsAProposalChange() = runTest {
+    val repository = repository()
+    repository.propose("rental", 60)
+
+    val result = repository.accept("rental", 70)
+
+    assertTrue(result.exceptionOrNull() is ProposalChangedException)
+    assertNull(repository.current().agreedAt)
+  }
+
+  @Test
   fun acceptFailsWithoutAProposal() = runTest {
     assertTrue(repository(open.copy(proposals = emptyList())).accept("rental", 70).isFailure)
   }

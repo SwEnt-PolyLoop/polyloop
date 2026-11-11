@@ -293,7 +293,8 @@ class DisputeViewModel(
    * when the proposal accepted was no longer the one on the table. An action refused because the
    * dispute was settled or moved on meanwhile sets none: the new state shows instead. After either
    * refusal, the dispute is loaded again if it could not be refreshed, so the new proposal or stage
-   * shows. A success also closes the split editor if [closesEditor].
+   * shows. If [closesEditor], the split editor closes whenever no error is set: on a success, and
+   * on a refusal because the dispute was settled or moved on, since the draft no longer applies.
    */
   private fun send(
       error: DisputeActionError,
@@ -312,11 +313,11 @@ class DisputeViewModel(
             else -> null
           }
       _uiState.update {
-        val succeeded = actionError == null
+        val nothingToShow = actionError == null
         it.copy(
             isSending = false,
             actionError = actionError,
-            draftLenderPercent = if (closesEditor && succeeded) null else it.draftLenderPercent,
+            draftLenderPercent = if (closesEditor && nothingToShow) null else it.draftLenderPercent,
         )
       }
       val changedMeanwhile = failure is ProposalChangedException || failure is StageChangedException

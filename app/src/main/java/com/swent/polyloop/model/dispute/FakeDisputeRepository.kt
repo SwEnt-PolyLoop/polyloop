@@ -18,7 +18,11 @@ import kotlinx.coroutines.flow.map
  * the user [currentUid] gives at that moment (tests usually read it from a `FakeAuthRepository`),
  * and fails when it gives null. Like the Functions, a call made once a dispute's
  * [Dispute.escalatesAt] has passed moves it on as if by itself, then fails with
- * [StageChangedException]. When [failure] is set, every call fails with it; an observer throws it
+ * [StageChangedException]. Like `acceptSplit`, accepting checks that the split is still the one on
+ * the table before checking its author, so a split the user replaced meanwhile, even with their
+ * own, fails with [ProposalChangedException]. Unlike the Functions, it does not check that the
+ * user is one of the rental's participants, nor the cap on the number of proposals. When
+ * [failure] is set, every call fails with it; an observer throws it
  * when it subscribes or at the next change. When [gate] is set, the suspending calls wait for it to
  * complete, so tests can see a request in progress. [clock] gives the current time, and the time of
  * new proposals, agreements and escalations.
@@ -67,8 +71,8 @@ class FakeDisputeRepository(
   override suspend fun accept(rentalId: String, lenderPercent: Int) =
       change(rentalId) { dispute, uid ->
         val latest = checkNotNull(dispute.latestProposal) { "There is no proposal to accept" }
-        check(latest.authorId != uid) { "$uid cannot accept their own proposal" }
         if (latest.lenderPercent != lenderPercent) throw ProposalChangedException()
+        check(latest.authorId != uid) { "$uid cannot accept their own proposal" }
         dispute.copy(agreedAt = clock())
       }
 
