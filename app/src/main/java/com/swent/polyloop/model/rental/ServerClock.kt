@@ -18,6 +18,8 @@ import java.time.ZoneId
  * pair is saved with [bootCount] and dropped after a reboot, because [elapsedRealtime] restarts
  * from 0 at boot and an old pair would then give a wrong day.
  *
+ * The app has one, [com.swent.polyloop.model.RepositoryProvider.serverClock].
+ *
  * @param repository reads the server's time.
  * @param store keeps the last pair, on the phone in the app, so it survives the app being closed.
  * @param elapsedRealtime the milliseconds since the phone booted.
@@ -109,8 +111,9 @@ class SharedPreferencesServerClockStore(context: Context) : ServerClock.Store {
 }
 
 /**
- * In-memory [ServerClock.Store] for tests and previews; the app itself never uses it. It lives in
- * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
+ * In-memory [ServerClock.Store] for tests; the app itself never uses it. It lives in `main` because
+ * the instrumented app tests (`PolyLoopAppTest`, `EndToEndTest`) use it as well as the unit tests,
+ * and `androidTest` cannot see `app/src/test`.
  */
 class InMemoryServerClockStore(private var saved: ServerClock.Saved? = null) : ServerClock.Store {
 

@@ -3,6 +3,7 @@
 package com.swent.polyloop.model
 
 import android.content.Context
+import android.provider.Settings
 import com.google.firebase.Firebase
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.storage
@@ -20,18 +21,21 @@ import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalRepositoryFirestore
+import com.swent.polyloop.model.rental.ServerClock
+import com.swent.polyloop.model.rental.SharedPreferencesServerClockStore
 import com.swent.polyloop.model.wallet.WalletRepository
 import com.swent.polyloop.model.wallet.WalletRepositoryFirestore
 
 /**
- * The single place that creates the app's repositories, so screens and ViewModels share one
- * instance of each.
+ * The single place that creates the app's repositories and the [ServerClock], so screens and
+ * ViewModels share one instance of each.
  *
  * Each repository is created on first use, not when this object loads, so Firebase is not touched
  * until it is needed (tests can still point it at the emulators first). Tests can also replace a
  * repository with a fake by assigning it before setting content, and call [reset] afterwards.
  *
- * Repositories that read the phone (such as the network status) need the app context, which
+ * Repositories that read the phone (such as the network status), and the server clock, need the app
+ * context, which
  * [com.swent.polyloop.PolyLoopApplication] passes to [init] at startup.
  */
 object RepositoryProvider {
@@ -46,6 +50,7 @@ object RepositoryProvider {
   private var connectivity: ConnectivityRepository? = null
   private var handover: HandoverRepository? = null
   private var wallet: WalletRepository? = null
+  private var clock: ServerClock? = null
 
   /** Keeps the app context for the repositories that need one. Called once at app startup. */
   fun init(context: Context) {
@@ -99,6 +104,34 @@ object RepositoryProvider {
       connectivity = value
     }
 
+  /**
+   * Today by the server's clock, for Start Pickup. Built here rather than in a composable, because
+   * composables do not read the phone (it reads the boot count), and so that every screen shares
+   * one clock and one saved pair. Built on first use from [rentalRepository] as it is then, so tests
+   * that replace [rentalRepository] assign a clock built on their fake too.
+   */
+  var serverClock: ServerClock
+    get() =
+        clock
+            ?: checkNotNull(appContext) { "RepositoryProvider.init was not called" }
+                .let { context ->
+                  ServerClock(
+                      rentalRepository,
+                      SharedPreferencesServerClockStore(context),
+                      bootCount = {
+                        Settings.Global.getInt(
+                            context.contentResolver,
+                            Settings.Global.BOOT_COUNT,
+                            0,
+                        )
+                      },
+                  )
+                }
+                .also { clock = it }
+    set(value) {
+      clock = value
+    }
+
   /** The wallet repository: Firestore by default, read-only for the app (Cloud Functions write). */
   var walletRepository: WalletRepository
     get() = wallet ?: WalletRepositoryFirestore().also { wallet = it }
@@ -117,8 +150,8 @@ object RepositoryProvider {
     get() = Firebase.storage
 
   /**
-   * Forgets every repository, so the next access creates the real ones again. Keeps the app
-   * context. For tests.
+   * Forgets every repository and the server clock, so the next access creates the real ones again.
+   * Keeps the app context. For tests.
    */
   fun reset() {
     auth = null
@@ -129,6 +162,7 @@ object RepositoryProvider {
     connectivity = null
     handover = null
     wallet = null
+    clock = null
   }
 
   /**

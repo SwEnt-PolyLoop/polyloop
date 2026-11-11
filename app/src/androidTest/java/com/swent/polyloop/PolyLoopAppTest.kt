@@ -38,8 +38,10 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
@@ -176,7 +178,7 @@ class PolyLoopAppTest {
     RepositoryProvider.authRepository = authRepository
     RepositoryProvider.profileRepository = profileRepository
     RepositoryProvider.chatRepository = chatRepository
-    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
+    useRentals(FakeRentalRepository(rentals = listOf(rental)))
     RepositoryProvider.connectivityRepository = connectivity
     RepositoryProvider.handoverRepository = FakeHandoverRepository()
     RepositoryProvider.walletRepository = FakeWalletRepository()
@@ -185,6 +187,16 @@ class PolyLoopAppTest {
   @After
   fun tearDown() {
     RepositoryProvider.reset()
+  }
+
+  /**
+   * Makes [rentals] the app's rental repository, with a server clock that reads it and saves in
+   * memory, so no test writes its fake server time to the app's real preferences.
+   */
+  private fun useRentals(rentals: FakeRentalRepository) {
+    RepositoryProvider.rentalRepository = rentals
+    RepositoryProvider.serverClock =
+        ServerClock(rentals, InMemoryServerClockStore(), bootCount = { 0 })
   }
 
   private fun openListingDetail() {
@@ -497,7 +509,7 @@ class PolyLoopAppTest {
             // Before the rental's first day, or the offer is refused.
             clock = { Instant.parse("2026-10-01T10:00:00Z") },
         )
-    RepositoryProvider.rentalRepository = rentals
+    useRentals(rentals)
     setAppSignedIn()
     openFromMenu(Screen.MyRentals)
     waitForTag(C.Tag.my_rentals_tab_lending)
@@ -555,7 +567,7 @@ class PolyLoopAppTest {
 
   @Test
   fun chatOnRentalDetailOpensTheRentalsChat() {
-    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
+    useRentals(FakeRentalRepository(rentals = listOf(rental)))
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {
@@ -654,10 +666,11 @@ class PolyLoopAppTest {
    * server's time is [serverNow], or the fake's default when null.
    */
   private fun tapActionButtonOnRentalDetail(shown: Rental, serverNow: Instant? = null) {
-    RepositoryProvider.rentalRepository =
+    useRentals(
         FakeRentalRepository(rentals = listOf(shown)).also { fake ->
           serverNow?.let { fake.serverNow = it }
         }
+    )
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {

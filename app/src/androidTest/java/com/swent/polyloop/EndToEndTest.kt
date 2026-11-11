@@ -46,7 +46,9 @@ import com.swent.polyloop.model.listing.ListingFields
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.listingToDocument
 import com.swent.polyloop.model.profile.ProfileFields
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.RentalFields
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
@@ -119,6 +121,9 @@ class EndToEndTest {
     RepositoryProvider.reset()
     RepositoryProvider.connectivityRepository = FakeConnectivityRepository(online = true)
     RepositoryProvider.walletRepository = FakeWalletRepository()
+    // Saves in memory, so no test writes a server time to the app's real preferences.
+    RepositoryProvider.serverClock =
+        ServerClock(RepositoryProvider.rentalRepository, InMemoryServerClockStore(), bootCount = { 0 })
   }
 
   @After
