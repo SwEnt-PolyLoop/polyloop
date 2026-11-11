@@ -157,7 +157,7 @@ class DisputeRepositoryFirestoreTest {
 
   @Test
   fun aDocumentThatBreaksTheSchemaEndsTheFlowWithAnError() = runTest {
-    documentHolds(mapOf("stage" to "SETTLE"))
+    documentHolds(mapOf("stage" to "SETTLE", "escalatesAt" to "not a date"))
     var error: Throwable? = null
 
     val emitted = repository.observeDispute("r1").catch { error = it }.toList()
