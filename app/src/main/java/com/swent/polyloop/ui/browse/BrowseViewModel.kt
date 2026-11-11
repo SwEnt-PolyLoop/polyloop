@@ -30,9 +30,10 @@ enum class BrowseView {
 }
 
 /**
- * One pin on the Browse map, at [point], a listing's pickup point rounded to about 1 km by
- * `geocodeListingAddresses`. Every listing in the same rounded cell shares that point, so a pin
- * holds all of them: [listings] is never empty, in the order of the list.
+ * One pin on the Browse map, at [point], a listing's pickup point rounded by `blurPoint`
+ * (`functions/src/blur.ts`) to a 0.01° grid, about 1.1 × 0.8 km around EPFL. That rounding gives
+ * every listing in the same cell exactly the same point, so a pin holds all of them: [listings] is
+ * never empty, in the order of the list.
  */
 data class BrowsePin(val point: MapPoint, val listings: List<Listing>)
 
@@ -42,7 +43,8 @@ data class BrowsePin(val point: MapPoint, val listings: List<Listing>)
  * message, and the screen then shows a generic text. While [isOffline], the screen shows its
  * offline state instead; the listings already loaded are kept for when the connection comes back.
  * [view] is whether the listings show as a list or on a map; both follow the same [filter].
- * [selectedPoint] is the point of the pin the user tapped on the map, or null when none is.
+ * [selectedPoint] is the point of the pin the user tapped on the map, or null when none is;
+ * [BrowseViewModel] only keeps it while a pin is at that point.
  */
 data class BrowseUiState(
     val isLoading: Boolean = false,
@@ -53,6 +55,9 @@ data class BrowseUiState(
     val view: BrowseView = BrowseView.LIST,
     val selectedPoint: MapPoint? = null,
 ) {
+  // The values below are computed from the fields above, once per state: being declared in the
+  // body, they are not part of equals or copy, and each copy computes its own on first use.
+
   /** The listings passing [filter], best match first: the ones the screen shows. */
   val visibleListings: List<Listing> by lazy { listings.search(filter) }
 
@@ -129,25 +134,35 @@ class BrowseViewModel(
   /** Shows the listings as pins on a map. The filter is kept. */
   fun showMap() = _uiState.update { it.copy(view = BrowseView.MAP) }
 
-  /** Shows the listings as a list, the default. The filter is kept. */
-  fun showList() = _uiState.update { it.copy(view = BrowseView.LIST) }
+  /**
+   * Shows the listings as a list, the default. The filter is kept, and the selected pin is cleared,
+   * so going back to the map starts with no cards under it.
+   */
+  fun showList() = _uiState.update { it.copy(view = BrowseView.LIST, selectedPoint = null) }
 
-  /** Selects the pin at [point], so its listings show under the map. */
-  fun selectPin(point: MapPoint) = _uiState.update { it.copy(selectedPoint = point) }
+  /**
+   * Selects the pin at [point], so its listings show under the map. Nothing is selected if no pin
+   * is at [point].
+   */
+  fun selectPin(point: MapPoint) = _uiState.update {
+    it.copy(selectedPoint = point).withoutStaleSelection()
+  }
 
   /** Unselects the pin, e.g. when the user taps the map elsewhere. */
   fun clearSelection() = _uiState.update { it.copy(selectedPoint = null) }
 
-  /**
-   * Changes the filter with [change]. If the new filter hides every listing of the selected pin,
-   * the selection is dropped, so it does not come back when the filter is undone.
-   */
+  /** Changes the filter with [change], dropping the selection if it hides the selected pin. */
   private fun updateFilter(change: (ListingFilter) -> ListingFilter) {
-    _uiState.update { state ->
-      val filtered = state.copy(filter = change(state.filter))
-      if (filtered.selectedPin == null) filtered.copy(selectedPoint = null) else filtered
-    }
+    _uiState.update { it.copy(filter = change(it.filter)).withoutStaleSelection() }
   }
+
+  /**
+   * This state without its selection if no pin is at [BrowseUiState.selectedPoint] any more, e.g.
+   * after a filter or a reload hid every listing there. The selection is dropped for good: it does
+   * not come back when those listings do.
+   */
+  private fun BrowseUiState.withoutStaleSelection() =
+      if (selectedPin == null) copy(selectedPoint = null) else this
 
   private fun load() {
     loadJob?.cancel()
@@ -160,7 +175,9 @@ class BrowseViewModel(
             val visible = listings.filter {
               it.status == ListingStatus.PUBLISHED && it.ownerId != uid
             }
-            _uiState.update { it.copy(isLoading = false, listings = visible) }
+            _uiState.update {
+              it.copy(isLoading = false, listings = visible).withoutStaleSelection()
+            }
           }
           .onFailure { e ->
             _uiState.update { it.copy(isLoading = false, errorMsg = e.message ?: "") }

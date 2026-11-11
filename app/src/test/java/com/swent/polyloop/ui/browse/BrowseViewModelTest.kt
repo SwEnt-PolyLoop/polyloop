@@ -484,6 +484,44 @@ class BrowseViewModelTest {
   }
 
   @Test
+  fun reloadWithoutTheSelectedPinDropsTheSelectionForGood() {
+    val vm = pinViewModel()
+    vm.selectPin(ecublens)
+
+    // Both Ecublens listings were unpublished meanwhile.
+    repository.listings = listOf(drillThere)
+    vm.refresh()
+    assertNull(vm.uiState.value.selectedPoint)
+
+    repository.listings = listOf(tentHere, projectorHere, drillThere)
+    vm.refresh()
+    assertNull(vm.uiState.value.selectedPin)
+  }
+
+  @Test
+  fun selectingAPointWithoutAPinSelectsNothing() {
+    val vm = pinViewModel()
+
+    vm.selectPin(MapPoint(46.60, 6.70))
+
+    assertNull(vm.uiState.value.selectedPoint)
+    assertNull(vm.uiState.value.selectedPin)
+  }
+
+  @Test
+  fun showingTheListClearsTheSelection() {
+    val vm = pinViewModel()
+    vm.showMap()
+    vm.selectPin(ecublens)
+
+    vm.showList()
+    vm.showMap()
+
+    assertNull(vm.uiState.value.selectedPoint)
+    assertNull(vm.uiState.value.selectedPin)
+  }
+
+  @Test
   fun factoryCreatesBrowseViewModel() {
     val vm =
         BrowseViewModel.Factory(repository, authRepository, connectivity)
