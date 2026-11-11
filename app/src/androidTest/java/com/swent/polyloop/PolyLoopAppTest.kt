@@ -9,13 +9,17 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -720,6 +724,19 @@ class PolyLoopAppTest {
 
     composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsNotDisplayed()
     assertCurrentScreen(Screen.Wallet)
+  }
+
+  @Test
+  fun tappingTheScreenBesideTheDrawerClosesIt() {
+    setAppSignedIn()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsDisplayed()
+
+    // The drawer covers at most 80% of the screen, so this taps the scrim on its right.
+    composeTestRule.onRoot().performTouchInput { click(percentOffset(0.9f, 0.5f)) }
+
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsNotDisplayed()
+    assertCurrentScreen(Screen.Browse)
   }
 
   @Test

@@ -2,21 +2,31 @@
 
 package com.swent.polyloop.ui.navigation
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.material3.DrawerDefaults
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -51,6 +61,25 @@ class PolyLoopDrawerTest {
           currentRoute = currentRoute,
           onDestinationClick = { clicked += it },
       )
+    }
+  }
+
+  /**
+   * Opens the drawer over a screen [screenWidth] wide, whatever the test device's width, or over
+   * the device's whole screen when it is null: alone, the root would shrink to the drawer's width.
+   */
+  private fun setDrawerOnScreen(screenWidth: Dp? = null) {
+    composeTestRule.setContent {
+      Box(
+          if (screenWidth == null) Modifier.fillMaxSize() else Modifier.requiredWidth(screenWidth)
+      ) {
+        PolyLoopDrawerContent(
+            profile = john,
+            destinations = Screen.topLevelDestinations(isAdmin = false),
+            currentRoute = Screen.Browse.route,
+            onDestinationClick = {},
+        )
+      }
     }
   }
 
@@ -170,5 +199,47 @@ class PolyLoopDrawerTest {
 
     item(Screen.AdminCourtRuling).performScrollTo().assertIsDisplayed()
     badge().assertIsDisplayed()
+  }
+
+  // ---------- width ----------
+
+  @Test
+  fun drawerLeavesAStripOfTheScreenVisible() {
+    setDrawerOnScreen()
+
+    val screenWidth = composeTestRule.onRoot().fetchSemanticsNode().size.width
+    val drawerWidth = node(C.Tag.drawer).fetchSemanticsNode().size.width
+    assertTrue(
+        "The drawer is $drawerWidth px wide on a $screenWidth px screen",
+        drawerWidth <= screenWidth * 0.8f,
+    )
+  }
+
+  @Test
+  fun drawerCovers80PercentOfASmallPhone() {
+    setDrawerOnScreen(360.dp)
+
+    node(C.Tag.drawer).assertWidthIsEqualTo(288.dp)
+  }
+
+  @Test
+  fun drawerCovers80PercentOfALargePhone() {
+    setDrawerOnScreen(412.dp)
+
+    node(C.Tag.drawer).assertWidthIsEqualTo(329.6.dp)
+  }
+
+  @Test
+  fun drawerStaysAtMaterialsMaximumInLandscape() {
+    setDrawerOnScreen(800.dp)
+
+    node(C.Tag.drawer).assertWidthIsEqualTo(DrawerDefaults.MaximumDrawerWidth)
+  }
+
+  @Test
+  fun drawerKeepsMaterialsMinimumOnAVeryNarrowScreen() {
+    setDrawerOnScreen(280.dp)
+
+    node(C.Tag.drawer).assertWidthIsEqualTo(240.dp)
   }
 }
