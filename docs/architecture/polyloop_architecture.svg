@@ -1,7 +1,7 @@
 <!-- Edited with Claude. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="1326" viewBox="0 0 1560 1326">
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="1348" viewBox="0 0 1560 1348">
 <defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
-<rect width="1560" height="1326" fill="#FFFFFF"/>
+<rect width="1560" height="1348" fill="#FFFFFF"/>
 <text x="40" y="40" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="bold" fill="#2C2C2A">PolyLoop architecture</text>
 <rect x="1150" y="22" width="34" height="20" rx="5" fill="#FFFFFF" stroke="#5F5E5A" stroke-width="1" stroke-dasharray="6 4"/>
 <text x="1194" y="32" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">dashed: planned, not built yet (state of main, M2)</text>
@@ -24,7 +24,7 @@
 <text x="689.2" y="195.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Listing detail</text>
 <rect x="604.5" y="232.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
 <text x="689.2" y="251.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Create listing</text>
-<text x="689.2" y="270.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">+ edit</text>
+<text x="689.2" y="270.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">+ edit (not yet)</text>
 <rect x="786.0" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
 <text x="870.8" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">My rentals</text>
 <rect x="786.0" y="168.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
@@ -147,7 +147,7 @@
 <text x="1324.5" y="789.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">ServerClock (not a repository)</text>
 <text x="1324.5" y="808.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#185FA5">today by the server's clock (serverToday), offline too</text>
 <line x1="780.0" y1="870" x2="780.0" y2="904" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
-<rect x="40" y="910" width="1480" height="210" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
+<rect x="40" y="910" width="1480" height="232" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
 <text x="60" y="932" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">Firebase backend</text>
 <rect x="60.0" y="950" width="278.4" height="60.0" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
 <text x="199.2" y="972" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#2C2C2A">Firebase Auth</text>
@@ -160,22 +160,23 @@
 <text x="780.0" y="991" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">photos + ruling PDFs</text>
 <rect x="931.2" y="950" width="278.4" height="60.0" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
 <text x="1070.4" y="972" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#2C2C2A">Cloud Functions</text>
-<text x="1070.4" y="991" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">12 deployed, listed below</text>
+<text x="1070.4" y="991" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">13 deployed, listed below</text>
 <rect x="1221.6" y="950" width="278.4" height="60.0" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
 <text x="1360.8" y="972" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#2C2C2A">FCM</text>
 <text x="1360.8" y="991" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">push notifications to app</text>
-<rect x="60.0" y="1022" width="1440.0" height="82.0" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<rect x="60.0" y="1022" width="1440.0" height="104.0" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
 <text x="76" y="1042" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#2C2C2A">Cloud Functions (functions/src, europe-west1): the only writers of rental status, deposits and balances</text>
 <text x="76" y="1064" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#444441">Accounts: deleteExpiredSignUpsEvery5Minutes (every 5 min)  ·  Listings: geocodeListingAddresses  ·  Clock: serverToday  ·  Negotiation: makeOffer, respondToOffer, declineRequest, expireOffers (hourly)</text>
-<text x="76" y="1086" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#444441">Money: reserveDeposit, payLender  ·  Disputes: proposeSplit, acceptSplit, escalateDispute  ·  Not written yet: requestRental, recharge, late fees and lost items, Gemini</text>
-<line x1="417.0" y1="1108" x2="417.0" y2="1202" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
-<line x1="1143.0" y1="1108" x2="1143.0" y2="1202" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
-<rect x="40" y="1166" width="1480" height="120" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
-<text x="60" y="1188" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">External services</text>
-<rect x="60.0" y="1206" width="714.0" height="60.0" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="1"/>
-<text x="417.0" y="1228" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#633806">Google Maps Platform</text>
-<text x="417" y="1247" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#854F0B">Maps SDK in the app; Geocoding API via geocodeListingAddresses</text>
-<rect x="786.0" y="1206" width="714.0" height="60.0" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="1" stroke-dasharray="6 4"/>
-<text x="1143.0" y="1228" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#633806">Gemini API</text>
-<text x="1143" y="1247" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#854F0B">LLM judge + ruling reading, called by Cloud Functions</text>
+<text x="76" y="1086" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#444441">Money: reserveDeposit, payLender  ·  Disputes: proposeSplit, acceptSplit, escalateDispute, escalateDisputes (hourly)</text>
+<text x="76" y="1108" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#444441">Not written yet, among others: requestRental, opening a dispute, pickup and return scans, releasing the deposit, cancellation, reminders and auto-cancel, recharge, late fees and lost items, Gemini</text>
+<line x1="417.0" y1="1130" x2="417.0" y2="1224" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<line x1="1143.0" y1="1130" x2="1143.0" y2="1224" stroke="#888780" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="40" y="1188" width="1480" height="120" rx="14" fill="none" stroke="#B4B2A9" stroke-width="1"/>
+<text x="60" y="1210" font-family="Helvetica, Arial, sans-serif" font-size="14" font-weight="bold" fill="#444441">External services</text>
+<rect x="60.0" y="1228" width="714.0" height="60.0" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="1"/>
+<text x="417.0" y="1250" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#633806">Google Maps Platform</text>
+<text x="417" y="1269" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#854F0B">Maps SDK in the app; Geocoding API via geocodeListingAddresses</text>
+<rect x="786.0" y="1228" width="714.0" height="60.0" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="1143.0" y="1250" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#633806">Gemini API</text>
+<text x="1143" y="1269" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#854F0B">LLM judge + ruling reading, called by Cloud Functions</text>
 </svg>
