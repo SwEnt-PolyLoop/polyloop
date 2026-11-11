@@ -20,12 +20,12 @@ import kotlinx.coroutines.flow.map
  * [Dispute.escalatesAt] has passed moves it on as if by itself, then fails with
  * [StageChangedException]. Like `acceptSplit`, accepting checks that the split is still the one on
  * the table before checking its author, so a split the user replaced meanwhile, even with their
- * own, fails with [ProposalChangedException]. Unlike the Functions, it does not check that the
- * user is one of the rental's participants, nor the cap on the number of proposals. When
- * [failure] is set, every call fails with it; an observer throws it
- * when it subscribes or at the next change. When [gate] is set, the suspending calls wait for it to
- * complete, so tests can see a request in progress. [clock] gives the current time, and the time of
- * new proposals, agreements and escalations.
+ * own, fails with [ProposalChangedException]. Unlike the Functions, it does not check that the user
+ * is one of the rental's participants, nor the cap on the number of proposals. When [failure] is
+ * set, every call fails with it; an observer throws it when it subscribes or at the next change.
+ * When [gate] is set, the suspending calls wait for it to complete, so tests can see a request in
+ * progress. [clock] gives the current time, and the time of new proposals, agreements and
+ * escalations.
  */
 class FakeDisputeRepository(
     disputes: List<Dispute> = emptyList(),
