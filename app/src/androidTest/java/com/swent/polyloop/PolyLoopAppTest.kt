@@ -732,8 +732,9 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
     composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsDisplayed()
 
-    // The drawer covers at most 80% of the screen, so this taps the scrim on its right.
-    composeTestRule.onRoot().performTouchInput { click(percentOffset(0.9f, 0.5f)) }
+    // The drawer covers at most 80% of the screen, so this taps the scrim on its right. At 85%,
+    // the tap would hit Material's 360 dp drawer on any screen narrower than about 423 dp.
+    composeTestRule.onRoot().performTouchInput { click(percentOffset(0.85f, 0.5f)) }
 
     composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsNotDisplayed()
     assertCurrentScreen(Screen.Browse)
