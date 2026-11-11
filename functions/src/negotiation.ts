@@ -266,24 +266,43 @@ async function accept(
 
 /**
  * Ends a negotiation with no rental: DECLINED, with no offer and no addresses left, and [text] in
- * the chat. Runs inside the caller's transaction, after its reads.
+ * the chat, seen by [actorId] (see writeWithSystemMessage). Runs inside the caller's transaction,
+ * after its reads.
  */
-function decline(tx: Transaction, rentalRef: DocumentReference, text: string): void {
+function decline(
+  tx: Transaction,
+  rentalRef: DocumentReference,
+  text: string,
+  actorId: string | null = null,
+): void {
   tx.delete(addressesRef(rentalRef));
-  writeWithSystemMessage(tx, rentalRef, text, { status: DECLINED, offer: FieldValue.delete() });
+  writeWithSystemMessage(
+    tx,
+    rentalRef,
+    text,
+    { status: DECLINED, offer: FieldValue.delete() },
+    actorId,
+  );
 }
 
-/** Updates the rental with [fields], and adds [text] to its chat as a SYSTEM message. */
+/**
+ * Updates the rental with [fields], and adds [text] to its chat as a SYSTEM message. [actorId] is
+ * the participant whose action this message reports: their read time is set to the message's, as
+ * when they send a message, so the chat list shows no red dot for their own action. It is null
+ * for a scheduled job, whose message is news for both participants.
+ */
 export function writeWithSystemMessage(
   tx: Transaction,
   rentalRef: DocumentReference,
   text: string,
   fields: DocumentData,
+  actorId: string | null = null,
 ): void {
   tx.update(rentalRef, {
     ...fields,
     lastMessage: text,
     lastMessageAt: FieldValue.serverTimestamp(),
+    ...(actorId ? { [`lastReadAt.${actorId}`]: FieldValue.serverTimestamp() } : {}),
   });
   tx.set(rentalRef.collection("messages").doc(), {
     senderId: "",

@@ -5,6 +5,7 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { DocumentReference, Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { expireOffer, expireOverdueOffers, respondToOffer } from "./negotiation";
+import { hasSeenLastMessage } from "./testing/readTimes";
 
 jest.mock("firebase-functions/logger");
 
@@ -78,6 +79,17 @@ describe("expireOverdueOffers", () => {
     expect(await addresses(ref)).toBeUndefined();
     const messages = await ref.collection("messages").get();
     expect(messages.docs.map((doc) => doc.get("type"))).toEqual(["SYSTEM"]);
+  });
+
+  it("leaves the expiry unseen by both participants, who both read the chat before", async () => {
+    const read = { [LENDER]: Timestamp.fromDate(NOW), [BORROWER]: Timestamp.fromDate(NOW) };
+    const ref = await rentalWithOffer(EXPIRED, { status: "REQUESTED", lastReadAt: read });
+
+    await expireOverdueOffers(db, NOW);
+
+    const data = (await ref.get()).data();
+    expect(hasSeenLastMessage(data, LENDER)).toBe(false);
+    expect(hasSeenLastMessage(data, BORROWER)).toBe(false);
   });
 
   it("expires an offer exactly at its expiry", async () => {
