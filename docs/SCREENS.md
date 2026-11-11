@@ -143,6 +143,8 @@ Rental detail is the hub for one rental: what it is, where it stands, and the ne
 
 So far only the Requested, Accepted and Disputed states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Navigate”, cancelling or deposit state yet. A full-width button at the bottom gives the main action, for both roles: “Start Pickup” on Accepted, enabled from the pickup day (before it, disabled with “Pickup will be available on [day]”), and “View Dispute” on Disputed, always enabled; Requested has none. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added.
 
+Start Pickup opens from the server's date, not the phone's, so changing the phone's date cannot open it early. Offline, the date is worked out from the last server time and the time since the phone booted; if the server was not reached since the phone booted, the button stays grey with “Connect to the internet to check the pickup day.”
+
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
 - The deposit, once an offer is accepted, and its state: held, released, or frozen. “Held” appears only once deposits are really reserved, which needs the `reserveDeposit` Cloud Function; until then only the amount shows.
 - While an offer waits for an answer, its amount and when it expires (Figma frame 13.10). If the rental can no longer be followed live, the offer is hidden, as in the chat, rather than left out of date.

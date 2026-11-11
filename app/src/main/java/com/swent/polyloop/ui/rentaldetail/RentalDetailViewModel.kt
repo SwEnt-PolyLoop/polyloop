@@ -13,6 +13,7 @@ import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Job
@@ -42,6 +43,10 @@ import kotlinx.coroutines.launch
  * user wrote it. [deposit] is the accepted amount in PolyPoints, and [pickupAddress] and
  * [returnAddress] are the exact addresses, set once the rental is accepted. [lateFees] is the total
  * taken from the deposit for a late return, in PolyPoints, and 0 when the return was never late.
+ * [serverToday] is today by the server's clock, which Start Pickup opens from: read only for an
+ * accepted rental, and null until it is read or when it is unknown (the server was not reached
+ * since the phone booted). [isReadingServerToday] is true while it is being read, so the screen can
+ * tell a read still running from an unknown date.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -66,6 +71,8 @@ data class RentalDetailUiState(
     val pickupAddress: String = "",
     val returnAddress: String = "",
     val lateFees: Int = 0,
+    val serverToday: LocalDate? = null,
+    val isReadingServerToday: Boolean = false,
 )
 
 /**
@@ -86,7 +93,9 @@ data class OtherPerson(
  * Shows one rental as seen by the signed-in user. Requested, Accepted and Disputed are handled so
  * far. The rental is read once, then followed, so that the offer and an acceptance show without a
  * reload. It follows the network status from [connectivityRepository], so the screen knows when to
- * replace the map.
+ * replace the map. For an accepted rental, it reads today from [serverClock], so that Start Pickup
+ * does not open from the phone's date, which the user can change. The screen shows without waiting
+ * for that date, and an unknown date is read again when the phone comes back online.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
@@ -95,19 +104,44 @@ class RentalDetailViewModel(
     private val profileRepository: ProfileRepository,
     private val authRepository: AuthRepository,
     private val connectivityRepository: ConnectivityRepository,
+    private val serverClock: ServerClock,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(RentalDetailUiState())
   val uiState: StateFlow<RentalDetailUiState> = _uiState.asStateFlow()
 
   private var loading: Job? = null
+  private var serverTodayRead: Job? = null
 
   init {
     load()
     viewModelScope.launch {
+      var wasOnline: Boolean? = null
       connectivityRepository.isOnline.collect { online ->
         _uiState.update { it.copy(isOffline = !online) }
+        // Under the grey button, an unknown date asks the user to connect, so connecting reads it
+        // again.
+        val state = _uiState.value
+        if (
+            online &&
+                wasOnline == false &&
+                state.status == RentalStatus.ACCEPTED &&
+                state.serverToday == null
+        ) {
+          readServerToday()
+        }
+        wasOnline = online
       }
+    }
+  }
+
+  /** Reads today from [serverClock] for Start Pickup, unless a read is already running. */
+  private fun readServerToday() {
+    if (serverTodayRead?.isActive == true) return
+    _uiState.update { it.copy(isReadingServerToday = true) }
+    serverTodayRead = viewModelScope.launch {
+      val today = serverClock.today()
+      _uiState.update { it.copy(serverToday = today, isReadingServerToday = false) }
     }
   }
 
@@ -182,8 +216,16 @@ class RentalDetailViewModel(
             pickupAddress = rental.pickupAddress,
             returnAddress = rental.returnAddress,
             lateFees = rental.lateFees,
+            // Kept from before a retry, so a read still running or a date already known stays.
+            serverToday = it.serverToday,
+            isReadingServerToday = it.isReadingServerToday,
         )
       }
+      // Read after the state is shown, not awaited with the listing and profile: only the bottom
+      // button needs the date, and the Function can take seconds on a cold start. Only an accepted
+      // rental reads it, as only Start Pickup needs it.
+      var serverTodayAsked = rental.status == RentalStatus.ACCEPTED
+      if (serverTodayAsked) readServerToday()
       // A read error here stops the updates: the rental read above stays on screen, but not its
       // offer, which could be out of date. The chat hides its offer card in the same way.
       rentalRepository
@@ -213,6 +255,12 @@ class RentalDetailViewModel(
                     )
                   }
             }
+            // A request accepted while the screen is open now needs the date for Start Pickup.
+            // Asked once, so an unknown date is not asked again at every change of the rental.
+            if (live?.status == RentalStatus.ACCEPTED && !serverTodayAsked) {
+              serverTodayAsked = true
+              readServerToday()
+            }
           }
     }
   }
@@ -231,6 +279,7 @@ class RentalDetailViewModel(
       private val profileRepository: ProfileRepository,
       private val authRepository: AuthRepository,
       private val connectivityRepository: ConnectivityRepository,
+      private val serverClock: ServerClock,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass.isAssignableFrom(RentalDetailViewModel::class.java)) {
@@ -244,6 +293,7 @@ class RentalDetailViewModel(
           profileRepository,
           authRepository,
           connectivityRepository,
+          serverClock,
       )
           as T
     }

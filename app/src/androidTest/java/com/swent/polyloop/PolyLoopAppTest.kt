@@ -10,6 +10,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -42,8 +44,10 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
@@ -180,7 +184,7 @@ class PolyLoopAppTest {
     RepositoryProvider.authRepository = authRepository
     RepositoryProvider.profileRepository = profileRepository
     RepositoryProvider.chatRepository = chatRepository
-    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
+    useRentals(FakeRentalRepository(rentals = listOf(rental)))
     RepositoryProvider.connectivityRepository = connectivity
     RepositoryProvider.handoverRepository = FakeHandoverRepository()
     RepositoryProvider.walletRepository = FakeWalletRepository()
@@ -189,6 +193,16 @@ class PolyLoopAppTest {
   @After
   fun tearDown() {
     RepositoryProvider.reset()
+  }
+
+  /**
+   * Makes [rentals] the app's rental repository, with a server clock that reads it and saves in
+   * memory, so no test writes its fake server time to the app's real preferences.
+   */
+  private fun useRentals(rentals: FakeRentalRepository) {
+    RepositoryProvider.rentalRepository = rentals
+    RepositoryProvider.serverClock =
+        ServerClock(rentals, InMemoryServerClockStore(), bootCount = { 0 })
   }
 
   private fun openListingDetail() {
@@ -501,7 +515,7 @@ class PolyLoopAppTest {
             // Before the rental's first day, or the offer is refused.
             clock = { Instant.parse("2026-10-01T10:00:00Z") },
         )
-    RepositoryProvider.rentalRepository = rentals
+    useRentals(rentals)
     setAppSignedIn()
     openFromMenu(Screen.MyRentals)
     waitForTag(C.Tag.my_rentals_tab_lending)
@@ -559,7 +573,7 @@ class PolyLoopAppTest {
 
   @Test
   fun chatOnRentalDetailOpensTheRentalsChat() {
-    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
+    useRentals(FakeRentalRepository(rentals = listOf(rental)))
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {
@@ -653,22 +667,40 @@ class PolyLoopAppTest {
     assertEquals(chatEntry, currentEntryId())
   }
 
-  /** Opens Rental detail on [shown], signed in as its borrower, and taps its action button. */
-  private fun tapActionButtonOnRentalDetail(shown: Rental) {
-    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(shown))
+  /**
+   * Opens Rental detail on [shown], signed in as its borrower, and taps its action button. The
+   * server's time is [serverNow], or the fake's default when null.
+   */
+  private fun tapActionButtonOnRentalDetail(shown: Rental, serverNow: Instant? = null) {
+    useRentals(
+        FakeRentalRepository(rentals = listOf(shown)).also { fake ->
+          serverNow?.let { fake.serverNow = it }
+        }
+    )
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {
       NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(shown.id))
     }
-    waitForTag(C.Tag.rental_detail_action_button)
+    // The screen shows before the server's date is read, so Start Pickup can still be grey at
+    // first; View Dispute is always enabled.
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodes(hasTestTag(C.Tag.rental_detail_action_button) and isEnabled())
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).performClick()
   }
 
   @Test
   fun startPickupOnItsPickupDayOpensTheHandover() {
-    val today = LocalDate.now()
-    tapActionButtonOnRentalDetail(rental.copy(startDate = today, endDate = today.plusDays(2)))
+    val pickupDay = LocalDate.of(2026, 10, 1)
+    // Noon in Zurich on the pickup day: Start Pickup opens from the server's day.
+    tapActionButtonOnRentalDetail(
+        rental.copy(startDate = pickupDay, endDate = pickupDay.plusDays(2)),
+        serverNow = Instant.parse("2026-10-01T10:00:00Z"),
+    )
 
     assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
   }

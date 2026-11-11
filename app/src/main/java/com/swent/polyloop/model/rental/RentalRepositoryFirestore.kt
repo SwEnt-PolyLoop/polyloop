@@ -17,6 +17,7 @@ import com.swent.polyloop.model.firestore.isValidDocumentId
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
 import com.swent.polyloop.model.listing.Listing
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -25,7 +26,8 @@ import kotlinx.coroutines.tasks.await
 
 /**
  * [RentalRepository] backed by Firestore, one document per rental at `rentals/{id}`. The deposit
- * negotiation goes through the Cloud Functions in [REGION], the only writers of those fields.
+ * negotiation goes through the Cloud Functions in [REGION], the only writers of those fields, and
+ * so does reading the server's time.
  *
  * @param db the Firestore database.
  * @param functions gives the Cloud Functions client. A provider, not an instance, so that Firebase
@@ -114,6 +116,17 @@ class RentalRepositoryFirestore(
   override suspend fun declineRequest(rentalId: String): Result<Unit> =
       callFunction("declineRequest", mapOf("rentalId" to rentalId))
 
+  override suspend fun serverNow(): Result<Instant> = withFirebaseErrors {
+    val data = functions().getHttpsCallable(SERVER_TODAY).call().await().data
+    // Callable results come back as JSON numbers, decoded as Integer, Long or Double.
+    val now = (data as? Map<*, *>)?.get("now") as? Number
+    if (now != null) {
+      Result.success(Instant.ofEpochMilli(now.toLong()))
+    } else {
+      Result.failure(IllegalStateException("$SERVER_TODAY returned no time"))
+    }
+  }
+
   /** Calls the Cloud Function [name] with [data]; a refusal or a lost connection is a failure. */
   private suspend fun callFunction(name: String, data: Map<String, Any>): Result<Unit> =
       withFirebaseErrors {
@@ -145,5 +158,7 @@ class RentalRepositoryFirestore(
   companion object {
     /** Region of the Cloud Functions, next to the Firestore database (see docs/ARCHITECTURE.md). */
     const val REGION = "europe-west1"
+
+    private const val SERVER_TODAY = "serverToday"
   }
 }
