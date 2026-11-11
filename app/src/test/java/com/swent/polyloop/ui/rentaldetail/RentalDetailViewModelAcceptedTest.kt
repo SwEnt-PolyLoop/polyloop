@@ -19,6 +19,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -88,6 +90,7 @@ class RentalDetailViewModelAcceptedTest {
    */
   private fun viewModel(
       rental: Rental,
+      connectivity: FakeConnectivityRepository = FakeConnectivityRepository(),
       wrap: (FakeRentalRepository) -> RentalRepository = { it },
   ): RentalDetailViewModel {
     rentals = FakeRentalRepository(rentals = listOf(rental), clock = { now })
@@ -99,7 +102,7 @@ class RentalDetailViewModelAcceptedTest {
         FakeListingRepository(),
         FakeProfileRepository(),
         FakeAuthRepository(signedInUser = AuthUser("borrower", "l@epfl.ch", "Loca")),
-        FakeConnectivityRepository(),
+        connectivity,
         ServerClock(
             repository,
             InMemoryServerClockStore(),
@@ -118,7 +121,7 @@ class RentalDetailViewModelAcceptedTest {
   }
 
   @Test
-  fun anAcceptedRentalIsStillLoadingWhileTheServerIsRead() {
+  fun anAcceptedRentalShowsWhileTheServersDayIsRead() {
     val gate = CompletableDeferred<Unit>()
     val vm =
         viewModel(accepted) { fake ->
@@ -129,12 +132,37 @@ class RentalDetailViewModelAcceptedTest {
             }
           }
         }
-    assertTrue(vm.uiState.value.isLoading)
+    val reading = vm.uiState.value
+    assertFalse(reading.isLoading)
+    assertEquals(RentalStatus.ACCEPTED, reading.status)
+    assertNull(reading.serverToday)
+    assertTrue(reading.isReadingServerToday)
 
     gate.complete(Unit)
 
-    assertFalse(vm.uiState.value.isLoading)
+    val read = vm.uiState.value
+    assertEquals(serverDay, read.serverToday)
+    assertFalse(read.isReadingServerToday)
+  }
+
+  @Test
+  fun anUnknownServerDayIsReadAgainWhenThePhoneComesBackOnline() {
+    val connectivity = FakeConnectivityRepository(online = false)
+    var reachable = false
+    val vm =
+        viewModel(accepted, connectivity) { fake ->
+          object : RentalRepository by fake {
+            override suspend fun serverNow(): Result<Instant> =
+                if (reachable) fake.serverNow() else Result.failure(IOException("offline"))
+          }
+        }
+    assertNull(vm.uiState.value.serverToday)
+
+    reachable = true
+    connectivity.setOnline(true)
+
     assertEquals(serverDay, vm.uiState.value.serverToday)
+    assertFalse(vm.uiState.value.isReadingServerToday)
   }
 
   @Test
@@ -146,13 +174,21 @@ class RentalDetailViewModelAcceptedTest {
   }
 
   @Test
-  fun aRequestAcceptedWhileTheScreenIsOpenReadsTheServersDayOnce() = runTest {
-    val vm = viewModel(request)
-    rentals.makeOffer("r1", 180, "Route Cantonale 1", "Rue de Lausanne 10").getOrThrow()
+  fun aRequestAcceptedWhileTheScreenIsOpenReadsTheServersDayOnce() {
+    // The live rental is driven by hand, so it can change again once accepted.
+    val live = MutableStateFlow<Rental?>(request)
+    val vm =
+        viewModel(request) { fake ->
+          object : RentalRepository by fake {
+            override fun observeRental(id: String): Flow<Rental?> = live
+          }
+        }
 
-    rentals.acceptOffer("r1").getOrThrow()
+    live.value = accepted
+    live.value = accepted.copy(deposit = 70)
 
     assertEquals(serverDay, vm.uiState.value.serverToday)
+    assertEquals(70, vm.uiState.value.deposit)
     assertEquals(1, rentals.serverNowCalls)
   }
 

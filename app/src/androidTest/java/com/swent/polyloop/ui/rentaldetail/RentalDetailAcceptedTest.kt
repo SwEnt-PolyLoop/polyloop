@@ -213,6 +213,18 @@ class RentalDetailAcceptedTest {
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_available_on).assertDoesNotExist()
   }
 
+  @Test
+  fun whileTheServersDayIsReadStartPickupIsDisabledWithNoTextUnderIt() {
+    setContent(
+        accepted.copy(serverToday = null, isReadingServerToday = true),
+        today = LocalDate.of(2026, 10, 1),
+    )
+
+    assertStartPickupDisabled()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_needs_connection).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_available_on).assertDoesNotExist()
+  }
+
   /** Like [assertShown], for a node pinned under the scrolling column, so not scrolled to. */
   private fun assertPinned(tag: String, text: String) {
     composeTestRule.onNodeWithTag(tag).assertIsDisplayed().assertTextEquals(text)

@@ -98,7 +98,8 @@ fun RentalDetailScreen(
  * the bottom and a Disputed one "View Dispute" ([onViewDisputeClick]). [today] and [zone] decide
  * how dates are written (e.g. whether the year is shown); tests pass fixed values so their expected
  * texts do not depend on the day they run. [today] is the phone's date, so it is only used to write
- * dates: Start Pickup opens from [RentalDetailUiState.serverToday] instead. [locale] decides the
+ * dates: Start Pickup opens from [RentalDetailUiState.serverToday] instead, and stays grey while
+ * [RentalDetailUiState.isReadingServerToday]. [locale] decides the
  * language of the month and weekday names; tests pass a fixed one so their expected dates do not
  * depend on the device's language.
  */
@@ -206,8 +207,9 @@ fun RentalDetailContent(
 /**
  * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "View
  * Dispute" once disputed, and nothing for a request. Start Pickup opens on the pickup day by the
- * server's date ([RentalDetailUiState.serverToday]). Before it, the day it opens is written in
- * [locale]; while the server's date is unknown, the user is asked to connect.
+ * server's date ([RentalDetailUiState.serverToday]). While that date is being read, the button is
+ * grey with nothing under it. Before the pickup day, the day it opens is written in [locale]; when
+ * the server's date is unknown, the user is asked to connect.
  */
 @Composable
 private fun ActionBar(
@@ -225,7 +227,8 @@ private fun ActionBar(
           // to open the pickup early. An unknown server day keeps it closed, as falling back on the
           // phone's date would let airplane mode plus a changed date open it.
           val serverToday = uiState.serverToday
-          val pickupOpen = serverToday?.let { !it.isBefore(start) } ?: false
+          val isReading = uiState.isReadingServerToday
+          val pickupOpen = !isReading && (serverToday?.let { !it.isBefore(start) } ?: false)
           ActionBarSurface {
             ActionButton(
                 text = stringResource(R.string.rental_detail_start_pickup),
@@ -233,8 +236,9 @@ private fun ActionBar(
                 onClick = onStartPickupClick,
             )
             // Shown disabled rather than hidden before the pickup day, so the user sees what comes
-            // next and from when.
-            if (!pickupOpen) {
+            // next and from when. Nothing is written while the date is being read: it is not known
+            // yet, and asking to connect would be wrong online.
+            if (!pickupOpen && !isReading) {
               val (text, tag) =
                   if (serverToday == null) {
                     stringResource(R.string.rental_detail_pickup_needs_connection) to
