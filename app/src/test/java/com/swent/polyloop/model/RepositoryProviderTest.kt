@@ -14,6 +14,8 @@ import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepositoryAndroid
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.dispute.DisputeRepositoryFirestore
+import com.swent.polyloop.model.dispute.FakeDisputeRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository
 import com.swent.polyloop.model.handover.HandoverRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
@@ -310,6 +312,27 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- disputeRepository ----------
+
+  @Test
+  fun disputeRepositoryDefaultsToFirestoreImplementationCreatedOnce() {
+    val first = RepositoryProvider.disputeRepository
+
+    assertTrue(first is DisputeRepositoryFirestore)
+    assertSame(first, RepositoryProvider.disputeRepository)
+    verify(exactly = 1) { FirebaseFirestore.getInstance() }
+  }
+
+  @Test
+  fun disputeRepositoryReturnsAssignedRepository() {
+    val fake = FakeDisputeRepository(currentUid = { null })
+
+    RepositoryProvider.disputeRepository = fake
+
+    assertSame(fake, RepositoryProvider.disputeRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+  }
+
   // ---------- laziness and reset ----------
 
   @Test
@@ -342,6 +365,7 @@ class RepositoryProviderTest {
     val fakeWallet = FakeWalletRepository()
     RepositoryProvider.walletRepository = fakeWallet
     RepositoryProvider.handoverRepository = FakeHandoverRepository()
+    RepositoryProvider.disputeRepository = FakeDisputeRepository(currentUid = { null })
 
     RepositoryProvider.reset()
 
@@ -354,6 +378,7 @@ class RepositoryProviderTest {
     assertTrue(RepositoryProvider.walletRepository is WalletRepositoryFirestore)
     assertNotSame(fakeWallet, RepositoryProvider.walletRepository)
     assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)
+    assertTrue(RepositoryProvider.disputeRepository is DisputeRepositoryFirestore)
   }
 
   @Test

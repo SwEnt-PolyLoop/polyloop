@@ -12,7 +12,8 @@ import java.time.Instant
  *
  * @property proposals every split proposed so far, oldest first.
  * @property escalatesAt when the dispute moves on from direct settlement to the LLM proposal on its
- *   own if nobody agrees; it no longer applies once the dispute left [DisputeStage.SETTLE].
+ *   own if nobody agrees, or null when it never moves on by itself (as for the Cloud Functions); it
+ *   no longer applies once the dispute left [DisputeStage.SETTLE].
  * @property agreedAt when one party accepted the other's latest proposal, or null while they
  *   disagree.
  * @property escalatedBy the user who moved the dispute on to its current [stage], or null when it
@@ -22,7 +23,7 @@ data class Dispute(
     val rentalId: String,
     val stage: DisputeStage,
     val proposals: List<Proposal>,
-    val escalatesAt: Instant,
+    val escalatesAt: Instant?,
     val agreedAt: Instant? = null,
     val escalatedBy: String? = null,
 ) {

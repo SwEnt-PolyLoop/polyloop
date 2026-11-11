@@ -12,6 +12,8 @@ import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.FirebaseFunctions
 import com.swent.polyloop.model.auth.AuthUser
+import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
+import com.swent.polyloop.model.firestore.callCloudFunction
 import com.swent.polyloop.model.firestore.confirmWrite
 import com.swent.polyloop.model.firestore.isValidDocumentId
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
@@ -26,8 +28,8 @@ import kotlinx.coroutines.tasks.await
 
 /**
  * [RentalRepository] backed by Firestore, one document per rental at `rentals/{id}`. The deposit
- * negotiation goes through the Cloud Functions in [REGION], the only writers of those fields, and
- * so does reading the server's time.
+ * negotiation goes through the Cloud Functions in [FUNCTIONS_REGION], the only writers of those
+ * fields, and so does reading the server's time.
  *
  * @param db the Firestore database.
  * @param functions gives the Cloud Functions client. A provider, not an instance, so that Firebase
@@ -35,7 +37,9 @@ import kotlinx.coroutines.tasks.await
  */
 class RentalRepositoryFirestore(
     private val db: FirebaseFirestore = Firebase.firestore,
-    private val functions: () -> FirebaseFunctions = { FirebaseFunctions.getInstance(REGION) },
+    private val functions: () -> FirebaseFunctions = {
+      FirebaseFunctions.getInstance(FUNCTIONS_REGION)
+    },
 ) : RentalRepository {
 
   private val rentals: CollectionReference
@@ -129,10 +133,7 @@ class RentalRepositoryFirestore(
 
   /** Calls the Cloud Function [name] with [data]; a refusal or a lost connection is a failure. */
   private suspend fun callFunction(name: String, data: Map<String, Any>): Result<Unit> =
-      withFirebaseErrors {
-        functions().getHttpsCallable(name).call(data).await()
-        Result.success(Unit)
-      }
+      callCloudFunction(functions(), name, data)
 
   /**
    * The rentals whose [field] is [uid], newest first. Sorted here rather than by the query, so no
@@ -156,9 +157,6 @@ class RentalRepositoryFirestore(
       }
 
   companion object {
-    /** Region of the Cloud Functions, next to the Firestore database (see docs/ARCHITECTURE.md). */
-    const val REGION = "europe-west1"
-
     private const val SERVER_TODAY = "serverToday"
   }
 }

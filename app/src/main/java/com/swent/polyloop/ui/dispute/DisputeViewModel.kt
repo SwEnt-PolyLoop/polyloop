@@ -64,9 +64,10 @@ enum class EscalationNotice {
  * [otherPersonName] is "" when the name is missing; the screen then shows a placeholder.
  * [daysUntilEscalation] is the number of days, rounded up, before the dispute moves on to the next
  * stage on its own, kept up to date while the screen is shown; 0 once it has passed, and after
- * direct settlement or once settled, where it never moves on by itself. [loadFailed] is true when
- * the dispute cannot be loaded (or nobody is signed in, or the user does not take part in the
- * rental) and nothing was shown yet; [refreshFailed] is true when it could not be loaded again
+ * direct settlement or once settled, where it never moves on by itself; null in direct settlement
+ * when the dispute has no [Dispute.escalatesAt], so it never moves on by itself. [loadFailed] is
+ * true when the dispute cannot be loaded (or nobody is signed in, or the user does not take part in
+ * the rental) and nothing was shown yet; [refreshFailed] is true when it could not be loaded again
  * after it was shown, which keeps the last state on screen. [actionError] is what the last
  * proposal, acceptance or escalation could not do; the next action, opening the split editor, a new
  * stage or an agreement clears it, since the action it names then no longer applies.
@@ -89,7 +90,7 @@ data class DisputeUiState(
     val stage: DisputeStage = DisputeStage.SETTLE,
     val history: List<ProposalRow> = emptyList(),
     val isSettled: Boolean = false,
-    val daysUntilEscalation: Int = 0,
+    val daysUntilEscalation: Int? = 0,
     val isOnline: Boolean = true,
     val isSending: Boolean = false,
     val draftLenderPercent: Int? = null,
@@ -248,8 +249,8 @@ class DisputeViewModel(
   fun sendDraft() {
     val draft = _uiState.value.draftLenderPercent
     if (!_uiState.value.canSend || draft == null) return
-    send(DisputeActionError.PROPOSE, closesEditor = true) { uid ->
-      disputeRepository.propose(rentalId, uid, draft)
+    send(DisputeActionError.PROPOSE, closesEditor = true) {
+      disputeRepository.propose(rentalId, draft)
     }
   }
 
@@ -257,9 +258,7 @@ class DisputeViewModel(
   fun accept() {
     val seen = _uiState.value.latestProposal
     if (!_uiState.value.canAccept || seen == null) return
-    send(DisputeActionError.ACCEPT) { uid ->
-      disputeRepository.accept(rentalId, uid, seen.lenderPercent)
-    }
+    send(DisputeActionError.ACCEPT) { disputeRepository.accept(rentalId, seen.lenderPercent) }
   }
 
   /**
@@ -284,27 +283,29 @@ class DisputeViewModel(
     val confirmed = _uiState.value.isConfirmingEscalation
     dismissEscalate()
     if (!confirmed || !_uiState.value.canEscalate) return
-    send(DisputeActionError.ESCALATE) { uid -> disputeRepository.escalate(rentalId, uid) }
+    send(DisputeActionError.ESCALATE) { disputeRepository.escalate(rentalId) }
   }
 
   /**
-   * Runs [request] as the signed-in user, with [DisputeUiState.isSending] set meanwhile so no
-   * second action starts. The new dispute arrives through the observer; a failure (or nobody signed
+   * Runs [request], which the repository sends as the signed-in user, with
+   * [DisputeUiState.isSending] set meanwhile so no second action starts. Nothing is sent when
+   * nobody is signed in. The new dispute arrives through the observer; a failure (or nobody signed
    * in) sets [DisputeUiState.actionError] to [error], or to [DisputeActionError.PROPOSAL_CHANGED]
-   * when the proposal accepted was no longer the one on the table. An escalation refused because
-   * the dispute already moved on sets none. After either refusal, the dispute is loaded again if it
-   * could not be refreshed, so the new proposal or stage shows. A success also closes the split
-   * editor if [closesEditor].
+   * when the proposal accepted was no longer the one on the table. An action refused because the
+   * dispute was settled or moved on meanwhile sets none: the new state shows instead. After either
+   * refusal, the dispute is loaded again if it could not be refreshed, so the new proposal or stage
+   * shows. If [closesEditor], the split editor closes whenever no error is set: on a success, and
+   * on a refusal because the dispute was settled or moved on, since the draft no longer applies.
    */
   private fun send(
       error: DisputeActionError,
       closesEditor: Boolean = false,
-      request: suspend (uid: String) -> Result<Unit>,
+      request: suspend () -> Result<Unit>,
   ) {
     val uid = authRepository.getCurrentUser()?.uid
     _uiState.update { it.copy(isSending = true, actionError = null, offerUpdated = false) }
     viewModelScope.launch {
-      val failure = if (uid == null) null else request(uid).exceptionOrNull()
+      val failure = if (uid == null) null else request().exceptionOrNull()
       val actionError =
           when {
             failure is ProposalChangedException -> DisputeActionError.PROPOSAL_CHANGED
@@ -313,11 +314,11 @@ class DisputeViewModel(
             else -> null
           }
       _uiState.update {
-        val succeeded = actionError == null
+        val nothingToShow = actionError == null
         it.copy(
             isSending = false,
             actionError = actionError,
-            draftLenderPercent = if (closesEditor && succeeded) null else it.draftLenderPercent,
+            draftLenderPercent = if (closesEditor && nothingToShow) null else it.draftLenderPercent,
         )
       }
       val changedMeanwhile = failure is ProposalChangedException || failure is StageChangedException
@@ -387,14 +388,20 @@ class DisputeViewModel(
                 ProposalRow(p.authorId == uid, p.lenderPercent, p.createdAt)
               },
           isSettled = dispute.isSettled,
-          daysUntilEscalation = if (stillSettling) daysUntil(dispute.escalatesAt) else 0,
+          daysUntilEscalation = if (stillSettling) dispute.escalatesAt?.let(::daysUntil) else 0,
           isLoading = false,
           loadFailed = false,
           refreshFailed = false,
       )
     }
+    restartCountdown(dispute, stillSettling)
+  }
+
+  /** Counts down to [dispute]'s automatic escalation while it is still settling and has a date. */
+  private fun restartCountdown(dispute: Dispute, stillSettling: Boolean) {
     ticking?.cancel()
-    if (stillSettling) countDownTo(dispute.escalatesAt)
+    val deadline = dispute.escalatesAt
+    if (stillSettling && deadline != null) countDownTo(deadline)
   }
 
   /** How [dispute] moved on to its current stage, as seen by [uid]; null when they moved it on. */
