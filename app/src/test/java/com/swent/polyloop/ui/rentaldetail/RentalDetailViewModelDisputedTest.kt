@@ -88,7 +88,12 @@ class RentalDetailViewModelDisputedTest {
           profiles,
           FakeAuthRepository(signedInUser = AuthUser(signedInUid, "$signedInUid@epfl.ch", "")),
           FakeConnectivityRepository(),
-          ServerClock(rentals, InMemoryServerClockStore(), elapsedRealtime = { 0L }, bootCount = { 0 }),
+          ServerClock(
+              rentals,
+              InMemoryServerClockStore(),
+              elapsedRealtime = { 0L },
+              bootCount = { 0 },
+          ),
       )
 
   @Test

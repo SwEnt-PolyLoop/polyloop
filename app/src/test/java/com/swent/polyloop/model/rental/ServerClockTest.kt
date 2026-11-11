@@ -117,7 +117,8 @@ class ServerClockTest {
     val context = RuntimeEnvironment.getApplication()
     assertNull(SharedPreferencesServerClockStore(context).load())
 
-    val saved = ServerClock.Saved(serverTimeMs = 1_762_858_800_000L, elapsedRealtimeMs = 42L, bootCount = 7)
+    val saved =
+        ServerClock.Saved(serverTimeMs = 1_762_858_800_000L, elapsedRealtimeMs = 42L, bootCount = 7)
     SharedPreferencesServerClockStore(context).save(saved)
 
     // Another instance, as after the app was closed and opened again.

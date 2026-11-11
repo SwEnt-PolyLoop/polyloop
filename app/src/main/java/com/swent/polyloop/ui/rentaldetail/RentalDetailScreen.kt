@@ -98,9 +98,9 @@ fun RentalDetailScreen(
  * the bottom and a Disputed one "View Dispute" ([onViewDisputeClick]). [today] and [zone] decide
  * how dates are written (e.g. whether the year is shown); tests pass fixed values so their expected
  * texts do not depend on the day they run. [today] is the phone's date, so it is only used to write
- * dates: Start Pickup opens from [RentalDetailUiState.serverToday] instead.
- * [locale] decides the language of the month and weekday names; tests pass a fixed one so their
- * expected dates do not depend on the device's language.
+ * dates: Start Pickup opens from [RentalDetailUiState.serverToday] instead. [locale] decides the
+ * language of the month and weekday names; tests pass a fixed one so their expected dates do not
+ * depend on the device's language.
  */
 @Composable
 fun RentalDetailContent(
