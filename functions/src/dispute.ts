@@ -122,7 +122,7 @@ export async function acceptSplit(
     if (latest.authorId === callerId) {
       throw new RequestError("permission-denied", "You cannot accept your own proposal.");
     }
-    settle(tx, open, latest.lenderPercent, now);
+    settle(tx, open, latest.lenderPercent, now, callerId);
   });
 }
 
@@ -160,14 +160,27 @@ function moveToLlmProposal(
   escalatedBy: string,
 ): void {
   tx.update(disputeRef, { stage: LLM_PROPOSAL, escalatedBy });
-  writeWithSystemMessage(tx, rentalRef, "Dispute escalated · waiting for the LLM proposal", {});
+  writeWithSystemMessage(
+    tx,
+    rentalRef,
+    "Dispute escalated · waiting for the LLM proposal",
+    {},
+    escalatedBy,
+  );
 }
 
 /**
- * Ends a dispute on the split [lenderPercent]: `agreedAt` on the dispute, the rental CLOSED and the
- * shares in the chat. Moving the deposit will be added here once it is really reserved.
+ * Ends a dispute on the split [lenderPercent], accepted by [acceptedBy]: `agreedAt` on the dispute,
+ * the rental CLOSED and the shares in the chat. Moving the deposit will be added here once it is
+ * really reserved.
  */
-function settle(tx: Transaction, open: OpenDispute, lenderPercent: number, now: Date): void {
+function settle(
+  tx: Transaction,
+  open: OpenDispute,
+  lenderPercent: number,
+  now: Date,
+  acceptedBy: string,
+): void {
   const { lender, borrower } = splitDeposit(depositOf(open.rental), lenderPercent);
   tx.update(open.disputeRef, { agreedAt: Timestamp.fromDate(now) });
   writeWithSystemMessage(
@@ -175,6 +188,7 @@ function settle(tx: Transaction, open: OpenDispute, lenderPercent: number, now: 
     open.rentalRef,
     `Dispute settled · ${lender} PP to the lender, ${borrower} PP back to the borrower`,
     { status: CLOSED },
+    acceptedBy,
   );
 }
 

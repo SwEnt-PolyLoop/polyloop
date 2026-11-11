@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { MAX_PROPOSALS, acceptSplit, escalateDispute, proposeSplit } from "./dispute";
+import { hasSeenLastMessage } from "./testing/readTimes";
 
 // The transactions are tested on the emulator; the pure rules are in disputeRules.test.ts.
 let db: Firestore;
@@ -222,6 +223,21 @@ describe("acceptSplit", () => {
     expect((await rental(id))?.lastMessage).toBe(
       "Dispute settled · 0 PP to the lender, 0 PP back to the borrower",
     );
+  });
+});
+
+describe("who has seen each system message", () => {
+  it("the participant who accepts a split or escalates, not the other one", async () => {
+    const settled = await disputed({ proposals: [proposal(LENDER, 50)] });
+    const escalated = await disputed();
+
+    await acceptSplit(db, BORROWER, { rentalId: settled, lenderPercent: 50 }, NOW);
+    await escalateDispute(db, BORROWER, escalated);
+
+    for (const id of [settled, escalated]) {
+      expect(hasSeenLastMessage(await rental(id), BORROWER)).toBe(true);
+      expect(hasSeenLastMessage(await rental(id), LENDER)).toBe(false);
+    }
   });
 });
 
