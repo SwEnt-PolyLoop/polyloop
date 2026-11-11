@@ -141,7 +141,7 @@ fun BrowseContent(
                 modifier = Modifier.testTag(C.Tag.browse_empty),
             )
           }
-      uiState.view == BrowseView.MAP -> BrowseMap()
+      uiState.view == BrowseView.MAP -> BrowseMap(pins = uiState.pins)
       else ->
           LazyColumn(
               modifier = Modifier.fillMaxWidth().testTag(C.Tag.browse_list),
