@@ -75,15 +75,21 @@ export async function makeOffer(
     await requireFreeListing(tx, rentalRef, rental, dates);
 
     tx.set(addressesRef(rentalRef), { pickup: input.pickupAddress, dropOff: input.returnAddress });
-    writeWithSystemMessage(tx, rentalRef, `Offer sent · ${input.deposit} PP deposit`, {
-      offer: {
-        amount: input.deposit,
-        authorId: lenderId,
-        isCounter: false,
-        createdAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromDate(expiresAt),
+    writeWithSystemMessage(
+      tx,
+      rentalRef,
+      `Offer sent · ${input.deposit} PP deposit`,
+      {
+        offer: {
+          amount: input.deposit,
+          authorId: lenderId,
+          isCounter: false,
+          createdAt: FieldValue.serverTimestamp(),
+          expiresAt: Timestamp.fromDate(expiresAt),
+        },
       },
-    });
+      lenderId,
+    );
   });
 }
 
@@ -117,25 +123,31 @@ export async function respondToOffer(
 
     switch (answer.action) {
       case "ACCEPT":
-        await accept(tx, rentalRef, rental, offer);
+        await accept(tx, rentalRef, rental, offer, callerId);
         return;
       case "DECLINE":
-        decline(tx, rentalRef, "Offer declined");
+        decline(tx, rentalRef, "Offer declined", callerId);
         return;
       case "COUNTER":
         if (offer.isCounter) {
           throw new RequestError("failed-precondition", "A counteroffer cannot be countered.");
         }
-        writeWithSystemMessage(tx, rentalRef, `Counteroffer · ${answer.deposit} PP`, {
-          offer: {
-            amount: answer.deposit,
-            previousAmount: offer.amount,
-            authorId: callerId,
-            isCounter: true,
-            createdAt: FieldValue.serverTimestamp(),
-            expiresAt: Timestamp.fromDate(offerExpiry(now, requireDates(rental).start)),
+        writeWithSystemMessage(
+          tx,
+          rentalRef,
+          `Counteroffer · ${answer.deposit} PP`,
+          {
+            offer: {
+              amount: answer.deposit,
+              previousAmount: offer.amount,
+              authorId: callerId,
+              isCounter: true,
+              createdAt: FieldValue.serverTimestamp(),
+              expiresAt: Timestamp.fromDate(offerExpiry(now, requireDates(rental).start)),
+            },
           },
-        });
+          callerId,
+        );
     }
   });
 }
@@ -162,7 +174,7 @@ export async function declineRequest(
     if (rental.offer) {
       throw new RequestError("failed-precondition", "An offer is waiting for an answer.");
     }
-    decline(tx, rentalRef, "Request declined");
+    decline(tx, rentalRef, "Request declined", lenderId);
   });
 }
 
@@ -220,12 +232,16 @@ export async function expireOffer(rentalRef: DocumentReference, now: Date): Prom
   });
 }
 
-/** The acceptance: reads the listing, the addresses and the other requests, then writes it all. */
+/**
+ * The acceptance by [callerId]: reads the listing, the addresses and the other requests, then
+ * writes it all.
+ */
 async function accept(
   tx: Transaction,
   rentalRef: DocumentReference,
   rental: DocumentData,
   offer: StoredOffer,
+  callerId: string,
 ): Promise<void> {
   const dates = requireDates(rental);
   const db = rentalRef.firestore;
@@ -249,18 +265,27 @@ async function accept(
   );
 
   tx.delete(addressesRef(rentalRef));
-  writeWithSystemMessage(tx, rentalRef, `Accepted · ${offer.amount} PP deposit`, {
-    status: "ACCEPTED",
-    deposit: offer.amount,
-    pickupAddress: addresses.pickup,
-    returnAddress: addresses.dropOff,
-    offer: FieldValue.delete(),
-  });
+  writeWithSystemMessage(
+    tx,
+    rentalRef,
+    `Accepted · ${offer.amount} PP deposit`,
+    {
+      status: "ACCEPTED",
+      deposit: offer.amount,
+      pickupAddress: addresses.pickup,
+      returnAddress: addresses.dropOff,
+      offer: FieldValue.delete(),
+    },
+    callerId,
+  );
+  // The other requests have the same lender. A lender accepting a counteroffer declines them
+  // themselves; a borrower accepting takes no part in them, so for the lender they are news.
+  const decliner = callerId === rental.ownerId ? callerId : null;
   tx.update(listingRef, {
     bookedRanges: FieldValue.arrayUnion({ start: dates.start, end: dates.end }),
   });
   for (const doc of overlapping) {
-    decline(tx, doc.ref, "Dates booked · request declined");
+    decline(tx, doc.ref, "Dates booked · request declined", decliner);
   }
 }
 

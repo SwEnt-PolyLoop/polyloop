@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { declineRequest, makeOffer, respondToOffer } from "./negotiation";
+import { hasSeenLastMessage } from "./testing/readTimes";
 
 // The transactions are tested on the emulator; the pure rules are in rentalRules.test.ts.
 let db: Firestore;
@@ -372,6 +373,57 @@ describe("respondToOffer: who and when", () => {
     await expect(
       respondToOffer(db, BORROWER, { rentalId: randomUUID(), action: "ACCEPT" }, NOW),
     ).rejects.toMatchObject({ code: "not-found" });
+  });
+});
+
+describe("who has seen each system message", () => {
+  it("the lender who sends an offer or declines a request, not the borrower", async () => {
+    const offer = await offered(await listing());
+    const declined = await request(await listing());
+    await declineRequest(db, LENDER, declined);
+
+    for (const id of [offer, declined]) {
+      expect(hasSeenLastMessage(await rental(id), LENDER)).toBe(true);
+      expect(hasSeenLastMessage(await rental(id), BORROWER)).toBe(false);
+    }
+  });
+
+  it("the borrower who accepts, declines or counters, not the lender", async () => {
+    const accepted = await offered(await listing());
+    const declined = await offered(await listing());
+    const countered = await offered(await listing());
+
+    await respondToOffer(db, BORROWER, { rentalId: accepted, action: "ACCEPT" }, NOW);
+    await respondToOffer(db, BORROWER, { rentalId: declined, action: "DECLINE" }, NOW);
+    await respondToOffer(db, BORROWER, { rentalId: countered, action: "COUNTER", deposit: 1 }, NOW);
+
+    for (const id of [accepted, declined, countered]) {
+      expect(hasSeenLastMessage(await rental(id), BORROWER)).toBe(true);
+      expect(hasSeenLastMessage(await rental(id), LENDER)).toBe(false);
+    }
+  });
+
+  it("the lender who declines overlapping requests by accepting a counteroffer", async () => {
+    const listingId = await listing();
+    const id = await countered(listingId);
+    const overlapping = await request(listingId);
+
+    await respondToOffer(db, LENDER, { rentalId: id, action: "ACCEPT" }, NOW);
+
+    expect(await rental(overlapping)).toMatchObject({ status: "DECLINED" });
+    expect(hasSeenLastMessage(await rental(overlapping), LENDER)).toBe(true);
+    expect(hasSeenLastMessage(await rental(overlapping), BORROWER)).toBe(false);
+  });
+
+  it("nobody, on requests declined because a borrower accepted another offer", async () => {
+    const listingId = await listing();
+    const id = await offered(listingId);
+    const overlapping = await offered(listingId);
+
+    await respondToOffer(db, BORROWER, { rentalId: id, action: "ACCEPT" }, NOW);
+
+    expect(hasSeenLastMessage(await rental(overlapping), LENDER)).toBe(false);
+    expect(hasSeenLastMessage(await rental(overlapping), BORROWER)).toBe(false);
   });
 });
 
