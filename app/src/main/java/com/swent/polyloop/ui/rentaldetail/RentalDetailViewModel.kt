@@ -122,10 +122,12 @@ class RentalDetailViewModel(
         // Under the grey button, an unknown date asks the user to connect, so connecting reads it
         // again.
         val state = _uiState.value
-        if (online &&
-            wasOnline == false &&
-            state.status == RentalStatus.ACCEPTED &&
-            state.serverToday == null) {
+        if (
+            online &&
+                wasOnline == false &&
+                state.status == RentalStatus.ACCEPTED &&
+                state.serverToday == null
+        ) {
           readServerToday()
         }
         wasOnline = online

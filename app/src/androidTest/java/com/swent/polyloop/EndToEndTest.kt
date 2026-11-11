@@ -123,7 +123,11 @@ class EndToEndTest {
     RepositoryProvider.walletRepository = FakeWalletRepository()
     // Saves in memory, so no test writes a server time to the app's real preferences.
     RepositoryProvider.serverClock =
-        ServerClock(RepositoryProvider.rentalRepository, InMemoryServerClockStore(), bootCount = { 0 })
+        ServerClock(
+            RepositoryProvider.rentalRepository,
+            InMemoryServerClockStore(),
+            bootCount = { 0 },
+        )
   }
 
   @After

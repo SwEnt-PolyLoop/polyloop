@@ -62,7 +62,9 @@ class ServerClock(
     }
   }
 
-  /** The day worked out from the saved pair at [elapsed], or null if there is none for this boot. */
+  /**
+   * The day worked out from the saved pair at [elapsed], or null if there is none for this boot.
+   */
   private fun dayFromSaved(elapsed: Long): LocalDate? {
     val saved = store.load() ?: return null
     // A smaller elapsed time means the phone rebooted, even if the boot count did not change.

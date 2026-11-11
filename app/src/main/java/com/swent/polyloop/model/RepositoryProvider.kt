@@ -35,8 +35,7 @@ import com.swent.polyloop.model.wallet.WalletRepositoryFirestore
  * repository with a fake by assigning it before setting content, and call [reset] afterwards.
  *
  * Repositories that read the phone (such as the network status), and the server clock, need the app
- * context, which
- * [com.swent.polyloop.PolyLoopApplication] passes to [init] at startup.
+ * context, which [com.swent.polyloop.PolyLoopApplication] passes to [init] at startup.
  */
 object RepositoryProvider {
 
@@ -107,8 +106,8 @@ object RepositoryProvider {
   /**
    * Today by the server's clock, for Start Pickup. Built here rather than in a composable, because
    * composables do not read the phone (it reads the boot count), and so that every screen shares
-   * one clock and one saved pair. Built on first use from [rentalRepository] as it is then, so tests
-   * that replace [rentalRepository] assign a clock built on their fake too.
+   * one clock and one saved pair. Built on first use from [rentalRepository] as it is then, so
+   * tests that replace [rentalRepository] assign a clock built on their fake too.
    */
   var serverClock: ServerClock
     get() =
