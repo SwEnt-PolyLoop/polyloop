@@ -301,6 +301,10 @@
     <!-- A message written by the app, then its time, e.g. "Request sent · 15:02" -->
     <string name="chat_system_message">%1$s · %2$s</string>
     <string name="chat_send_failed">Message not sent. Press send to try again.</string>
+    <!-- The bar under the chat header on the pickup day (Figma frame 19.16). -->
+    <string name="chat_pickup_today">Pickup is today</string>
+    <string name="chat_pickup_hint">Meet and take your photos.</string>
+    <string name="chat_start_pickup">Start pickup</string>
     <!-- The deposit offer card in the chat. -->
     <string name="chat_offer_title">Deposit offer</string>
     <string name="chat_offer_title_mine">Your offer</string>
