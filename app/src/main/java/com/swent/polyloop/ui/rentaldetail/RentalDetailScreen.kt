@@ -96,10 +96,12 @@ fun RentalDetailScreen(
  * message, a placeholder for a status not built yet, or the Requested, Accepted or Disputed rental,
  * depending on [uiState]. An Accepted rental has "Start Pickup" ([onStartPickupClick]) pinned at
  * the bottom and a Disputed one "View Dispute" ([onViewDisputeClick]). [today] and [zone] decide
- * how dates are written (e.g. whether the year is shown) and from which day Start Pickup is
- * enabled; tests pass fixed values so their expected texts do not depend on the day they run.
- * [locale] decides the language of the month and weekday names; tests pass a fixed one so their
- * expected dates do not depend on the device's language.
+ * how dates are written (e.g. whether the year is shown); tests pass fixed values so their expected
+ * texts do not depend on the day they run. [today] is the phone's date, so it is only used to write
+ * dates: Start Pickup opens from [RentalDetailUiState.serverToday] instead, and stays grey while
+ * [RentalDetailUiState.isReadingServerToday]. [locale] decides the language of the month and
+ * weekday names; tests pass a fixed one so their expected dates do not depend on the device's
+ * language.
  */
 @Composable
 fun RentalDetailContent(
@@ -204,8 +206,10 @@ fun RentalDetailContent(
 
 /**
  * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "View
- * Dispute" once disputed, and nothing for a request. Before the pickup day, the day Start Pickup
- * opens is written in [locale].
+ * Dispute" once disputed, and nothing for a request. Start Pickup opens on the pickup day by the
+ * server's date ([RentalDetailUiState.serverToday]). While that date is being read, the button is
+ * grey with nothing under it. Before the pickup day, the day it opens is written in [locale]; when
+ * the server's date is unknown, the user is asked to connect.
  */
 @Composable
 private fun ActionBar(
@@ -219,9 +223,12 @@ private fun ActionBar(
   when (uiState.status) {
     RentalStatus.ACCEPTED ->
         if (start != null) {
-          // Compared with today here, not in the ViewModel: the screen already gets today to write
-          // its dates, and tests fix it there.
-          val pickupOpen = !today.isBefore(start)
+          // From the server's day, never the phone's [today]: the user can change the phone's date
+          // to open the pickup early. An unknown server day keeps it closed, as falling back on the
+          // phone's date would let airplane mode plus a changed date open it.
+          val serverToday = uiState.serverToday
+          val isReading = uiState.isReadingServerToday
+          val pickupOpen = !isReading && (serverToday?.let { !it.isBefore(start) } ?: false)
           ActionBarSurface {
             ActionButton(
                 text = stringResource(R.string.rental_detail_start_pickup),
@@ -229,19 +236,25 @@ private fun ActionBar(
                 onClick = onStartPickupClick,
             )
             // Shown disabled rather than hidden before the pickup day, so the user sees what comes
-            // next and from when.
-            if (!pickupOpen) {
+            // next and from when. Nothing is written while the date is being read: it is not known
+            // yet, and asking to connect would be wrong online.
+            if (!pickupOpen && !isReading) {
+              val (text, tag) =
+                  if (serverToday == null) {
+                    stringResource(R.string.rental_detail_pickup_needs_connection) to
+                        C.Tag.rental_detail_pickup_needs_connection
+                  } else {
+                    stringResource(
+                        R.string.rental_detail_pickup_available_on,
+                        formatDay(start, withYear = start.year != today.year, locale = locale),
+                    ) to C.Tag.rental_detail_pickup_available_on
+                  }
               Text(
-                  text =
-                      stringResource(
-                          R.string.rental_detail_pickup_available_on,
-                          formatDay(start, withYear = start.year != today.year, locale = locale),
-                      ),
+                  text = text,
                   style = MaterialTheme.typography.bodySmall,
                   color = MaterialTheme.colorScheme.onSurfaceVariant,
                   textAlign = TextAlign.Center,
-                  modifier =
-                      Modifier.fillMaxWidth().testTag(C.Tag.rental_detail_pickup_available_on),
+                  modifier = Modifier.fillMaxWidth().testTag(tag),
               )
             }
           }

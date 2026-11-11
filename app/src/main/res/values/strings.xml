@@ -383,6 +383,8 @@
     <string name="rental_detail_start_pickup">Start Pickup</string>
     <!-- Under the disabled Start Pickup button, e.g. "Pickup will be available on 1 Oct" -->
     <string name="rental_detail_pickup_available_on">Pickup will be available on %1$s</string>
+    <!-- Under the disabled Start Pickup button when the server's date is unknown -->
+    <string name="rental_detail_pickup_needs_connection">Connect to the internet to check the pickup day.</string>
     <string name="rental_detail_view_dispute">View Dispute</string>
 
     <!-- Dispute -->

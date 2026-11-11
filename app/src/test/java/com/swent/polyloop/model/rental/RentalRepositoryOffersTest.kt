@@ -33,8 +33,8 @@ import org.junit.Test
 
 /**
  * The negotiation calls of [RentalRepositoryFirestore]: each calls the right Cloud Function with
- * the right data and reports a refusal as a failure. The Functions themselves are tested in
- * functions/src, on the emulator.
+ * the right data and reports a refusal as a failure. Also reading the server's time from
+ * `serverToday`. The Functions themselves are tested in functions/src, on the emulator.
  */
 class RentalRepositoryOffersTest {
 
@@ -105,6 +105,73 @@ class RentalRepositoryOffersTest {
     every { callable.call(any()) } returns Tasks.forException(refusal)
 
     assertSame(refusal, repository.acceptOffer("r1").exceptionOrNull())
+  }
+
+  // ---------- serverNow ----------
+
+  private fun serverTodayReturns(data: Any?) {
+    // A real result: data is a field MockK can't stub, and the constructor isn't public.
+    val result =
+        HttpsCallableResult::class
+            .java
+            .getDeclaredConstructor(Any::class.java)
+            .apply { isAccessible = true }
+            .newInstance(data)
+    every { callable.call() } returns Tasks.forResult(result)
+  }
+
+  @Test
+  fun serverNowCallsServerTodayWithNoData() = runTest {
+    serverTodayReturns(mapOf("today" to "2026-11-11", "now" to 0L))
+
+    repository.serverNow()
+
+    verify { functions.getHttpsCallable("serverToday") }
+    verify { callable.call() }
+  }
+
+  @Test
+  fun serverNowReturnsNowAsAnInstant() = runTest {
+    val now = Instant.parse("2026-11-11T23:30:00Z")
+    serverTodayReturns(mapOf("today" to "2026-11-12", "now" to now.toEpochMilli()))
+
+    assertEquals(now, repository.serverNow().getOrThrow())
+  }
+
+  @Test
+  fun serverNowAcceptsNowDecodedAsAnotherNumberType() = runTest {
+    serverTodayReturns(mapOf("now" to 1_000.0))
+
+    assertEquals(Instant.ofEpochMilli(1_000), repository.serverNow().getOrThrow())
+  }
+
+  @Test
+  fun aFailedServerTodayCallIsAFailure() = runTest {
+    val refusal = mockk<FirebaseFunctionsException>(relaxed = true)
+    every { callable.call() } returns Tasks.forException(refusal)
+
+    assertSame(refusal, repository.serverNow().exceptionOrNull())
+  }
+
+  @Test
+  fun aResultWithoutNowIsAFailure() = runTest {
+    serverTodayReturns(mapOf("today" to "2026-11-11"))
+
+    assertTrue(repository.serverNow().isFailure)
+  }
+
+  @Test
+  fun aResultWithAStringNowIsAFailure() = runTest {
+    serverTodayReturns(mapOf("now" to "1762858800000"))
+
+    assertTrue(repository.serverNow().isFailure)
+  }
+
+  @Test
+  fun aResultThatIsNotAMapIsAFailure() = runTest {
+    serverTodayReturns(null)
+
+    assertTrue(repository.serverNow().isFailure)
   }
 
   // ---------- observeRental ----------

@@ -13,9 +13,11 @@ import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.Instant
 import java.time.LocalDate
@@ -97,9 +99,12 @@ class RentalDetailViewModelTest {
   private lateinit var authRepository: FakeAuthRepository
   private lateinit var connectivityRepository: FakeConnectivityRepository
 
+  // Also runs the server clock's reads, so they finish before each assertion.
+  private val testDispatcher = UnconfinedTestDispatcher()
+
   @Before
   fun setUp() {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
+    Dispatchers.setMain(testDispatcher)
     rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     listingRepository = FakeListingRepository(listings = listOf(listing))
     profileRepository = FakeProfileRepository(profiles = listOf(ownerProfile, borrowerProfile))
@@ -112,6 +117,15 @@ class RentalDetailViewModelTest {
     Dispatchers.resetMain()
   }
 
+  private fun serverClock(repository: RentalRepository = rentalRepository) =
+      ServerClock(
+          repository,
+          InMemoryServerClockStore(),
+          elapsedRealtime = { 0L },
+          bootCount = { 0 },
+          ioDispatcher = testDispatcher,
+      )
+
   private fun viewModel(id: String = rental.id) =
       RentalDetailViewModel(
           id,
@@ -120,6 +134,7 @@ class RentalDetailViewModelTest {
           profileRepository,
           authRepository,
           connectivityRepository,
+          serverClock(),
       )
 
   private fun factory() =
@@ -130,6 +145,7 @@ class RentalDetailViewModelTest {
           profileRepository,
           authRepository,
           connectivityRepository,
+          serverClock(),
       )
 
   @Test
@@ -469,14 +485,16 @@ class RentalDetailViewModelTest {
   fun retryCancelsAnOlderLoad() {
     val firstCall = CompletableDeferred<Rental>()
     val secondCall = CompletableDeferred<Rental>()
+    val repository = OneDeferredPerCallRentalRepository(listOf(firstCall, secondCall))
     val vm =
         RentalDetailViewModel(
             rental.id,
-            OneDeferredPerCallRentalRepository(listOf(firstCall, secondCall)),
+            repository,
             listingRepository,
             profileRepository,
             authRepository,
             connectivityRepository,
+            serverClock(repository),
         )
     vm.retry()
 
