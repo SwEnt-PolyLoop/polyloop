@@ -90,7 +90,7 @@ fun PolyLoopDrawerContent(
   }
 }
 
-/** The largest share of the screen the drawer covers, so a strip of the screen stays visible. */
+/** The share of the screen's width the drawer takes, so a strip of the screen stays visible. */
 private const val DrawerMaxScreenFraction = 0.8f
 
 /** Material's minimum drawer width, which [ModalDrawerSheet] keeps private. */
