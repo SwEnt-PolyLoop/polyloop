@@ -60,6 +60,11 @@ class ChatScreenTest {
   private var sends = 0
   private var retries = 0
   private var rentalDetailsClicks = 0
+  private var pickupClicks = 0
+
+  // The day the screen takes as today; a test can change it after setContent and the screen
+  // follows.
+  private var today by mutableStateOf(start)
 
   private fun setContent(uiState: ChatUiState) {
     composeTestRule.setContent {
@@ -71,6 +76,8 @@ class ChatScreenTest {
             onRetry = { retries++ },
             onRentalDetailsClick = { rentalDetailsClicks++ },
             now = now,
+            today = today,
+            onStartPickupClick = { pickupClicks++ },
         )
       }
     }
@@ -84,6 +91,65 @@ class ChatScreenTest {
 
   private fun bounds(tag: String) =
       composeTestRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+
+  // ---------- pickup ----------
+
+  @Test
+  fun onThePickupDayTheBarShowsAndItsButtonStartsThePickup() {
+    setContent(loaded.copy(pickupDate = start))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.chat_start_pickup_button)
+        .assertTextEquals(context.getString(R.string.chat_start_pickup))
+        .performClick()
+    assertEquals(1, pickupClicks)
+  }
+
+  @Test
+  fun theBarShowsOnlyOnThePickupDayItself() {
+    today = start.minusDays(1)
+    setContent(loaded.copy(pickupDate = start))
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+
+    today = start.plusDays(1)
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+
+    today = start
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertIsDisplayed()
+  }
+
+  @Test
+  fun aRentalThatIsNotAcceptedHasNoBar() {
+    setContent(loaded)
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+  }
+
+  @Test
+  fun theBarIsHiddenWhileTheChatLoads() {
+    setContent(loaded.copy(pickupDate = start, isLoading = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_loading).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+  }
+
+  @Test
+  fun theBarIsHiddenWhenTheChatCannotBeLoaded() {
+    setContent(loaded.copy(pickupDate = start, errorMsg = "Network error"))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+  }
+
+  @Test
+  fun theStartPickupButtonStaysEnabledOfflineUnderTheHeader() {
+    setContent(loaded.copy(pickupDate = start, isOffline = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_start_pickup_button).assertIsEnabled()
+    assertTrue(bounds(C.Tag.chat_pickup_bar).top >= bounds(C.Tag.chat_header_item).bottom)
+    assertTrue(bounds(C.Tag.chat_pickup_bar).bottom <= bounds(C.Tag.chat_messages).top)
+  }
 
   // ---------- states ----------
 

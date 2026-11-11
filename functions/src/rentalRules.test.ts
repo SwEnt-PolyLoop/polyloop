@@ -7,6 +7,7 @@ import {
   isDateString,
   offerExpiry,
   isValidDeposit,
+  listingTitleOf,
   parseDeposit,
   parseOfferAnswer,
   parseOfferInput,
@@ -218,5 +219,15 @@ describe("requirePerson", () => {
       expect(errorCode(() => requirePerson(value, "lender"))).toBe("internal");
     }
     expect(() => requirePerson("", "lender")).toThrow("The rental has no lender.");
+  });
+});
+
+describe("listingTitleOf", () => {
+  it("returns the title, or an empty text when the rental has none or a bad one", () => {
+    expect(listingTitleOf({ listingTitle: "Camping tent" })).toBe("Camping tent");
+    for (const listingTitle of [undefined, null, 42, {}]) {
+      expect(listingTitleOf({ listingTitle })).toBe("");
+    }
+    expect(listingTitleOf({})).toBe("");
   });
 });

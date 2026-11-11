@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import { declineRequest, expireOffers, makeOffer, respondToOffer } from "./index";
+import { fund, people, wallet } from "./testing/walletFixtures";
 
 // Firebase loads this ES module to verify tokens, which Jest cannot load; `run` skips that step.
 jest.mock("jose", () => ({}));
@@ -131,11 +132,13 @@ describe("what can be sent", () => {
 describe("the whole negotiation", () => {
   it("goes from the offer to the counteroffer to the accepted rental", async () => {
     const listingId = await listing();
-    const id = await request(listingId);
+    const { borrower } = people();
+    await fund(borrower, { available: 500, heldAsDeposits: 0, heldForRentals: 0 });
+    const id = await request(listingId, "2099-01-10", "2099-01-12", borrower);
     const overlapping = await request(listingId, "2099-01-13", "2099-01-14", OTHER_BORROWER);
 
     await makeOffer.run(asUser(LENDER, { rentalId: id, deposit: 200, ...ADDRESSES }));
-    await respondToOffer.run(asUser(BORROWER, { rentalId: id, action: "COUNTER", deposit: 150 }));
+    await respondToOffer.run(asUser(borrower, { rentalId: id, action: "COUNTER", deposit: 150 }));
     const result = await respondToOffer.run(asUser(LENDER, { rentalId: id, action: "ACCEPT" }));
 
     // Nothing about the other person's request reaches the caller.
@@ -149,6 +152,11 @@ describe("the whole negotiation", () => {
     });
     expect(accepted?.offer).toBeUndefined();
     expect((await rental(overlapping))?.status).toBe("DECLINED");
+    expect(await wallet(borrower)).toEqual({
+      available: 350,
+      heldAsDeposits: 150,
+      heldForRentals: 0,
+    });
     const messages = await db
       .collection("rentals")
       .doc(id)
@@ -172,19 +180,26 @@ describe("the whole negotiation", () => {
 
   it("accepts only one of two overlapping offers answered at the same time", async () => {
     const listingId = await listing();
-    const first = await request(listingId, "2099-02-10", "2099-02-12");
-    const second = await request(listingId, "2099-02-11", "2099-02-13", OTHER_BORROWER);
+    const one = people();
+    const two = people();
+    await fund(one.borrower, { available: 500, heldAsDeposits: 0, heldForRentals: 0 });
+    await fund(two.borrower, { available: 500, heldAsDeposits: 0, heldForRentals: 0 });
+    const first = await request(listingId, "2099-02-10", "2099-02-12", one.borrower);
+    const second = await request(listingId, "2099-02-11", "2099-02-13", two.borrower);
     await makeOffer.run(asUser(LENDER, { rentalId: first, deposit: 50, ...ADDRESSES }));
     await makeOffer.run(asUser(LENDER, { rentalId: second, deposit: 60, ...ADDRESSES }));
 
     await Promise.allSettled([
-      respondToOffer.run(asUser(BORROWER, { rentalId: first, action: "ACCEPT" })),
-      respondToOffer.run(asUser(OTHER_BORROWER, { rentalId: second, action: "ACCEPT" })),
+      respondToOffer.run(asUser(one.borrower, { rentalId: first, action: "ACCEPT" })),
+      respondToOffer.run(asUser(two.borrower, { rentalId: second, action: "ACCEPT" })),
     ]);
 
     const statuses = [(await rental(first))?.status, (await rental(second))?.status].sort();
     expect(statuses).toEqual(["ACCEPTED", "DECLINED"]);
     const booked = (await db.collection("listings").doc(listingId).get()).get("bookedRanges");
     expect(booked).toHaveLength(1);
+    const firstWon = (await rental(first))?.status === "ACCEPTED";
+    expect((await wallet(one.borrower))?.heldAsDeposits).toBe(firstWon ? 50 : 0);
+    expect((await wallet(two.borrower))?.heldAsDeposits).toBe(firstWon ? 0 : 60);
   });
 });

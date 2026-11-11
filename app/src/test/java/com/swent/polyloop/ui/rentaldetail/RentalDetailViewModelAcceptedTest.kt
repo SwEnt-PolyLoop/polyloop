@@ -7,25 +7,34 @@ import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
+import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-/** The Accepted state of Rental detail. */
+/** The Accepted state of Rental detail, and the server's day it reads for Start Pickup. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RentalDetailViewModelAcceptedTest {
 
@@ -60,9 +69,12 @@ class RentalDetailViewModelAcceptedTest {
 
   private lateinit var rentals: FakeRentalRepository
 
+  // Also runs the server clock's reads, so they finish before each assertion.
+  private val testDispatcher = UnconfinedTestDispatcher()
+
   @Before
   fun setUp() {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
+    Dispatchers.setMain(testDispatcher)
   }
 
   @After
@@ -70,16 +82,131 @@ class RentalDetailViewModelAcceptedTest {
     Dispatchers.resetMain()
   }
 
-  private fun viewModel(rental: Rental): RentalDetailViewModel {
+  // A week after the phone's date, so a day read from the phone would not match.
+  private val serverDay = LocalDate.now().plusWeeks(1)
+
+  /**
+   * The ViewModel for [rental], with [wrap] around the fake repository to change one of its calls.
+   */
+  private fun viewModel(
+      rental: Rental,
+      connectivity: FakeConnectivityRepository = FakeConnectivityRepository(),
+      wrap: (FakeRentalRepository) -> RentalRepository = { it },
+  ): RentalDetailViewModel {
     rentals = FakeRentalRepository(rentals = listOf(rental), clock = { now })
+    rentals.serverNow = serverDay.atTime(12, 0).atZone(ZoneId.of("Europe/Zurich")).toInstant()
+    val repository = wrap(rentals)
     return RentalDetailViewModel(
         rental.id,
-        rentals,
+        repository,
         FakeListingRepository(),
         FakeProfileRepository(),
         FakeAuthRepository(signedInUser = AuthUser("borrower", "l@epfl.ch", "Loca")),
-        FakeConnectivityRepository(),
+        connectivity,
+        ServerClock(
+            repository,
+            InMemoryServerClockStore(),
+            elapsedRealtime = { 0L },
+            bootCount = { 0 },
+            ioDispatcher = testDispatcher,
+        ),
     )
+  }
+
+  @Test
+  fun anAcceptedRentalGetsTheServersDay() {
+    val state = viewModel(accepted).uiState.value
+
+    assertEquals(serverDay, state.serverToday)
+  }
+
+  @Test
+  fun anAcceptedRentalShowsWhileTheServersDayIsRead() {
+    val gate = CompletableDeferred<Unit>()
+    val vm =
+        viewModel(accepted) { fake ->
+          object : RentalRepository by fake {
+            override suspend fun serverNow(): Result<Instant> {
+              gate.await()
+              return fake.serverNow()
+            }
+          }
+        }
+    val reading = vm.uiState.value
+    assertFalse(reading.isLoading)
+    assertEquals(RentalStatus.ACCEPTED, reading.status)
+    assertNull(reading.serverToday)
+    assertTrue(reading.isReadingServerToday)
+
+    gate.complete(Unit)
+
+    val read = vm.uiState.value
+    assertEquals(serverDay, read.serverToday)
+    assertFalse(read.isReadingServerToday)
+  }
+
+  @Test
+  fun anUnknownServerDayIsReadAgainWhenThePhoneComesBackOnline() {
+    val connectivity = FakeConnectivityRepository(online = false)
+    var reachable = false
+    val vm =
+        viewModel(accepted, connectivity) { fake ->
+          object : RentalRepository by fake {
+            override suspend fun serverNow(): Result<Instant> =
+                if (reachable) fake.serverNow() else Result.failure(IOException("offline"))
+          }
+        }
+    assertNull(vm.uiState.value.serverToday)
+
+    reachable = true
+    connectivity.setOnline(true)
+
+    assertEquals(serverDay, vm.uiState.value.serverToday)
+    assertFalse(vm.uiState.value.isReadingServerToday)
+  }
+
+  @Test
+  fun aRequestDoesNotReadTheServersDay() {
+    val state = viewModel(request).uiState.value
+
+    assertNull(state.serverToday)
+    assertEquals(0, rentals.serverNowCalls)
+  }
+
+  @Test
+  fun aRequestAcceptedWhileTheScreenIsOpenReadsTheServersDayOnce() {
+    // The live rental is driven by hand, so it can change again once accepted.
+    val live = MutableStateFlow<Rental?>(request)
+    val vm =
+        viewModel(request) { fake ->
+          object : RentalRepository by fake {
+            override fun observeRental(id: String): Flow<Rental?> = live
+          }
+        }
+
+    live.value = accepted
+    live.value = accepted.copy(deposit = 70)
+
+    assertEquals(serverDay, vm.uiState.value.serverToday)
+    assertEquals(70, vm.uiState.value.deposit)
+    assertEquals(1, rentals.serverNowCalls)
+  }
+
+  @Test
+  fun anUnknownServerDayLeavesItNullWithoutAnError() {
+    val vm =
+        viewModel(accepted) { fake ->
+          object : RentalRepository by fake {
+            override suspend fun serverNow(): Result<Instant> =
+                Result.failure(IOException("offline"))
+          }
+        }
+
+    val state = vm.uiState.value
+    assertFalse(state.isLoading)
+    assertNull(state.serverToday)
+    assertNull(state.errorMsg)
+    assertEquals(RentalStatus.ACCEPTED, state.status)
   }
 
   @Test

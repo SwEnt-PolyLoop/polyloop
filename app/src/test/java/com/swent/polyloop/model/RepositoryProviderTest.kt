@@ -20,7 +20,9 @@ import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.RentalRepositoryFirestore
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.model.wallet.WalletRepositoryFirestore
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
@@ -352,6 +354,18 @@ class RepositoryProviderTest {
     assertTrue(RepositoryProvider.walletRepository is WalletRepositoryFirestore)
     assertNotSame(fakeWallet, RepositoryProvider.walletRepository)
     assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)
+  }
+
+  @Test
+  fun resetForgetsAnAssignedServerClock() {
+    // The real clock built after reset opens the app's preferences.
+    every { appContext.getSharedPreferences(any(), any()) } returns mockk(relaxed = true)
+    val fake = ServerClock(FakeRentalRepository(), InMemoryServerClockStore(), bootCount = { 0 })
+    RepositoryProvider.serverClock = fake
+
+    RepositoryProvider.reset()
+
+    assertNotSame(fake, RepositoryProvider.serverClock)
   }
 
   @Test

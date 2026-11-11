@@ -5,6 +5,7 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { DocumentReference, Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { expireOffer, expireOverdueOffers, respondToOffer } from "./negotiation";
+import { fund, people, wallet } from "./testing/walletFixtures";
 
 jest.mock("firebase-functions/logger");
 
@@ -30,7 +31,6 @@ const EXPIRED = new Date("2001-06-15T09:00:00Z");
 const NOW = new Date("2001-06-15T10:00:00Z");
 const LIVE = new Date("2001-06-15T11:00:00Z");
 const LENDER = "expiry-lender";
-const BORROWER = "expiry-borrower";
 
 const created: DocumentReference[] = [];
 
@@ -159,18 +159,21 @@ describe("an answer racing the expiry", () => {
   it("lets exactly one win: accepted and booked, or declined and not booked", async () => {
     const listingRef = db.collection("listings").doc(randomUUID());
     await listingRef.set({ ownerId: LENDER, bookedRanges: [] });
+    // Funded, so that the answer can win: the acceptance holds the deposit.
+    const { borrower } = people();
+    await fund(borrower, { available: 500, heldAsDeposits: 0, heldForRentals: 0 });
     const ref = await rentalWithOffer(EXPIRED, {
       status: "REQUESTED",
       listingId: listingRef.id,
       ownerId: LENDER,
-      borrowerId: BORROWER,
+      borrowerId: borrower,
       startDate: "2001-07-01",
       endDate: "2001-07-02",
     });
 
     const [answer, sweep] = await Promise.allSettled([
       // The borrower's answer left before the expiry; the sweep runs after it.
-      respondToOffer(db, BORROWER, { rentalId: ref.id, action: "ACCEPT" }, BEFORE_EXPIRY),
+      respondToOffer(db, borrower, { rentalId: ref.id, action: "ACCEPT" }, BEFORE_EXPIRY),
       expireOffer(ref, NOW),
     ]);
 
@@ -180,11 +183,17 @@ describe("an answer racing the expiry", () => {
     expect(messages.size).toBe(1);
     expect(await addresses(ref)).toBeUndefined();
     if (status === "ACCEPTED") {
+      expect((await wallet(borrower))?.heldAsDeposits).toBe(180);
       expect(answer.status).toBe("fulfilled");
       expect(sweep).toMatchObject({ status: "fulfilled", value: false });
       expect(booked).toEqual([{ start: "2001-07-01", end: "2001-07-02" }]);
     } else {
       expect(status).toBe("DECLINED");
+      expect(await wallet(borrower)).toEqual({
+        available: 500,
+        heldAsDeposits: 0,
+        heldForRentals: 0,
+      });
       expect(answer).toMatchObject({
         status: "rejected",
         reason: { code: "failed-precondition" },

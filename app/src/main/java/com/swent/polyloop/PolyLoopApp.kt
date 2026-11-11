@@ -311,13 +311,19 @@ private fun PolyLoopScaffold(
                         profileRepository = RepositoryProvider.profileRepository,
                         authRepository = RepositoryProvider.authRepository,
                         connectivityRepository = RepositoryProvider.connectivityRepository,
+                        serverClock = RepositoryProvider.serverClock,
                     )
             )
         RentalDetailScreen(
             viewModel = rentalDetailViewModel,
             onChatClick = { navController.navigateOrGoBack(Screen.Chat.createRoute(rentalId)) },
             onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
-            onStartPickupClick = { navController.navigate(Screen.Handover.createRoute(rentalId)) },
+            // Single top: a fast double tap opens Handover once, not twice.
+            onStartPickupClick = {
+              navController.navigate(Screen.Handover.createRoute(rentalId)) {
+                launchSingleTop = true
+              }
+            },
             onViewDisputeClick = { navController.navigate(Screen.Dispute.createRoute(rentalId)) },
         )
       }
@@ -365,6 +371,12 @@ private fun PolyLoopScaffold(
             viewModel = chatViewModel,
             onRentalDetailsClick = {
               navController.navigateOrGoBack(Screen.RentalDetail.createRoute(rentalId))
+            },
+            // Single top: a fast double tap opens Handover once, not twice.
+            onStartPickupClick = {
+              navController.navigate(Screen.Handover.createRoute(rentalId)) {
+                launchSingleTop = true
+              }
             },
         )
       }
