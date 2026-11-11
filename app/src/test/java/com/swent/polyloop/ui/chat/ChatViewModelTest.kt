@@ -356,32 +356,84 @@ class ChatViewModelTest {
 
   // ---------- marking as read ----------
 
+  private val great = message("m4", "ana", "Great", MessageType.USER)
+
   @Test
   fun openingTheChatMarksItAsRead() {
-    viewModel()
+    viewModel().onStarted()
 
     assertEquals(1, chat.markAsReadCalls)
     assertEquals(chat.now, chat.conversations.single().lastReadAt["me"])
   }
 
   @Test
-  fun newMessageWhileTheChatIsOpenMarksItAgain() {
+  fun chatIsNotMarkedAsReadBeforeTheScreenIsVisible() {
     viewModel()
 
-    chat.messages =
-        mapOf("tent" to listOf(fromAna, message("m4", "ana", "Great", MessageType.USER)))
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun newMessageWhileTheChatIsOpenMarksItAgain() {
+    viewModel().onStarted()
+
+    chat.messages = mapOf("tent" to listOf(fromAna, great))
 
     assertEquals(2, chat.markAsReadCalls)
   }
 
   @Test
+  fun newMessageWhileTheChatIsHiddenStaysUnread() {
+    val vm = viewModel()
+    vm.onStarted()
+    vm.onStopped() // e.g. Rental detail opened on top of the chat
+
+    chat.messages = mapOf("tent" to listOf(fromAna, great))
+
+    assertEquals(1, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun comingBackToTheChatMarksTheMessagesReceivedMeanwhile() {
+    val vm = viewModel()
+    vm.onStarted()
+    vm.onStopped()
+    chat.messages = mapOf("tent" to listOf(fromAna, great))
+
+    vm.onStarted()
+
+    assertEquals(2, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun chatWithoutMessagesIsNotMarkedAsRead() {
+    chat.messages = emptyMap() // e.g. offline, with no message in the cache
+
+    viewModel().onStarted()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun chatStillLoadingIsNotMarkedAsRead() {
+    val loading =
+        object : ChatRepository by chat {
+          override fun observeMessages(rentalId: String): Flow<List<Message>> = MutableSharedFlow()
+        }
+
+    viewModel(loading).onStarted()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
   fun chatThatCannotBeShownIsNotMarkedAsRead() {
     auth.signedInUser = null
-    viewModel()
+    viewModel().onStarted()
     auth.signedInUser = me
-    viewModel(rentalId = "nope")
+    viewModel(rentalId = "nope").onStarted()
     chat.failure = IOException("offline")
-    viewModel()
+    viewModel().onStarted()
 
     assertEquals(0, chat.markAsReadCalls)
   }
@@ -394,7 +446,9 @@ class ChatViewModelTest {
               Result.failure<Unit>(IOException("offline"))
         }
 
-    val state = viewModel(failing).uiState.value
+    val vm = viewModel(failing)
+    vm.onStarted()
+    val state = vm.uiState.value
 
     assertNull(state.errorMsg)
     assertEquals(3, state.messages.size)
@@ -410,9 +464,9 @@ class ChatViewModelTest {
           }
         }
     val vm = viewModel(neverConfirmed)
+    vm.onStarted()
 
-    chat.messages =
-        mapOf("tent" to listOf(fromAna, message("m4", "ana", "Great", MessageType.USER)))
+    chat.messages = mapOf("tent" to listOf(fromAna, great))
 
     assertEquals("Great", vm.uiState.value.messages.last().text)
   }

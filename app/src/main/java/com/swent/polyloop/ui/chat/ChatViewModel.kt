@@ -149,6 +149,9 @@ class ChatViewModel(
 
   private var observing: Job? = null
 
+  // True while the Chat screen is visible: only then does it count the messages as seen.
+  private var isStarted = false
+
   init {
     // Apart from the chat job, so that retry() neither stops nor duplicates it.
     viewModelScope.launch {
@@ -157,6 +160,17 @@ class ChatViewModel(
       }
     }
     observe()
+  }
+
+  /** The screen is visible again (opened, or back from another screen or the background). */
+  fun onStarted() {
+    isStarted = true
+    markAsRead()
+  }
+
+  /** The screen is hidden: another screen is on top of it, or the app is in the background. */
+  fun onStopped() {
+    isStarted = false
   }
 
   /** Loads the chat again, e.g. after an error. */
@@ -268,12 +282,15 @@ class ChatViewModel(
 
   /**
    * Saves that the user has seen the messages on screen, each time they change while the chat is
-   * open, so a message received meanwhile does not leave a red dot in the chat list. Launched on
-   * its own, since offline the save waits up to 10 seconds and must not hold back the next
+   * visible, so a message received meanwhile does not leave a red dot in the chat list. Nothing is
+   * saved while the screen is hidden (e.g. behind Rental detail), so a message arriving then keeps
+   * its dot, nor while no message is shown (still loading, or none in the cache offline). Launched
+   * on its own, since offline the save waits up to 10 seconds and must not hold back the next
    * messages. A failure is ignored: it only leaves the dot, which is not worth an error on the
    * chat.
    */
   private fun markAsRead() {
+    if (!isStarted || _uiState.value.messages.isEmpty()) return
     viewModelScope.launch { chatRepository.markAsRead(rentalId) }
   }
 
