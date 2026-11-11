@@ -35,7 +35,8 @@
 <text x="1052.2" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Handover</text>
 <text x="1052.2" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">pickup + return</text>
 <rect x="1149.0" y="104.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
-<text x="1233.8" y="131.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Dispute</text>
+<text x="1233.8" y="123.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Dispute</text>
+<text x="1233.8" y="142.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">stages 2 + 3 coming soon</text>
 <rect x="1149.0" y="168.0" width="169.5" height="54.0" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1" stroke-dasharray="6 4"/>
 <text x="1233.8" y="187.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#27500A">Admin court ruling</text>
 <text x="1233.8" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#3B6D11">placeholder for now</text>
@@ -128,7 +129,7 @@
 <text x="1052.2" y="718" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firestore, Storage, Functions</text>
 <rect x="1149.0" y="680" width="169.5" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
 <text x="1233.8" y="707" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">DisputeRepository</text>
-<text x="1233.8" y="750" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firestore, Storage, Functions</text>
+<text x="1233.8" y="750" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firestore, Functions</text>
 <rect x="1330.5" y="680" width="169.5" height="54.0" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
 <text x="1415.2" y="707" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="bold" fill="#0C447C">WalletRepository</text>
 <text x="1415.2" y="750" text-anchor="middle" dominant-baseline="central" font-family="Helvetica, Arial, sans-serif" font-size="12.5" fill="#5F5E5A">Firestore, Functions</text>
