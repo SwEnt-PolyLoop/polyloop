@@ -7,6 +7,9 @@ import android.os.SystemClock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Today's date by the server's clock, for the screens that must not trust the phone's date (Start
@@ -24,12 +27,14 @@ import java.time.ZoneId
  * @param store keeps the last pair, on the phone in the app, so it survives the app being closed.
  * @param elapsedRealtime the milliseconds since the phone booted.
  * @param bootCount how many times the phone has booted; it changes at each reboot.
+ * @param ioDispatcher runs [store] and [bootCount]; tests pass their test dispatcher.
  */
 class ServerClock(
     private val repository: RentalRepository,
     private val store: Store,
     private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
     private val bootCount: () -> Int,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
 
   /**
@@ -43,10 +48,21 @@ class ServerClock(
     // Read once the answer arrives, after the server read its clock, so the worked-out time can
     // only lag behind the server's, never run ahead of it and open a day early.
     val elapsed = elapsedRealtime()
-    result.onSuccess { now ->
-      store.save(Saved(now.toEpochMilli(), elapsed, bootCount()))
-      return dayOf(now)
+    // The store (SharedPreferences) and the boot count read disk or go through IPC, so off the
+    // main thread.
+    return withContext(ioDispatcher) {
+      result.fold(
+          onSuccess = { now ->
+            store.save(Saved(now.toEpochMilli(), elapsed, bootCount()))
+            dayOf(now)
+          },
+          onFailure = { dayFromSaved(elapsed) },
+      )
     }
+  }
+
+  /** The day worked out from the saved pair at [elapsed], or null if there is none for this boot. */
+  private fun dayFromSaved(elapsed: Long): LocalDate? {
     val saved = store.load() ?: return null
     // A smaller elapsed time means the phone rebooted, even if the boot count did not change.
     if (saved.bootCount != bootCount() || elapsed < saved.elapsedRealtimeMs) return null
@@ -78,7 +94,10 @@ class ServerClock(
 
 /**
  * [ServerClock.Store] in the app's shared preferences, so the pair survives the app being closed.
- * Clearing the app's data drops it, and the day is unknown until the server is reached again.
+ * Clearing the app's data drops it, and the day is unknown until the server is reached again. Its
+ * file is kept out of backups and device transfers (`res/xml/backup_rules.xml` and
+ * `data_extraction_rules.xml`): the uptime and boot count only make sense on this phone, and
+ * restored on another they could put the day ahead.
  */
 class SharedPreferencesServerClockStore(context: Context) : ServerClock.Store {
 
@@ -103,6 +122,7 @@ class SharedPreferencesServerClockStore(context: Context) : ServerClock.Store {
   }
 
   private companion object {
+    // Named in the backup rules as server_clock.xml; rename both together.
     const val FILE = "server_clock"
     const val SERVER_TIME = "server_time_ms"
     const val ELAPSED_REALTIME = "elapsed_realtime_ms"

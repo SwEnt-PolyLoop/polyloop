@@ -6,6 +6,8 @@ import java.io.IOException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -23,8 +25,14 @@ class ServerClockTest {
   private var elapsed = 5_000L
   private var boot = 3
 
-  private fun clock(store: ServerClock.Store = this.store) =
-      ServerClock(repository, store, elapsedRealtime = { elapsed }, bootCount = { boot })
+  private fun TestScope.clock(store: ServerClock.Store = this@ServerClockTest.store) =
+      ServerClock(
+          repository,
+          store,
+          elapsedRealtime = { elapsed },
+          bootCount = { boot },
+          ioDispatcher = StandardTestDispatcher(testScheduler),
+      )
 
   private fun goOffline() {
     repository.failure = IOException("offline")
@@ -71,6 +79,19 @@ class ServerClockTest {
     boot++
     elapsed = 1_000L
 
+    assertNull(clock().today())
+  }
+
+  @Test
+  fun offlineWithAnotherBootCountIsUnknownEvenWhenTheElapsedTimeFits() = runTest {
+    clock().today()
+
+    goOffline()
+    boot++
+
+    // The same elapsed time as saved, then a larger one: only the boot count tells the reboot.
+    assertNull(clock().today())
+    elapsed += 1_000L
     assertNull(clock().today())
   }
 

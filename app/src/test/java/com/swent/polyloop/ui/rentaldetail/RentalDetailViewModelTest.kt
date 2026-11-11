@@ -99,9 +99,12 @@ class RentalDetailViewModelTest {
   private lateinit var authRepository: FakeAuthRepository
   private lateinit var connectivityRepository: FakeConnectivityRepository
 
+  // Also runs the server clock's reads, so they finish before each assertion.
+  private val testDispatcher = UnconfinedTestDispatcher()
+
   @Before
   fun setUp() {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
+    Dispatchers.setMain(testDispatcher)
     rentalRepository = FakeRentalRepository(rentals = listOf(rental))
     listingRepository = FakeListingRepository(listings = listOf(listing))
     profileRepository = FakeProfileRepository(profiles = listOf(ownerProfile, borrowerProfile))
@@ -120,6 +123,7 @@ class RentalDetailViewModelTest {
           InMemoryServerClockStore(),
           elapsedRealtime = { 0L },
           bootCount = { 0 },
+          ioDispatcher = testDispatcher,
       )
 
   private fun viewModel(id: String = rental.id) =

@@ -63,9 +63,12 @@ class RentalDetailViewModelOfferTest {
 
   private lateinit var rentals: FakeRentalRepository
 
+  // Also runs the server clock's reads, so they finish before each assertion.
+  private val testDispatcher = UnconfinedTestDispatcher()
+
   @Before
   fun setUp() {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
+    Dispatchers.setMain(testDispatcher)
     rentals = FakeRentalRepository(rentals = listOf(request), clock = { now })
   }
 
@@ -87,6 +90,7 @@ class RentalDetailViewModelOfferTest {
               InMemoryServerClockStore(),
               elapsedRealtime = { 0L },
               bootCount = { 0 },
+              ioDispatcher = testDispatcher,
           ),
       )
 
