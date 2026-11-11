@@ -67,6 +67,7 @@ fun EditProfileScreen(
       onTakePhoto = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
       onPhotoTaken = viewModel::onPhotoTaken,
       onCloseCamera = viewModel::closeCamera,
+      onCaptureFailed = viewModel::onCaptureFailed,
       onSave = viewModel::save,
       onRetry = viewModel::retry,
       onSaved = onSaved,
@@ -91,6 +92,7 @@ fun EditProfileContent(
     onTakePhoto: () -> Unit,
     onPhotoTaken: (uri: String) -> Unit,
     onCloseCamera: () -> Unit,
+    onCaptureFailed: (uri: String) -> Unit,
     onSave: () -> Unit,
     onRetry: () -> Unit,
     onSaved: () -> Unit,
@@ -135,6 +137,8 @@ fun EditProfileContent(
             maxPhotos = 1,
             onPhotoTaken = onPhotoTaken,
             onClose = onCloseCamera,
+            onCaptureFailed = onCaptureFailed,
+            keepPhotos = listOfNotNull(uiState.newPhotoUri),
         )
       }
     }

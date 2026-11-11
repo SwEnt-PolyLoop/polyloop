@@ -57,6 +57,7 @@ class CreateListingPhotosTest {
           onRemovePhoto = { removedIndexes += it },
           onPhotoTaken = {},
           onCloseCamera = {},
+          onCaptureFailed = {},
           onPublish = {},
       )
     }

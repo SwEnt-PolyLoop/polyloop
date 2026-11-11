@@ -26,6 +26,7 @@ import com.swent.polyloop.resources.C
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -66,8 +67,12 @@ class RentalDetailScreenTest {
           onRetry = { retries++ },
           onChatClick = { chatClicks++ },
           onPersonClick = { personClicks += it },
+          onStartPickupClick = {},
+          onViewDisputeClick = {},
           today = today,
           zone = ZoneOffset.UTC,
+          // English is fixed so the expected dates pass on an emulator in any language.
+          locale = Locale.ENGLISH,
       )
     }
   }
@@ -82,6 +87,14 @@ class RentalDetailScreenTest {
 
   private fun assertAbsent(tag: String) {
     composeTestRule.onNodeWithTag(tag).assertDoesNotExist()
+  }
+
+  @Test
+  fun aRequestHasNoActionButton() {
+    setContent()
+
+    assertAbsent(C.Tag.rental_detail_action_button)
+    assertAbsent(C.Tag.rental_detail_pickup_available_on)
   }
 
   @Test
@@ -277,7 +290,10 @@ class RentalDetailScreenTest {
   fun ratingShowsTheAverageAndReviewCount() {
     setContent()
 
-    assertShown(C.Tag.rental_detail_person_rating, "4.6 · 5 reviews")
+    assertShown(
+        C.Tag.rental_detail_person_rating,
+        context.resources.getQuantityString(R.plurals.profile_rating, 5, 4.6, 5),
+    )
   }
 
   @Test
@@ -370,8 +386,11 @@ class RentalDetailScreenTest {
           onRetry = {},
           onChatClick = {},
           onPersonClick = {},
+          onStartPickupClick = {},
+          onViewDisputeClick = {},
           today = today,
           zone = ZoneOffset.UTC,
+          locale = Locale.ENGLISH,
       )
     }
     assertPickupMapShown()

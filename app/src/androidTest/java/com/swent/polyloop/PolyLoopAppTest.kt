@@ -9,13 +9,19 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.percentOffset
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -28,6 +34,7 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.handover.FakeHandoverRepository
 import com.swent.polyloop.model.listing.BookedRange
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingAddresses
@@ -37,14 +44,18 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
+import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
 import com.swent.polyloop.ui.navigation.NavigationActions
 import com.swent.polyloop.ui.navigation.Screen
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -104,8 +115,7 @@ class PolyLoopAppTest {
 
   /**
    * One accepted rental borrowed by "uid", so My rentals shows a CURRENT row, which opens Rental
-   * detail, without reaching Firestore. Rental detail shows only its title, as for every status but
-   * Requested.
+   * detail, without reaching Firestore.
    */
   private val rental =
       Rental(
@@ -174,13 +184,25 @@ class PolyLoopAppTest {
     RepositoryProvider.authRepository = authRepository
     RepositoryProvider.profileRepository = profileRepository
     RepositoryProvider.chatRepository = chatRepository
-    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(rental))
+    useRentals(FakeRentalRepository(rentals = listOf(rental)))
     RepositoryProvider.connectivityRepository = connectivity
+    RepositoryProvider.handoverRepository = FakeHandoverRepository()
+    RepositoryProvider.walletRepository = FakeWalletRepository()
   }
 
   @After
   fun tearDown() {
     RepositoryProvider.reset()
+  }
+
+  /**
+   * Makes [rentals] the app's rental repository, with a server clock that reads it and saves in
+   * memory, so no test writes its fake server time to the app's real preferences.
+   */
+  private fun useRentals(rentals: FakeRentalRepository) {
+    RepositoryProvider.rentalRepository = rentals
+    RepositoryProvider.serverClock =
+        ServerClock(rentals, InMemoryServerClockStore(), bootCount = { 0 })
   }
 
   private fun openListingDetail() {
@@ -276,6 +298,8 @@ class PolyLoopAppTest {
           Screen.ChatList -> C.Tag.chat_list_screen
           Screen.Chat -> C.Tag.chat_screen
           Screen.RentalDetail -> C.Tag.rental_detail_screen
+          Screen.Handover -> C.Tag.handover_screen
+          Screen.ReviewRequest -> C.Tag.review_request_screen
           Screen.Wallet -> C.Tag.wallet_screen
           Screen.Profile,
           Screen.UserProfile -> C.Tag.profile_screen
@@ -476,11 +500,80 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_title).assertTextEquals(rental.listingTitle)
   }
 
+  /** Signs in [me] as the lender of a request with no offer, then opens it from My rentals. */
+  private fun openReviewRequest(): FakeRentalRepository {
+    val rentals =
+        FakeRentalRepository(
+            rentals =
+                listOf(
+                    rental.copy(
+                        ownerId = me.uid,
+                        borrowerId = "user-1",
+                        status = RentalStatus.REQUESTED,
+                    )
+                ),
+            // Before the rental's first day, or the offer is refused.
+            clock = { Instant.parse("2026-10-01T10:00:00Z") },
+        )
+    useRentals(rentals)
+    setAppSignedIn()
+    openFromMenu(Screen.MyRentals)
+    waitForTag(C.Tag.my_rentals_tab_lending)
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_tab_lending).performClick()
+    waitForTag(C.Tag.my_rentals_review_request_button)
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_review_request_button).performClick()
+    waitForTag(C.Tag.review_request_send)
+    return rentals
+  }
+
+  @Test
+  fun reviewRequestOnLendingOpensTheReviewRequestScreen() {
+    openReviewRequest()
+
+    assertCurrentScreen(Screen.ReviewRequest)
+    assertEquals(
+        rental.id,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
+    )
+  }
+
+  @Test
+  fun sendOfferOpensTheChatAndBackSkipsTheForm() {
+    openReviewRequest()
+    composeTestRule
+        .onNodeWithTag(C.Tag.review_request_pickup)
+        .performScrollTo()
+        .performTextReplacement("Route Cantonale 1")
+    composeTestRule
+        .onNodeWithTag(C.Tag.review_request_return)
+        .performScrollTo()
+        .performTextReplacement("Rue de Lausanne 10")
+
+    composeTestRule.onNodeWithTag(C.Tag.review_request_send).performClick()
+
+    waitForTag(C.Tag.chat_screen)
+    assertCurrentScreen(Screen.Chat)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.MyRentals)
+  }
+
+  @Test
+  fun declineGoesBackToMyRentals() {
+    val rentals = openReviewRequest()
+
+    composeTestRule.onNodeWithTag(C.Tag.review_request_decline).performClick()
+
+    waitForTag(C.Tag.my_rentals_screen)
+    assertCurrentScreen(Screen.MyRentals)
+    assertEquals(
+        RentalStatus.DECLINED,
+        runBlocking { rentals.getRental(rental.id).getOrThrow()?.status },
+    )
+  }
+
   @Test
   fun chatOnRentalDetailOpensTheRentalsChat() {
-    // Only a Requested rental shows the person card and its Chat button.
-    RepositoryProvider.rentalRepository =
-        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED)))
+    useRentals(FakeRentalRepository(rentals = listOf(rental)))
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {
@@ -495,6 +588,192 @@ class PolyLoopAppTest {
         rental.id,
         navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_RENTAL_ID),
     )
+  }
+
+  /** Signs in the borrower of [rental], with its conversation, and opens [route] from Browse. */
+  private fun openAsBorrower(route: String) {
+    chatRepository.conversations =
+        listOf(
+            Conversation(
+                rental.id,
+                rental.listingTitle,
+                rental.ownerId,
+                rental.ownerName,
+                rental.borrowerId,
+                rental.borrowerName,
+                "",
+                rental.createdAt,
+                rental.status,
+                rental.startDate,
+                rental.endDate,
+            )
+        )
+    currentUser = AuthUser(rental.borrowerId, "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread { NavigationActions(navController).navigateTo(route) }
+    composeTestRule.waitForIdle()
+  }
+
+  private fun tapChatOnRentalDetail() {
+    waitForTag(C.Tag.rental_detail_chat_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+  }
+
+  private fun tapRentalDetailsInTheChat() {
+    waitForTag(C.Tag.chat_rental_details)
+    composeTestRule.onNodeWithTag(C.Tag.chat_rental_details).performClick()
+    composeTestRule.waitForIdle()
+  }
+
+  private fun currentEntryId(): String? = navController.currentBackStackEntry?.id
+
+  @Test
+  fun openingChatFromRentalDetailTheFirstTimeNavigatesForward() {
+    openAsBorrower(Screen.RentalDetail.createRoute(rental.id))
+    val rentalDetailEntry = currentEntryId()
+
+    tapChatOnRentalDetail()
+
+    assertCurrentScreen(Screen.Chat)
+    assertEquals(rentalDetailEntry, navController.previousBackStackEntry?.id)
+  }
+
+  @Test
+  fun rentalDetailsFromItsChatGoesBackToTheFirstRentalDetail() {
+    openAsBorrower(Screen.RentalDetail.createRoute(rental.id))
+    val rentalDetailEntry = currentEntryId()
+    tapChatOnRentalDetail()
+
+    tapRentalDetailsInTheChat()
+
+    assertCurrentScreen(Screen.RentalDetail)
+    assertEquals(rentalDetailEntry, currentEntryId())
+    // No second Chat was left behind: Back leaves Rental detail for the screen it was opened from.
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.Browse)
+  }
+
+  @Test
+  fun chatFromItsRentalDetailGoesBackToTheFirstChat() {
+    openAsBorrower(Screen.Chat.createRoute(rental.id))
+    val chatEntry = currentEntryId()
+    tapRentalDetailsInTheChat()
+    assertCurrentScreen(Screen.RentalDetail)
+
+    tapChatOnRentalDetail()
+
+    assertCurrentScreen(Screen.Chat)
+    assertEquals(chatEntry, currentEntryId())
+  }
+
+  /**
+   * Opens Rental detail on [shown], signed in as its borrower, and taps its action button. The
+   * server's time is [serverNow], or the fake's default when null.
+   */
+  private fun tapActionButtonOnRentalDetail(shown: Rental, serverNow: Instant? = null) {
+    useRentals(
+        FakeRentalRepository(rentals = listOf(shown)).also { fake ->
+          serverNow?.let { fake.serverNow = it }
+        }
+    )
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(shown.id))
+    }
+    // The screen shows before the server's date is read, so Start Pickup can still be grey at
+    // first; View Dispute is always enabled.
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodes(hasTestTag(C.Tag.rental_detail_action_button) and isEnabled())
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).performClick()
+  }
+
+  @Test
+  fun startPickupOnItsPickupDayOpensTheHandover() {
+    val pickupDay = LocalDate.of(2026, 10, 1)
+    // Noon in Zurich on the pickup day: Start Pickup opens from the server's day.
+    tapActionButtonOnRentalDetail(
+        rental.copy(startDate = pickupDay, endDate = pickupDay.plusDays(2)),
+        serverNow = Instant.parse("2026-10-01T10:00:00Z"),
+    )
+
+    assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
+  }
+
+  @Test
+  fun startPickupInTheChatOnThePickupDayOpensTheHandover() {
+    val today = LocalDate.now()
+    RepositoryProvider.rentalRepository =
+        FakeRentalRepository(
+            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
+        )
+    openAsBorrower(Screen.Chat.createRoute(rental.id))
+
+    waitForTag(C.Tag.chat_start_pickup_button)
+    composeTestRule.onNodeWithTag(C.Tag.chat_start_pickup_button).performClick()
+
+    assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
+  }
+
+  /** Taps [tag] twice in a row, faster than a screen can change, as a fast double tap does. */
+  private fun doubleTap(tag: String) {
+    waitForTag(tag)
+    val click =
+        composeTestRule.onNodeWithTag(tag).fetchSemanticsNode().config[SemanticsActions.OnClick]
+    composeTestRule.runOnUiThread {
+      click.action!!()
+      click.action!!()
+    }
+    composeTestRule.waitForIdle()
+  }
+
+  /** How many Handover screens the back stack holds, so how many times Back is needed. */
+  private fun handoversOnTheBackStack(): Int = composeTestRule.runOnIdle {
+    navController.currentBackStack.value.count { it.destination.route == Screen.Handover.route }
+  }
+
+  @Test
+  fun aDoubleTapOnStartPickupOnRentalDetailOpensOneHandover() {
+    val today = LocalDate.now()
+    RepositoryProvider.rentalRepository =
+        FakeRentalRepository(
+            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
+        )
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+
+    doubleTap(C.Tag.rental_detail_action_button)
+
+    assertEquals(1, handoversOnTheBackStack())
+  }
+
+  @Test
+  fun aDoubleTapOnStartPickupInTheChatOpensOneHandover() {
+    val today = LocalDate.now()
+    RepositoryProvider.rentalRepository =
+        FakeRentalRepository(
+            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
+        )
+    openAsBorrower(Screen.Chat.createRoute(rental.id))
+
+    doubleTap(C.Tag.chat_start_pickup_button)
+
+    assertEquals(1, handoversOnTheBackStack())
+  }
+
+  @Test
+  fun viewDisputeOpensTheDispute() {
+    tapActionButtonOnRentalDetail(rental.copy(status = RentalStatus.DISPUTED, deposit = 60))
+
+    assertCurrentScreen(Screen.Dispute, shownRoute = Screen.Dispute.createRoute(rental.id))
   }
 
   @Test
@@ -541,6 +820,20 @@ class PolyLoopAppTest {
 
     composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsNotDisplayed()
     assertCurrentScreen(Screen.Wallet)
+  }
+
+  @Test
+  fun tappingTheScreenBesideTheDrawerClosesIt() {
+    setAppSignedIn()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsDisplayed()
+
+    // The drawer covers at most 80% of the screen, so this taps the scrim on its right. At 85%,
+    // the tap would hit Material's 360 dp drawer on any screen narrower than about 423 dp.
+    composeTestRule.onRoot().performTouchInput { click(percentOffset(0.85f, 0.5f)) }
+
+    composeTestRule.onNodeWithTag(C.Tag.drawer).assertIsNotDisplayed()
+    assertCurrentScreen(Screen.Browse)
   }
 
   @Test

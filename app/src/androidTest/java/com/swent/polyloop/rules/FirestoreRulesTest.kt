@@ -25,6 +25,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -106,7 +107,11 @@ class FirestoreRulesTest {
       )
 
   /** A rental between [owner] and [borrower], written as an admin. Returns its reference. */
-  private fun seedRental(owner: String, borrower: String): DocumentReference {
+  private fun seedRental(
+      owner: String,
+      borrower: String,
+      status: String = "REQUESTED",
+  ): DocumentReference {
     val id = "rental-${UUID.randomUUID()}"
     FirebaseEmulator.createDocumentAsAdmin(
         "rentals/$id",
@@ -115,7 +120,7 @@ class FirestoreRulesTest {
             "ownerId" to owner,
             "borrowerId" to borrower,
             "participants" to listOf(owner, borrower),
-            "status" to "REQUESTED",
+            "status" to status,
             "startDate" to start.toString(),
             "endDate" to end.toString(),
             "lastMessage" to "",
@@ -594,6 +599,240 @@ class FirestoreRulesTest {
           assertDenied { addresses.get(Source.SERVER).await() }
           assertDenied { addresses.set(stolen).await() }
           assertDenied { addresses.delete().await() }
+        }
+      }
+
+  // ---------- handover photos ----------
+
+  private fun photo(takenBy: String, phase: String = "PICKUP") =
+      mapOf(
+          "takenBy" to takenBy,
+          "phase" to phase,
+          "takenAt" to FieldValue.serverTimestamp(),
+          "url" to "https://example.com/p.jpg",
+      )
+
+  @Test
+  fun participantsAddOnlyTheirOwnPickupPhotosAndNeverChangeThem() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val photos = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
+
+        val mine = photos.document()
+        mine.set(photo(borrower.uid)).await()
+        assertDenied { photos.document().set(photo(owner.uid)).await() } // someone else's
+        assertDenied {
+          photos.document().set(photo(borrower.uid) + ("takenAt" to Timestamp(5_000, 0))).await()
+        }
+        assertDenied { photos.document().set(photo(borrower.uid) + ("url" to 5)).await() }
+        assertDenied { photos.document().set(photo(borrower.uid) + ("extra" to 1)).await() }
+        assertDenied { mine.update("url", "https://example.com/other.jpg").await() }
+        assertDenied { mine.delete().await() }
+
+        signInAs(owner)
+        photos.document().set(photo(owner.uid)).await()
+        assertEquals(2, photos.get(Source.SERVER).await().size())
+
+        val stranger = newAccount()
+        assertDenied { photos.get(Source.SERVER).await() }
+        assertDenied { photos.document().set(photo(stranger.uid)).await() }
+      }
+
+  @Test
+  fun pickupPhotosAreAddedOnlyWhileTheRentalIsAccepted() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val accepted = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
+        val active = seedRental(owner.uid, borrower.uid, status = "ACTIVE").collection("photos")
+        val requested = seedRental(owner.uid, borrower.uid).collection("photos")
+
+        assertDenied { accepted.document().set(photo(borrower.uid, phase = "RETURN")).await() }
+        assertDenied { active.document().set(photo(borrower.uid)).await() } // pickup is over
+        assertDenied { requested.document().set(photo(borrower.uid)).await() }
+      }
+
+  // ---------- wallets ----------
+
+  /**
+   * A wallet and one transaction of [uid], written as an admin (only Cloud Functions write them).
+   */
+  private fun seedWallet(uid: String): Pair<DocumentReference, DocumentReference> {
+    FirebaseEmulator.createDocumentAsAdmin("wallets/$uid", mapOf("available" to 50))
+    FirebaseEmulator.createDocumentAsAdmin(
+        "wallets/$uid/transactions/t1",
+        mapOf(
+            "type" to "RECHARGE",
+            "amount" to 50,
+            "itemTitle" to "",
+            "date" to Timestamp(1_000, 0),
+        ),
+    )
+    val wallet = db.collection("wallets").document(uid)
+    return wallet to wallet.collection("transactions").document("t1")
+  }
+
+  @Test
+  fun userReadsTheirOwnWalletAndTransactions() =
+      runBlocking<Unit> {
+        val me = newAccount()
+        val (wallet, transaction) = seedWallet(me.uid)
+
+        assertEquals(50L, wallet.get(Source.SERVER).await().getLong("available"))
+        assertEquals(50L, transaction.get(Source.SERVER).await().getLong("amount"))
+        assertEquals(1, wallet.collection("transactions").get(Source.SERVER).await().size())
+      }
+
+  @Test
+  fun userCannotReadSomeoneElsesWalletOrTransactions() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val (wallet, transaction) = seedWallet(owner.uid)
+        newAccount() // someone else
+
+        assertDenied { wallet.get(Source.SERVER).await() }
+        assertDenied { transaction.get(Source.SERVER).await() }
+        assertDenied { wallet.collection("transactions").get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun unverifiedNonEpflAndSignedOutUsersCannotReadAWallet() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val (wallet, transaction) = seedWallet(owner.uid)
+
+        // Accounts that must be refused: an unverified EPFL account, a verified non-EPFL one, and
+        // nobody.
+        Firebase.auth
+            .createUserWithEmailAndPassword("rules-${UUID.randomUUID()}@epfl.ch", PASSWORD)
+            .await()
+        assertDenied { wallet.get(Source.SERVER).await() }
+        assertDenied { transaction.get(Source.SERVER).await() }
+
+        FirebaseEmulator.signUpVerified("rules-${UUID.randomUUID()}@gmail.com", PASSWORD)
+        assertDenied { wallet.get(Source.SERVER).await() }
+        assertDenied { transaction.get(Source.SERVER).await() }
+
+        Firebase.auth.signOut()
+        assertDenied { wallet.get(Source.SERVER).await() }
+        assertDenied { transaction.get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun ownEmailAccountThatIsNotVerifiedCannotReadItsOwnWallet() =
+      runBlocking<Unit> {
+        val email = "rules-${UUID.randomUUID()}@epfl.ch"
+        val uid = Firebase.auth.createUserWithEmailAndPassword(email, PASSWORD).await().user!!.uid
+        val (wallet, _) = seedWallet(uid)
+
+        assertDenied { wallet.get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun noClientWritesAWalletOrATransactionTheOwnerIncluded() =
+      runBlocking<Unit> {
+        val me = newAccount()
+        val (wallet, transaction) = seedWallet(me.uid)
+
+        assertDenied { wallet.set(mapOf("available" to 1_000_000)).await() }
+        assertDenied { wallet.update("available", 1_000_000).await() }
+        assertDenied { wallet.delete().await() }
+        assertDenied { transaction.set(mapOf("amount" to 1)).await() }
+        assertDenied { transaction.update("amount", 1).await() }
+        assertDenied { transaction.delete().await() }
+        assertDenied {
+          wallet.collection("transactions").document("t2").set(mapOf("amount" to 1)).await()
+        }
+
+        // Nothing changed.
+        assertEquals(50L, wallet.get(Source.SERVER).await().getLong("available"))
+        assertEquals(50L, transaction.get(Source.SERVER).await().getLong("amount"))
+      }
+
+  @Test
+  fun newUserWithoutAWalletCannotCreateTheirOwnWalletOrTransaction() =
+      runBlocking<Unit> {
+        val me = newAccount()
+        val wallet = db.collection("wallets").document(me.uid)
+
+        assertDenied { wallet.set(mapOf("available" to 1_000_000)).await() }
+        assertDenied {
+          wallet.collection("transactions").document("t1").set(mapOf("amount" to 1)).await()
+        }
+
+        // Nothing was created.
+        assertFalse(wallet.get(Source.SERVER).await().exists())
+      }
+
+  // ---------- disputes ----------
+
+  /** The dispute of [rental], written as an admin as the Cloud Functions write it. */
+  private fun seedDispute(rental: DocumentReference): DocumentReference {
+    FirebaseEmulator.createDocumentAsAdmin(
+        "disputes/${rental.id}",
+        mapOf(
+            "stage" to "SETTLE",
+            "proposals" to emptyList<Any>(),
+            "escalatesAt" to Timestamp(2_000_000_000, 0),
+        ),
+    )
+    return db.collection("disputes").document(rental.id)
+  }
+
+  @Test
+  fun onlyTheTwoParticipantsReadTheDispute() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val dispute = seedDispute(seedRental(owner.uid, borrower.uid))
+        val noDispute = db.collection("disputes").document(seedRental(owner.uid, borrower.uid).id)
+
+        signInAs(owner)
+        dispute.get(Source.SERVER).await()
+        signInAs(borrower)
+        dispute.get(Source.SERVER).await()
+        noDispute.get(Source.SERVER).await() // a rental without a dispute reads as missing
+        // A dispute whose rental is missing has no participants, so nobody reads it.
+        assertDenied { seedDispute(db.collection("rentals").document()).get(Source.SERVER).await() }
+        newAccount()
+        assertDenied { dispute.get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun aParticipantWithoutAVerifiedEpflAccountCannotReadTheDispute() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        // Each sign-up signs the new account in, so each dispute is read as its borrower.
+        val gmail =
+            FirebaseEmulator.signUpVerified("rules-${UUID.randomUUID()}@gmail.com", PASSWORD)
+        val gmailDispute = seedDispute(seedRental(owner.uid, gmail))
+        assertDenied { gmailDispute.get(Source.SERVER).await() }
+
+        val unverified =
+            Firebase.auth
+                .createUserWithEmailAndPassword("rules-${UUID.randomUUID()}@epfl.ch", PASSWORD)
+                .await()
+                .user!!
+                .uid
+        val unverifiedDispute = seedDispute(seedRental(owner.uid, unverified))
+        assertDenied { unverifiedDispute.get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun onlyCloudFunctionsWriteADispute() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val dispute = seedDispute(seedRental(owner.uid, borrower.uid))
+        val noDispute = db.collection("disputes").document(seedRental(owner.uid, borrower.uid).id)
+
+        for (account in listOf(owner, borrower)) {
+          signInAs(account)
+          assertDenied { dispute.update("agreedAt", FieldValue.serverTimestamp()).await() }
+          assertDenied { dispute.update("stage", "COURT").await() }
+          assertDenied { dispute.delete().await() }
+          assertDenied { noDispute.set(mapOf("stage" to "SETTLE")).await() }
         }
       }
 

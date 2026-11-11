@@ -72,6 +72,7 @@ fun CreateListingScreen(
       onRemovePhoto = viewModel::onRemovePhoto,
       onPhotoTaken = viewModel::onPhotoTaken,
       onCloseCamera = viewModel::closeCamera,
+      onCaptureFailed = viewModel::onCaptureFailed,
       onPublish = viewModel::onPublish,
       modifier = modifier,
       cameraPermissionGranted = cameraPermissionGranted,
@@ -93,7 +94,8 @@ fun CreateListingScreen(
  * as the current date. While the camera is open, [PolyLoopCamera] fills the whole screen in a
  * full-screen dialog, over the form, the Publish bar and the top bar; Back closes it.
  * [cameraPermissionGranted] is the answer to the last camera permission request, null if it was
- * never asked; a refusal shows how to allow the camera.
+ * never asked; a refusal shows how to allow the camera. [onCaptureFailed] receives the file of a
+ * shot that failed, to delete it.
  */
 @Composable
 fun CreateListingContent(
@@ -112,6 +114,7 @@ fun CreateListingContent(
     onRemovePhoto: (index: Int) -> Unit,
     onPhotoTaken: (uri: String) -> Unit,
     onCloseCamera: () -> Unit,
+    onCaptureFailed: (uri: String) -> Unit,
     onPublish: () -> Unit,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
@@ -347,6 +350,8 @@ fun CreateListingContent(
             photoCount = uiState.photos.size,
             onPhotoTaken = onPhotoTaken,
             onClose = onCloseCamera,
+            keepPhotos = uiState.photos,
+            onCaptureFailed = onCaptureFailed,
         )
       }
     }
@@ -424,6 +429,7 @@ private fun CreateListingContentPreview() {
         onRemovePhoto = {},
         onPhotoTaken = {},
         onCloseCamera = {},
+        onCaptureFailed = {},
         onPublish = {},
     )
   }

@@ -16,11 +16,15 @@ export type RequestErrorCode =
   | "failed-precondition"
   | "internal";
 
-/** A refused request: a code and a message for the user. */
+/**
+ * A refused request: a code, a message for the user, and, when the request lost a race, the reason
+ * the app reads in `details` (e.g. `{reason: "STAGE_CHANGED"}`, see disputeRules.ts).
+ */
 export class RequestError extends Error {
   constructor(
     readonly code: RequestErrorCode,
     message: string,
+    readonly details?: { reason: string },
   ) {
     super(message);
     this.name = "RequestError";
@@ -102,9 +106,14 @@ export function offerExpiry(now: Date, startDate: string): Date {
   return new Date(Math.min(afterLifetime, Date.parse(`${startDate}T00:00:00Z`)));
 }
 
+/** True for a whole deposit from 1 to [MAX_DEPOSIT]. */
+export function isValidDeposit(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= MAX_DEPOSIT;
+}
+
 /** A whole deposit from 1 to [MAX_DEPOSIT], or an `invalid-argument` error. */
 export function parseDeposit(value: unknown): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > MAX_DEPOSIT) {
+  if (!isValidDeposit(value)) {
     throw new RequestError(
       "invalid-argument",
       `The deposit must be a whole number from 1 to ${MAX_DEPOSIT}.`,
@@ -176,7 +185,15 @@ export function requireVerifiedEpfl(
   return auth.uid;
 }
 
+/** The id of the rental's [role] (e.g. "borrower"), or an `internal` error if the rental has none. */
+export function requirePerson(value: unknown, role: string): string {
+  if (typeof value !== "string" || value === "") {
+    throw new RequestError("internal", `The rental has no ${role}.`);
+  }
+  return value;
+}
+
 /** The fields of a callable's input, or none if it is not an object. */
-function asFields(data: unknown): Record<string, unknown> {
+export function asFields(data: unknown): Record<string, unknown> {
   return (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>;
 }

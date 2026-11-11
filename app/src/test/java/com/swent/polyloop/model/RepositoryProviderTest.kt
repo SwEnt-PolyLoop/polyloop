@@ -14,12 +14,17 @@ import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepositoryAndroid
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.handover.FakeHandoverRepository
+import com.swent.polyloop.model.handover.HandoverRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.RentalRepositoryFirestore
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.model.wallet.FakeWalletRepository
+import com.swent.polyloop.model.wallet.WalletRepositoryFirestore
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -171,6 +176,7 @@ class RepositoryProviderTest {
     RepositoryProvider.listingRepository
     RepositoryProvider.profileRepository
     RepositoryProvider.chatRepository
+    RepositoryProvider.handoverRepository
 
     verify(exactly = 0) { FirebaseStorage.getInstance() }
   }
@@ -225,6 +231,24 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- handoverRepository ----------
+
+  @Test
+  fun handoverRepositoryDefaultsToFirestoreImplementation() {
+    assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)
+    assertSame(RepositoryProvider.handoverRepository, RepositoryProvider.handoverRepository)
+  }
+
+  @Test
+  fun handoverRepositoryReturnsAssignedRepository() {
+    val fake = FakeHandoverRepository()
+
+    RepositoryProvider.handoverRepository = fake
+
+    assertSame(fake, RepositoryProvider.handoverRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+  }
+
   // ---------- connectivityRepository ----------
 
   @Test
@@ -264,9 +288,8 @@ class RepositoryProviderTest {
   // ---------- walletRepository ----------
 
   @Test
-  fun walletRepositoryDefaultsToTheInMemoryFake() {
-    assertTrue(RepositoryProvider.walletRepository is FakeWalletRepository)
-    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+  fun walletRepositoryDefaultsToFirestoreImplementation() {
+    assertTrue(RepositoryProvider.walletRepository is WalletRepositoryFirestore)
   }
 
   @Test
@@ -274,6 +297,7 @@ class RepositoryProviderTest {
     val first = RepositoryProvider.walletRepository
 
     assertSame(first, RepositoryProvider.walletRepository)
+    verify(exactly = 1) { FirebaseFirestore.getInstance() }
   }
 
   @Test
@@ -283,6 +307,7 @@ class RepositoryProviderTest {
     RepositoryProvider.walletRepository = fake
 
     assertSame(fake, RepositoryProvider.walletRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
   // ---------- laziness and reset ----------
@@ -316,6 +341,7 @@ class RepositoryProviderTest {
     RepositoryProvider.connectivityRepository = FakeConnectivityRepository()
     val fakeWallet = FakeWalletRepository()
     RepositoryProvider.walletRepository = fakeWallet
+    RepositoryProvider.handoverRepository = FakeHandoverRepository()
 
     RepositoryProvider.reset()
 
@@ -325,7 +351,21 @@ class RepositoryProviderTest {
     assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
     assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
     assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
+    assertTrue(RepositoryProvider.walletRepository is WalletRepositoryFirestore)
     assertNotSame(fakeWallet, RepositoryProvider.walletRepository)
+    assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)
+  }
+
+  @Test
+  fun resetForgetsAnAssignedServerClock() {
+    // The real clock built after reset opens the app's preferences.
+    every { appContext.getSharedPreferences(any(), any()) } returns mockk(relaxed = true)
+    val fake = ServerClock(FakeRentalRepository(), InMemoryServerClockStore(), bootCount = { 0 })
+    RepositoryProvider.serverClock = fake
+
+    RepositoryProvider.reset()
+
+    assertNotSame(fake, RepositoryProvider.serverClock)
   }
 
   @Test

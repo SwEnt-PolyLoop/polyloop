@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
@@ -31,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
+import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
@@ -48,17 +52,20 @@ import com.swent.polyloop.ui.components.formatDay
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * The My rentals screen, showing what the signed-in user borrows and lends (Figma frames 10, 11).
  * [onReviewRequest] receives the rental id of a request whose "Review request" button is tapped.
  * [onRentalClick] receives the one of any other tapped card: a Borrowing request or a CURRENT card.
+ * [onOpenChat] receives the one of a request with an offer, whose button opens its chat.
  */
 @Composable
 fun MyRentalsScreen(
     viewModel: MyRentalsViewModel,
     onRentalClick: (String) -> Unit = {},
     onReviewRequest: (String) -> Unit = {},
+    onOpenChat: (String) -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   MyRentalsContent(
@@ -67,6 +74,7 @@ fun MyRentalsScreen(
       onRentalClick = onRentalClick,
       onRetry = viewModel::retry,
       onReviewRequest = onReviewRequest,
+      onOpenChat = onOpenChat,
   )
 }
 
@@ -84,6 +92,7 @@ fun MyRentalsContent(
     onRetry: () -> Unit,
     onReviewRequest: (String) -> Unit = {},
     today: LocalDate = LocalDate.now(),
+    onOpenChat: (String) -> Unit = {},
 ) {
   Column(
       modifier =
@@ -159,9 +168,19 @@ fun MyRentalsContent(
             }
             items(requests, key = { it.rentalId }) { row ->
               // Only the request card differs: the lender has a request to answer, while the
-              // borrower can only wait, so a plain card is enough. It opens Rental detail like a
-              // CURRENT card, which links to the chat and lets the borrower cancel the request.
-              if (isBorrowing) {
+              // borrower can only wait, so a plain card is enough. On Borrowing, a request opens
+              // Rental detail like a CURRENT card, with or without an offer; that screen links to
+              // the chat and lets the borrower cancel the request. On Lending, only the card's
+              // button reacts.
+              if (row.offer != null) {
+                OfferRequestCard(
+                    row = row,
+                    offer = row.offer,
+                    personLine = row.personLine(tab),
+                    onOpenChat = { onOpenChat(row.rentalId) },
+                    onClick = if (isBorrowing) ({ onRentalClick(row.rentalId) }) else null,
+                )
+              } else if (isBorrowing) {
                 RentalCard(
                     row = row,
                     personLine = row.personLine(tab),
@@ -245,6 +264,81 @@ private fun RequestCard(row: RentalRow, onReviewRequest: () -> Unit) {
 }
 
 /**
+ * A pending request with a deposit offer waiting for an answer (Figma frames 10.10 and 11.10): the
+ * listing photo, the title and where the offer stands, the other person and the dates, the offer,
+ * and a button calling [onOpenChat], where it is answered. Tapping the card calls [onClick]; when
+ * it is null, as on Lending, only the button reacts.
+ */
+@Composable
+private fun OfferRequestCard(
+    row: RentalRow,
+    offer: DepositOffer,
+    personLine: String,
+    onOpenChat: () -> Unit,
+    onClick: (() -> Unit)?,
+) {
+  val locale = LocalConfiguration.current.locales[0]
+  val (from, to) = formatRangeEnds(row.startDate, row.returnDate)
+  val expiry =
+      formatDay(offer.expiresAt.atZone(ZoneId.systemDefault()).toLocalDate(), locale = locale)
+  val badge =
+      when {
+        row.isOfferMine && offer.isCounter -> R.string.my_rentals_badge_counter_sent
+        row.isOfferMine -> R.string.my_rentals_badge_offer_sent
+        offer.isCounter -> R.string.my_rentals_badge_counter_received
+        else -> R.string.my_rentals_badge_offer_received
+      }
+  val line =
+      when {
+        offer.isCounter -> stringResource(R.string.my_rentals_counter_line, offer.amount, expiry)
+        row.isOfferMine ->
+            stringResource(R.string.my_rentals_offer_sent_line, row.totalPrice, offer.amount)
+        else -> stringResource(R.string.my_rentals_offer_received_line, offer.amount, expiry)
+      }
+  val modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_request_ + row.rentalId)
+  val content: @Composable ColumnScope.() -> Unit = {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      RentalCardTop(
+          row = row,
+          isNewRequest = false,
+          personLine =
+              stringResource(
+                  R.string.my_rentals_person_and_dates,
+                  personLine,
+                  stringResource(R.string.my_rentals_date_range, from, to),
+              ),
+          offerBadge = badge,
+      )
+      Text(
+          text = line,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.testTag(C.Tag.my_rentals_row_offer),
+      )
+      OutlinedButton(
+          onClick = onOpenChat,
+          modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_open_chat_button),
+      ) {
+        Text(
+            stringResource(
+                if (row.isOfferMine) R.string.my_rentals_open_chat
+                else R.string.my_rentals_answer_in_chat
+            )
+        )
+      }
+    }
+  }
+  if (onClick != null) {
+    OutlinedCard(onClick = onClick, modifier = modifier, content = content)
+  } else {
+    OutlinedCard(modifier = modifier, content = content)
+  }
+}
+
+/**
  * A rental on either tab (Figma frames 10, 11), for every row but the lender's requests: the
  * listing photo, the title and the status badge, [personLine], and a line saying what comes next
  * (see [currentLine]). Tapping it calls [onClick].
@@ -277,7 +371,12 @@ private fun RentalCard(row: RentalRow, personLine: String, today: LocalDate, onC
  * badge ("New request" with [isNewRequest]), and [personLine] under them.
  */
 @Composable
-private fun RentalCardTop(row: RentalRow, isNewRequest: Boolean, personLine: String) {
+private fun RentalCardTop(
+    row: RentalRow,
+    isNewRequest: Boolean,
+    personLine: String,
+    @StringRes offerBadge: Int? = null,
+) {
   Row {
     ListingPhoto(
         url = row.listingPhotoUrl.ifBlank { null },
@@ -297,7 +396,7 @@ private fun RentalCardTop(row: RentalRow, isNewRequest: Boolean, personLine: Str
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).testTag(C.Tag.my_rentals_row_title),
         )
-        StatusBadge(row.status, isNewRequest = isNewRequest)
+        StatusBadge(row.status, isNewRequest = isNewRequest, offerBadge = offerBadge)
       }
       Text(
           text = personLine,
@@ -380,12 +479,19 @@ private val STATUSES_WITH_AREA =
         RentalStatus.LOST,
     )
 
-/** The status of a rental as a small coloured label, or "New request" with [isNewRequest]. */
+/**
+ * The status of a rental as a small coloured label, "New request" with [isNewRequest], or where its
+ * offer stands with [offerBadge].
+ */
 @Composable
-private fun StatusBadge(status: RentalStatus, isNewRequest: Boolean = false) {
+private fun StatusBadge(
+    status: RentalStatus,
+    isNewRequest: Boolean = false,
+    @StringRes offerBadge: Int? = null,
+) {
   val colors = MaterialTheme.colorScheme
   val (container, content) =
-      if (isNewRequest) colors.primaryContainer to colors.onPrimaryContainer
+      if (isNewRequest || offerBadge != null) colors.primaryContainer to colors.onPrimaryContainer
       else status.badgeColors()
   Surface(
       shape = CircleShape,
@@ -396,7 +502,8 @@ private fun StatusBadge(status: RentalStatus, isNewRequest: Boolean = false) {
     Text(
         text =
             stringResource(
-                if (isNewRequest) R.string.my_rentals_badge_new_request else status.labelRes
+                offerBadge
+                    ?: if (isNewRequest) R.string.my_rentals_badge_new_request else status.labelRes
             ),
         style = MaterialTheme.typography.labelMedium,
         modifier =

@@ -2,6 +2,8 @@
 
 package com.swent.polyloop.model.rental
 
+import com.swent.polyloop.model.listing.BookedRange
+import com.swent.polyloop.model.listing.conflictsWithBuffer
 import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -30,8 +32,11 @@ data class Rental(
     val totalPrice: Int, // in PP: pricePerDay times the number of days
     val pickupArea: String, // public, copied from the listing
     val dropOffArea: String, // public, copied from the listing
-    val pickupAddress: String = "", // exact, set when the lender accepts (later sprint)
-    val returnAddress: String = "", // exact, set when the lender accepts (later sprint)
+    val pickupAddress: String = "", // exact, set when the rental is accepted
+    val returnAddress: String = "", // exact, set when the rental is accepted
+    val deposit: Int = 0, // in PP: the accepted amount, 0 until then
+    val lateFees: Int = 0, // in PP: taken from the deposit for a late return, 0 if never late
+    val offer: DepositOffer? = null, // the offer waiting for an answer, if any
     val createdAt: Instant,
     val lastMessage: String = "",
     // Starts at createdAt: the chat list sorts by this field, and Firestore leaves out of a sorted
@@ -48,6 +53,19 @@ data class Rental(
    */
   fun otherPersonName(uid: String): String = if (uid == ownerId) borrowerName else ownerName
 
+  /**
+   * True if this is another pending request of the same listing that accepting [request] would
+   * decline: its dates conflict with those of [request], buffer days included.
+   */
+  fun isDeclinedByAccepting(request: Rental): Boolean =
+      id != request.id &&
+          listingId == request.listingId &&
+          status == RentalStatus.REQUESTED &&
+          conflictsWithBuffer(
+              BookedRange(startDate, endDate),
+              BookedRange(request.startDate, request.endDate),
+          )
+
   companion object {
     /**
      * The price of renting at [pricePerDay] from [startDate] to [endDate], both days included.
@@ -59,6 +77,23 @@ data class Rental(
     }
   }
 }
+
+/**
+ * A deposit offer waiting for an answer. Only Cloud Functions write it.
+ *
+ * @property amount the deposit offered, in PP.
+ * @property authorId the user who made it; the other participant answers it.
+ * @property isCounter true for the borrower's counteroffer, which cannot be countered.
+ * @property previousAmount on a counteroffer, the amount the lender offered; null otherwise.
+ * @property expiresAt when it stops being valid.
+ */
+data class DepositOffer(
+    val amount: Int,
+    val authorId: String,
+    val isCounter: Boolean,
+    val previousAmount: Int? = null,
+    val expiresAt: Instant,
+)
 
 /** Where a rental stands; see "Rental statuses" in docs/ARCHITECTURE.md. */
 enum class RentalStatus {

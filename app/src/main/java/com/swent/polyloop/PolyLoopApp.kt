@@ -39,6 +39,8 @@ import com.swent.polyloop.ui.chatlist.ChatListViewModel
 import com.swent.polyloop.ui.createlisting.CreateListingScreen
 import com.swent.polyloop.ui.createlisting.CreateListingViewModel
 import com.swent.polyloop.ui.dummy.DummyScreen
+import com.swent.polyloop.ui.handover.HandoverScreen
+import com.swent.polyloop.ui.handover.HandoverViewModel
 import com.swent.polyloop.ui.listingdetail.ListingDetailScreen
 import com.swent.polyloop.ui.listingdetail.ListingDetailViewModel
 import com.swent.polyloop.ui.myrentals.MyRentalsScreen
@@ -54,6 +56,8 @@ import com.swent.polyloop.ui.profile.ProfileScreen
 import com.swent.polyloop.ui.profile.ProfileViewModel
 import com.swent.polyloop.ui.rentaldetail.RentalDetailScreen
 import com.swent.polyloop.ui.rentaldetail.RentalDetailViewModel
+import com.swent.polyloop.ui.reviewrequest.ReviewRequestScreen
+import com.swent.polyloop.ui.reviewrequest.ReviewRequestViewModel
 import com.swent.polyloop.ui.wallet.WalletScreen
 import com.swent.polyloop.ui.wallet.WalletViewModel
 import kotlinx.coroutines.launch
@@ -212,6 +216,10 @@ private fun PolyLoopScaffold(
         MyRentalsScreen(
             viewModel = myRentalsViewModel,
             onRentalClick = { id -> navController.navigate(Screen.RentalDetail.createRoute(id)) },
+            onReviewRequest = { id ->
+              navController.navigate(Screen.ReviewRequest.createRoute(id))
+            },
+            onOpenChat = { id -> navController.navigate(Screen.Chat.createRoute(id)) },
         )
       }
       composable(Screen.ChatList.route) {
@@ -303,10 +311,45 @@ private fun PolyLoopScaffold(
                         profileRepository = RepositoryProvider.profileRepository,
                         authRepository = RepositoryProvider.authRepository,
                         connectivityRepository = RepositoryProvider.connectivityRepository,
+                        serverClock = RepositoryProvider.serverClock,
                     )
             )
         RentalDetailScreen(
             viewModel = rentalDetailViewModel,
+            onChatClick = { navController.navigateOrGoBack(Screen.Chat.createRoute(rentalId)) },
+            onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
+            // Single top: a fast double tap opens Handover once, not twice.
+            onStartPickupClick = {
+              navController.navigate(Screen.Handover.createRoute(rentalId)) {
+                launchSingleTop = true
+              }
+            },
+            onViewDisputeClick = { navController.navigate(Screen.Dispute.createRoute(rentalId)) },
+        )
+      }
+      composable(Screen.ReviewRequest.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
+        val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)
+        val reviewRequestViewModel: ReviewRequestViewModel =
+            viewModel(
+                factory =
+                    ReviewRequestViewModel.Factory(
+                        rentalId = rentalId,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        listingRepository = RepositoryProvider.listingRepository,
+                        profileRepository = RepositoryProvider.profileRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
+                    )
+            )
+        ReviewRequestScreen(
+            viewModel = reviewRequestViewModel,
+            onOfferSent = {
+              // The chat replaces this form, so Back cannot send a second answer.
+              navController.navigate(Screen.Chat.createRoute(rentalId)) {
+                popUpTo(Screen.ReviewRequest.route) { inclusive = true }
+              }
+            },
+            onDeclined = { navController.popBackStack() },
             onChatClick = { navController.navigate(Screen.Chat.createRoute(rentalId)) },
             onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
         )
@@ -320,17 +363,36 @@ private fun PolyLoopScaffold(
                         rentalId = rentalId,
                         chatRepository = RepositoryProvider.chatRepository,
                         authRepository = RepositoryProvider.authRepository,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
                     )
             )
         ChatScreen(
             viewModel = chatViewModel,
             onRentalDetailsClick = {
-              navController.navigate(Screen.RentalDetail.createRoute(rentalId))
+              navController.navigateOrGoBack(Screen.RentalDetail.createRoute(rentalId))
+            },
+            // Single top: a fast double tap opens Handover once, not twice.
+            onStartPickupClick = {
+              navController.navigate(Screen.Handover.createRoute(rentalId)) {
+                launchSingleTop = true
+              }
             },
         )
       }
       composable(Screen.Handover.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
-        DummyScreen(Screen.Handover.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
+        val handoverViewModel: HandoverViewModel =
+            viewModel(
+                factory =
+                    HandoverViewModel.Factory(
+                        rentalId = entry.stringArg(Screen.ARG_RENTAL_ID),
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        handoverRepository = RepositoryProvider.handoverRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
+                    )
+            )
+        HandoverScreen(viewModel = handoverViewModel)
       }
       composable(Screen.Dispute.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
         DummyScreen(Screen.Dispute.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
@@ -377,3 +439,19 @@ private fun stringArgument(name: String): List<NamedNavArgument> =
 
 private fun NavBackStackEntry.stringArg(name: String): String =
     requireNotNull(arguments?.getString(name)) { "Missing navigation argument $name" }
+
+/**
+ * Opens [route] (a route with a rental id, such as Chat or Rental detail), or goes back when the
+ * screen right behind is that same route for the same rental.
+ */
+private fun NavHostController.navigateOrGoBack(route: String) {
+  // Going back and forth between Chat and Rental detail would otherwise stack a new copy of each
+  // screen on every hop, and Back would replay them all.
+  val previous = previousBackStackEntry
+  // The entry keeps the route pattern (e.g. "chat/{rentalId}"), so its rental id is put back in.
+  val previousRoute =
+      previous?.arguments?.getString(Screen.ARG_RENTAL_ID)?.let { rentalId ->
+        previous.destination.route?.replace("{${Screen.ARG_RENTAL_ID}}", rentalId)
+      }
+  if (previousRoute == route) popBackStack() else navigate(route)
+}

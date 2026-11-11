@@ -31,6 +31,14 @@ internal object RentalFields {
   const val DROP_OFF_AREA = "dropOffArea"
   const val PICKUP_ADDRESS = "pickupAddress"
   const val RETURN_ADDRESS = "returnAddress"
+  const val DEPOSIT = "deposit"
+  const val LATE_FEES = "lateFees"
+  const val OFFER = "offer"
+  const val OFFER_AMOUNT = "amount"
+  const val OFFER_AUTHOR_ID = "authorId"
+  const val OFFER_IS_COUNTER = "isCounter"
+  const val OFFER_PREVIOUS_AMOUNT = "previousAmount"
+  const val OFFER_EXPIRES_AT = "expiresAt"
   const val CREATED_AT = "createdAt"
   const val LAST_MESSAGE = "lastMessage"
   const val LAST_MESSAGE_AT = "lastMessageAt"
@@ -77,8 +85,8 @@ internal fun rentalRequestDocument(
 /**
  * Builds a [Rental] from a Firestore document, or returns null if a field it cannot do without
  * (ids, dates, status, prices, `createdAt`) is missing or has the wrong type. Copied names, title,
- * photo, areas, addresses and the last message read as "" when missing, and `lastMessageAt` as
- * `createdAt`.
+ * photo, areas, addresses and the last message read as "" when missing, `lastMessageAt` as
+ * `createdAt`, `deposit` and `lateFees` as 0, and a missing or malformed `offer` as no offer.
  */
 internal fun rentalFromDocument(id: String, data: Map<String, Any?>): Rental? {
   val createdAt = instantOrNull(data[RentalFields.CREATED_AT]) ?: return null
@@ -100,9 +108,28 @@ internal fun rentalFromDocument(id: String, data: Map<String, Any?>): Rental? {
       dropOffArea = data.stringOrEmpty(RentalFields.DROP_OFF_AREA),
       pickupAddress = data.stringOrEmpty(RentalFields.PICKUP_ADDRESS),
       returnAddress = data.stringOrEmpty(RentalFields.RETURN_ADDRESS),
+      deposit = intOrNull(data[RentalFields.DEPOSIT]) ?: 0,
+      // Only Cloud Functions will write lateFees, the scheduled job that charges late fees, once a
+      // return is late, so a rental that was never late has no such field.
+      lateFees = intOrNull(data[RentalFields.LATE_FEES]) ?: 0,
+      offer = depositOfferFromDocument(data[RentalFields.OFFER]),
       createdAt = createdAt,
       lastMessage = data.stringOrEmpty(RentalFields.LAST_MESSAGE),
       lastMessageAt = instantOrNull(data[RentalFields.LAST_MESSAGE_AT]) ?: createdAt,
+  )
+}
+
+/**
+ * Builds a [DepositOffer] from the `offer` field, or returns null if it is missing or malformed.
+ */
+private fun depositOfferFromDocument(value: Any?): DepositOffer? {
+  val offer = value as? Map<*, *> ?: return null
+  return DepositOffer(
+      amount = intOrNull(offer[RentalFields.OFFER_AMOUNT]) ?: return null,
+      authorId = offer[RentalFields.OFFER_AUTHOR_ID] as? String ?: return null,
+      isCounter = offer[RentalFields.OFFER_IS_COUNTER] as? Boolean ?: return null,
+      previousAmount = intOrNull(offer[RentalFields.OFFER_PREVIOUS_AMOUNT]),
+      expiresAt = instantOrNull(offer[RentalFields.OFFER_EXPIRES_AT]) ?: return null,
   )
 }
 

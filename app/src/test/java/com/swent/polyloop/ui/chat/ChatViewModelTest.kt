@@ -10,6 +10,8 @@ import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.chat.Message
 import com.swent.polyloop.model.chat.MessageType
+import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import java.io.IOException
 import java.time.Instant
@@ -78,7 +80,13 @@ class ChatViewModelTest {
   }
 
   private fun viewModel(repository: ChatRepository = chat, rentalId: String = "tent") =
-      ChatViewModel(rentalId, repository, auth)
+      ChatViewModel(
+          rentalId,
+          repository,
+          auth,
+          FakeRentalRepository(),
+          FakeConnectivityRepository(),
+      )
 
   // ---------- loading ----------
 
@@ -413,14 +421,23 @@ class ChatViewModelTest {
 
   @Test
   fun factoryCreatesTheViewModelForTheRental() {
-    val vm = ChatViewModel.Factory("tent", chat, auth).create(ChatViewModel::class.java)
+    val vm =
+        ChatViewModel.Factory(
+                "tent",
+                chat,
+                auth,
+                FakeRentalRepository(),
+                FakeConnectivityRepository(),
+            )
+            .create(ChatViewModel::class.java)
 
     assertEquals("Camping tent", vm.uiState.value.header?.itemTitle)
   }
 
   @Test(expected = IllegalArgumentException::class)
   fun factoryRejectsOtherViewModels() {
-    ChatViewModel.Factory("tent", chat, auth).create(OtherViewModel::class.java)
+    ChatViewModel.Factory("tent", chat, auth, FakeRentalRepository(), FakeConnectivityRepository())
+        .create(OtherViewModel::class.java)
   }
 
   private class OtherViewModel : ViewModel()

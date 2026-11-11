@@ -36,6 +36,7 @@ import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.profile.FakeProfileRepository
+import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.utils.FakePhotoServerRule
@@ -74,6 +75,15 @@ class ListingDetailScreenTest {
           availableTo = LocalDate.of(2026, 10, 20),
           status = ListingStatus.PUBLISHED,
           pickupArea = "Ecublens",
+      )
+
+  private val owner =
+      UserProfile(
+          uid = "owner",
+          name = "Mara",
+          email = "mara@epfl.ch",
+          averageRating = 4.6,
+          reviewCount = 5,
       )
 
   private val today = LocalDate.of(2026, 10, 1)
@@ -176,23 +186,85 @@ class ListingDetailScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_photo_badge).assertDoesNotExist()
   }
 
+  private fun assertLenderRating(averageRating: Double, reviewCount: Int) =
+      assertSectionText(
+          C.Tag.listing_detail_lender_rating,
+          context.resources.getQuantityString(
+              R.plurals.profile_rating,
+              reviewCount,
+              averageRating,
+              reviewCount,
+          ),
+      )
+
   @Test
-  fun displaysLenderPlaceholderAndRating() {
-    setContent()
+  fun displaysTheOwnersNameAndRating() {
+    setContent(uiState = ListingDetailUiState(listing = listing, owner = owner))
+
+    assertSectionText(C.Tag.listing_detail_lender_name, "Mara")
+    assertLenderRating(averageRating = 4.6, reviewCount = 5)
+  }
+
+  @Test
+  fun ownerWithoutReviewsShowsNoReviewsYet() {
+    setContent(
+        uiState =
+            ListingDetailUiState(
+                listing = listing,
+                owner = owner.copy(averageRating = 0.0, reviewCount = 0),
+            )
+    )
+
+    assertSectionText(
+        C.Tag.listing_detail_lender_rating,
+        context.getString(R.string.profile_no_reviews),
+    )
+  }
+
+  @Test
+  fun ownerWithABlankNameShowsThePlaceholderAndKeepsTheRating() {
+    setContent(uiState = ListingDetailUiState(listing = listing, owner = owner.copy(name = " ")))
 
     assertSectionText(
         C.Tag.listing_detail_lender_name,
-        context.getString(R.string.listing_detail_lender_placeholder),
+        context.getString(R.string.profile_name_placeholder),
     )
+    assertSectionText(C.Tag.profile_avatar, "?")
+    assertLenderRating(averageRating = 4.6, reviewCount = 5)
+  }
+
+  @Test
+  fun unknownOwnerShowsThePlaceholderAndNoRating() {
+    setContent(uiState = ListingDetailUiState(listing = listing, owner = null))
+
     assertSectionText(
-        C.Tag.listing_detail_lender_rating,
-        context.resources.getQuantityString(
-            R.plurals.listing_detail_rating,
-            FAKE_LENDER_REVIEW_COUNT,
-            FAKE_LENDER_RATING,
-            FAKE_LENDER_REVIEW_COUNT,
-        ),
+        C.Tag.listing_detail_lender_name,
+        context.getString(R.string.profile_name_placeholder),
     )
+    assertSectionText(C.Tag.profile_avatar, "?")
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_detail_lender_rating, useUnmergedTree = true)
+        .assertDoesNotExist()
+  }
+
+  @Test
+  fun listingDetailScreenShowsTheOwnerItLoaded() {
+    val viewModel =
+        ListingDetailViewModel(
+            "tent",
+            listingRepository(loadListing = { Result.success(listing) }),
+            FakeRentalRepository(),
+            FakeAuthRepository(),
+            FakeProfileRepository(profiles = listOf(owner)),
+            FakeConnectivityRepository(),
+        )
+    composeTestRule.setContent {
+      ListingDetailScreen(viewModel = viewModel, onLenderClick = {}, onRequestSent = {})
+    }
+
+    waitForTag(C.Tag.listing_detail_lender_card)
+    assertSectionText(C.Tag.listing_detail_lender_name, "Mara")
+    assertLenderRating(averageRating = 4.6, reviewCount = 5)
   }
 
   @Test
@@ -315,10 +387,23 @@ class ListingDetailScreenTest {
 
   @Test
   fun lenderAvatarShowsFirstLetterOfName() {
-    setContent()
+    setContent(uiState = ListingDetailUiState(listing = listing, owner = owner.copy(name = " léa")))
 
-    val name = context.getString(R.string.listing_detail_lender_placeholder)
-    assertSectionText(C.Tag.listing_detail_lender_avatar, name.first().uppercase())
+    assertSectionText(C.Tag.profile_avatar, "L")
+  }
+
+  @Test
+  fun lenderAvatarShowsTheOwnersPhoto() {
+    setContent(
+        uiState =
+            ListingDetailUiState(listing = listing, owner = owner.copy(photoUrl = FakePhotos.RED))
+    )
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo()
+
+    composeTestRule.waitUntilCenterIs(Color.Red) {
+      composeTestRule.onNodeWithTag(C.Tag.profile_avatar_photo, useUnmergedTree = true)
+    }
+    composeTestRule.onNodeWithTag(C.Tag.profile_avatar, useUnmergedTree = true).assertDoesNotExist()
   }
 
   private fun photoPage(index: Int) =

@@ -51,9 +51,13 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
 import java.time.LocalDate
 
-/** The Chat screen of one rental (Figma frame 19). */
+/** The Chat screen of one rental (Figma frames 19 and 19.16). */
 @Composable
-fun ChatScreen(viewModel: ChatViewModel, onRentalDetailsClick: () -> Unit = {}) {
+fun ChatScreen(
+    viewModel: ChatViewModel,
+    onRentalDetailsClick: () -> Unit = {},
+    onStartPickupClick: () -> Unit = {},
+) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   ChatContent(
       uiState = uiState,
@@ -61,13 +65,20 @@ fun ChatScreen(viewModel: ChatViewModel, onRentalDetailsClick: () -> Unit = {}) 
       onSend = viewModel::send,
       onRetry = viewModel::retry,
       onRentalDetailsClick = onRentalDetailsClick,
+      onAcceptOffer = viewModel::acceptOffer,
+      onDeclineOffer = viewModel::declineOffer,
+      onStartCounter = viewModel::startCounter,
+      onCancelCounter = viewModel::cancelCounter,
+      onCounterDraftChange = viewModel::onCounterDraftChange,
+      onSendCounter = viewModel::sendCounter,
+      onStartPickupClick = onStartPickupClick,
   )
 }
 
 /**
  * Stateless Chat content: the header, then a loading indicator, an error with a Retry button, the
  * empty state or the messages, and the bar to type and send a message. [now] decides which messages
- * are from today.
+ * are from today. The offer card, when there is an offer, sits above that bar.
  */
 @Composable
 fun ChatContent(
@@ -77,6 +88,14 @@ fun ChatContent(
     onRetry: () -> Unit,
     onRentalDetailsClick: () -> Unit,
     now: Instant = Instant.now(),
+    onAcceptOffer: () -> Unit = {},
+    onDeclineOffer: () -> Unit = {},
+    onStartCounter: () -> Unit = {},
+    onCancelCounter: () -> Unit = {},
+    onCounterDraftChange: (String) -> Unit = {},
+    onSendCounter: () -> Unit = {},
+    today: LocalDate = LocalDate.now(),
+    onStartPickupClick: () -> Unit = {},
 ) {
   Column(
       modifier =
@@ -86,6 +105,12 @@ fun ChatContent(
   ) {
     uiState.header?.let {
       ChatHeaderBar(header = it, onRentalDetailsClick = onRentalDetailsClick)
+      HorizontalDivider()
+    }
+    // Only on the pickup day itself: Handover takes pickup photos on that day only. Like the offer
+    // card, only once the chat is loaded, not above its spinner or its error.
+    if (!uiState.isLoading && uiState.errorMsg == null && uiState.pickupDate == today) {
+      PickupBar(onStartPickupClick = onStartPickupClick)
       HorizontalDivider()
     }
     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -108,6 +133,18 @@ fun ChatContent(
     }
     // Typing is only possible once the chat is loaded.
     if (!uiState.isLoading && uiState.errorMsg == null) {
+      uiState.offer?.let { offer ->
+        ChatOfferCard(
+            offer = offer,
+            uiState = uiState,
+            onAccept = onAcceptOffer,
+            onDecline = onDeclineOffer,
+            onStartCounter = onStartCounter,
+            onCancelCounter = onCancelCounter,
+            onCounterDraftChange = onCounterDraftChange,
+            onSendCounter = onSendCounter,
+        )
+      }
       HorizontalDivider()
       InputBar(uiState = uiState, onDraftChange = onDraftChange, onSend = onSend)
     }
@@ -154,6 +191,41 @@ private fun ChatHeaderBar(header: ChatHeader, onRentalDetailsClick: () -> Unit) 
                 .clickable(onClick = onRentalDetailsClick)
                 .testTag(C.Tag.chat_rental_details),
     )
+  }
+}
+
+/**
+ * "Pickup is today" with a hint, and the Start pickup button (Figma frame 19.16). It stays enabled
+ * offline: Handover works offline too.
+ */
+@Composable
+private fun PickupBar(onStartPickupClick: () -> Unit) {
+  Row(
+      modifier =
+          Modifier.fillMaxWidth()
+              .background(MaterialTheme.colorScheme.surface)
+              .padding(horizontal = 16.dp, vertical = 12.dp)
+              .testTag(C.Tag.chat_pickup_bar),
+      verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(
+          text = stringResource(R.string.chat_pickup_today),
+          style = MaterialTheme.typography.titleSmall,
+          fontWeight = FontWeight.SemiBold,
+      )
+      Text(
+          text = stringResource(R.string.chat_pickup_hint),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    Button(
+        onClick = onStartPickupClick,
+        modifier = Modifier.padding(start = 12.dp).testTag(C.Tag.chat_start_pickup_button),
+    ) {
+      Text(stringResource(R.string.chat_start_pickup))
+    }
   }
 }
 

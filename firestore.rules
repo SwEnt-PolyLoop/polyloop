@@ -254,6 +254,47 @@ service cloud.firestore {
             && request.resource.data.sentAt == request.time
             && request.resource.data.type == 'USER';
       }
+
+      // Condition photos (#231). Each participant adds only their own pickup photos, while the
+      // rental is Accepted. They are evidence: never changed.
+      match /photos/{photoId} {
+        allow read: if isVerifiedEpfl()
+            && request.auth.uid in get(rentalPath(rentalId)).data.participants;
+
+        allow create: if isVerifiedEpfl()
+            && request.auth.uid in get(rentalPath(rentalId)).data.participants
+            && request.resource.data.keys().hasOnly(['takenBy', 'phase', 'takenAt', 'url'])
+            && request.resource.data.keys().hasAll(['takenBy', 'phase', 'takenAt', 'url'])
+            && request.resource.data.takenBy == request.auth.uid
+            && request.resource.data.takenAt == request.time
+            && request.resource.data.url is string
+            && request.resource.data.phase == 'PICKUP'
+            && get(rentalPath(rentalId)).data.status == 'ACCEPTED';
+      }
+    }
+
+    // ---------- wallets ----------
+
+    // The balance and its history are written by Cloud Functions only; a user reads their own.
+    match /wallets/{uid} {
+      allow read: if isUser(uid);
+      allow write: if false;
+
+      match /transactions/{transactionId} {
+        allow read: if isUser(uid);
+        allow write: if false;
+      }
+    }
+
+    // ---------- disputes ----------
+
+    // One dispute per rental, at the rental's id, visible only to the rental's two participants.
+    // Only Cloud Functions write it (proposeSplit, acceptSplit, escalateDispute): no client write.
+    // Reading the dispute of a rental that has none is allowed, so the app can read a missing
+    // dispute as none.
+    match /disputes/{rentalId} {
+      allow read: if isVerifiedEpfl()
+          && request.auth.uid in get(rentalPath(rentalId)).data.participants;
     }
   }
 }

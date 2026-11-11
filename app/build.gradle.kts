@@ -139,22 +139,15 @@ fun DependencyHandlerScope.globalTestImplementation(dep: Any) {
 }
 
 dependencies {
+  val composeBom = platform(libs.compose.bom)
+
+  // ----------       App       ------------
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
   implementation(libs.material)
   implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(platform(libs.compose.bom))
-  testImplementation(libs.junit)
-  testImplementation(libs.mockk)
-  testImplementation(libs.kotlinx.coroutines.test)
-  globalTestImplementation(libs.androidx.junit)
-  globalTestImplementation(libs.androidx.espresso.core)
-
-  // ------------- Jetpack Compose ------------------
-  val composeBom = platform(libs.compose.bom)
+  // Jetpack Compose
   implementation(composeBom)
-  globalTestImplementation(composeBom)
-
   implementation(libs.compose.ui)
   implementation(libs.compose.ui.graphics)
   // Material Design 3
@@ -178,25 +171,34 @@ dependencies {
   implementation(libs.maps.compose)
   // Android Studio Preview support
   implementation(libs.compose.preview)
-  debugImplementation(libs.compose.tooling)
-  // UI Tests
-  globalTestImplementation(libs.compose.test.junit)
-  debugImplementation(libs.compose.test.manifest)
-
-  // --------- Kaspresso test framework ----------
-  globalTestImplementation(libs.kaspresso)
-  globalTestImplementation(libs.kaspresso.compose)
-
-  // ----------       Robolectric     ------------
-  testImplementation(libs.robolectric)
-
-  // ----------        FireBase       -------------
+  // Firebase
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.auth)
   implementation(libs.firebase.firestore)
   implementation(libs.firebase.storage)
+  implementation(libs.firebase.functions)
   // Lets us call .await() on Firebase Tasks inside coroutines
   implementation(libs.kotlinx.coroutines.play.services)
+
+  // ----------    Debug only     ------------
+  debugImplementation(libs.compose.tooling)
+  debugImplementation(libs.compose.test.manifest)
+
+  // ----------  Unit tests only  ------------
+  testImplementation(libs.junit)
+  testImplementation(libs.mockk)
+  testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation(libs.robolectric)
+
+  // ---- Unit and instrumented tests (Robolectric + connected) ----
+  globalTestImplementation(composeBom)
+  globalTestImplementation(libs.androidx.junit)
+  globalTestImplementation(libs.androidx.espresso.core)
+  // UI Tests
+  globalTestImplementation(libs.compose.test.junit)
+  // Kaspresso test framework
+  globalTestImplementation(libs.kaspresso)
+  globalTestImplementation(libs.kaspresso.compose)
 }
 
 tasks.withType<Test> {

@@ -11,8 +11,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.updateAndGet
 
 /**
- * In-memory [WalletRepository] for tests and previews; the app uses it only as the temporary
- * default wallet in `RepositoryProvider`, until a Firestore implementation exists. It lives in
+ * In-memory [WalletRepository] for tests and previews; the app itself never uses it. It lives in
  * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
  *
  * Holds one wallet and its history in memory, whatever the `uid` passed to its functions, but it

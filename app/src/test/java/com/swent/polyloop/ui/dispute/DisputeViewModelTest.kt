@@ -58,6 +58,7 @@ class DisputeViewModelTest {
           status = RentalStatus.DISPUTED,
           pricePerDay = 2,
           totalPrice = 12,
+          deposit = 60,
           pickupArea = "Ecublens",
           dropOffArea = "Ecublens",
           createdAt = now.minus(Duration.ofDays(20)),
@@ -120,8 +121,8 @@ class DisputeViewModelTest {
   }
 
   @Test
-  fun depositIsAHundredPolyPointsUntilRentalsHaveOne() {
-    assertEquals(100, viewModel().uiState.value.deposit)
+  fun depositIsTheOneOfTheRental() {
+    assertEquals(60, viewModel().uiState.value.deposit)
   }
 
   @Test

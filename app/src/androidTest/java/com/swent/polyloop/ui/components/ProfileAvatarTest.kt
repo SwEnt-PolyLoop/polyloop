@@ -9,12 +9,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.resources.C
@@ -23,6 +27,7 @@ import java.io.File
 import java.util.UUID
 import kotlin.math.abs
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -112,6 +117,21 @@ class ProfileAvatarTest {
     setContent(photo = "", name = "  jane")
 
     node(C.Tag.profile_avatar).assertTextEquals("J")
+  }
+
+  @Test
+  fun theInitialUsesTheGivenStyle() {
+    composeTestRule.setContent {
+      PolyLoopTheme { ProfileAvatar("", "John", 40.dp, initialStyle = TextStyle(fontSize = 12.sp)) }
+    }
+
+    val layouts = mutableListOf<TextLayoutResult>()
+    node(C.Tag.profile_avatar)
+        .fetchSemanticsNode()
+        .config[SemanticsActions.GetTextLayoutResult]
+        .action
+        ?.invoke(layouts)
+    assertEquals(12.sp, layouts.single().layoutInput.style.fontSize)
   }
 
   @Test

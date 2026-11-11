@@ -3,7 +3,6 @@
 package com.swent.polyloop.ui.createlisting
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
@@ -14,9 +13,14 @@ import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.io.IOException
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -55,7 +59,7 @@ class CreateListingViewModelPublishTest {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     listingRepository = FakeListingRepository()
     authRepository = FakeAuthRepository(signedInUser = me)
-    viewModel = CreateListingViewModel(listingRepository, authRepository, { deleted += it })
+    viewModel = storedViewModel()
   }
 
   @After
@@ -77,16 +81,20 @@ class CreateListingViewModelPublishTest {
 
   private val photos = List(3) { "file:///photo$it.jpg" }
 
-  /** A ViewModel held by [store], so the test can clear it like the navigation does. */
-  private fun storedViewModel(store: ViewModelStore): CreateListingViewModel =
-      ViewModelProvider(
-          store,
-          object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                CreateListingViewModel(listingRepository, authRepository, { deleted += it }) as T
-          },
-      )[CreateListingViewModel::class.java]
+  /**
+   * A ViewModel held by [store] that records its deletions in [deleted].
+   *
+   * @param store the store that holds the ViewModel, to clear it like the navigation does.
+   * @param fileScope where the deletions run; by default they run at once, tests that check the
+   *   timing pass a [TestScope] on a [StandardTestDispatcher].
+   */
+  private fun storedViewModel(
+      store: ViewModelStore = ViewModelStore(),
+      fileScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+  ): CreateListingViewModel =
+      storedCreateListingViewModel(store, listingRepository, authRepository, fileScope) {
+        deleted += it
+      }
 
   @Test
   fun publishDeletesThePhotosOnlyAfterTheUploadSucceeded() {
@@ -306,6 +314,58 @@ class CreateListingViewModelPublishTest {
     assertNotNull(factory.create(CreateListingViewModel::class.java))
     val rejected = runCatching { factory.create(OtherViewModel::class.java) }
     assertTrue(rejected.exceptionOrNull() is IllegalArgumentException)
+  }
+
+  @Test
+  fun aFailedCaptureDeletesItsFileOnTheFileScopeAndAddsNoPhoto() {
+    val fileScope = TestScope(StandardTestDispatcher())
+    val vm = storedViewModel(fileScope = fileScope)
+
+    vm.onCaptureFailed("file:///failed.jpg")
+    assertTrue(deleted.isEmpty())
+    fileScope.advanceUntilIdle()
+
+    assertEquals(listOf("file:///failed.jpg"), deleted)
+    assertTrue(vm.uiState.value.photos.isEmpty())
+  }
+
+  @Test
+  fun clearingDeletesThePhotosOnTheFileScopeEvenThoughViewModelScopeIsCancelled() {
+    val fileScope = TestScope(StandardTestDispatcher())
+    val store = ViewModelStore()
+    fillForm(storedViewModel(store, fileScope))
+
+    store.clear()
+    assertTrue(deleted.isEmpty())
+    fileScope.advanceUntilIdle()
+
+    assertEquals(photos, deleted)
+  }
+
+  @Test
+  fun removingAPhotoDeletesItsFileOnlyOnceTheFileScopeRuns() {
+    val fileScope = TestScope(StandardTestDispatcher())
+    val vm = storedViewModel(fileScope = fileScope)
+    fillForm(vm)
+
+    vm.onRemovePhoto(0)
+    assertTrue(deleted.isEmpty())
+    fileScope.advanceUntilIdle()
+
+    assertEquals(listOf(photos[0]), deleted)
+  }
+
+  @Test
+  fun aPublishedListingsPhotosAreDeletedOnTheFileScope() {
+    val fileScope = TestScope(StandardTestDispatcher())
+    val vm = storedViewModel(fileScope = fileScope)
+    fillForm(vm)
+
+    vm.onPublish()
+    assertTrue(deleted.isEmpty())
+    fileScope.advanceUntilIdle()
+
+    assertEquals(photos, deleted)
   }
 
   private class OtherViewModel : ViewModel()
