@@ -197,6 +197,36 @@ class FakeRentalRepositoryTest {
   }
 
   @Test
+  fun serverNowReturnsItsTimeAndCountsTheCalls() = runTest {
+    val repository = repository()
+    repository.serverNow = Instant.parse("2026-11-11T23:30:00Z")
+
+    assertEquals(Instant.parse("2026-11-11T23:30:00Z"), repository.serverNow().getOrThrow())
+    assertEquals(1, repository.serverNowCalls)
+  }
+
+  @Test
+  fun serverNowFailsWithTheFailure() = runTest {
+    val error = IllegalStateException("offline")
+    val repository = repository().apply { failure = error }
+
+    assertEquals(error, repository.serverNow().exceptionOrNull())
+  }
+
+  @Test
+  fun serverNowWaitsForTheGate() = runTest {
+    val gate = CompletableDeferred<Unit>()
+    val repository = repository().apply { this.gate = gate }
+
+    val call = async { repository.serverNow() }
+    yield()
+    assertFalse(call.isCompleted)
+
+    gate.complete(Unit)
+    assertTrue(call.await().isSuccess)
+  }
+
+  @Test
   fun requestRentalGivesAnEmptyPhotoUrlWhenTheListingHasNoPhotos() = runTest {
     val noPhotos = listing.copy(photoUrls = emptyList())
 

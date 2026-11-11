@@ -4,6 +4,7 @@ package com.swent.polyloop.model.rental
 
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.listing.Listing
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
@@ -104,4 +105,13 @@ interface RentalRepository {
    * @return a failure with the cause if the server refuses or cannot be reached.
    */
   suspend fun declineRequest(rentalId: String): Result<Unit>
+
+  /**
+   * The server's current time, from the `serverToday` Cloud Function. Start Pickup opens from it
+   * rather than from the phone's clock, which the user can change in the phone's settings; the
+   * server's cannot be changed from the phone.
+   *
+   * @return a failure with the cause if the server refuses, cannot be reached, or gives no time.
+   */
+  suspend fun serverNow(): Result<Instant>
 }
