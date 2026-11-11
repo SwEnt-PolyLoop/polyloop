@@ -4,6 +4,11 @@ import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { declineRequest, makeOffer, respondToOffer } from "./negotiation";
+import { reserveRentalDeposit } from "./reserveDeposit";
+import { fund, people, rows, wallet } from "./testing/walletFixtures";
+
+// reserveDeposit.ts loads firebase-functions, which loads an ES module that Jest cannot load.
+jest.mock("jose", () => ({}));
 
 // The transactions are tested on the emulator; the pure rules are in rentalRules.test.ts.
 let db: Firestore;
@@ -21,7 +26,6 @@ beforeAll(() => {
 });
 
 const LENDER = "lender-uid";
-const BORROWER = "borrower-uid";
 const STRANGER = "stranger-uid";
 const NOW = new Date("2026-11-04T10:00:00Z");
 const ONE_WEEK_LATER = new Date("2026-11-11T10:00:00Z");
@@ -37,7 +41,18 @@ async function listing(bookedRanges: object[] = []): Promise<string> {
   return id;
 }
 
-/** A request on [listingId] for [start] to [end], as the app writes it. */
+/** A wallet with [available] PP and nothing held. */
+const funds = (available: number) => ({ available, heldAsDeposits: 0, heldForRentals: 0 });
+
+/** The borrower of the rental [id]. */
+async function borrowerOf(id: string): Promise<string> {
+  return (await rental(id))?.borrowerId;
+}
+
+/**
+ * A request on [listingId] for [start] to [end], as the app writes it, from a fresh borrower whose
+ * wallet holds 1000 PP, enough for every deposit of these tests.
+ */
 async function request(
   listingId: string,
   start = "2026-12-01",
@@ -45,10 +60,13 @@ async function request(
   status = "REQUESTED",
 ): Promise<string> {
   const id = randomUUID();
+  const { borrower } = people();
+  await fund(borrower, funds(1000));
   await db.collection("rentals").doc(id).set({
     listingId,
+    listingTitle: "Camping tent",
     ownerId: LENDER,
-    borrowerId: BORROWER,
+    borrowerId: borrower,
     startDate: start,
     endDate: end,
     status,
@@ -68,7 +86,7 @@ async function offered(listingId: string, start?: string, end?: string): Promise
 /** A request with the lender's offer and the borrower's counteroffer of 120 PP. */
 async function countered(listingId: string): Promise<string> {
   const id = await offered(listingId);
-  await respondToOffer(db, BORROWER, { rentalId: id, action: "COUNTER", deposit: 120 }, NOW);
+  await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "COUNTER", deposit: 120 }, NOW);
   return id;
 }
 
@@ -159,7 +177,7 @@ describe("makeOffer", () => {
     const id = await request(await listing());
 
     await expect(
-      makeOffer(db, BORROWER, { rentalId: id, deposit: 180, ...ADDRESSES }, NOW),
+      makeOffer(db, await borrowerOf(id), { rentalId: id, deposit: 180, ...ADDRESSES }, NOW),
     ).rejects.toMatchObject({ code: "permission-denied" });
     expect((await rental(id))?.offer).toBeUndefined();
   });
@@ -190,7 +208,7 @@ describe("respondToOffer: accepting", () => {
     const listingId = await listing();
     const id = await offered(listingId);
 
-    await respondToOffer(db, BORROWER, { rentalId: id, action: "ACCEPT" }, NOW);
+    await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, NOW);
 
     const data = await rental(id);
     expect(data).toMatchObject({
@@ -203,6 +221,116 @@ describe("respondToOffer: accepting", () => {
     expect(await addresses(id)).toBeUndefined();
     const listingData = (await db.collection("listings").doc(listingId).get()).data();
     expect(listingData?.bookedRanges).toEqual([{ start: "2026-12-01", end: "2026-12-03" }]);
+  });
+
+  it("holds the deposit in the borrower's wallet, with one history row", async () => {
+    const id = await offered(await listing());
+    const borrower = await borrowerOf(id);
+
+    await respondToOffer(db, borrower, { rentalId: id, action: "ACCEPT" }, NOW);
+
+    expect(await wallet(borrower)).toEqual({
+      available: 820,
+      heldAsDeposits: 180,
+      heldForRentals: 0,
+    });
+    const history = await rows(borrower);
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      id: `deposit_held_${id}`,
+      type: "DEPOSIT_HELD",
+      amount: -180,
+      itemTitle: "Camping tent",
+    });
+    expect((history[0] as { date?: unknown }).date).toBeDefined();
+  });
+
+  it("accepts when the balance exactly covers the deposit", async () => {
+    const id = await offered(await listing());
+    const borrower = await borrowerOf(id);
+    await fund(borrower, funds(180));
+
+    await respondToOffer(db, borrower, { rentalId: id, action: "ACCEPT" }, NOW);
+
+    expect((await rental(id))?.status).toBe("ACCEPTED");
+    expect(await wallet(borrower)).toEqual({ available: 0, heldAsDeposits: 180, heldForRentals: 0 });
+  });
+
+  it("refuses when the balance is too low, and changes nothing", async () => {
+    const listingId = await listing();
+    const id = await offered(listingId, "2026-12-10", "2026-12-12");
+    const overlapping = await request(listingId, "2026-12-11", "2026-12-13");
+    const borrower = await borrowerOf(id);
+    await fund(borrower, funds(179));
+
+    await expect(
+      respondToOffer(db, borrower, { rentalId: id, action: "ACCEPT" }, NOW),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      message: "Insufficient funds to hold the deposit.",
+    });
+
+    const data = await rental(id);
+    expect(data).toMatchObject({ status: "REQUESTED", pickupAddress: "" });
+    expect(data?.deposit).toBeUndefined();
+    expect(data?.offer).toMatchObject({ amount: 180 });
+    expect(await addresses(id)).toBeDefined();
+    expect((await rental(overlapping))?.status).toBe("REQUESTED");
+    const listingData = (await db.collection("listings").doc(listingId).get()).data();
+    expect(listingData?.bookedRanges).toEqual([]);
+    expect(await wallet(borrower)).toEqual(funds(179));
+    expect(await rows(borrower)).toEqual([]);
+    expect(await systemMessages(id)).toEqual(["Offer sent · 180 PP deposit"]);
+  });
+
+  it("refuses a stored offer with an invalid amount, and writes nothing", async () => {
+    const listingId = await listing();
+    const id = await offered(listingId);
+    const borrower = await borrowerOf(id);
+    await db.collection("rentals").doc(id).update({ "offer.amount": 0 });
+
+    await expect(
+      respondToOffer(db, borrower, { rentalId: id, action: "ACCEPT" }, NOW),
+    ).rejects.toMatchObject({ code: "internal" });
+
+    const data = await rental(id);
+    expect(data?.status).toBe("REQUESTED");
+    expect(data?.offer).toBeDefined();
+    expect(await addresses(id)).toBeDefined();
+    const listingData = (await db.collection("listings").doc(listingId).get()).data();
+    expect(listingData?.bookedRanges).toEqual([]);
+    expect(await wallet(borrower)).toEqual(funds(1000));
+    expect(await rows(borrower)).toEqual([]);
+  });
+
+  it("charges the borrower, not the lender, when the lender accepts a counteroffer", async () => {
+    const id = await countered(await listing());
+    const borrower = await borrowerOf(id);
+
+    await respondToOffer(db, LENDER, { rentalId: id, action: "ACCEPT" }, NOW);
+
+    expect(await wallet(borrower)).toEqual({
+      available: 880,
+      heldAsDeposits: 120,
+      heldForRentals: 0,
+    });
+    expect(await rows(borrower)).toMatchObject([{ id: `deposit_held_${id}`, amount: -120 }]);
+    expect(await wallet(LENDER)).toBeUndefined();
+  });
+
+  it("leaves a later reserveDeposit call a success that charges nothing more", async () => {
+    const id = await offered(await listing());
+    const borrower = await borrowerOf(id);
+    await respondToOffer(db, borrower, { rentalId: id, action: "ACCEPT" }, NOW);
+
+    await reserveRentalDeposit(db, LENDER, id);
+
+    expect(await wallet(borrower)).toEqual({
+      available: 820,
+      heldAsDeposits: 180,
+      heldForRentals: 0,
+    });
+    expect(await rows(borrower)).toHaveLength(1);
   });
 
   it("lets the lender accept a counteroffer, at the countered amount", async () => {
@@ -225,7 +353,7 @@ describe("respondToOffer: accepting", () => {
     const beforeBuffer = await offered(listingId, "2026-12-08", "2026-12-09");
     const free = await request(listingId, "2026-12-14", "2026-12-15");
 
-    await respondToOffer(db, BORROWER, { rentalId: accepted, action: "ACCEPT" }, NOW);
+    await respondToOffer(db, await borrowerOf(accepted), { rentalId: accepted, action: "ACCEPT" }, NOW);
 
     expect((await rental(touching))?.status).toBe("DECLINED");
     expect(await rental(beforeBuffer)).toMatchObject({
@@ -241,7 +369,7 @@ describe("respondToOffer: accepting", () => {
     const id = await offered(await listing());
     const elsewhere = await request(await listing());
 
-    await respondToOffer(db, BORROWER, { rentalId: id, action: "ACCEPT" }, NOW);
+    await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, NOW);
 
     expect((await rental(elsewhere))?.status).toBe("REQUESTED");
   });
@@ -255,7 +383,7 @@ describe("respondToOffer: accepting", () => {
       .update({ bookedRanges: [{ start: "2026-12-04", end: "2026-12-05" }] });
 
     await expect(
-      respondToOffer(db, BORROWER, { rentalId: id, action: "ACCEPT" }, NOW),
+      respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, NOW),
     ).rejects.toMatchObject({ code: "failed-precondition" });
     expect((await rental(id))?.status).toBe("REQUESTED");
   });
@@ -264,7 +392,7 @@ describe("respondToOffer: accepting", () => {
     const id = await offered(await listing());
 
     await expect(
-      respondToOffer(db, BORROWER, { rentalId: id, action: "ACCEPT" }, ONE_WEEK_LATER),
+      respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, ONE_WEEK_LATER),
     ).rejects.toMatchObject({ code: "failed-precondition" });
     expect((await rental(id))?.status).toBe("REQUESTED");
   });
@@ -273,10 +401,7 @@ describe("respondToOffer: accepting", () => {
     const id = await offered(await listing(), "2026-11-08", "2026-11-09");
 
     await expect(
-      respondToOffer(
-        db,
-        BORROWER,
-        { rentalId: id, action: "ACCEPT" },
+      respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" },
         new Date("2026-11-08T00:00:00Z"),
       ),
     ).rejects.toMatchObject({ code: "failed-precondition" });
@@ -287,7 +412,7 @@ describe("respondToOffer: declining", () => {
   it("makes the rental declined and removes the offer and the addresses", async () => {
     const id = await offered(await listing());
 
-    await respondToOffer(db, BORROWER, { rentalId: id, action: "DECLINE" }, NOW);
+    await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "DECLINE" }, NOW);
 
     const data = await rental(id);
     expect(data).toMatchObject({
@@ -313,14 +438,14 @@ describe("respondToOffer: countering", () => {
     const id = await offered(await listing());
     const later = new Date("2026-11-06T10:00:00Z");
 
-    await respondToOffer(db, BORROWER, { rentalId: id, action: "COUNTER", deposit: 120 }, later);
+    await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "COUNTER", deposit: 120 }, later);
 
     const data = await rental(id);
     expect(data).toMatchObject({ status: "REQUESTED", lastMessage: "Counteroffer · 120 PP" });
     expect(data?.offer).toMatchObject({
       amount: 120,
       previousAmount: 180,
-      authorId: BORROWER,
+      authorId: await borrowerOf(id),
       isCounter: true,
     });
     expect(data?.offer.expiresAt.toDate()).toEqual(new Date("2026-11-13T10:00:00Z"));
@@ -346,7 +471,7 @@ describe("respondToOffer: who and when", () => {
       respondToOffer(db, LENDER, { rentalId: first, action: "ACCEPT" }, NOW),
     ).rejects.toMatchObject({ code: "permission-denied" });
     await expect(
-      respondToOffer(db, BORROWER, { rentalId: counter, action: "ACCEPT" }, NOW),
+      respondToOffer(db, await borrowerOf(counter), { rentalId: counter, action: "ACCEPT" }, NOW),
     ).rejects.toMatchObject({ code: "permission-denied" });
   });
 
@@ -361,16 +486,16 @@ describe("respondToOffer: who and when", () => {
   it("refuses a request without an offer, an answered offer, and a missing rental", async () => {
     const noOffer = await request(await listing());
     const answered = await offered(await listing());
-    await respondToOffer(db, BORROWER, { rentalId: answered, action: "DECLINE" }, NOW);
+    await respondToOffer(db, await borrowerOf(answered), { rentalId: answered, action: "DECLINE" }, NOW);
 
     await expect(
-      respondToOffer(db, BORROWER, { rentalId: noOffer, action: "ACCEPT" }, NOW),
+      respondToOffer(db, await borrowerOf(noOffer), { rentalId: noOffer, action: "ACCEPT" }, NOW),
     ).rejects.toMatchObject({ code: "failed-precondition" });
     await expect(
-      respondToOffer(db, BORROWER, { rentalId: answered, action: "ACCEPT" }, NOW),
+      respondToOffer(db, await borrowerOf(answered), { rentalId: answered, action: "ACCEPT" }, NOW),
     ).rejects.toMatchObject({ code: "failed-precondition" });
     await expect(
-      respondToOffer(db, BORROWER, { rentalId: randomUUID(), action: "ACCEPT" }, NOW),
+      respondToOffer(db, people().borrower, { rentalId: randomUUID(), action: "ACCEPT" }, NOW),
     ).rejects.toMatchObject({ code: "not-found" });
   });
 });
@@ -391,7 +516,7 @@ describe("declineRequest", () => {
   it("refuses the borrower", async () => {
     const id = await request(await listing());
 
-    await expect(declineRequest(db, BORROWER, id)).rejects.toMatchObject({
+    await expect(declineRequest(db, await borrowerOf(id), id)).rejects.toMatchObject({
       code: "permission-denied",
     });
     expect((await rental(id))?.status).toBe("REQUESTED");

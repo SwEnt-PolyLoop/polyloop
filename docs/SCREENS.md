@@ -144,7 +144,7 @@ Rental detail is the hub for one rental: what it is, where it stands, and the ne
 So far only the Requested, Accepted and Disputed states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Navigate”, cancelling or deposit state yet. A full-width button at the bottom gives the main action, for both roles: “Start Pickup” on Accepted, enabled from the pickup day (before it, disabled with “Pickup will be available on [day]”), and “View Dispute” on Disputed, always enabled; Requested has none. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added.
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
-- The deposit, once an offer is accepted, and its state: held, released, or frozen. “Held” appears only once deposits are really reserved, which needs the `reserveDeposit` Cloud Function; until then only the amount shows.
+- The deposit, once an offer is accepted, and its state: held, released, or frozen. Accepting an offer holds the deposit in the borrower's wallet, but the screen does not show the “Held” state yet: only the amount shows. Nothing releases or splits a held deposit yet, so “released” does not occur either.
 - While an offer waits for an answer, its amount and when it expires (Figma frame 13.10). If the rental can no longer be followed live, the offer is hidden, as in the chat, rather than left out of date.
 - The meeting point: the lender sets the pickup and drop-off addresses when sending the offer, after agreeing with the borrower in chat if needed. The exact addresses show only once the rental is accepted, on a map with a “Navigate” button; offline, as text.
 - A “Chat” button.
@@ -171,7 +171,7 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
 - After the return scan, the lender sees the pickup and return photos side by side, with two buttons:
     - “Item is fine” releases the full deposit to the borrower.
     - “Flag damage” opens a dispute and keeps the deposit held.
-- A footer showing the deposit (“Deposit held” once deposits are really reserved; until then only “Deposit”).
+- A footer showing the deposit (for now only “Deposit”: the deposit is held from acceptance, but this screen does not show that state yet; nothing releases it yet, so “Item is fine” and “Flag damage” do not move it).
 - Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading. Until the queue exists, the offline banner shows and no photo can be taken: the camera tiles are disabled.
 
 ## Dispute
