@@ -9,21 +9,31 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.google.android.gms.maps.CameraUpdate
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.MarkerComposable
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberUpdatedMarkerState
 import com.swent.polyloop.R
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.resources.C
 
 /** The centre of the EPFL campus, where the map opens. */
@@ -41,26 +51,90 @@ private val PIN_PADDING_VERTICAL = 4.dp
 /** Rounding of a pin's corners: half its height, so the ends are round. */
 private const val PIN_CORNER_PERCENT = 50
 
+/** Space kept between the outermost pins and the edges of the map when it fits them all. */
+private val FRAMING_PADDING = 64.dp
+
+/** What the map frames when it opens, depending on the pins. */
+internal sealed interface MapFraming {
+  /** No pin: the map stays on EPFL. */
+  data object Campus : MapFraming
+
+  /** One pin: the map centres on its [point], at the usual zoom. */
+  data class OnePin(val point: MapPoint) : MapFraming
+
+  /** Several pins: the map fits the box from [southWest] to [northEast], which holds them all. */
+  data class AllPins(val southWest: MapPoint, val northEast: MapPoint) : MapFraming
+}
+
+/**
+ * What the map frames for [pins]: EPFL when there are none, the pin itself when there is one, and
+ * the smallest box holding them all when there are several.
+ */
+internal fun framingOf(pins: List<BrowsePin>): MapFraming =
+    when (pins.size) {
+      0 -> MapFraming.Campus
+      1 -> MapFraming.OnePin(pins.single().point)
+      else ->
+          MapFraming.AllPins(
+              southWest =
+                  MapPoint(pins.minOf { it.point.latitude }, pins.minOf { it.point.longitude }),
+              northEast =
+                  MapPoint(pins.maxOf { it.point.latitude }, pins.maxOf { it.point.longitude }),
+          )
+    }
+
 /**
  * The Browse map, filling the space it is given: an interactive Google map that can be scrolled and
- * zoomed, opening on EPFL, with one pin per entry of [pins]. The map toolbar and zoom buttons are
- * hidden, so tapping the map never leaves the app. With no pins, the map shows none.
+ * zoomed, with one pin per entry of [pins]. Once loaded, it frames the pins (see [framingOf]), once
+ * per opening of the map: changing the filter afterwards keeps the user's view, and so does coming
+ * back from a listing or rotating the phone. The map toolbar and zoom buttons are hidden, so
+ * tapping the map never leaves the app.
  */
 @Composable
 fun BrowseMap(pins: List<BrowsePin>, modifier: Modifier = Modifier) {
   val cameraPositionState = rememberCameraPositionState {
     position = CameraPosition.fromLatLngZoom(EPFL, MAP_ZOOM)
   }
+  // Saved with the camera, so the restored view is not replaced after a rotation or a Back.
+  var hasFramedPins by rememberSaveable { mutableStateOf(false) }
+  // The map calls onMapLoaded later; this gives it the pins of that moment.
+  val currentPins by rememberUpdatedState(pins)
+  val framingPaddingPx = with(LocalDensity.current) { FRAMING_PADDING.roundToPx() }
   GoogleMap(
       modifier = modifier.fillMaxSize().testTag(C.Tag.browse_map),
       cameraPositionState = cameraPositionState,
       contentDescription = stringResource(R.string.browse_map_description),
       uiSettings = MapUiSettings(mapToolbarEnabled = false, zoomControlsEnabled = false),
+      // Fitting a box needs the map's size on screen, which is known once the map has loaded.
+      onMapLoaded = {
+        if (!hasFramedPins) {
+          cameraUpdateFor(framingOf(currentPins), framingPaddingPx)?.let(cameraPositionState::move)
+          hasFramedPins = true
+        }
+      },
   ) {
     // Keyed on the point, so a pin keeps its marker when the filter changes the other pins.
     pins.forEach { pin -> key(pin.point) { BrowsePinMarker(pin) } }
   }
 }
+
+/**
+ * The camera move that shows [framing], keeping [paddingPx] pixels between the pins and the edges,
+ * or null for [MapFraming.Campus], where the map already opens.
+ */
+private fun cameraUpdateFor(framing: MapFraming, paddingPx: Int): CameraUpdate? =
+    when (framing) {
+      MapFraming.Campus -> null
+      is MapFraming.OnePin -> CameraUpdateFactory.newLatLngZoom(framing.point.toLatLng(), MAP_ZOOM)
+      is MapFraming.AllPins ->
+          CameraUpdateFactory.newLatLngBounds(
+              LatLngBounds(framing.southWest.toLatLng(), framing.northEast.toLatLng()),
+              paddingPx,
+          )
+    }
+
+/** This point as the Maps SDK's own type. */
+private fun MapPoint.toLatLng() = LatLng(latitude, longitude)
 
 /** The marker of [pin] at its point, drawn as [BrowsePinLabel] and read out as its label. */
 @Composable
@@ -70,7 +144,7 @@ private fun BrowsePinMarker(pin: BrowsePin) {
       // The marker's picture is drawn once, and again only when one of these keys changes.
       pin.point,
       label,
-      state = rememberUpdatedMarkerState(LatLng(pin.point.latitude, pin.point.longitude)),
+      state = rememberUpdatedMarkerState(pin.point.toLatLng()),
       contentDescription = label,
   ) {
     BrowsePinLabel(label)
