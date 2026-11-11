@@ -16,6 +16,7 @@ object C {
     const val browse_map_toggle = "browse_map_toggle"
     const val browse_list_toggle = "browse_list_toggle"
     const val browse_list = "browse_list"
+    const val browse_map = "browse_map"
     const val browse_title = "browse_title"
     const val browse_category_all = "browse_category_all"
     const val browse_clear_search = "browse_clear_search"

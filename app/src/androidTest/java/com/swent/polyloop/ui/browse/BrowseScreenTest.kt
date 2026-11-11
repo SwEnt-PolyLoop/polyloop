@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.browse
 import android.net.Uri
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
@@ -301,7 +302,7 @@ class BrowseScreenTest {
   }
 
   @Test
-  fun pressingHeaderControlsDoesNothing() {
+  fun pressingHeaderControlsOpensNoListing() {
     var clickedId: String? = null
     setContent(onListingClick = { clickedId = it })
 
@@ -310,6 +311,32 @@ class BrowseScreenTest {
     }
 
     assertNull(clickedId)
+  }
+
+  @Test
+  fun mapToggleShowsTheMapAndListToggleShowsTheListAgain() {
+    setContentWithViewModel(listings)
+    waitForTag(C.Tag.browse_list)
+    composeTestRule.onNodeWithTag(C.Tag.browse_list_toggle).assertIsSelected()
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_map_toggle).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.browse_map).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_list).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.browse_map_toggle).assertIsSelected()
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_list_toggle).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.browse_list).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_map).assertDoesNotExist()
+  }
+
+  @Test
+  fun offlineShowsTheOfflineStateInsteadOfTheMap() {
+    setContent(
+        uiState = BrowseUiState(listings = listings, view = BrowseView.MAP, isOffline = true)
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_offline).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_map).assertDoesNotExist()
   }
 
   @Test
