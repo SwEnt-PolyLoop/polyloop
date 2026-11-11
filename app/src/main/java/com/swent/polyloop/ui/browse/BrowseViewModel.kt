@@ -20,11 +20,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** How the Browse screen shows the listings. */
+enum class BrowseView {
+  /** As cards in a list, the default. */
+  LIST,
+  /** As pins on a map. */
+  MAP,
+}
+
 /**
  * State of the Browse screen: the published listings and the search and categories typed by the
  * user. [errorMsg] is non-null when loading failed; it is blank when the failure carried no
  * message, and the screen then shows a generic text. While [isOffline], the screen shows its
  * offline state instead; the listings already loaded are kept for when the connection comes back.
+ * [view] is whether the listings show as a list or on a map; both follow the same [filter].
  */
 data class BrowseUiState(
     val isLoading: Boolean = false,
@@ -32,6 +41,7 @@ data class BrowseUiState(
     val errorMsg: String? = null,
     val filter: ListingFilter = ListingFilter(),
     val isOffline: Boolean = false,
+    val view: BrowseView = BrowseView.LIST,
 ) {
   /** The listings passing [filter], best match first: the ones the screen shows. */
   val visibleListings: List<Listing> by lazy { listings.search(filter) }
@@ -87,6 +97,12 @@ class BrowseViewModel(
 
   /** Deselects every category, so listings of all categories are shown ("All"). */
   fun clearCategories() = updateFilter { it.copy(categories = emptySet()) }
+
+  /** Shows the listings as pins on a map. The filter is kept. */
+  fun showMap() = _uiState.update { it.copy(view = BrowseView.MAP) }
+
+  /** Shows the listings as a list, the default. The filter is kept. */
+  fun showList() = _uiState.update { it.copy(view = BrowseView.LIST) }
 
   private fun updateFilter(change: (ListingFilter) -> ListingFilter) {
     _uiState.update { it.copy(filter = change(it.filter)) }

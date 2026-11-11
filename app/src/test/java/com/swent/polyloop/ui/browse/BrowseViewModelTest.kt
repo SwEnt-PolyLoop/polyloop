@@ -358,6 +358,39 @@ class BrowseViewModelTest {
     assertEquals(listOf(projector, speaker), vm.uiState.value.visibleListings)
   }
 
+  // ---------- list or map ----------
+
+  @Test
+  fun listIsShownByDefault() =
+      assertEquals(
+          BrowseView.LIST,
+          BrowseViewModel(repository, authRepository, connectivity).uiState.value.view,
+      )
+
+  @Test
+  fun showMapThenShowListSwitchesTheViewAndKeepsTheFilter() {
+    val vm = filterViewModel()
+    vm.setQuery("drill")
+
+    vm.showMap()
+    assertEquals(BrowseView.MAP, vm.uiState.value.view)
+    assertEquals(listOf(drill), vm.uiState.value.visibleListings)
+
+    vm.showList()
+    assertEquals(BrowseView.LIST, vm.uiState.value.view)
+    assertEquals(listOf(drill), vm.uiState.value.visibleListings)
+  }
+
+  @Test
+  fun refreshKeepsTheMapView() {
+    val vm = filterViewModel()
+    vm.showMap()
+
+    vm.refresh()
+
+    assertEquals(BrowseView.MAP, vm.uiState.value.view)
+  }
+
   @Test
   fun factoryCreatesBrowseViewModel() {
     val vm =
