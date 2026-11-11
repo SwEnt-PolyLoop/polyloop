@@ -2,6 +2,7 @@
 
 package com.swent.polyloop
 
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DrawerValue
@@ -14,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -27,6 +29,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.swent.polyloop.model.RepositoryProvider
+import com.swent.polyloop.model.rental.ServerClock
+import com.swent.polyloop.model.rental.SharedPreferencesServerClockStore
 import com.swent.polyloop.ui.authentication.AuthScreen
 import com.swent.polyloop.ui.authentication.AuthViewModel
 import com.swent.polyloop.ui.authentication.CheckInboxScreen
@@ -301,6 +305,16 @@ private fun PolyLoopScaffold(
       }
       composable(Screen.RentalDetail.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
         val rentalId = entry.stringArg(Screen.ARG_RENTAL_ID)
+        val context = LocalContext.current.applicationContext
+        // Every clock reads and writes the same saved pair, so one per screen is enough.
+        val serverClock =
+            ServerClock(
+                RepositoryProvider.rentalRepository,
+                SharedPreferencesServerClockStore(context),
+                bootCount = {
+                  Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, 0)
+                },
+            )
         val rentalDetailViewModel: RentalDetailViewModel =
             viewModel(
                 factory =
@@ -311,6 +325,7 @@ private fun PolyLoopScaffold(
                         profileRepository = RepositoryProvider.profileRepository,
                         authRepository = RepositoryProvider.authRepository,
                         connectivityRepository = RepositoryProvider.connectivityRepository,
+                        serverClock = serverClock,
                     )
             )
         RentalDetailScreen(
