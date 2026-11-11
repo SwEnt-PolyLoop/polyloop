@@ -394,6 +394,11 @@ class DisputeViewModel(
           refreshFailed = false,
       )
     }
+    restartCountdown(dispute, stillSettling)
+  }
+
+  /** Counts down to [dispute]'s automatic escalation while it is still settling and has a date. */
+  private fun restartCountdown(dispute: Dispute, stillSettling: Boolean) {
     ticking?.cancel()
     val deadline = dispute.escalatesAt
     if (stillSettling && deadline != null) countDownTo(deadline)
