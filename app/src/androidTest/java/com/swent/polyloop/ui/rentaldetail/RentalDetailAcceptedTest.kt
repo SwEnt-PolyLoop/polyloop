@@ -16,9 +16,9 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
-import com.swent.polyloop.ui.components.formatDay
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -52,6 +52,8 @@ class RentalDetailAcceptedTest {
   private fun setContent(
       state: RentalDetailUiState = accepted,
       today: LocalDate = LocalDate.of(2026, 9, 28),
+      // English is fixed so the expected dates pass on an emulator in any language.
+      locale: Locale = Locale.ENGLISH,
   ) {
     composeTestRule.setContent {
       RentalDetailContent(
@@ -63,6 +65,7 @@ class RentalDetailAcceptedTest {
           onViewDisputeClick = {},
           today = today,
           zone = ZoneOffset.UTC,
+          locale = locale,
       )
     }
   }
@@ -83,12 +86,22 @@ class RentalDetailAcceptedTest {
         C.Tag.rental_detail_status_headline,
         context.getString(
             R.string.rental_detail_accepted_headline,
-            formatDay(LocalDate.of(2026, 10, 1)),
+            "1 Oct",
         ),
     )
     assertShown(
         C.Tag.rental_detail_status_body,
         context.getString(R.string.rental_detail_accepted_body),
+    )
+  }
+
+  @Test
+  fun theStatusCardWritesThePickupDayInTheGivenLocale() {
+    setContent(locale = Locale.FRENCH)
+
+    assertShown(
+        C.Tag.rental_detail_status_headline,
+        context.getString(R.string.rental_detail_accepted_headline, "1 oct."),
     )
   }
 
@@ -100,7 +113,7 @@ class RentalDetailAcceptedTest {
         C.Tag.rental_detail_status_headline,
         context.getString(
             R.string.rental_detail_accepted_headline,
-            formatDay(LocalDate.of(2027, 1, 5), withYear = true),
+            "5 Jan 2027",
         ),
     )
   }
@@ -191,7 +204,7 @@ class RentalDetailAcceptedTest {
         C.Tag.rental_detail_pickup_available_on,
         context.getString(
             R.string.rental_detail_pickup_available_on,
-            formatDay(LocalDate.of(2027, 1, 5), withYear = true),
+            "5 Jan 2027",
         ),
     )
   }
