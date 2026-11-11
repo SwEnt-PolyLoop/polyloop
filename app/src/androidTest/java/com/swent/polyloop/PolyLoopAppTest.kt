@@ -684,7 +684,8 @@ class PolyLoopAppTest {
     openAsBorrower(Screen.Chat.createRoute(rental.id))
     waitForTag(C.Tag.chat_input)
     val screenBottom = composeTestRule.onRoot().fetchSemanticsNode().boundsInRoot.bottom
-    val keyboard = 900
+    // Half the screen, so it fits on any emulator (CI's is only 640 px tall).
+    val keyboard = (screenBottom / 2).toInt()
 
     // Sent as Android does when the keyboard opens, so the test does not depend on a real one.
     composeTestRule.runOnUiThread {
