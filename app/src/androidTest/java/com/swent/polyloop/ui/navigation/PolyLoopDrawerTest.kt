@@ -224,9 +224,11 @@ class PolyLoopDrawerTest {
 
   @Test
   fun drawerCovers80PercentOfALargePhone() {
-    setDrawerOnScreen(412.dp)
+    // Not 412 dp: 80% of 420 dp is a whole number of pixels at the usual densities, so the
+    // drawer's width, rounded down to whole pixels, is exactly 336 dp on any test device.
+    setDrawerOnScreen(420.dp)
 
-    node(C.Tag.drawer).assertWidthIsEqualTo(329.6.dp)
+    node(C.Tag.drawer).assertWidthIsEqualTo(336.dp)
   }
 
   @Test
