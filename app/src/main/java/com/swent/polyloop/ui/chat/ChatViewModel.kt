@@ -12,6 +12,7 @@ import com.swent.polyloop.model.chat.MessageType
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
+import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.ui.createlisting.isWholeNumberAboveZero
 import java.time.Instant
 import java.time.LocalDate
@@ -93,6 +94,9 @@ data class ChatOffer(
  * answer is being sent. [offerError] is non-null when an answer failed; it is blank when the
  * failure carried no message. [isOffline] is true while the phone has no connection, which disables
  * the answers.
+ *
+ * [pickupDate] is the rental's first day while it is accepted, and null otherwise; the screen shows
+ * "Start pickup" when it is today.
  */
 data class ChatUiState(
     val header: ChatHeader? = null,
@@ -107,6 +111,7 @@ data class ChatUiState(
     val isAnswering: Boolean = false,
     val offerError: String? = null,
     val isOffline: Boolean = false,
+    val pickupDate: LocalDate? = null,
 ) {
   /** True when Send can be pressed: there is some text. */
   val canSend: Boolean
@@ -261,19 +266,24 @@ class ChatViewModel(
   }
 
   /**
-   * Follows the offer of the rental. Without it the conversation still works, so a read error only
-   * hides the card. The form closes if the offer it answers is gone.
+   * Follows the offer and the pickup date of the rental. Without them the conversation still works,
+   * so a read error only hides the card and the pickup. The form closes if the offer it answers is
+   * gone.
    */
   private suspend fun observeOffer(uid: String) {
     combine(
             rentalRepository.observeRental(rentalId).catch { emit(null) },
             rentalRepository.observeRentalsAsLender(uid).catch { emit(emptyList()) },
         ) { rental, lent ->
-          rental?.toChatOffer(uid, lent)
+          rental to rental?.toChatOffer(uid, lent)
         }
-        .collect { offer ->
+        .collect { (rental, offer) ->
           _uiState.update {
-            it.copy(offer = offer, isCountering = it.isCountering && offer?.canCounter == true)
+            it.copy(
+                offer = offer,
+                isCountering = it.isCountering && offer?.canCounter == true,
+                pickupDate = rental?.startDate?.takeIf { rental.status == RentalStatus.ACCEPTED },
+            )
           }
         }
   }

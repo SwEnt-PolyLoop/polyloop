@@ -32,7 +32,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-/** The deposit offer in the chat: the card's state and the answers. */
+/** The rental in the chat: the deposit offer (the card's state and the answers) and the pickup. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelOfferTest {
 
@@ -225,6 +225,45 @@ class ChatViewModelOfferTest {
     connectivity.setOnline(true)
 
     assertTrue(vm.uiState.value.canAnswerOffer)
+  }
+
+  // ---------- Pickup ----------
+
+  @Test
+  fun anAcceptedRentalGivesItsFirstDayAsThePickupDateToBothPeople() {
+    rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
+
+    assertEquals(request.startDate, viewModel(borrower).uiState.value.pickupDate)
+    assertEquals(request.startDate, viewModel(lender).uiState.value.pickupDate)
+  }
+
+  @Test
+  fun everyOtherStatusHasNoPickupDate() {
+    for (status in RentalStatus.entries - RentalStatus.ACCEPTED) {
+      rentals = rentalsWith(request.copy(status = status))
+
+      assertNull(status.name, viewModel().uiState.value.pickupDate)
+    }
+  }
+
+  @Test
+  fun thePickupDateAppearsOnceTheOfferIsAcceptedWhileTheChatIsOpen() = runTest {
+    val vm = viewModel()
+    assertNull(vm.uiState.value.pickupDate)
+
+    vm.acceptOffer()
+
+    assertEquals(request.startDate, vm.uiState.value.pickupDate)
+  }
+
+  @Test
+  fun aReadErrorOnTheRentalGivesNoPickupDate() {
+    val failing =
+        object : RentalRepository by rentalsWith(request.copy(status = RentalStatus.ACCEPTED)) {
+          override fun observeRental(id: String): Flow<Rental?> = flow { error("down") }
+        }
+
+    assertNull(viewModel(repository = failing).uiState.value.pickupDate)
   }
 
   // ---------- Answers ----------
