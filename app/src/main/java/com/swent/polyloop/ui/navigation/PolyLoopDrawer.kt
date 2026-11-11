@@ -91,13 +91,13 @@ fun PolyLoopDrawerContent(
 }
 
 /** The share of the screen's width the drawer takes, so a strip of the screen stays visible. */
-private const val DrawerMaxScreenFraction = 0.8f
+private const val DRAWER_MAX_SCREEN_FRACTION = 0.8f
 
 /** Material's minimum drawer width, which [ModalDrawerSheet] keeps private. */
-private val DrawerMinWidth = 240.dp
+private val DRAWER_MIN_WIDTH = 240.dp
 
 /**
- * Caps the drawer at [DrawerMaxScreenFraction] of the width it is given, the whole screen under
+ * Caps the drawer at [DRAWER_MAX_SCREEN_FRACTION] of the width it is given, the whole screen under
  * `ModalNavigationDrawer`, kept between Material's 240 dp minimum and
  * [DrawerDefaults.MaximumDrawerWidth]. On its own, [ModalDrawerSheet] takes that 360 dp maximum,
  * almost the whole width of a phone, leaving hardly any scrim to tap.
@@ -105,9 +105,9 @@ private val DrawerMinWidth = 240.dp
 private fun Modifier.drawerWidth(): Modifier = layout { measurable, constraints ->
   val maxWidth =
       constraints.constrainWidth(
-          (constraints.maxWidth * DrawerMaxScreenFraction)
+          (constraints.maxWidth * DRAWER_MAX_SCREEN_FRACTION)
               .toInt()
-              .coerceIn(DrawerMinWidth.roundToPx(), DrawerDefaults.MaximumDrawerWidth.roundToPx())
+              .coerceIn(DRAWER_MIN_WIDTH.roundToPx(), DrawerDefaults.MaximumDrawerWidth.roundToPx())
       )
   val placeable = measurable.measure(constraints.copy(maxWidth = maxWidth))
   layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
