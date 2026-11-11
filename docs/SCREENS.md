@@ -67,7 +67,7 @@ Each rental has exactly one 1:1 conversation between its lender and borrower. Vi
 
 - **Chat list.** A separate screen lists all the user's conversations, one per rental, with the other person, the item and the last message.
 - The chat opens as soon as a request is sent, so both sides can agree on details before acceptance, such as the meeting point and the deposit.
-- **Offer card** (Figma frames 19.10 to 19.15). While an offer waits for an answer, the chat shows its amount and when it expires. The lender's offer gives the borrower “Decline”, “Counter” and “Accept”; “Counter” asks for an amount, with “Back” and “Send”. A counteroffer gives the lender “Decline” and “Accept” only. The author of the offer sees it as waiting, with no action. Each step adds a centred system message, including an accepted, declined or expired offer. The actions are disabled offline.
+- **Offer card** (Figma frames 19.10 to 19.15). While an offer waits for an answer, the chat shows its amount and when it expires. The lender's offer gives the borrower “Decline”, “Counter” and “Accept”; “Counter” asks for an amount, with “Back” and “Send”; an amount the borrower's available balance cannot cover is refused. A counteroffer gives the lender “Decline” and “Accept” only. The author of the offer sees it as waiting, with no action. Each step adds a centred system message, including an accepted, declined or expired offer. The actions are disabled offline.
 - Header with the other person's name, the item, and a link back to Rental detail.
 - **Start pickup** (Figma frame 19.16). On the pickup day of an accepted rental, and only on that day, a bar under the header says “Pickup is today” with a “Start pickup” button that opens Handover, for both people, once the chat is loaded (not above its spinner or its error). It stays enabled offline. After that day, Rental detail still has its own “Start Pickup” button.
 - Messages with timestamps, newest at the bottom, and a text field with a send button.
@@ -147,7 +147,7 @@ So far only the Requested, Accepted and Disputed states are built (other statuse
 Start Pickup opens from the server's date, not the phone's, so changing the phone's date cannot open it early. Offline, the date is worked out from the last server time and the time since the phone booted; if the server was not reached since the phone booted, the button stays grey with “Connect to the internet to check the pickup day.”
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
-- The deposit, once an offer is accepted, and its state: held, released, or frozen. “Held” appears only once deposits are really reserved, which needs the `reserveDeposit` Cloud Function; until then only the amount shows.
+- The deposit, once an offer is accepted, and its state: held, released, or frozen. Accepting an offer holds the deposit in the borrower's wallet, but the screen does not show the “Held” state yet: only the amount shows. Nothing releases or splits a held deposit yet, so “released” does not occur either.
 - While an offer waits for an answer, its amount and when it expires (Figma frame 13.10). If the rental can no longer be followed live, the offer is hidden, as in the chat, rather than left out of date.
 - The meeting point: the lender sets the pickup and drop-off addresses when sending the offer, after agreeing with the borrower in chat if needed. The exact addresses show only once the rental is accepted, on a map with a “Navigate” button; offline, as text.
 - A “Chat” button.
@@ -174,7 +174,7 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
 - After the return scan, the lender sees the pickup and return photos side by side, with two buttons:
     - “Item is fine” releases the full deposit to the borrower.
     - “Flag damage” opens a dispute and keeps the deposit held.
-- A footer showing the deposit (“Deposit held” once deposits are really reserved; until then only “Deposit”).
+- A footer showing the deposit (for now only “Deposit”: the deposit is held from acceptance, but this screen does not show that state yet; nothing releases it yet, so “Item is fine” and “Flag damage” do not move it).
 - Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading. Until the queue exists, the offline banner shows and no photo can be taken: the camera tiles are disabled.
 
 ## Dispute
