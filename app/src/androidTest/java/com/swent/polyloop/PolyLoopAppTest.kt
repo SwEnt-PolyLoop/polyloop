@@ -684,6 +684,55 @@ class PolyLoopAppTest {
     assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
   }
 
+  /** Taps [tag] twice in a row, faster than a screen can change, as a fast double tap does. */
+  private fun doubleTap(tag: String) {
+    waitForTag(tag)
+    val click =
+        composeTestRule.onNodeWithTag(tag).fetchSemanticsNode().config[SemanticsActions.OnClick]
+    composeTestRule.runOnUiThread {
+      click.action!!()
+      click.action!!()
+    }
+    composeTestRule.waitForIdle()
+  }
+
+  /** How many Handover screens the back stack holds, so how many times Back is needed. */
+  private fun handoversOnTheBackStack(): Int = composeTestRule.runOnIdle {
+    navController.currentBackStack.value.count { it.destination.route == Screen.Handover.route }
+  }
+
+  @Test
+  fun aDoubleTapOnStartPickupOnRentalDetailOpensOneHandover() {
+    val today = LocalDate.now()
+    RepositoryProvider.rentalRepository =
+        FakeRentalRepository(
+            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
+        )
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+
+    doubleTap(C.Tag.rental_detail_action_button)
+
+    assertEquals(1, handoversOnTheBackStack())
+  }
+
+  @Test
+  fun aDoubleTapOnStartPickupInTheChatOpensOneHandover() {
+    val today = LocalDate.now()
+    RepositoryProvider.rentalRepository =
+        FakeRentalRepository(
+            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
+        )
+    openAsBorrower(Screen.Chat.createRoute(rental.id))
+
+    doubleTap(C.Tag.chat_start_pickup_button)
+
+    assertEquals(1, handoversOnTheBackStack())
+  }
+
   @Test
   fun viewDisputeOpensTheDispute() {
     tapActionButtonOnRentalDetail(rental.copy(status = RentalStatus.DISPUTED, deposit = 60))
