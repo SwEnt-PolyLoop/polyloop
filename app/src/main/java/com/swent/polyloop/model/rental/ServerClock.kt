@@ -4,6 +4,7 @@ package com.swent.polyloop.model.rental
 
 import android.content.Context
 import android.os.SystemClock
+import androidx.core.content.edit
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -113,12 +114,11 @@ class SharedPreferencesServerClockStore(context: Context) : ServerClock.Store {
   }
 
   override fun save(saved: ServerClock.Saved) {
-    preferences
-        .edit()
-        .putLong(SERVER_TIME, saved.serverTimeMs)
-        .putLong(ELAPSED_REALTIME, saved.elapsedRealtimeMs)
-        .putInt(BOOT_COUNT, saved.bootCount)
-        .apply()
+    preferences.edit {
+      putLong(SERVER_TIME, saved.serverTimeMs)
+      putLong(ELAPSED_REALTIME, saved.elapsedRealtimeMs)
+      putInt(BOOT_COUNT, saved.bootCount)
+    }
   }
 
   private companion object {
