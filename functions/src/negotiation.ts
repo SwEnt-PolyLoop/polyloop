@@ -17,8 +17,8 @@ import {
   OfferInput,
   RequestError,
   conflicts,
-  offerExpiry,
   isValidDeposit,
+  offerExpiry,
   readRange,
   requirePerson,
 } from "./rentalRules";

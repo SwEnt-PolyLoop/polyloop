@@ -450,9 +450,10 @@ private fun offerBody(offer: DepositOffer, isMine: Boolean, zone: ZoneId, locale
 
 /**
  * The dates, the return day, the reserved rental price, and the accepted deposit, the offer or the
- * suggested deposit. "Held" is left out of an accepted deposit until deposits are really reserved.
- * A disputed rental shows the dates without the return day, the price as paid, the deposit as held
- * and the late fees, even when they are 0 (Figma frame 13.09). The dates are written in [locale].
+ * suggested deposit. The deposit is held from acceptance, but this screen does not show the "Held"
+ * state of an accepted deposit yet. A disputed rental shows the dates without the return day, the
+ * price as paid, the deposit as held and the late fees, even when they are 0 (Figma frame 13.09).
+ * The dates are written in [locale].
  */
 @Composable
 private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: Locale) {
