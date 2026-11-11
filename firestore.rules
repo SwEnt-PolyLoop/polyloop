@@ -272,7 +272,8 @@ service cloud.firestore {
     // ---------- disputes ----------
 
     // One dispute per rental, at the rental's id, visible only to the rental's two participants.
-    // Only Cloud Functions write it (proposeSplit, acceptSplit, escalateDispute): no client write.
+    // Only Cloud Functions write it (proposeSplit, acceptSplit, escalateDispute and the hourly
+    // escalateDisputes): no client write.
     // Reading the dispute of a rental that has none is allowed, so the app can read a missing
     // dispute as none.
     match /disputes/{rentalId} {

@@ -10,7 +10,6 @@ import {
   Timestamp,
   Transaction,
 } from "firebase-admin/firestore";
-import * as logger from "firebase-functions/logger";
 import {
   DateRange,
   OfferAnswer,
@@ -23,6 +22,7 @@ import {
   readRange,
   requirePerson,
 } from "./rentalRules";
+import { runSweep } from "./sweep";
 import { readWallet, requireFunds, writeDepositHold } from "./wallet";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
@@ -195,18 +195,12 @@ export async function expireOverdueOffers(
     .where("offer.expiresAt", "<=", Timestamp.fromDate(now))
     .select()
     .get();
-  const results = await Promise.allSettled(
-    overdue.docs.map((doc) =>
-      expire(doc.ref, now).catch((error) => {
-        logger.error(`Could not expire the offer of rental ${doc.id}`, error);
-        throw error;
-      }),
-    ),
+  const { done, failed } = await runSweep(
+    overdue.docs.map((doc) => doc.ref),
+    (ref) => expire(ref, now),
+    (id) => `Could not expire the offer of rental ${id}`,
   );
-  return {
-    expired: results.filter((result) => result.status === "fulfilled" && result.value).length,
-    failed: results.filter((result) => result.status === "rejected").length,
-  };
+  return { expired: done, failed };
 }
 
 /**
