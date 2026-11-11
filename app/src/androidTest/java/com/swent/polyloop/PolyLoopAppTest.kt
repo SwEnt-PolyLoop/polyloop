@@ -649,9 +649,15 @@ class PolyLoopAppTest {
     assertEquals(chatEntry, currentEntryId())
   }
 
-  /** Opens Rental detail on [shown], signed in as its borrower, and taps its action button. */
-  private fun tapActionButtonOnRentalDetail(shown: Rental) {
-    RepositoryProvider.rentalRepository = FakeRentalRepository(rentals = listOf(shown))
+  /**
+   * Opens Rental detail on [shown], signed in as its borrower, and taps its action button. The
+   * server's time is [serverNow], or the fake's default when null.
+   */
+  private fun tapActionButtonOnRentalDetail(shown: Rental, serverNow: Instant? = null) {
+    RepositoryProvider.rentalRepository =
+        FakeRentalRepository(rentals = listOf(shown)).also { fake ->
+          serverNow?.let { fake.serverNow = it }
+        }
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {
@@ -663,8 +669,12 @@ class PolyLoopAppTest {
 
   @Test
   fun startPickupOnItsPickupDayOpensTheHandover() {
-    val today = LocalDate.now()
-    tapActionButtonOnRentalDetail(rental.copy(startDate = today, endDate = today.plusDays(2)))
+    val pickupDay = LocalDate.of(2026, 10, 1)
+    // Noon in Zurich on the pickup day: Start Pickup opens from the server's day.
+    tapActionButtonOnRentalDetail(
+        rental.copy(startDate = pickupDay, endDate = pickupDay.plusDays(2)),
+        serverNow = Instant.parse("2026-10-01T10:00:00Z"),
+    )
 
     assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
   }

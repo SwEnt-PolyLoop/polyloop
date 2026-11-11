@@ -45,6 +45,8 @@ class RentalDetailAcceptedTest {
           deposit = 60,
           pickupAddress = "Route Cantonale 1, Ecublens",
           returnAddress = "Rue de Lausanne 10, Renens",
+          // The same day as the phone's today in setContent, unless a test sets another.
+          serverToday = LocalDate.of(2026, 9, 28),
       )
 
   private var startPickupClicks = 0
@@ -176,19 +178,39 @@ class RentalDetailAcceptedTest {
     )
   }
 
-  @Test
-  fun theDayBeforeThePickupStartPickupIsDisabledWithTheDay() {
-    setContent(today = LocalDate.of(2026, 9, 30))
-
+  private fun assertStartPickupDisabled() {
     composeTestRule
         .onNodeWithTag(C.Tag.rental_detail_action_button)
         .assertIsDisplayed()
         .assertIsNotEnabled()
         .assertTextEquals(context.getString(R.string.rental_detail_start_pickup))
+  }
+
+  @Test
+  fun theServersDayBeforeThePickupDisablesStartPickupEvenOnThePhonesPickupDay() {
+    setContent(
+        accepted.copy(serverToday = LocalDate.of(2026, 9, 30)),
+        today = LocalDate.of(2026, 10, 1),
+    )
+
+    assertStartPickupDisabled()
     assertPinned(
         C.Tag.rental_detail_pickup_available_on,
         context.getString(R.string.rental_detail_pickup_available_on, "1 Oct"),
     )
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_needs_connection).assertDoesNotExist()
+  }
+
+  @Test
+  fun anUnknownServerDayDisablesStartPickupAndAsksToConnectEvenOnThePhonesPickupDay() {
+    setContent(accepted.copy(serverToday = null), today = LocalDate.of(2026, 10, 1))
+
+    assertStartPickupDisabled()
+    assertPinned(
+        C.Tag.rental_detail_pickup_needs_connection,
+        context.getString(R.string.rental_detail_pickup_needs_connection),
+    )
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_available_on).assertDoesNotExist()
   }
 
   /** Like [assertShown], for a node pinned under the scrolling column, so not scrolled to. */
@@ -210,17 +232,18 @@ class RentalDetailAcceptedTest {
   }
 
   @Test
-  fun onThePickupDayStartPickupIsEnabledAndOpensThePickup() {
+  fun onTheServersPickupDayStartPickupIsEnabledEvenOnThePhonesDayBefore() {
     assertStartPickupOpensThePickupOn(LocalDate.of(2026, 10, 1))
   }
 
   @Test
-  fun theDayAfterThePickupStartPickupIsStillEnabled() {
+  fun theServersDayAfterThePickupStillEnablesStartPickupEvenOnThePhonesDayBefore() {
     assertStartPickupOpensThePickupOn(LocalDate.of(2026, 10, 2))
   }
 
-  private fun assertStartPickupOpensThePickupOn(today: LocalDate) {
-    setContent(today = today)
+  /** Start Pickup opens on [serverToday], while the phone's today is the day before the pickup. */
+  private fun assertStartPickupOpensThePickupOn(serverToday: LocalDate) {
+    setContent(accepted.copy(serverToday = serverToday), today = LocalDate.of(2026, 9, 30))
 
     composeTestRule
         .onNodeWithTag(C.Tag.rental_detail_action_button)
@@ -230,6 +253,7 @@ class RentalDetailAcceptedTest {
 
     assertEquals(1, startPickupClicks)
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_available_on).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_needs_connection).assertDoesNotExist()
   }
 
   @Test
