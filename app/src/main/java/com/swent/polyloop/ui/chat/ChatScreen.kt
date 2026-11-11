@@ -51,9 +51,13 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
 import java.time.LocalDate
 
-/** The Chat screen of one rental (Figma frame 19). */
+/** The Chat screen of one rental (Figma frames 19 and 19.16). */
 @Composable
-fun ChatScreen(viewModel: ChatViewModel, onRentalDetailsClick: () -> Unit = {}) {
+fun ChatScreen(
+    viewModel: ChatViewModel,
+    onRentalDetailsClick: () -> Unit = {},
+    onStartPickupClick: () -> Unit = {},
+) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   ChatContent(
       uiState = uiState,
@@ -67,6 +71,7 @@ fun ChatScreen(viewModel: ChatViewModel, onRentalDetailsClick: () -> Unit = {}) 
       onCancelCounter = viewModel::cancelCounter,
       onCounterDraftChange = viewModel::onCounterDraftChange,
       onSendCounter = viewModel::sendCounter,
+      onStartPickupClick = onStartPickupClick,
   )
 }
 

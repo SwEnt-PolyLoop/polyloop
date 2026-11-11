@@ -366,6 +366,7 @@ private fun PolyLoopScaffold(
             onRentalDetailsClick = {
               navController.navigateOrGoBack(Screen.RentalDetail.createRoute(rentalId))
             },
+            onStartPickupClick = { navController.navigate(Screen.Handover.createRoute(rentalId)) },
         )
       }
       composable(Screen.Handover.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->

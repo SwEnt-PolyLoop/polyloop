@@ -670,6 +670,21 @@ class PolyLoopAppTest {
   }
 
   @Test
+  fun startPickupInTheChatOnThePickupDayOpensTheHandover() {
+    val today = LocalDate.now()
+    RepositoryProvider.rentalRepository =
+        FakeRentalRepository(
+            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
+        )
+    openAsBorrower(Screen.Chat.createRoute(rental.id))
+
+    waitForTag(C.Tag.chat_start_pickup_button)
+    composeTestRule.onNodeWithTag(C.Tag.chat_start_pickup_button).performClick()
+
+    assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
+  }
+
+  @Test
   fun viewDisputeOpensTheDispute() {
     tapActionButtonOnRentalDetail(rental.copy(status = RentalStatus.DISPUTED, deposit = 60))
 
