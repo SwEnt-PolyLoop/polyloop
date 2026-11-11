@@ -435,6 +435,54 @@ class BrowseViewModelTest {
   fun noPinsWhenNoListingHasAPoint() =
       assertEquals(emptyList<BrowsePin>(), filterViewModel().uiState.value.pins)
 
+  // ---------- selected pin ----------
+
+  private val tentHere = tent.copy(pickupPoint = ecublens)
+  private val projectorHere = projector.copy(pickupPoint = ecublens)
+  private val drillThere = drill.copy(pickupPoint = renens)
+
+  /** A ViewModel whose tent and projector share the Ecublens pin, and the drill is in Renens. */
+  private fun pinViewModel(): BrowseViewModel {
+    repository.listings = listOf(tentHere, projectorHere, drillThere)
+    return BrowseViewModel(repository, authRepository, connectivity)
+  }
+
+  @Test
+  fun selectingAPinGivesItsListingsAndClearingTheSelectionRemovesThem() {
+    val vm = pinViewModel()
+    assertNull(vm.uiState.value.selectedPin)
+
+    vm.selectPin(ecublens)
+    assertEquals(BrowsePin(ecublens, listOf(tentHere, projectorHere)), vm.uiState.value.selectedPin)
+
+    vm.clearSelection()
+    assertNull(vm.uiState.value.selectedPoint)
+    assertNull(vm.uiState.value.selectedPin)
+  }
+
+  @Test
+  fun filterKeepingSomeListingsOfTheSelectedPinKeepsTheSelection() {
+    val vm = pinViewModel()
+    vm.selectPin(ecublens)
+
+    vm.toggleCategory(ListingCategory.ELECTRONICS)
+
+    assertEquals(BrowsePin(ecublens, listOf(projectorHere)), vm.uiState.value.selectedPin)
+  }
+
+  @Test
+  fun filterHidingTheSelectedPinDropsTheSelectionForGood() {
+    val vm = pinViewModel()
+    vm.selectPin(ecublens)
+
+    vm.setQuery("drill")
+    assertNull(vm.uiState.value.selectedPoint)
+    assertNull(vm.uiState.value.selectedPin)
+
+    vm.setQuery("")
+    assertNull(vm.uiState.value.selectedPin)
+  }
+
   @Test
   fun factoryCreatesBrowseViewModel() {
     val vm =

@@ -42,6 +42,7 @@ data class BrowsePin(val point: MapPoint, val listings: List<Listing>)
  * message, and the screen then shows a generic text. While [isOffline], the screen shows its
  * offline state instead; the listings already loaded are kept for when the connection comes back.
  * [view] is whether the listings show as a list or on a map; both follow the same [filter].
+ * [selectedPoint] is the point of the pin the user tapped on the map, or null when none is.
  */
 data class BrowseUiState(
     val isLoading: Boolean = false,
@@ -50,6 +51,7 @@ data class BrowseUiState(
     val filter: ListingFilter = ListingFilter(),
     val isOffline: Boolean = false,
     val view: BrowseView = BrowseView.LIST,
+    val selectedPoint: MapPoint? = null,
 ) {
   /** The listings passing [filter], best match first: the ones the screen shows. */
   val visibleListings: List<Listing> by lazy { listings.search(filter) }
@@ -65,6 +67,12 @@ data class BrowseUiState(
         .groupBy(keySelector = { it.first }, valueTransform = { it.second })
         .map { (point, listings) -> BrowsePin(point, listings) }
   }
+
+  /**
+   * The pin at [selectedPoint], whose listings show under the map, or null when no pin is selected
+   * or no visible listing is at that point.
+   */
+  val selectedPin: BrowsePin? by lazy { pins.find { it.point == selectedPoint } }
 }
 
 /**
@@ -124,8 +132,21 @@ class BrowseViewModel(
   /** Shows the listings as a list, the default. The filter is kept. */
   fun showList() = _uiState.update { it.copy(view = BrowseView.LIST) }
 
+  /** Selects the pin at [point], so its listings show under the map. */
+  fun selectPin(point: MapPoint) = _uiState.update { it.copy(selectedPoint = point) }
+
+  /** Unselects the pin, e.g. when the user taps the map elsewhere. */
+  fun clearSelection() = _uiState.update { it.copy(selectedPoint = null) }
+
+  /**
+   * Changes the filter with [change]. If the new filter hides every listing of the selected pin,
+   * the selection is dropped, so it does not come back when the filter is undone.
+   */
   private fun updateFilter(change: (ListingFilter) -> ListingFilter) {
-    _uiState.update { it.copy(filter = change(it.filter)) }
+    _uiState.update { state ->
+      val filtered = state.copy(filter = change(state.filter))
+      if (filtered.selectedPin == null) filtered.copy(selectedPoint = null) else filtered
+    }
   }
 
   private fun load() {
