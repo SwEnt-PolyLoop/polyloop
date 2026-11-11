@@ -16,6 +16,7 @@ import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
@@ -390,6 +391,49 @@ class BrowseViewModelTest {
 
     assertEquals(BrowseView.MAP, vm.uiState.value.view)
   }
+
+  // ---------- pins ----------
+
+  private val ecublens = MapPoint(46.52, 6.57)
+  private val renens = MapPoint(46.54, 6.59)
+
+  @Test
+  fun listingsAtTheSamePointShareOnePinAndListingsWithoutAPointHaveNone() {
+    val tentHere = tent.copy(pickupPoint = ecublens)
+    val drillThere = drill.copy(pickupPoint = renens)
+    val bikeHere = listing("bike").copy(pickupPoint = ecublens)
+    repository.listings = listOf(tentHere, projector, drillThere, bikeHere)
+
+    val pins = BrowseViewModel(repository, authRepository, connectivity).uiState.value.pins
+
+    assertEquals(
+        listOf(
+            BrowsePin(ecublens, listOf(tentHere, bikeHere)),
+            BrowsePin(renens, listOf(drillThere)),
+        ),
+        pins,
+    )
+  }
+
+  @Test
+  fun pinsFollowTheSearchAndCategories() {
+    val tentHere = tent.copy(pickupPoint = ecublens)
+    val projectorHere = projector.copy(pickupPoint = ecublens)
+    val drillThere = drill.copy(pickupPoint = renens)
+    repository.listings = listOf(tentHere, projectorHere, drillThere)
+    val vm = BrowseViewModel(repository, authRepository, connectivity)
+
+    vm.setQuery("drill")
+    assertEquals(listOf(BrowsePin(renens, listOf(drillThere))), vm.uiState.value.pins)
+
+    vm.setQuery("")
+    vm.toggleCategory(ListingCategory.ELECTRONICS)
+    assertEquals(listOf(BrowsePin(ecublens, listOf(projectorHere))), vm.uiState.value.pins)
+  }
+
+  @Test
+  fun noPinsWhenNoListingHasAPoint() =
+      assertEquals(emptyList<BrowsePin>(), filterViewModel().uiState.value.pins)
 
   @Test
   fun factoryCreatesBrowseViewModel() {

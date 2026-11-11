@@ -13,6 +13,7 @@ import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.search
+import com.swent.polyloop.model.location.MapPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +28,13 @@ enum class BrowseView {
   /** As pins on a map. */
   MAP,
 }
+
+/**
+ * One pin on the Browse map, at [point], a listing's pickup point rounded to about 1 km by
+ * `geocodeListingAddresses`. Every listing in the same rounded cell shares that point, so a pin
+ * holds all of them: [listings] is never empty, in the order of the list.
+ */
+data class BrowsePin(val point: MapPoint, val listings: List<Listing>)
 
 /**
  * State of the Browse screen: the published listings and the search and categories typed by the
@@ -45,6 +53,18 @@ data class BrowseUiState(
 ) {
   /** The listings passing [filter], best match first: the ones the screen shows. */
   val visibleListings: List<Listing> by lazy { listings.search(filter) }
+
+  /**
+   * The pins of the map: the [visibleListings] that have a pickup point, one pin per point, in the
+   * order of each point's first listing. A listing without a point (not geocoded yet, or its
+   * address was not found) gets no pin; empty when no visible listing has a point.
+   */
+  val pins: List<BrowsePin> by lazy {
+    visibleListings
+        .mapNotNull { listing -> listing.pickupPoint?.let { point -> point to listing } }
+        .groupBy(keySelector = { it.first }, valueTransform = { it.second })
+        .map { (point, listings) -> BrowsePin(point, listings) }
+  }
 }
 
 /**
