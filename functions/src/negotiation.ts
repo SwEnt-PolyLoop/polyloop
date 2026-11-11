@@ -18,6 +18,7 @@ import {
   RequestError,
   conflicts,
   isValidDeposit,
+  listingTitleOf,
   offerExpiry,
   readRange,
   requirePerson,
@@ -104,10 +105,11 @@ export async function makeOffer(
  * @param callerId the participant answering.
  * @param answer the answer, already checked by `parseOfferAnswer`.
  * @param now the current time, passed so that tests can set it.
- * @throws RequestError `not-found`, `permission-denied` (not a participant, or the offer's author)
- *   or `failed-precondition` (no offer waiting, expired, already countered, dates no longer free,
- *   or, on ACCEPT, the borrower's available balance is below the deposit) or `internal` (on
- *   ACCEPT, the stored offer's amount is not a valid deposit). Nothing is written then.
+ * @throws RequestError `not-found`, `permission-denied` (not a participant, or the offer's author),
+ *   `failed-precondition` (no offer waiting, expired, already countered, dates no longer free, or,
+ *   on ACCEPT or COUNTER, the borrower's available balance is below the deposit) or `internal` (the
+ *   stored rental or offer is broken: no valid dates, borrower, addresses or deposit). Nothing is
+ *   written then.
  */
 export async function respondToOffer(
   db: Firestore,
@@ -131,6 +133,8 @@ export async function respondToOffer(
         if (offer.isCounter) {
           throw new RequestError("failed-precondition", "A counteroffer cannot be countered.");
         }
+        // Only the borrower counters, so this is the caller's own wallet.
+        requireFunds(await readWallet(tx, rentalRef.firestore, callerId), answer.deposit);
         writeWithSystemMessage(tx, rentalRef, `Counteroffer · ${answer.deposit} PP`, {
           offer: {
             amount: answer.deposit,
@@ -279,15 +283,7 @@ async function accept(
     decline(tx, doc.ref, "Dates booked · request declined");
   }
   // No hasTransaction read: a REQUESTED rental cannot have its deposit row yet.
-  writeDepositHold(
-    tx,
-    db,
-    borrowerId,
-    wallet,
-    offer.amount,
-    rentalRef.id,
-    typeof rental.listingTitle === "string" ? rental.listingTitle : "",
-  );
+  writeDepositHold(tx, db, borrowerId, wallet, offer.amount, rentalRef.id, listingTitleOf(rental));
 }
 
 /**

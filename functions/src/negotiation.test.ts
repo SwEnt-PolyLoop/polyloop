@@ -312,12 +312,18 @@ describe("respondToOffer: accepting", () => {
     expect(await rows(borrower)).toEqual([]);
   });
 
-  it("charges the borrower, not the lender, when the lender accepts a counteroffer", async () => {
+  it("lets the lender accept a counteroffer, charging the borrower its amount", async () => {
     const id = await countered(await listing());
     const borrower = await borrowerOf(id);
 
     await respondToOffer(db, LENDER, { rentalId: id, action: "ACCEPT" }, NOW);
 
+    expect(await rental(id)).toMatchObject({ status: "ACCEPTED", deposit: 120 });
+    expect(await systemMessages(id)).toEqual([
+      "Offer sent · 180 PP deposit",
+      "Counteroffer · 120 PP",
+      "Accepted · 120 PP deposit",
+    ]);
     expect(await wallet(borrower)).toEqual({
       available: 880,
       heldAsDeposits: 120,
@@ -325,6 +331,29 @@ describe("respondToOffer: accepting", () => {
     });
     expect(await rows(borrower)).toMatchObject([{ id: `deposit_held_${id}`, amount: -120 }]);
     expect(await wallet(LENDER)).toBeUndefined();
+  });
+
+  it("accepts only one of two offers a borrower cannot afford together", async () => {
+    const first = await offered(await listing());
+    const second = await offered(await listing());
+    const borrower = await borrowerOf(first);
+    await db.collection("rentals").doc(second).update({ borrowerId: borrower });
+    await fund(borrower, funds(200));
+
+    const results = await Promise.allSettled([
+      respondToOffer(db, borrower, { rentalId: first, action: "ACCEPT" }, NOW),
+      respondToOffer(db, borrower, { rentalId: second, action: "ACCEPT" }, NOW),
+    ]);
+
+    expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
+    const statuses = [(await rental(first))?.status, (await rental(second))?.status].sort();
+    expect(statuses).toEqual(["ACCEPTED", "REQUESTED"]);
+    expect(await wallet(borrower)).toEqual({
+      available: 20,
+      heldAsDeposits: 180,
+      heldForRentals: 0,
+    });
+    expect(await rows(borrower)).toHaveLength(1);
   });
 
   it("leaves a later reserveDeposit call a success that charges nothing more", async () => {
@@ -340,19 +369,6 @@ describe("respondToOffer: accepting", () => {
       heldForRentals: 0,
     });
     expect(await rows(borrower)).toHaveLength(1);
-  });
-
-  it("lets the lender accept a counteroffer, at the countered amount", async () => {
-    const id = await countered(await listing());
-
-    await respondToOffer(db, LENDER, { rentalId: id, action: "ACCEPT" }, NOW);
-
-    expect(await rental(id)).toMatchObject({ status: "ACCEPTED", deposit: 120 });
-    expect(await systemMessages(id)).toEqual([
-      "Offer sent · 180 PP deposit",
-      "Counteroffer · 120 PP",
-      "Accepted · 120 PP deposit",
-    ]);
   });
 
   it("declines overlapping requests, buffer day included, with or without an offer", async () => {
@@ -472,6 +488,41 @@ describe("respondToOffer: countering", () => {
     });
     expect(data?.offer.expiresAt.toDate()).toEqual(new Date("2026-11-13T10:00:00Z"));
     expect(await addresses(id)).toBeDefined();
+  });
+
+  it("refuses a counteroffer the balance cannot cover, and changes nothing", async () => {
+    const id = await offered(await listing());
+    const borrower = await borrowerOf(id);
+    await fund(borrower, funds(119));
+
+    await expect(
+      respondToOffer(db, borrower, { rentalId: id, action: "COUNTER", deposit: 120 }, NOW),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      message: "Insufficient funds to hold the deposit.",
+    });
+
+    const data = await rental(id);
+    expect(data).toMatchObject({
+      status: "REQUESTED",
+      lastMessage: "Offer sent · 180 PP deposit",
+    });
+    expect(data?.offer).toMatchObject({ amount: 180, authorId: LENDER, isCounter: false });
+    expect(data?.offer.previousAmount).toBeUndefined();
+    expect(await systemMessages(id)).toEqual(["Offer sent · 180 PP deposit"]);
+    expect(await wallet(borrower)).toEqual(funds(119));
+    expect(await rows(borrower)).toEqual([]);
+  });
+
+  it("accepts a counteroffer the balance exactly covers", async () => {
+    const id = await offered(await listing());
+    const borrower = await borrowerOf(id);
+    await fund(borrower, funds(120));
+
+    await respondToOffer(db, borrower, { rentalId: id, action: "COUNTER", deposit: 120 }, NOW);
+
+    expect((await rental(id))?.offer).toMatchObject({ amount: 120, isCounter: true });
+    expect(await wallet(borrower)).toEqual(funds(120));
   });
 
   it("refuses a further round", async () => {

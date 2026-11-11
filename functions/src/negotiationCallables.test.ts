@@ -198,5 +198,8 @@ describe("the whole negotiation", () => {
     expect(statuses).toEqual(["ACCEPTED", "DECLINED"]);
     const booked = (await db.collection("listings").doc(listingId).get()).get("bookedRanges");
     expect(booked).toHaveLength(1);
+    const firstWon = (await rental(first))?.status === "ACCEPTED";
+    expect((await wallet(one.borrower))?.heldAsDeposits).toBe(firstWon ? 50 : 0);
+    expect((await wallet(two.borrower))?.heldAsDeposits).toBe(firstWon ? 0 : 60);
   });
 });

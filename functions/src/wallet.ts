@@ -7,7 +7,8 @@ import { RequestError } from "./rentalRules";
  * Reading and writing a user's wallet inside a transaction, shared by the functions that move
  * PolyPoints (see "Firestore schema" in docs/ARCHITECTURE.md): `wallets/{uid}` holds the balances,
  * and `wallets/{uid}/transactions/{id}` the history. Only Cloud Functions write them. As in every
- * Firestore transaction, read first (`readWallet`, `hasTransaction`), then write (`writeWallet`).
+ * Firestore transaction, read first (`readWallet`, `hasTransaction`), check (`requireFunds`), then
+ * write (`writeWallet`, or `writeDepositHold` for a deposit, whose row id is `depositRowId`).
  */
 
 /** The balances of a wallet, in whole PolyPoints. */
@@ -92,7 +93,7 @@ export function writeWallet(
 }
 
 /** The `type` of the history row of a held deposit. */
-export const DEPOSIT_HELD = "DEPOSIT_HELD";
+const DEPOSIT_HELD = "DEPOSIT_HELD";
 
 /** The id of the history row of a rental's deposit hold, which makes the hold idempotent. */
 export function depositRowId(rentalId: string): string {

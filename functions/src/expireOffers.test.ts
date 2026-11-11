@@ -5,7 +5,7 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { DocumentReference, Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { expireOffer, expireOverdueOffers, respondToOffer } from "./negotiation";
-import { fund, people } from "./testing/walletFixtures";
+import { fund, people, wallet } from "./testing/walletFixtures";
 
 jest.mock("firebase-functions/logger");
 
@@ -183,11 +183,17 @@ describe("an answer racing the expiry", () => {
     expect(messages.size).toBe(1);
     expect(await addresses(ref)).toBeUndefined();
     if (status === "ACCEPTED") {
+      expect((await wallet(borrower))?.heldAsDeposits).toBe(180);
       expect(answer.status).toBe("fulfilled");
       expect(sweep).toMatchObject({ status: "fulfilled", value: false });
       expect(booked).toEqual([{ start: "2001-07-01", end: "2001-07-02" }]);
     } else {
       expect(status).toBe("DECLINED");
+      expect(await wallet(borrower)).toEqual({
+        available: 500,
+        heldAsDeposits: 0,
+        heldForRentals: 0,
+      });
       expect(answer).toMatchObject({
         status: "rejected",
         reason: { code: "failed-precondition" },

@@ -6,6 +6,7 @@ import { toCallableError } from "./callable";
 import {
   RequestError,
   isValidDeposit,
+  listingTitleOf,
   parseRentalId,
   requirePerson,
   requireVerifiedEpfl,
@@ -63,15 +64,7 @@ export async function reserveRentalDeposit(
     const deposit = requireDeposit(rental);
     const wallet = await readWallet(tx, db, borrowerId);
     requireFunds(wallet, deposit);
-    writeDepositHold(
-      tx,
-      db,
-      borrowerId,
-      wallet,
-      deposit,
-      rentalId,
-      typeof rental.listingTitle === "string" ? rental.listingTitle : "",
-    );
+    writeDepositHold(tx, db, borrowerId, wallet, deposit, rentalId, listingTitleOf(rental));
   });
 }
 

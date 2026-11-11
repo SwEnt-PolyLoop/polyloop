@@ -91,7 +91,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 - The lender is paid the rental price once the item has been picked up (`payLender`); until the price is reserved when a request is sent, it is taken from `available`, afterwards it will come from `heldForRentals`.
 - The deposit is negotiated before acceptance, and only the deposit: the rental price is fixed. The item value is shown as the suggested deposit. An offer or a counteroffer is a whole amount from 1 to 99,999 PP (the same cap as a listing price).
     1. On a request without an offer, the lender either sends an offer (the deposit and both exact addresses) or declines.
-    2. On the lender's offer, the borrower accepts, declines or sends one counteroffer.
+    2. On the lender's offer, the borrower accepts, declines or sends one counteroffer; a counteroffer the borrower's available balance cannot cover is refused.
     3. On a counteroffer, the lender accepts or declines. There is no further round.
 - The rental stays `REQUESTED` during the negotiation. Accepting makes it `ACCEPTED`; the deposit is reserved then, and acceptance fails if the balance is too low. Declining an offer or a counteroffer makes it `DECLINED`.
 - An offer or a counteroffer expires after 1 week without an answer, or on the rental's first day if that comes sooner, and the rental becomes `DECLINED`. It cannot be accepted after that. A request without an offer does not expire.
