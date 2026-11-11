@@ -110,8 +110,13 @@ class RentalRepositoryOffersTest {
   // ---------- serverNow ----------
 
   private fun serverTodayReturns(data: Any?) {
-    val result = mockk<HttpsCallableResult>()
-    every { result.data } returns data
+    // A real result: data is a field MockK can't stub, and the constructor isn't public.
+    val result =
+        HttpsCallableResult::class
+            .java
+            .getDeclaredConstructor(Any::class.java)
+            .apply { isAccessible = true }
+            .newInstance(data)
     every { callable.call() } returns Tasks.forResult(result)
   }
 
