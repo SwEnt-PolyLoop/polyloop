@@ -79,14 +79,11 @@ class ChatViewModelTest {
     Dispatchers.resetMain()
   }
 
-  private fun viewModel(repository: ChatRepository = chat, rentalId: String = "tent") =
-      ChatViewModel(
-          rentalId,
-          repository,
-          auth,
-          FakeRentalRepository(),
-          FakeConnectivityRepository(),
-      )
+  private fun viewModel(
+      repository: ChatRepository = chat,
+      rentalId: String = "tent",
+      connectivity: FakeConnectivityRepository = FakeConnectivityRepository(),
+  ) = ChatViewModel(rentalId, repository, auth, FakeRentalRepository(), connectivity)
 
   // ---------- loading ----------
 
@@ -403,6 +400,78 @@ class ChatViewModelTest {
     vm.onStarted()
 
     assertEquals(2, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun comingBackWithoutNewMessagesDoesNotMarkAgain() {
+    val vm = viewModel()
+    vm.onStarted()
+    vm.onStopped()
+
+    vm.onStarted()
+
+    assertEquals(1, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun sameNewestMessageConfirmedByTheServerIsNotMarkedAgain() {
+    viewModel().onStarted()
+
+    // Firestore sends the list again when the server confirms a message's time.
+    chat.messages =
+        mapOf("tent" to listOf(fromAna, fromMe, fromApp.copy(sentAt = at.plusSeconds(9))))
+
+    assertEquals(1, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun ownNewestMessageIsNotMarked() {
+    chat.messages = mapOf("tent" to listOf(fromAna, fromMe))
+
+    viewModel().onStarted()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun sendingAMessageDoesNotMarkTheChatAgain() {
+    val vm = viewModel()
+    vm.onStarted()
+
+    vm.onDraftChange("See you then")
+    vm.send()
+
+    assertEquals("See you then", vm.uiState.value.messages.last().text)
+    assertEquals(1, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun chatOpenedOfflineIsNotMarkedAsRead() {
+    viewModel(connectivity = FakeConnectivityRepository(online = false)).onStarted()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun reconnectingWithTheChatOpenMarksItAsRead() {
+    val connectivity = FakeConnectivityRepository(online = false)
+    viewModel(connectivity = connectivity).onStarted()
+
+    connectivity.setOnline(true)
+
+    assertEquals(1, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun reconnectingWhileTheChatIsHiddenDoesNotMarkIt() {
+    val connectivity = FakeConnectivityRepository(online = false)
+    val vm = viewModel(connectivity = connectivity)
+    vm.onStarted()
+    vm.onStopped()
+
+    connectivity.setOnline(true)
+
+    assertEquals(0, chat.markAsReadCalls)
   }
 
   @Test

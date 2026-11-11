@@ -152,11 +152,15 @@ class ChatViewModel(
   // True while the Chat screen is visible: only then does it count the messages as seen.
   private var isStarted = false
 
+  // The newest message already counted as seen, so the same messages are not saved twice.
+  private var markedId: String? = null
+
   init {
     // Apart from the chat job, so that retry() neither stops nor duplicates it.
     viewModelScope.launch {
       connectivityRepository.isOnline.collect { online ->
         _uiState.update { it.copy(isOffline = !online) }
+        if (online) markAsRead() // what was shown offline is saved once the connection is back
       }
     }
     observe()
@@ -284,13 +288,21 @@ class ChatViewModel(
    * Saves that the user has seen the messages on screen, each time they change while the chat is
    * visible, so a message received meanwhile does not leave a red dot in the chat list. Nothing is
    * saved while the screen is hidden (e.g. behind Rental detail), so a message arriving then keeps
-   * its dot, nor while no message is shown (still loading, or none in the cache offline). Launched
-   * on its own, since offline the save waits up to 10 seconds and must not hold back the next
-   * messages. A failure is ignored: it only leaves the dot, which is not worth an error on the
-   * chat.
+   * its dot, nor while no message is shown (still loading, or none in the cache offline).
+   *
+   * Nothing is saved offline either: the save would get the server's time only once the phone
+   * reconnects, which would also cover messages received meanwhile and never seen; it is saved when
+   * the connection comes back instead. The same newest message is saved only once, and not at all
+   * when it is the user's own, since sending saves their read time with it. Launched on its own,
+   * since offline the save waits up to 10 seconds and must not hold back the next messages. A
+   * failure is ignored: it only leaves the dot, which is not worth an error on the chat.
    */
   private fun markAsRead() {
-    if (!isStarted || _uiState.value.messages.isEmpty()) return
+    val state = _uiState.value
+    val newest = state.messages.lastOrNull() ?: return
+    if (!isStarted || state.isOffline || newest.id == markedId) return
+    markedId = newest.id
+    if (newest.kind == MessageKind.MINE) return
     viewModelScope.launch { chatRepository.markAsRead(rentalId) }
   }
 
