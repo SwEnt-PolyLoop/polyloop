@@ -176,18 +176,23 @@ service cloud.firestore {
       // opened the chat (#181), which the app saves by itself.
       allow update: if isVerifiedEpfl()
           && request.auth.uid in resource.data.participants
+          && changedKeys().size() > 0
           && changedKeys().hasOnly(['lastMessage', 'lastMessageAt', 'lastReadAt'])
           && (!changedKeys().hasAny(['lastMessage', 'lastMessageAt'])
               || isChatPreview(request.resource.data))
           && (!changedKeys().hasAny(['lastReadAt']) || isOwnReadTime(request.resource.data));
 
+      // The preview of a message just sent. Never empty: an empty preview means "no message yet",
+      // which would hide the other person's red dot. The text is not checked against a real
+      // message (that would need a Cloud Function).
       function isChatPreview(rental) {
-        return rental.lastMessage is string && rental.lastMessageAt == request.time;
+        return rental.lastMessage is string
+            && rental.lastMessage.size() > 0
+            && rental.lastMessageAt == request.time;
       }
 
       // lastReadAt maps each participant's uid to when they last opened the chat. A user changes
-      // only their own entry, and only to the server's current time, so they cannot hide or show
-      // the other person's red dot.
+      // only their own entry, and only to the server's current time.
       function isOwnReadTime(rental) {
         let reads = rental.lastReadAt;
         return reads is map

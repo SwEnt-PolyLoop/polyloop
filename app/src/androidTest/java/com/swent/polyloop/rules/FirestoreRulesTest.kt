@@ -468,6 +468,14 @@ class FirestoreRulesTest {
         assertDenied { rental.update("status", "ACCEPTED").await() }
         assertDenied { rental.update("lastMessageAt", Timestamp(5_000, 0)).await() }
         assertDenied { rental.delete().await() }
+        // An empty preview would read as "no message yet" and hide the other person's red dot.
+        assertDenied {
+          rental
+              .update(mapOf("lastMessage" to "", "lastMessageAt" to FieldValue.serverTimestamp()))
+              .await()
+        }
+        // An update that changes nothing is refused too.
+        assertDenied { rental.update("lastMessage", "Hi").await() }
 
         newAccount() // a stranger
         assertDenied {
