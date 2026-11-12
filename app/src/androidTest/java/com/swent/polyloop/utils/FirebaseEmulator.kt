@@ -104,10 +104,39 @@ object FirebaseEmulator {
   }
 
   /**
+   * Replaces [fields] in the existing document at [path], keeping its other fields, skipping the
+   * Security Rules. For a change another user or a Cloud Function makes while the app is open. Sent
+   * as a commit, because HttpURLConnection cannot send PATCH.
+   */
+  fun updateDocumentAsAdmin(path: String, fields: Map<String, Any?>) {
+    val name = documentsUrl().substringAfter("/v1/") + "/$path"
+    val write =
+        JSONObject()
+            .put("update", JSONObject().put("name", name).put("fields", toFields(fields)))
+            .put("updateMask", JSONObject().put("fieldPaths", JSONArray(fields.keys.toList())))
+            .put("currentDocument", JSONObject().put("exists", true))
+    val body = JSONObject().put("writes", JSONArray().put(write))
+    request("POST", "${documentsUrl()}:commit", body.toString(), asAdmin = true)
+  }
+
+  /**
    * Deletes the document at [path], skipping the Security Rules. A missing document is no error.
    */
   fun deleteDocumentAsAdmin(path: String) {
     request("DELETE", "${documentsUrl()}/$path", asAdmin = true)
+  }
+
+  /**
+   * Deletes every document of the collection at [path] (at most one page of 300), skipping the
+   * Security Rules. For documents the app wrote with ids the test does not know, e.g. messages.
+   */
+  fun deleteCollectionAsAdmin(path: String) {
+    val json = request("GET", "${documentsUrl()}/$path?pageSize=300", asAdmin = true)
+    val documents = JSONObject(json).optJSONArray("documents") ?: return
+    (0 until documents.length()).forEach { i ->
+      val name = documents.getJSONObject(i).getString("name")
+      deleteDocumentAsAdmin(name.substringAfter("/documents/"))
+    }
   }
 
   private fun documentsUrl(): String {
