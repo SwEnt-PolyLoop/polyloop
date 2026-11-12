@@ -448,17 +448,11 @@ abstract class EndToEndTestBase {
   protected fun <T> whenResumed(step: () -> T): T = composeTestRule.retryWhenPaused(step)
 
   /**
-   * Like Compose's `assertDoesNotExist`, which a pause would let pass without a screen (#196): it
-   * is checked again until a screen was shown when it ran. A member of Compose, it cannot be
-   * replaced under the same name like the steps below.
+   * Like Compose's `assertDoesNotExist`, which a pause would let pass without a screen (#196). A
+   * member of Compose, it cannot be replaced under the same name like the steps below.
    */
-  protected fun SemanticsNodeInteraction.assertAbsent() {
-    repeat(MAX_PAUSES + 1) {
-      waitFor(isRoot())
-      assertDoesNotExist()
-      if (composeTestRule.hasScreen()) return
-    }
-    fail("The app stayed paused")
+  protected fun SemanticsNodeInteraction.assertAbsent() = composeTestRule.checkWhileShown {
+    assertDoesNotExist()
   }
 
   // The Compose actions and assertions the tests use, run through whenResumed so that every step
@@ -646,6 +640,24 @@ abstract class EndToEndTestBase {
     /** True while the app shows a screen, i.e. its activity is not paused (#196). */
     fun ComposeTestRule.hasScreen() =
         onAllNodes(isRoot()).fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty()
+
+    /**
+     * Runs [check] on a shown screen, and again if the activity was paused meanwhile: a check that
+     * a node is missing would otherwise pass without any screen (#196).
+     */
+    fun ComposeTestRule.checkWhileShown(check: () -> Unit) {
+      repeat(MAX_PAUSES + 1) {
+        waitForNode(isRoot())
+        check()
+        if (hasScreen()) return
+      }
+      fail("The app stayed paused")
+    }
+
+    /** Checks that no node matches [matcher], on a shown screen (see [checkWhileShown]). */
+    fun ComposeTestRule.assertAbsent(matcher: SemanticsMatcher) = checkWhileShown {
+      onNode(matcher, useUnmergedTree = true).assertDoesNotExist()
+    }
 
     /**
      * Runs [step] again once the app is back if the activity was paused when it looked for the
