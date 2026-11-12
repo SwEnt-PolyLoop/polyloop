@@ -3,6 +3,8 @@
 package com.swent.polyloop.ui.browse
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -50,9 +52,27 @@ class BrowseMapTest {
           pickupPoint = ecublens,
       )
 
-  /** Shows the pin of [listings], all at Ecublens, as the map draws it. */
-  private fun setPin(listings: List<Listing>) {
-    composeTestRule.setContent { BrowsePinLabel(pinLabel(BrowsePin(ecublens, listings))) }
+  /**
+   * Shows the pin of [listings], all at Ecublens, as the map draws it, selected if [isSelected].
+   */
+  private fun setPin(listings: List<Listing>, isSelected: Boolean = false) {
+    composeTestRule.setContent {
+      BrowsePinLabel(pinLabel(BrowsePin(ecublens, listings)), isSelected = isSelected)
+    }
+  }
+
+  @Test
+  fun selectedPinIsMarkedSelected() {
+    setPin(listOf(listing("tent", 15)), isSelected = true)
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_pin_label).assertIsSelected()
+  }
+
+  @Test
+  fun otherPinsAreNotMarkedSelected() {
+    setPin(listOf(listing("tent", 15)), isSelected = false)
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_pin_label).assertIsNotSelected()
   }
 
   @Test
@@ -78,6 +98,7 @@ class BrowseMapTest {
     composeTestRule.setContent {
       BrowseMap(
           pins = listOf(BrowsePin(ecublens, listOf(listing("tent", 15)))),
+          selectedPoint = ecublens,
           onPinClick = {},
           onMapClick = {},
       )

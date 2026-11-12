@@ -166,6 +166,7 @@ fun BrowseContent(
           Column(modifier = Modifier.fillMaxSize()) {
             BrowseMap(
                 pins = uiState.pins,
+                selectedPoint = uiState.selectedPin?.point,
                 onPinClick = onPinClick,
                 onMapClick = onMapClick,
                 modifier = Modifier.weight(1f),
