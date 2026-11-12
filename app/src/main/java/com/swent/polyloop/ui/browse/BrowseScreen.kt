@@ -195,7 +195,9 @@ fun BrowseContent(
 
 /**
  * The listings of [pin], the pin selected on the map, as cards in a row under the map, which
- * scrolls sideways when there are several. Tapping a card calls [onListingClick] with its id.
+ * scrolls sideways when there are several. Tapping a card calls [onListingClick] with its id. The
+ * cards' text keeps to one line, so they all have the same height and the map above does not jump
+ * while the user swipes.
  */
 @Composable
 private fun BrowsePinListings(pin: BrowsePin, onListingClick: (String) -> Unit) {
@@ -210,6 +212,7 @@ private fun BrowsePinListings(pin: BrowsePin, onListingClick: (String) -> Unit) 
           listing = listing,
           distanceText = FAKE_DISTANCE_TEXT,
           modifier = Modifier.fillParentMaxWidth(cardWidthFraction),
+          singleLineText = true,
           onClick = { onListingClick(listing.id) },
       )
     }

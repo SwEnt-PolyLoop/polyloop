@@ -392,6 +392,35 @@ class BrowseScreenTest {
   }
 
   @Test
+  fun cardsUnderTheMapAllHaveTheSameHeight() {
+    // A long title that wrapped would make its card taller, so the row would change height on a
+    // swipe and the map above it would jump.
+    val longTitle =
+        listingsOnTheMap[1].copy(
+            title = "Mountain bike with a helmet, a lock and two bags for a weekend away"
+        )
+    setContent(
+        uiState =
+            BrowseUiState(
+                listings = listOf(listingsOnTheMap[0], longTitle),
+                view = BrowseView.MAP,
+                selectedPoint = ecublens,
+            )
+    )
+
+    val heights =
+        listOf("tent", "projector").map { id ->
+          val cardTag = C.Tag.listing_card_ + id
+          composeTestRule
+              .onNodeWithTag(C.Tag.browse_pin_listings)
+              .performScrollToNode(hasTestTag(cardTag))
+          composeTestRule.onNodeWithTag(cardTag).fetchSemanticsNode().size.height
+        }
+
+    assertEquals(heights[0], heights[1])
+  }
+
+  @Test
   fun noCardsShowUnderTheMapWithoutASelection() {
     setMapContent(selectedPoint = null)
 

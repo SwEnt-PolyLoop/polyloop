@@ -21,8 +21,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.maps.CameraUpdate
@@ -177,7 +175,7 @@ private fun MapPoint.toLatLng() = LatLng(latitude, longitude)
 
 /**
  * The marker of [pin] at its point, drawn as [BrowsePinLabel], highlighted and above the other pins
- * when [isSelected], and read out as its label. Tapping it calls [onClick].
+ * when [isSelected], and read out as [pinDescription]. Tapping it calls [onClick].
  */
 @Composable
 private fun BrowsePinMarker(pin: BrowsePin, isSelected: Boolean, onClick: () -> Unit) {
@@ -188,7 +186,7 @@ private fun BrowsePinMarker(pin: BrowsePin, isSelected: Boolean, onClick: () -> 
       label,
       isSelected,
       state = rememberUpdatedMarkerState(pin.point.toLatLng()),
-      contentDescription = label,
+      contentDescription = pinDescription(pin, isSelected),
       zIndex = if (isSelected) SELECTED_PIN_Z_INDEX else 0f,
       onClick = {
         onClick()
@@ -215,6 +213,17 @@ internal fun pinLabel(pin: BrowsePin): String {
 }
 
 /**
+ * What a screen reader says for [pin]: its [pinLabel], followed by "selected" when [isSelected].
+ * The map draws a marker as a picture, so this description is the only way TalkBack can tell the
+ * selected pin apart.
+ */
+@Composable
+internal fun pinDescription(pin: BrowsePin, isSelected: Boolean): String {
+  val label = pinLabel(pin)
+  return if (isSelected) stringResource(R.string.browse_pin_selected, label) else label
+}
+
+/**
  * How a pin looks: [label] in bold, in a pill with a thin border. The selected pin ([isSelected])
  * is in the app's main colour and the others are white, so the selected one stands out.
  */
@@ -234,8 +243,7 @@ internal fun BrowsePinLabel(label: String, isSelected: Boolean, modifier: Modifi
         fontWeight = FontWeight.Bold,
         modifier =
             Modifier.padding(horizontal = PIN_PADDING_HORIZONTAL, vertical = PIN_PADDING_VERTICAL)
-                .testTag(C.Tag.browse_pin_label)
-                .semantics { selected = isSelected },
+                .testTag(C.Tag.browse_pin_label),
     )
   }
 }

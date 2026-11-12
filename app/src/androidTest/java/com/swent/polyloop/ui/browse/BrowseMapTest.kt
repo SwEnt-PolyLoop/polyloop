@@ -3,8 +3,6 @@
 package com.swent.polyloop.ui.browse
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotSelected
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -61,18 +59,41 @@ class BrowseMapTest {
     }
   }
 
-  @Test
-  fun selectedPinIsMarkedSelected() {
-    setPin(listOf(listing("tent", 15)), isSelected = true)
-
-    composeTestRule.onNodeWithTag(C.Tag.browse_pin_label).assertIsSelected()
+  /** What a screen reader says for the pin of [listings], at Ecublens, selected if [isSelected]. */
+  private fun descriptionOf(listings: List<Listing>, isSelected: Boolean): String {
+    var description = ""
+    composeTestRule.setContent {
+      description = pinDescription(BrowsePin(ecublens, listings), isSelected)
+    }
+    composeTestRule.waitForIdle()
+    return description
   }
 
   @Test
-  fun otherPinsAreNotMarkedSelected() {
-    setPin(listOf(listing("tent", 15)), isSelected = false)
+  fun selectedPinIsReadOutAsSelected() {
+    val price = resources.getString(R.string.listing_card_price, 15)
 
-    composeTestRule.onNodeWithTag(C.Tag.browse_pin_label).assertIsNotSelected()
+    assertEquals(
+        resources.getString(R.string.browse_pin_selected, price),
+        descriptionOf(listOf(listing("tent", 15)), isSelected = true),
+    )
+  }
+
+  @Test
+  fun otherPinsAreReadOutAsTheirLabel() {
+    assertEquals(
+        resources.getQuantityString(R.plurals.browse_pin_items, 2, 2),
+        descriptionOf(listOf(listing("tent", 15), listing("drill", 8)), isSelected = false),
+    )
+  }
+
+  @Test
+  fun selectedPinStillShowsItsLabel() {
+    setPin(listOf(listing("tent", 15)), isSelected = true)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.browse_pin_label)
+        .assertTextEquals(resources.getString(R.string.listing_card_price, 15))
   }
 
   @Test
