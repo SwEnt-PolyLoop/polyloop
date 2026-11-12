@@ -134,8 +134,8 @@ class SharedPreferencesServerClockStore(context: Context) : ServerClock.Store {
 
 /**
  * In-memory [ServerClock.Store] for tests; the app itself never uses it. It lives in `main` because
- * the instrumented app tests (`PolyLoopAppTest`, `EndToEndTest`) use it as well as the unit tests,
- * and `androidTest` cannot see `app/src/test`.
+ * the instrumented app tests (`PolyLoopAppTest`, the end-to-end tests) use it as well as the unit
+ * tests, and `androidTest` cannot see `app/src/test`.
  */
 class InMemoryServerClockStore(private var saved: ServerClock.Saved? = null) : ServerClock.Store {
 
