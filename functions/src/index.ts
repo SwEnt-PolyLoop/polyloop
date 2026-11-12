@@ -15,6 +15,7 @@ export { makeOffer } from "./makeOffer";
 export { respondToOffer } from "./respondToOffer";
 export { declineRequest } from "./declineRequest";
 export { expireOffers } from "./expireOffers";
+export { requestRental } from "./requestRental";
 export { reserveDeposit } from "./reserveDeposit";
 export { serverToday } from "./serverToday";
 export { payLender } from "./payLender";

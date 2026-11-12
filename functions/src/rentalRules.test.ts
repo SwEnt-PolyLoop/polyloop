@@ -4,6 +4,7 @@ import {
   MAX_DEPOSIT,
   RequestError,
   conflicts,
+  daysIn,
   isDateString,
   offerExpiry,
   isValidDeposit,
@@ -12,6 +13,7 @@ import {
   parseOfferAnswer,
   parseOfferInput,
   parseRentalId,
+  parseRentalRequest,
   readRange,
   requirePerson,
   requireVerifiedEpfl,
@@ -229,5 +231,62 @@ describe("listingTitleOf", () => {
       expect(listingTitleOf({ listingTitle })).toBe("");
     }
     expect(listingTitleOf({})).toBe("");
+  });
+});
+
+describe("parseRentalRequest", () => {
+  const valid = {
+    rentalId: "0b9f6c1e-4f43-4a3b-9d63-3f4a1f3c2a10",
+    listingId: "listing-1",
+    startDate: "2030-05-10",
+    endDate: "2030-05-12",
+  };
+
+  it("returns the ids and the dates, and ignores every other field", () => {
+    const input = parseRentalRequest({ ...valid, totalPrice: 1, ownerId: "x", borrowerName: "y" });
+
+    expect(input).toEqual(valid);
+  });
+
+  it("accepts a one-day rental", () => {
+    expect(parseRentalRequest({ ...valid, endDate: valid.startDate }).endDate).toBe("2030-05-10");
+  });
+
+  it("refuses a missing, blank, or malformed id", () => {
+    for (const patch of [
+      { rentalId: undefined },
+      { rentalId: "  " },
+      { rentalId: "a/b" },
+      { rentalId: "x".repeat(129) },
+      { listingId: undefined },
+      { listingId: "a/b" },
+      { listingId: 7 },
+    ]) {
+      expect(errorCode(() => parseRentalRequest({ ...valid, ...patch }))).toBe("invalid-argument");
+    }
+  });
+
+  it("refuses bad dates and an end before the start", () => {
+    for (const patch of [
+      { startDate: "10/05/2030" },
+      { endDate: "2030-02-30" },
+      { startDate: undefined },
+      { endDate: 20300512 },
+      { startDate: "2030-05-13" },
+    ]) {
+      expect(errorCode(() => parseRentalRequest({ ...valid, ...patch }))).toBe("invalid-argument");
+    }
+  });
+
+  it("refuses an input that is not an object", () => {
+    expect(errorCode(() => parseRentalRequest(null))).toBe("invalid-argument");
+  });
+});
+
+describe("daysIn", () => {
+  it("counts both days", () => {
+    expect(daysIn({ start: "2030-05-10", end: "2030-05-10" })).toBe(1);
+    expect(daysIn({ start: "2030-05-10", end: "2030-05-12" })).toBe(3);
+    expect(daysIn({ start: "2030-02-27", end: "2030-03-02" })).toBe(4);
   });
 });
