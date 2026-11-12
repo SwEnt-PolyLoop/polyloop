@@ -41,7 +41,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.resources.C
-import com.swent.polyloop.ui.components.NotAvailableYet
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
@@ -110,14 +109,7 @@ fun BrowseContent(
             onCategoryClick = onCategoryClick,
             onAllClick = onAllClick,
         )
-        // The map view is not built yet, so Map does nothing and says so under it.
-        Column {
-          BrowseViewToggle()
-          NotAvailableYet(
-              C.Tag.browse_map_not_available,
-              Modifier.padding(start = 16.dp, top = 4.dp),
-          )
-        }
+        BrowseViewToggle()
       }
     }
     when {

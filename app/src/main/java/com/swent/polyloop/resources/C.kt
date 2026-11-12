@@ -15,7 +15,6 @@ object C {
     const val browse_category_chips = "browse_category_chips"
     const val browse_map_toggle = "browse_map_toggle"
     const val browse_list_toggle = "browse_list_toggle"
-    const val browse_map_not_available = "browse_map_not_available"
     const val browse_list = "browse_list"
     const val browse_title = "browse_title"
     const val browse_category_all = "browse_category_all"

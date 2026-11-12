@@ -13,7 +13,7 @@ Elements shared across screens:
 - **Top bar.** Transparent, with a menu button and a profile button. Rental screens also show a role pill, “You lend” or “You borrow”.
 - **Navigation drawer** (Figma frame 03). The menu button opens it. It takes 80% of the screen's width, but no more than 360 dp (its width in landscape) and no less than 240 dp, so a strip of the current screen stays visible beside it: a fifth of the width on screens of at least 300 dp, less below, and none under 240 dp, where the drawer fills the screen. Back, a tap on that strip or a swipe closes it. A header with the signed-in user's avatar (photo, or their initial), name and rating, then every standalone screen with an icon, the current one highlighted: Browse, Create listing, My rentals, Chats, Wallet, Profile. After a divider, “Court rulings” with an “Admin” badge, for admins only. A footer notes that screens tied to one listing or rental open from inside the app, not from the drawer. Tapping an item opens it and closes the drawer. ViewModel: DrawerViewModel, using ProfileRepository.
 - **Currency.** All prices and deposits are in PolyPoints, PolyLoop's in-app currency, at 1 CHF = 1 PolyPoint. Users recharge on the Wallet screen. Recharging is simulated: no real payment is made.
-- **Not available yet.** A button shown before its feature exists has a small grey “Not available yet” next to it, so testers know it is planned, not broken. The label goes away in the change that makes the button work. Today: Map on Browse, “Cancel request” on Rental detail, “Recharge” on Wallet and, for admins, “Court rulings” in the drawer.
+- **Not available yet.** A button shown before its feature exists has a small grey “Not available yet” next to it, so testers know it is planned, not broken. The label goes away in the change that makes the button work. Today: “Cancel request” on Rental detail, “Recharge” on Wallet and, for admins, “Court rulings” in the drawer.
 - **Offline banner.** Shown at the top of every screen while offline. Actions that need a connection (browsing new listings, recharging, payments, sending messages) stay visible but disabled.
 - **Locations offline.** Map tiles need a connection, so offline screens show meeting points as text (the address).
 - **Photos.** Every photo is taken with the in-app camera, never picked from the gallery.
@@ -81,7 +81,7 @@ Each rental has exactly one 1:1 conversation between its lender and borrower. Vi
 
 Browse shows available items near the user, as a map or a list. ViewModel: BrowseViewModel, using ListingRepository and LocationRepository.
 
-- A toggle between map view (Google Maps SDK) and list view. The map view is not built yet: “Map” does nothing and shows “Not available yet” under it.
+- A toggle between map view (Google Maps SDK) and list view.
 - Map pins sit at each listing's pickup area, never the exact address.
 - List sorted by distance, using the phone's GPS.
 - Listing cards with the first photo, title, price per day in PolyPoints, distance and pickup area. Tapping a card opens Listing detail.

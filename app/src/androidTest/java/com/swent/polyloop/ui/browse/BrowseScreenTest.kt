@@ -73,7 +73,6 @@ class BrowseScreenTest {
           C.Tag.browse_category_all,
           C.Tag.browse_map_toggle,
           C.Tag.browse_list_toggle,
-          C.Tag.browse_map_not_available,
       )
 
   private fun setContent(
@@ -299,16 +298,6 @@ class BrowseScreenTest {
       composeTestRule.onNodeWithTag(C.Tag.browse_list).performScrollToNode(hasTestTag(cardTag))
       composeTestRule.onNodeWithTag(cardTag).assertIsDisplayed()
     }
-  }
-
-  @Test
-  fun mapSaysItIsNotAvailableYet() {
-    setContent()
-
-    composeTestRule
-        .onNodeWithTag(C.Tag.browse_map_not_available)
-        .assertIsDisplayed()
-        .assertTextEquals(string(R.string.not_available_yet))
   }
 
   @Test
