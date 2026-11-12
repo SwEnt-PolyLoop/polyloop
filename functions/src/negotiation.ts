@@ -230,7 +230,7 @@ export async function expireOffer(rentalRef: DocumentReference, now: Date): Prom
     if (rental?.status !== REQUESTED || !offer || !isExpired(offer, now)) {
       return false;
     }
-    decline(tx, rentalRef, "Offer expired · request declined");
+    decline(tx, rentalRef, "Offer expired · request declined", null);
     return true;
   });
 }
@@ -311,7 +311,7 @@ function decline(
   tx: Transaction,
   rentalRef: DocumentReference,
   text: string,
-  actorId: string | null = null,
+  actorId: string | null,
 ): void {
   tx.delete(addressesRef(rentalRef));
   writeWithSystemMessage(
@@ -327,14 +327,15 @@ function decline(
  * Updates the rental with [fields], and adds [text] to its chat as a SYSTEM message. [actorId] is
  * the participant whose action this message reports: their read time is set to the message's, as
  * when they send a message, so the chat list shows no red dot for their own action. It is null
- * for a scheduled job, whose message is news for both participants.
+ * when the message is news for both participants: a scheduled job, a deadline that passed, or
+ * another rental's acceptance. It has no default, so each caller says who acted.
  */
 export function writeWithSystemMessage(
   tx: Transaction,
   rentalRef: DocumentReference,
   text: string,
   fields: DocumentData,
-  actorId: string | null = null,
+  actorId: string | null,
 ): void {
   tx.update(rentalRef, {
     ...fields,
