@@ -755,6 +755,24 @@ class ListingDetailScreenTest {
   }
 
   @Test
+  fun pickerShowsTheNotEnoughPolyPointsMessage() {
+    setContent(
+        uiState =
+            ListingDetailUiState(
+                listing = listing,
+                isDatePickerOpen = true,
+                notEnoughFunds = true,
+                sendError = null,
+            )
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_send_error)
+        .performScrollTo()
+        .assertTextEquals(context.getString(R.string.listing_detail_not_enough_funds))
+  }
+
+  @Test
   fun tappingADayCallsOnDayPicked() {
     var dayPicks = 0
     composeTestRule.setContent {
@@ -790,7 +808,7 @@ class ListingDetailScreenTest {
             loadListing = { Result.success(window) },
             readBookedRanges = { Result.success(listOf(BookedRange(first, first))) },
         )
-    val rentalRepository = FakeRentalRepository()
+    val rentalRepository = FakeRentalRepository().apply { listings = listOf(window) }
     val viewModel =
         ListingDetailViewModel(
             "tent",

@@ -154,7 +154,7 @@ class ProfileViewModelTest {
   fun listingStateFollowsItsRentalsLive() = runTest {
     val vm = viewModel()
 
-    rentals.requestRental(
+    rentals.addRequest(
         listing = myTent,
         ownerName = "John",
         borrower = AuthUser(uid = "jane", email = "jane@epfl.ch", name = "Jane"),
@@ -580,7 +580,7 @@ class ProfileViewModelTest {
 
     listings.failure = IllegalStateException("No connection")
     vm.refreshListings()
-    rentals.requestRental(
+    rentals.addRequest(
         listing = myTent,
         ownerName = "John",
         borrower = AuthUser(uid = "jane", email = "jane@epfl.ch", name = "Jane"),

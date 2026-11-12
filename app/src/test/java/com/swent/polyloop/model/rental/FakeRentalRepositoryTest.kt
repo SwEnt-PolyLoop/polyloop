@@ -50,8 +50,8 @@ class FakeRentalRepositoryTest {
   private fun repository() = FakeRentalRepository(clock = clock)
 
   @Test
-  fun requestRentalCreatesARequestedRentalWithCopiedFields() = runTest {
-    val rental = repository().requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+  fun addRequestCreatesARequestedRentalWithCopiedFields() = runTest {
+    val rental = repository().addRequest(listing, "Vida", borrower, start, end)
 
     assertEquals("rental-1", rental.id)
     assertEquals(RentalStatus.REQUESTED, rental.status)
@@ -70,24 +70,24 @@ class FakeRentalRepositoryTest {
   }
 
   @Test
-  fun requestRentalStoresABlankOwnerNameAsEmpty() = runTest {
+  fun addRequestStoresABlankOwnerNameAsEmpty() = runTest {
     val repository = repository()
 
     assertEquals(
         "",
-        repository.requestRental(listing, "", borrower, start, end).getOrThrow().ownerName,
+        repository.addRequest(listing, "", borrower, start, end).ownerName,
     )
     assertEquals(
         "",
-        repository.requestRental(listing, " ", borrower, start, end).getOrThrow().ownerName,
+        repository.addRequest(listing, " ", borrower, start, end).ownerName,
     )
   }
 
   @Test
-  fun requestRentalGivesEachRentalANewId() = runTest {
+  fun addRequestGivesEachRentalANewId() = runTest {
     val repository = repository()
-    repository.requestRental(listing, "Vida", borrower, start, end)
-    repository.requestRental(listing, "Vida", borrower, start, end)
+    repository.addRequest(listing, "Vida", borrower, start, end)
+    repository.addRequest(listing, "Vida", borrower, start, end)
 
     assertEquals(listOf("rental-1", "rental-2"), repository.rentals.map { it.id })
   }
@@ -95,8 +95,8 @@ class FakeRentalRepositoryTest {
   @Test
   fun observersSeeOnlyTheirSideNewestFirst() = runTest {
     val repository = repository()
-    val first = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
-    val second = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val first = repository.addRequest(listing, "Vida", borrower, start, end)
+    val second = repository.addRequest(listing, "Vida", borrower, start, end)
 
     assertEquals(listOf(second, first), repository.observeRentalsAsBorrower("borrower").first())
     assertEquals(listOf(second, first), repository.observeRentalsAsLender("owner").first())
@@ -110,7 +110,7 @@ class FakeRentalRepositoryTest {
     val emissions = async { repository.observeRentalsAsLender("owner").first { it.isNotEmpty() } }
     yield()
 
-    val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val rental = repository.addRequest(listing, "Vida", borrower, start, end)
 
     assertEquals(listOf(rental), emissions.await())
   }
@@ -118,7 +118,7 @@ class FakeRentalRepositoryTest {
   @Test
   fun getRentalFindsByIdOrReturnsNull() = runTest {
     val repository = repository()
-    val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val rental = repository.addRequest(listing, "Vida", borrower, start, end)
 
     assertEquals(rental, repository.getRental("rental-1").getOrThrow())
     assertNull(repository.getRental("missing").getOrThrow())
@@ -131,7 +131,7 @@ class FakeRentalRepositoryTest {
 
     assertEquals(
         error,
-        repository.requestRental(listing, "Vida", borrower, start, end).exceptionOrNull(),
+        repository.requestRental(listing.id, start, end).exceptionOrNull(),
     )
     assertEquals(error, repository.getRental("rental-1").exceptionOrNull())
     assertTrue(repository.rentals.isEmpty())
@@ -146,9 +146,13 @@ class FakeRentalRepositoryTest {
   @Test
   fun callsWaitForTheGate() = runTest {
     val gate = CompletableDeferred<Unit>()
-    val repository = repository().apply { this.gate = gate }
+    val repository =
+        repository().apply {
+          this.gate = gate
+          listings = listOf(listing)
+        }
 
-    val request = async { repository.requestRental(listing, "Vida", borrower, start, end) }
+    val request = async { repository.requestRental(listing.id, start, end) }
     val read = async { repository.getRental("rental-1") }
     yield()
     assertFalse(request.isCompleted)
@@ -161,7 +165,7 @@ class FakeRentalRepositoryTest {
 
   @Test
   fun startsWithTheGivenRentals() = runTest {
-    val stored = repository().requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val stored = repository().addRequest(listing, "Vida", borrower, start, end)
     val repository = FakeRentalRepository(rentals = listOf(stored))
 
     assertEquals(listOf(stored), repository.rentals)
@@ -170,10 +174,10 @@ class FakeRentalRepositoryTest {
 
   @Test
   fun newIdsNeverClashWithTheInitialRentals() = runTest {
-    val stored = repository().requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val stored = repository().addRequest(listing, "Vida", borrower, start, end)
     val repository = FakeRentalRepository(rentals = listOf(stored))
 
-    val created = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val created = repository.addRequest(listing, "Vida", borrower, start, end)
 
     assertEquals("rental-2", created.id)
     assertEquals(listOf("rental-1", "rental-2"), repository.rentals.map { it.id })
@@ -183,17 +187,87 @@ class FakeRentalRepositoryTest {
   fun requestRentalFailsWhenTheDatesAreReversed() = runTest {
     val repository = repository()
 
-    val result = repository.requestRental(listing, "Vida", borrower, end, start)
+    repository.listings = listOf(listing)
+
+    val result = repository.requestRental(listing.id, end, start)
 
     assertTrue(result.exceptionOrNull() is IllegalArgumentException)
     assertTrue(repository.rentals.isEmpty())
   }
 
   @Test
-  fun requestRentalAcceptsASingleDay() = runTest {
-    val rental = repository().requestRental(listing, "Vida", borrower, start, start).getOrThrow()
+  fun addRequestAcceptsASingleDay() = runTest {
+    val rental = repository().addRequest(listing, "Vida", borrower, start, start)
 
     assertEquals(5, rental.totalPrice)
+  }
+
+  @Test
+  fun requestRentalCreatesTheRequestFromTheListingForTheBorrowerAndReturnsItsId() = runTest {
+    val repository = repository().apply { listings = listOf(listing) }
+
+    val id = repository.requestRental(listing.id, start, end).getOrThrow()
+
+    assertEquals("rental-1", id)
+    assertEquals(
+        Rental(
+            id = "rental-1",
+            listingId = "listing-1",
+            listingTitle = "Camping tent",
+            listingPhotoUrl = "https://example.com/0.jpg",
+            ownerId = "owner",
+            ownerName = "",
+            borrowerId = "borrower",
+            borrowerName = "Borrower",
+            startDate = start,
+            endDate = end,
+            status = RentalStatus.REQUESTED,
+            pricePerDay = 5,
+            totalPrice = 15,
+            pickupArea = "Ecublens",
+            dropOffArea = "Renens",
+            createdAt = Instant.parse("2026-10-13T10:00:00Z"),
+        ),
+        repository.rentals.single(),
+    )
+  }
+
+  @Test
+  fun requestRentalSendsFromTheGivenBorrower() = runTest {
+    val repository =
+        repository().apply {
+          listings = listOf(listing)
+          this.borrower = this@FakeRentalRepositoryTest.borrower
+        }
+
+    repository.requestRental(listing.id, start, end)
+
+    assertEquals(listOf("borrower"), repository.rentals.map { it.borrowerId })
+    assertEquals(listOf("Loca"), repository.rentals.map { it.borrowerName })
+  }
+
+  @Test
+  fun requestRentalFailsForAListingItDoesNotKnowAndStoresNothing() = runTest {
+    val repository = repository()
+
+    val result = repository.requestRental("missing", start, end)
+
+    assertTrue(result.exceptionOrNull() is IllegalStateException)
+    assertTrue(repository.rentals.isEmpty())
+  }
+
+  @Test
+  fun requestRentalCanFailWithInsufficientFundsAndStoresNothing() = runTest {
+    val repository =
+        repository().apply {
+          listings = listOf(listing)
+          failure = InsufficientFundsException()
+        }
+
+    val result = repository.requestRental(listing.id, start, end)
+
+    assertTrue(result.exceptionOrNull() is InsufficientFundsException)
+    assertTrue(repository.rentals.isEmpty())
   }
 
   @Test
@@ -227,10 +301,10 @@ class FakeRentalRepositoryTest {
   }
 
   @Test
-  fun requestRentalGivesAnEmptyPhotoUrlWhenTheListingHasNoPhotos() = runTest {
+  fun addRequestGivesAnEmptyPhotoUrlWhenTheListingHasNoPhotos() = runTest {
     val noPhotos = listing.copy(photoUrls = emptyList())
 
-    val rental = repository().requestRental(noPhotos, "Vida", borrower, start, end).getOrThrow()
+    val rental = repository().addRequest(noPhotos, "Vida", borrower, start, end)
 
     assertEquals("", rental.listingPhotoUrl)
   }

@@ -12,12 +12,10 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
-import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.listingToDocument
-import com.swent.polyloop.model.rental.rentalRequestDocument
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.time.LocalDate
 import java.util.UUID
@@ -96,14 +94,32 @@ class FirestoreRulesTest {
   private fun addressesRef(listingId: String) =
       listingRef(listingId).collection("private").document("addresses")
 
-  /** A request from [borrower] for [listing], as RentalRepositoryFirestore writes it. */
+  /**
+   * The request the `requestRental` Cloud Function would create for [listing] from [borrower], with
+   * every field right. The rules still refuse it from a client: only the Function creates rentals.
+   */
   private fun request(listing: Listing, borrower: Account): Map<String, Any> =
-      rentalRequestDocument(
-          listing,
-          "Ana",
-          AuthUser(borrower.uid, borrower.email, "Ben"),
-          start,
-          end,
+      mapOf(
+          "listingId" to listing.id,
+          "listingTitle" to listing.title,
+          "listingPhotoUrl" to listing.photoUrls.first(),
+          "ownerId" to listing.ownerId,
+          "ownerName" to "Ana",
+          "borrowerId" to borrower.uid,
+          "borrowerName" to "Ben",
+          "participants" to listOf(listing.ownerId, borrower.uid),
+          "startDate" to start.toString(),
+          "endDate" to end.toString(),
+          "status" to "REQUESTED",
+          "pricePerDay" to listing.pricePerDay,
+          "totalPrice" to listing.pricePerDay * 3,
+          "pickupArea" to listing.pickupArea,
+          "dropOffArea" to listing.dropOffArea,
+          "pickupAddress" to "",
+          "returnAddress" to "",
+          "createdAt" to FieldValue.serverTimestamp(),
+          "lastMessage" to "",
+          "lastMessageAt" to FieldValue.serverTimestamp(),
       )
 
   /** A rental between [owner] and [borrower], written as an admin. Returns its reference. */
@@ -377,82 +393,61 @@ class FirestoreRulesTest {
   // ---------- rentals ----------
 
   @Test
-  fun borrowerSendsARequestThatBothParticipantsCanRead() =
+  fun noClientCanCreateARentalEvenWithEveryFieldRight() =
       runBlocking<Unit> {
         val owner = newAccount()
         val listing = seedListing(owner.uid)
         val borrower = newAccount()
-        val rental = db.collection("rentals").document()
 
-        rental.set(request(listing, borrower)).await()
+        // The borrower's own, perfect request, and the same on a fresh id.
+        assertDenied { db.collection("rentals").document().set(request(listing, borrower)).await() }
+        assertDenied {
+          db.collection("rentals")
+              .document("rental-${UUID.randomUUID()}")
+              .set(request(listing, borrower))
+              .await()
+        }
+        // The lender, and a stranger, cannot create one either.
+        signInAs(owner)
+        assertDenied { db.collection("rentals").document().set(request(listing, borrower)).await() }
+        newAccount()
+        assertDenied { db.collection("rentals").document().set(request(listing, borrower)).await() }
+      }
+
+  @Test
+  fun noClientCanCreateARentalWithMoneyOrStatusFields() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val listing = seedListing(owner.uid)
+        val borrower = newAccount()
+        val valid = request(listing, borrower)
+
+        listOf(
+                "status" to "ACCEPTED",
+                "deposit" to 50,
+                "totalPrice" to 0,
+                "offer" to mapOf("amount" to 1),
+            )
+            .forEach { change ->
+              assertDenied { db.collection("rentals").document().set(valid + change).await() }
+            }
+        assertDenied {
+          db.collection("rentals").document().set(mapOf("status" to "REQUESTED")).await()
+        }
+      }
+
+  @Test
+  fun aRequestDocumentCreatedByAFunctionIsReadableByBothParticipantsOnly() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid)
 
         assertEquals("REQUESTED", rental.get(Source.SERVER).await().getString("status"))
         signInAs(owner)
-        assertEquals(listing.id, rental.get(Source.SERVER).await().getString("listingId"))
+        assertEquals("REQUESTED", rental.get(Source.SERVER).await().getString("status"))
         newAccount() // a stranger
         assertDenied { rental.get(Source.SERVER).await() }
-      }
-
-  @Test
-  fun requestThatDoesNotMatchTheListingIsRefused() =
-      runBlocking<Unit> {
-        val owner = newAccount()
-        val listing = seedListing(owner.uid)
-        val borrower = newAccount()
-        val valid = request(listing, borrower)
-        val invalid =
-            listOf(
-                "status" to "ACCEPTED",
-                "totalPrice" to 10, // 3 days Ã— 5 PP is 15
-                "pricePerDay" to 1,
-                "listingTitle" to "Something else",
-                "listingPhotoUrl" to "https://example.com/other.jpg",
-                "pickupArea" to "Geneva",
-                "pickupAddress" to "Route 1",
-                "ownerId" to borrower.uid,
-                "borrowerId" to owner.uid,
-                "participants" to listOf(borrower.uid),
-                "startDate" to "2026-10-31", // before the window
-                "endDate" to "2026-12-01", // after the window
-                "endDate" to "2026-11-01", // before startDate
-                "startDate" to "2 Nov",
-            )
-
-        invalid.forEach { change ->
-          assertDenied { db.collection("rentals").document().set(valid + change).await() }
-        }
-        assertDenied { db.collection("rentals").document().set(valid + ("deposit" to 50)).await() }
-      }
-
-  @Test
-  fun requestForAListingWithoutPhotosCopiesAnEmptyPhoto() =
-      runBlocking<Unit> {
-        val owner = newAccount()
-        // A listing from before the photo rules, which has none.
-        val listing = listing(owner.uid).copy(photoUrls = emptyList())
-        FirebaseEmulator.createDocumentAsAdmin("listings/${listing.id}", listingToDocument(listing))
-        val borrower = newAccount()
-        val valid = request(listing, borrower)
-
-        assertDenied {
-          db.collection("rentals")
-              .document()
-              .set(valid + ("listingPhotoUrl" to "https://example.com/0.jpg"))
-              .await()
-        }
-        db.collection("rentals").document().set(valid).await()
-      }
-
-  @Test
-  fun requestForAnUnpublishedOrOwnListingIsRefused() =
-      runBlocking<Unit> {
-        val owner = newAccount()
-        val draft = seedListing(owner.uid, ListingStatus.DRAFT)
-        val own = seedListing(owner.uid)
-
-        assertDenied { db.collection("rentals").document().set(request(own, owner)).await() }
-        val borrower = newAccount()
-        assertDenied { db.collection("rentals").document().set(request(draft, borrower)).await() }
       }
 
   @Test
@@ -517,27 +512,6 @@ class FirestoreRulesTest {
           assertDenied { rental.update("pickupAddress", "Route Cantonale 1").await() }
           assertDenied { rental.update("returnAddress", "Route Cantonale 1").await() }
         }
-      }
-
-  @Test
-  fun aNewRequestCannotCarryAnOfferOrADeposit() =
-      runBlocking<Unit> {
-        val owner = newAccount()
-        val listing = seedListing(owner.uid)
-        val borrower = newAccount()
-        val rentals = db.collection("rentals")
-
-        assertDenied {
-          rentals
-              .document()
-              .set(request(listing, borrower) + ("offer" to mapOf("amount" to 1)))
-              .await()
-        }
-        assertDenied {
-          rentals.document().set(request(listing, borrower) + ("deposit" to 1)).await()
-        }
-
-        rentals.document().set(request(listing, borrower)).await() // the same request without them
       }
 
   @Test

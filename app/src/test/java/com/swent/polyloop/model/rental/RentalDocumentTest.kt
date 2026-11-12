@@ -3,17 +3,10 @@
 package com.swent.polyloop.model.rental
 
 import com.google.firebase.Timestamp
-import com.google.firebase.firestore.FieldValue
-import com.swent.polyloop.model.auth.AuthUser
-import com.swent.polyloop.model.listing.Listing
-import com.swent.polyloop.model.listing.ListingCategory
-import com.swent.polyloop.model.listing.ListingStatus
 import java.time.Instant
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RentalDocumentTest {
@@ -235,86 +228,5 @@ class RentalDocumentTest {
           rentalFromDocument("rental-1", validData + (field to value)),
       )
     }
-  }
-
-  // ---------- rentalRequestDocument ----------
-
-  private val listing =
-      Listing(
-          id = "listing-1",
-          ownerId = "owner",
-          title = "Camping tent",
-          description = "Light 2-person tent.",
-          category = ListingCategory.SPORTS_OUTDOOR,
-          photoUrls = List(3) { "https://example.com/$it.jpg" },
-          pricePerDay = 5,
-          itemValue = 120,
-          availableFrom = LocalDate.of(2026, 10, 1),
-          availableTo = LocalDate.of(2026, 12, 31),
-          status = ListingStatus.PUBLISHED,
-          pickupArea = "Ecublens",
-          dropOffArea = "Renens",
-      )
-
-  private val borrower = AuthUser(uid = "borrower", email = "loca@epfl.ch", name = "Loca")
-
-  @Test
-  fun requestDocumentCopiesTheListingAndTheNames() {
-    val document =
-        rentalRequestDocument(
-            listing,
-            " Vida ",
-            borrower,
-            LocalDate.of(2026, 10, 20),
-            LocalDate.of(2026, 10, 22),
-        )
-
-    assertEquals("listing-1", document[RentalFields.LISTING_ID])
-    assertEquals("Camping tent", document[RentalFields.LISTING_TITLE])
-    assertEquals("https://example.com/0.jpg", document[RentalFields.LISTING_PHOTO_URL])
-    assertEquals("owner", document[RentalFields.OWNER_ID])
-    assertEquals("Vida", document[RentalFields.OWNER_NAME])
-    assertEquals("borrower", document[RentalFields.BORROWER_ID])
-    assertEquals("Loca", document[RentalFields.BORROWER_NAME])
-    assertEquals(listOf("owner", "borrower"), document[RentalFields.PARTICIPANTS])
-    assertEquals("2026-10-20", document[RentalFields.START_DATE])
-    assertEquals("2026-10-22", document[RentalFields.END_DATE])
-    assertEquals("REQUESTED", document[RentalFields.STATUS])
-    assertEquals(5, document[RentalFields.PRICE_PER_DAY])
-    assertEquals(15, document[RentalFields.TOTAL_PRICE])
-    assertEquals("Ecublens", document[RentalFields.PICKUP_AREA])
-    assertEquals("Renens", document[RentalFields.DROP_OFF_AREA])
-    assertEquals("", document[RentalFields.PICKUP_ADDRESS])
-    assertEquals("", document[RentalFields.RETURN_ADDRESS])
-    assertEquals("", document[RentalFields.LAST_MESSAGE])
-  }
-
-  @Test
-  fun requestDocumentUsesOneServerTimestampForCreatedAtAndLastMessageAt() {
-    val document =
-        rentalRequestDocument(
-            listing,
-            "Vida",
-            borrower,
-            LocalDate.of(2026, 10, 20),
-            LocalDate.of(2026, 10, 20),
-        )
-
-    assertTrue(document[RentalFields.CREATED_AT] is FieldValue)
-    assertSame(document[RentalFields.CREATED_AT], document[RentalFields.LAST_MESSAGE_AT])
-  }
-
-  @Test
-  fun requestDocumentStoresAnEmptyPhotoUrlWhenTheListingHasNoPhotos() {
-    val document =
-        rentalRequestDocument(
-            listing.copy(photoUrls = emptyList()),
-            "Vida",
-            borrower,
-            LocalDate.of(2026, 10, 20),
-            LocalDate.of(2026, 10, 22),
-        )
-
-    assertEquals("", document[RentalFields.LISTING_PHOTO_URL])
   }
 }

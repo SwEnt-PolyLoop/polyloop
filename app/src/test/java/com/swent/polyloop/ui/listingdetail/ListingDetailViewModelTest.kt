@@ -13,6 +13,7 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InsufficientFundsException
 import com.swent.polyloop.model.rental.RentalStatus
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
@@ -63,7 +64,11 @@ class ListingDetailViewModelTest {
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
     repository = FakeListingRepository(listings = listOf(listing))
-    rentalRepository = FakeRentalRepository()
+    rentalRepository =
+        FakeRentalRepository().apply {
+          listings = listOf(listing)
+          borrower = me
+        }
     authRepository = FakeAuthRepository(signedInUser = me)
     profileRepository =
         FakeProfileRepository(profiles = listOf(UserProfile("owner", "Mara", "mara@epfl.ch")))
@@ -100,6 +105,7 @@ class ListingDetailViewModelTest {
   /** A view model on the listing, owned by [ownerId], with its date picker open. */
   private fun openPickerOn(ownerId: String = "owner"): ListingDetailViewModel {
     repository.listings = listOf(listing.copy(ownerId = ownerId))
+    rentalRepository.listings = repository.listings
     return viewModel().also { it.openDatePicker() }
   }
 
@@ -285,7 +291,6 @@ class ListingDetailViewModelTest {
     val rental = rentalRepository.rentals.single()
     assertEquals(listing.id, rental.listingId)
     assertEquals("owner", rental.ownerId)
-    assertEquals("Mara", rental.ownerName)
     assertEquals("me", rental.borrowerId)
     assertEquals("Loca", rental.borrowerName)
     assertEquals(oct6, rental.startDate)
@@ -293,28 +298,6 @@ class ListingDetailViewModelTest {
     assertEquals(RentalStatus.REQUESTED, rental.status)
     assertEquals(rental.id, vm.uiState.value.sentRentalId)
     assertFalse(vm.uiState.value.isDatePickerOpen)
-  }
-
-  @Test
-  fun missingOrFailedOwnerProfileSendsWithBlankName() {
-    profileRepository = FakeProfileRepository()
-    openPickerOn().sendRequest(oct6, oct8)
-
-    profileRepository = FakeProfileRepository(failure = IllegalStateException("Network down"))
-    openPickerOn().sendRequest(oct6, oct8)
-
-    assertEquals(listOf("", ""), rentalRepository.rentals.map { it.ownerName })
-  }
-
-  @Test
-  fun sendsTheOwnersNameReadWithTheListing() {
-    val vm = openPickerOn()
-    // A second read of the profile would now fail and send a blank name.
-    profileRepository.failure = IllegalStateException("Network down")
-
-    vm.sendRequest(oct6, oct8)
-
-    assertEquals(listOf("Mara"), rentalRepository.rentals.map { it.ownerName })
   }
 
   @Test
@@ -329,6 +312,68 @@ class ListingDetailViewModelTest {
     assertFalse(state.isSending)
     assertTrue(state.isDatePickerOpen)
     assertNull(state.sentRentalId)
+  }
+
+  @Test
+  fun sendsOnlyTheListingAndTheDates() {
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+
+    val rental = rentalRepository.rentals.single()
+    assertEquals(listing.id, rental.listingId)
+    assertEquals(oct6, rental.startDate)
+    assertEquals(oct8, rental.endDate)
+    assertEquals(rental.id, vm.uiState.value.sentRentalId)
+  }
+
+  @Test
+  fun notEnoughFundsShowsItsOwnMessageAndKeepsTheSheetOpen() {
+    rentalRepository.failure = InsufficientFundsException()
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+
+    val state = vm.uiState.value
+    assertTrue(state.notEnoughFunds)
+    assertNull(state.sendError)
+    assertFalse(state.datesTaken)
+    assertFalse(state.isSending)
+    assertTrue(state.isDatePickerOpen)
+    assertNull(state.sentRentalId)
+    assertTrue(rentalRepository.rentals.isEmpty())
+  }
+
+  @Test
+  fun anotherFailureIsNotShownAsNotEnoughFunds() {
+    rentalRepository.failure = IllegalStateException("Network down")
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+
+    assertFalse(vm.uiState.value.notEnoughFunds)
+  }
+
+  @Test
+  fun notEnoughFundsIsClearedByClearSendErrorByReopeningAndByTheNextSend() {
+    rentalRepository.failure = InsufficientFundsException()
+    val vm = openPickerOn()
+    vm.sendRequest(oct6, oct8)
+    assertTrue(vm.uiState.value.notEnoughFunds)
+
+    vm.clearSendError()
+    assertFalse(vm.uiState.value.notEnoughFunds)
+
+    vm.sendRequest(oct6, oct8)
+    vm.dismissDatePicker()
+    vm.openDatePicker()
+    assertFalse(vm.uiState.value.notEnoughFunds)
+
+    vm.sendRequest(oct6, oct8)
+    rentalRepository.failure = null
+    vm.sendRequest(oct6, oct8)
+    assertFalse(vm.uiState.value.notEnoughFunds)
+    assertEquals(1, rentalRepository.rentals.size)
   }
 
   @Test
@@ -355,20 +400,6 @@ class ListingDetailViewModelTest {
     gate.complete(Unit)
 
     assertEquals(1, rentalRepository.rentals.size)
-  }
-
-  @Test
-  fun notSignedInSendsNothingAndShowsTheGenericError() {
-    authRepository.signedInUser = null
-    val vm = openPickerOn()
-    vm.sendRequest(oct6.minusDays(1), oct8) // refused first: shows the dates-taken message
-    assertTrue(vm.uiState.value.datesTaken)
-
-    vm.sendRequest(oct6, oct8)
-
-    assertEquals("", vm.uiState.value.sendError)
-    assertFalse(vm.uiState.value.datesTaken)
-    assertTrue(rentalRepository.rentals.isEmpty())
   }
 
   @Test

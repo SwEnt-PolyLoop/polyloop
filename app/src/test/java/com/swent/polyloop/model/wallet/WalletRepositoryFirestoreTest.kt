@@ -247,6 +247,41 @@ class WalletRepositoryFirestoreTest {
   }
 
   @Test
+  fun observeHistoryReadsTheRentalPriceRows() = runTest {
+    historyIsObserved()
+
+    val history = async { repository.observeHistory("me").first() }
+    runCurrent()
+    historyListener.captured.onEvent(
+        querySnapshot(
+            snapshot("rental_held_r1", row(type = "RENTAL_HELD", amount = -45L)),
+            snapshot("rental_released_r1", row(type = "RENTAL_RELEASED", amount = 45L)),
+        ),
+        null,
+    )
+
+    assertEquals(
+        listOf(
+            WalletTransaction(
+                "rental_held_r1",
+                WalletTransactionType.RENTAL_HELD,
+                -45,
+                "Camping tent",
+                date,
+            ),
+            WalletTransaction(
+                "rental_released_r1",
+                WalletTransactionType.RENTAL_RELEASED,
+                45,
+                "Camping tent",
+                date,
+            ),
+        ),
+        history.await(),
+    )
+  }
+
+  @Test
   fun observeHistorySkipsMalformedRows() = runTest {
     historyIsObserved()
 

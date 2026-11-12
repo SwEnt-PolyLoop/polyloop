@@ -8,28 +8,26 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.FirebaseFunctions
-import com.swent.polyloop.model.auth.AuthUser
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
 import com.swent.polyloop.model.firestore.callCloudFunction
-import com.swent.polyloop.model.firestore.confirmWrite
 import com.swent.polyloop.model.firestore.isValidDocumentId
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
-import com.swent.polyloop.model.listing.Listing
 import java.time.Instant
 import java.time.LocalDate
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.tasks.await
 
 /**
- * [RentalRepository] backed by Firestore, one document per rental at `rentals/{id}`. The deposit
- * negotiation goes through the Cloud Functions in [FUNCTIONS_REGION], the only writers of those
- * fields, and so does reading the server's time.
+ * [RentalRepository] backed by Firestore, one document per rental at `rentals/{id}`. Creating a
+ * rental, the deposit negotiation and reading the server's time go through the Cloud Functions in
+ * [FUNCTIONS_REGION], the only writers of rentals.
  *
  * @param db the Firestore database.
  * @param functions gives the Cloud Functions client. A provider, not an instance, so that Firebase
@@ -46,29 +44,30 @@ class RentalRepositoryFirestore(
     get() = db.collection(RentalFields.COLLECTION)
 
   override suspend fun requestRental(
-      listing: Listing,
-      ownerName: String,
-      borrower: AuthUser,
+      listingId: String,
       startDate: LocalDate,
       endDate: LocalDate,
-  ): Result<Rental> {
+  ): Result<String> {
     if (endDate.isBefore(startDate)) {
       return Result.failure(
           IllegalArgumentException("endDate $endDate is before startDate $startDate")
       )
     }
-    return withFirebaseErrors {
-      val document = rentals.document()
-      val fields = rentalRequestDocument(listing, ownerName, borrower, startDate, endDate)
-      val confirmed = confirmWrite { document.set(fields) }
-      // Confirmed: read back to get createdAt as the server set it. Not confirmed in time: the
-      // write is still queued and Firestore sends it later, so it is not a failure; reporting one
-      // would make the user request again and write a second rental. Read it from the local cache,
-      // where it already is (with an estimated createdAt).
-      val snapshot = (if (confirmed) document.get() else document.get(Source.CACHE)).await()
-      toRental(snapshot)?.let { Result.success(it) }
-          ?: Result.failure(IllegalStateException("Rental ${document.id} cannot be read"))
-    }
+    val rentalId = UUID.randomUUID().toString()
+    val result =
+        callFunction(
+            "requestRental",
+            mapOf(
+                "rentalId" to rentalId,
+                "listingId" to listingId,
+                "startDate" to startDate.toString(),
+                "endDate" to endDate.toString(),
+            ),
+        )
+    return result.fold(
+        onSuccess = { Result.success(rentalId) },
+        onFailure = { Result.failure(insufficientFunds(it) ?: it) },
+    )
   }
 
   override fun observeRentalsAsBorrower(uid: String): Flow<List<Rental>> =
@@ -156,7 +155,17 @@ class RentalRepositoryFirestore(
         rentalFromDocument(snapshot.id, it)
       }
 
+  /** [InsufficientFundsException] if [error] is the refusal for a balance too low, else null. */
+  private fun insufficientFunds(error: Throwable): InsufficientFundsException? {
+    val refusal = error as? FirebaseFunctionsException ?: return null
+    if (refusal.code != FirebaseFunctionsException.Code.FAILED_PRECONDITION) return null
+    val reason = (refusal.details as? Map<*, *>)?.get(REASON)
+    return if (reason == INSUFFICIENT_FUNDS) InsufficientFundsException() else null
+  }
+
   companion object {
+    private const val REASON = "reason"
+    private const val INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
     private const val SERVER_TODAY = "serverToday"
   }
 }

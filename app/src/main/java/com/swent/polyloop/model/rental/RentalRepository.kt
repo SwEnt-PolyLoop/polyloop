@@ -2,8 +2,6 @@
 
 package com.swent.polyloop.model.rental
 
-import com.swent.polyloop.model.auth.AuthUser
-import com.swent.polyloop.model.listing.Listing
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -12,23 +10,21 @@ import kotlinx.coroutines.flow.Flow
 interface RentalRepository {
 
   /**
-   * Sends a request from [borrower] to rent [listing] from [startDate] to [endDate], both days
-   * included, and returns the new rental, with status [RentalStatus.REQUESTED]. Copies the
-   * listing's title, price and public areas, the borrower's name, and [ownerName], which the caller
-   * has from the owner's profile (a blank name is stored as ""; the screens show a placeholder).
+   * Sends a request to rent the listing [listingId] from [startDate] to [endDate], both days
+   * included, and returns the id of the new rental, whose status is [RentalStatus.REQUESTED]. The
+   * `requestRental` Cloud Function creates it and reserves its price (price per day × days) from
+   * the borrower's balance; the title, price, areas and names are read on the server, never sent.
+   * The caller checks the dates first (inside the availability window, not on booked days).
    *
-   * Temporary: the app writes the rental itself, without reserving any money, until the
-   * `requestRental` Cloud Function exists. The caller checks the dates first (inside the
-   * availability window, not on booked days). Fails with an [IllegalArgumentException] if [endDate]
-   * is before [startDate], or with the cause if the rental cannot be written.
+   * Fails with an [IllegalArgumentException] if [endDate] is before [startDate], with an
+   * [InsufficientFundsException] if the balance cannot cover the price (nothing is created then),
+   * or with the cause if the call fails.
    */
   suspend fun requestRental(
-      listing: Listing,
-      ownerName: String,
-      borrower: AuthUser,
+      listingId: String,
       startDate: LocalDate,
       endDate: LocalDate,
-  ): Result<Rental>
+  ): Result<String>
 
   /**
    * The rentals in which [uid] borrows, newest first, emitted again every time one changes. A read
@@ -115,3 +111,7 @@ interface RentalRepository {
    */
   suspend fun serverNow(): Result<Instant>
 }
+
+/** The borrower's available balance is below the price of the rental requested. */
+class InsufficientFundsException :
+    IllegalStateException("Not enough PolyPoints to reserve the rental price")

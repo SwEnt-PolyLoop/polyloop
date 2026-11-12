@@ -27,6 +27,11 @@ import kotlinx.coroutines.flow.update
  * see a loading state. [clock] gives the creation time of new rentals and the current time of the
  * negotiation; the server's time, which [serverNow] returns, is set separately.
  *
+ * [requestRental] creates the request like the server: from the [listings] it is given, for the
+ * [borrower], with a blank owner name (the server reads names from profiles, which the fake has
+ * not). It does not reserve any money; set [failure] to an [InsufficientFundsException] to see a
+ * refusal for a balance too low.
+ *
  * The negotiation follows the rules of the Cloud Functions, except for what the fake cannot know:
  * - it does not know who calls it, so it does not check the caller's role;
  * - it has no listings, so it does not check that the dates are still free (neither when an offer
@@ -50,6 +55,12 @@ class FakeRentalRepository(
   val rentals: List<Rental>
     get() = stored.value
 
+  /** The listings [requestRental] can find, as the server reads them. */
+  var listings: List<Listing> = emptyList()
+
+  /** The signed-in user, who sends the requests of [requestRental]. */
+  var borrower: AuthUser = AuthUser(uid = "borrower", email = "borrower@epfl.ch", name = "Borrower")
+
   /** The time [serverNow] returns, apart from [clock] so that tests can set it on its own. */
   var serverNow: Instant = Instant.parse("2026-10-13T10:00:00Z")
 
@@ -58,12 +69,10 @@ class FakeRentalRepository(
     private set
 
   override suspend fun requestRental(
-      listing: Listing,
-      ownerName: String,
-      borrower: AuthUser,
+      listingId: String,
       startDate: LocalDate,
       endDate: LocalDate,
-  ): Result<Rental> {
+  ): Result<String> {
     gate?.await()
     failure?.let {
       return Result.failure(it)
@@ -73,6 +82,24 @@ class FakeRentalRepository(
           IllegalArgumentException("endDate $endDate is before startDate $startDate")
       )
     }
+    val listing =
+        listings.find { it.id == listingId }
+            ?: return Result.failure(IllegalStateException("The listing $listingId does not exist"))
+    return Result.success(addRequest(listing, "", borrower, startDate, endDate).id)
+  }
+
+  /**
+   * Stores a REQUESTED rental of [listing] from [borrower], with the title, price and areas copied
+   * from the listing, as the server does, and returns it. A blank [ownerName] is stored as "". For
+   * tests that need rentals to start from; [requestRental] uses it too.
+   */
+  fun addRequest(
+      listing: Listing,
+      ownerName: String,
+      borrower: AuthUser,
+      startDate: LocalDate,
+      endDate: LocalDate,
+  ): Rental {
     val rental =
         Rental(
             id = newId(),
@@ -93,7 +120,7 @@ class FakeRentalRepository(
             createdAt = clock(),
         )
     stored.update { it + rental }
-    return Result.success(rental)
+    return rental
   }
 
   override fun observeRentalsAsBorrower(uid: String): Flow<List<Rental>> = observe {

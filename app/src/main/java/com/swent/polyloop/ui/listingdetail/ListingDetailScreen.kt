@@ -167,8 +167,12 @@ fun ListingDetailContent(
               today = today,
               isSending = uiState.isSending,
               errorMsg =
-                  if (uiState.datesTaken) stringResource(R.string.listing_detail_dates_taken)
-                  else uiState.sendError,
+                  when {
+                    uiState.datesTaken -> stringResource(R.string.listing_detail_dates_taken)
+                    uiState.notEnoughFunds ->
+                        stringResource(R.string.listing_detail_not_enough_funds)
+                    else -> uiState.sendError
+                  },
               onDayPicked = onDayPicked,
           )
         }

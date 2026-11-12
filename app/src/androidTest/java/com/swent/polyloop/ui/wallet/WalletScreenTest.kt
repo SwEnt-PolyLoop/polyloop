@@ -132,6 +132,8 @@ class WalletScreenTest {
         mapOf(
             WalletTransactionType.RECHARGE to "Recharge",
             WalletTransactionType.RENTAL_PAYMENT to "Rental payment",
+            WalletTransactionType.RENTAL_HELD to "Rental price held",
+            WalletTransactionType.RENTAL_RELEASED to "Rental price released",
             WalletTransactionType.LATE_FEE to "Late fee received",
             WalletTransactionType.DEPOSIT_HELD to "Deposit held",
             WalletTransactionType.DEPOSIT_RELEASED to "Deposit released",

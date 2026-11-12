@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.firestore
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.listing.Listing
@@ -42,7 +43,8 @@ class RentalRepositoryFirestoreEmulatorTest {
   private val end = LocalDate.of(2026, 10, 22)
 
   // New accounts for each test, so rentals left by earlier runs never get in the way. The borrower
-  // is signed in after setUp: the rules let only them send their requests.
+  // is signed in after setUp. Rentals are created as an admin: only the requestRental Cloud
+  // Function creates them, and the Functions emulator does not run in these tests.
   private val ownerEmail = "owner-${UUID.randomUUID()}@epfl.ch"
   private lateinit var ownerId: String
   private lateinit var borrower: AuthUser
@@ -73,7 +75,7 @@ class RentalRepositoryFirestoreEmulatorTest {
             pickupArea = "Ecublens",
             dropOffArea = "Renens",
         )
-    // The rules check each request against its listing, which only the owner may write.
+    // The listing the rentals are of, which only its owner may write.
     FirebaseEmulator.createDocumentAsAdmin("listings/${listing.id}", listingToDocument(listing))
   }
 
@@ -82,26 +84,69 @@ class RentalRepositoryFirestoreEmulatorTest {
     Firebase.auth.signOut()
   }
 
-  @Test
-  fun requestRentalStoresARequestThatGetRentalReadsBack() {
-    runBlocking {
-      val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+  /** Creates a rental of [listing] from [borrower], as the Cloud Function would; returns its id. */
+  private fun seedRequest(
+      ownerName: String = "Vida",
+      from: LocalDate = start,
+      to: LocalDate = end,
+      createdAt: Timestamp = Timestamp.now(),
+  ): String {
+    val id = "rental-${UUID.randomUUID()}"
+    FirebaseEmulator.createRentalAsAdmin(id, listing, ownerName, borrower, from, to, createdAt)
+    return id
+  }
 
-      assertEquals(RentalStatus.REQUESTED, rental.status)
-      assertEquals("Vida", rental.ownerName)
-      assertEquals("Loca", rental.borrowerName)
-      assertEquals(15, rental.totalPrice)
-      assertEquals(rental.createdAt, rental.lastMessageAt)
-      assertEquals(rental, repository.getRental(rental.id).getOrThrow())
+  @Test
+  fun getRentalReadsBackARequestTheFunctionCreated() {
+    runBlocking {
+      val id = seedRequest()
+
+      val rental = repository.getRental(id).getOrThrow()
+
+      assertEquals(id, rental?.id)
+      assertEquals(RentalStatus.REQUESTED, rental?.status)
+      assertEquals("Vida", rental?.ownerName)
+      assertEquals("Loca", rental?.borrowerName)
+      assertEquals("Camping tent", rental?.listingTitle)
+      assertEquals(15, rental?.totalPrice)
+      assertEquals(rental?.createdAt, rental?.lastMessageAt)
     }
   }
 
   @Test
-  fun requestRentalStoresTheParticipantsAndServerTimestamps() {
+  fun aClientCannotCreateARental() {
     runBlocking {
-      val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+      val document =
+          Firebase.firestore.collection("rentals").document("client-${UUID.randomUUID()}")
 
-      val stored = Firebase.firestore.collection("rentals").document(rental.id).get().await()
+      val denied = runCatching {
+        document
+            .set(
+                mapOf(
+                    "listingId" to listing.id,
+                    "ownerId" to ownerId,
+                    "borrowerId" to borrower.uid,
+                    "participants" to listOf(ownerId, borrower.uid),
+                    "status" to "REQUESTED",
+                )
+            )
+            .await()
+      }
+
+      assertTrue(denied.exceptionOrNull() is FirebaseFirestoreException)
+      assertEquals(
+          FirebaseFirestoreException.Code.PERMISSION_DENIED,
+          (denied.exceptionOrNull() as FirebaseFirestoreException).code,
+      )
+    }
+  }
+
+  @Test
+  fun theParticipantsAndTheServerTimestampsAreStored() {
+    runBlocking {
+      val id = seedRequest()
+
+      val stored = Firebase.firestore.collection("rentals").document(id).get().await()
       assertEquals(listOf(ownerId, borrower.uid), stored.get("participants"))
       assertTrue(stored.get("createdAt") is Timestamp)
       assertEquals("2026-10-20", stored.getString("startDate"))
@@ -111,8 +156,8 @@ class RentalRepositoryFirestoreEmulatorTest {
   @Test
   fun eachSideSeesItsRentalsNewestFirst() {
     runBlocking {
-      val first = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
-      val second = repository.requestRental(listing, "Vida", borrower, start, start).getOrThrow()
+      val first = seedRequest(createdAt = Timestamp(1_000, 0))
+      val second = seedRequest(from = start, to = start, createdAt = Timestamp(2_000, 0))
 
       val borrowed =
           withTimeout(TIMEOUT_MS) {
@@ -125,8 +170,8 @@ class RentalRepositoryFirestoreEmulatorTest {
             repository.observeRentalsAsLender(ownerId).first { it.size == 2 }
           }
 
-      assertEquals(listOf(second, first), borrowed)
-      assertEquals(listOf(second, first), lent)
+      assertEquals(listOf(second, first), borrowed.map { it.id })
+      assertEquals(listOf(second, first), lent.map { it.id })
       assertEquals(
           emptyList<Rental>(),
           repository.observeRentalsAsBorrower(ownerId).first(),
@@ -141,14 +186,14 @@ class RentalRepositoryFirestoreEmulatorTest {
           "rentals/broken-${UUID.randomUUID()}",
           mapOf("borrowerId" to borrower.uid, "status" to "UNKNOWN"),
       )
-      val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+      val id = seedRequest()
 
       val borrowed =
           withTimeout(TIMEOUT_MS) {
             repository.observeRentalsAsBorrower(borrower.uid).first { it.isNotEmpty() }
           }
 
-      assertEquals(listOf(rental), borrowed)
+      assertEquals(listOf(id), borrowed.map { it.id })
     }
   }
 

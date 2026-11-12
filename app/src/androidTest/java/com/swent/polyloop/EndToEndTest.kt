@@ -48,6 +48,7 @@ import com.swent.polyloop.model.listing.listingToDocument
 import com.swent.polyloop.model.profile.ProfileFields
 import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.RentalFields
+import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.resources.C
@@ -61,6 +62,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -350,14 +352,12 @@ class EndToEndTest {
     setApp()
     signUpAndVerify()
     // Sent directly so this test doesn’t depend on the picker.
-    val borrower = requireNotNull(RepositoryProvider.authRepository.getCurrentUser())
-    val rental = runBlocking {
+    val rentalId = runBlocking {
       RepositoryProvider.rentalRepository
-          .requestRental(listing, LENDER_NAME, borrower, firstDay, firstDay.plusDays(1))
+          .requestRental(listing.id, firstDay, firstDay.plusDays(1))
           .getOrThrow()
     }
-    seededDocs += "${RentalFields.COLLECTION}/${rental.id}"
-    val row = C.Tag.my_rentals_row_ + rental.id
+    val row = C.Tag.my_rentals_row_ + rentalId
 
     // My rentals: the request is under Borrowing, Lending is empty.
     openFromMenu(Screen.MyRentals)
@@ -384,7 +384,7 @@ class EndToEndTest {
     // Chat list: the rental's conversation opens its chat, whose header names the lender and the
     // item (a wrong rental would show another title), and links back to Rental detail.
     openFromMenu(Screen.ChatList)
-    val conversation = C.Tag.chat_list_row_ + rental.id
+    val conversation = C.Tag.chat_list_row_ + rentalId
     waitForTag(conversation)
     composeTestRule.onNodeWithTag(conversation).performClick()
     waitForText(C.Tag.chat_header_item, listing.title)
@@ -528,7 +528,35 @@ class EndToEndTest {
     val listingPath = "${ListingFields.COLLECTION}/${listing.id}"
     FirebaseEmulator.createDocumentAsAdmin(listingPath, listingToDocument(listing))
     seededDocs += listingPath
+    RepositoryProvider.rentalRepository = SeedingRentalRepository(listing)
     return listing
+  }
+
+  /**
+   * The real [RentalRepository], except that sending a request creates the rental as an admin, the
+   * way the `requestRental` Cloud Function does (without reserving any money): the Functions
+   * emulator does not run in these tests, and the rules refuse every client create.
+   */
+  private inner class SeedingRentalRepository(
+      private val listing: Listing,
+      private val delegate: RentalRepository = RepositoryProvider.rentalRepository,
+  ) : RentalRepository by delegate {
+
+    override suspend fun requestRental(
+        listingId: String,
+        startDate: LocalDate,
+        endDate: LocalDate,
+    ): Result<String> {
+      check(listingId == listing.id) { "Only the seeded listing can be requested" }
+      val borrower = requireNotNull(RepositoryProvider.authRepository.getCurrentUser())
+      val id = "rental-${UUID.randomUUID()}"
+      // Blocking HTTP calls to the emulator, so not on the main thread the ViewModel runs on.
+      withContext(Dispatchers.IO) {
+        FirebaseEmulator.createRentalAsAdmin(id, listing, LENDER_NAME, borrower, startDate, endDate)
+      }
+      seededDocs += "${RentalFields.COLLECTION}/$id"
+      return Result.success(id)
+    }
   }
 
   /** Taps [start] then [end] in the open date picker. */

@@ -10,11 +10,17 @@ import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.functions
 import com.google.firebase.storage.storage
+import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
+import com.swent.polyloop.model.listing.Listing
+import com.swent.polyloop.model.rental.Rental
+import com.swent.polyloop.model.rental.RentalFields
+import com.swent.polyloop.model.rental.RentalStatus
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
@@ -101,6 +107,49 @@ object FirebaseEmulator {
     val id = path.substringAfterLast('/')
     val body = JSONObject().put("fields", toFields(fields))
     request("POST", "${documentsUrl()}/$collection?documentId=$id", body.toString(), asAdmin = true)
+  }
+
+  /**
+   * Creates the REQUESTED rental [id] of [listing] from [borrower] as the `requestRental` Cloud
+   * Function would, with the same fields (copied from the listing, `totalPrice` = price per day ×
+   * days, empty addresses and last message), skipping the Security Rules. The Functions emulator
+   * does not run in these tests, and the rules refuse every client create, so this is how a test
+   * gets a rental. It reserves no money.
+   */
+  fun createRentalAsAdmin(
+      id: String,
+      listing: Listing,
+      ownerName: String,
+      borrower: AuthUser,
+      startDate: LocalDate,
+      endDate: LocalDate,
+      createdAt: Timestamp = Timestamp.now(),
+  ) {
+    createDocumentAsAdmin(
+        "${RentalFields.COLLECTION}/$id",
+        mapOf(
+            RentalFields.LISTING_ID to listing.id,
+            RentalFields.LISTING_TITLE to listing.title,
+            RentalFields.LISTING_PHOTO_URL to listing.photoUrls.firstOrNull().orEmpty(),
+            RentalFields.OWNER_ID to listing.ownerId,
+            RentalFields.OWNER_NAME to ownerName.trim(),
+            RentalFields.BORROWER_ID to borrower.uid,
+            RentalFields.BORROWER_NAME to borrower.name,
+            RentalFields.PARTICIPANTS to listOf(listing.ownerId, borrower.uid),
+            RentalFields.START_DATE to startDate.toString(),
+            RentalFields.END_DATE to endDate.toString(),
+            RentalFields.STATUS to RentalStatus.REQUESTED.name,
+            RentalFields.PRICE_PER_DAY to listing.pricePerDay,
+            RentalFields.TOTAL_PRICE to Rental.totalPrice(listing.pricePerDay, startDate, endDate),
+            RentalFields.PICKUP_AREA to listing.pickupArea,
+            RentalFields.DROP_OFF_AREA to listing.dropOffArea,
+            RentalFields.PICKUP_ADDRESS to "",
+            RentalFields.RETURN_ADDRESS to "",
+            RentalFields.CREATED_AT to createdAt,
+            RentalFields.LAST_MESSAGE to "",
+            RentalFields.LAST_MESSAGE_AT to createdAt,
+        ),
+    )
   }
 
   /**

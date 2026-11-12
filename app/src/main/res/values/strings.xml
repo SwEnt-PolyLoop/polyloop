@@ -39,6 +39,7 @@
     <string name="listing_detail_error_fallback">Could not load the listing</string>
     <string name="listing_detail_retry">Retry</string>
     <string name="listing_detail_not_found">This listing is no longer available.</string>
+    <string name="listing_detail_not_enough_funds">You don\'t have enough PolyPoints to reserve this rental.</string>
     <string name="listing_detail_dates_taken">These dates are no longer available. Pick other dates.</string>
 
     <!-- Profile -->
@@ -131,6 +132,8 @@
     <string name="wallet_row_title">%1$s · %2$s</string>
     <string name="wallet_type_recharge">Recharge</string>
     <string name="wallet_type_rental_payment">Rental payment</string>
+    <string name="wallet_type_rental_held">Rental price held</string>
+    <string name="wallet_type_rental_released">Rental price released</string>
     <string name="wallet_type_late_fee">Late fee received</string>
     <string name="wallet_type_deposit_held">Deposit held</string>
     <string name="wallet_type_deposit_released">Deposit released</string>

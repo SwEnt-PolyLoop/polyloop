@@ -517,12 +517,10 @@ class RentalDetailViewModelTest {
         Result.success(answers[calls++].await())
 
     override suspend fun requestRental(
-        listing: Listing,
-        ownerName: String,
-        borrower: AuthUser,
+        listingId: String,
         startDate: LocalDate,
         endDate: LocalDate,
-    ): Result<Rental> = error("Not used")
+    ): Result<String> = error("Not used")
 
     override fun observeRentalsAsBorrower(uid: String): Flow<List<Rental>> = error("Not used")
 

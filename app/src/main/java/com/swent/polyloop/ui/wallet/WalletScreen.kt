@@ -316,6 +316,8 @@ private val WalletTransactionType.labelRes: Int
         WalletTransactionType.RECHARGE -> R.string.wallet_type_recharge
         WalletTransactionType.RENTAL_PAYMENT -> R.string.wallet_type_rental_payment
         WalletTransactionType.LATE_FEE -> R.string.wallet_type_late_fee
+        WalletTransactionType.RENTAL_HELD -> R.string.wallet_type_rental_held
+        WalletTransactionType.RENTAL_RELEASED -> R.string.wallet_type_rental_released
         WalletTransactionType.DEPOSIT_HELD -> R.string.wallet_type_deposit_held
         WalletTransactionType.DEPOSIT_RELEASED -> R.string.wallet_type_deposit_released
         WalletTransactionType.DEPOSIT_SPLIT -> R.string.wallet_type_deposit_split

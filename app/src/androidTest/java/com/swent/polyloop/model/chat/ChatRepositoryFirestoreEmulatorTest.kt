@@ -46,8 +46,8 @@ class ChatRepositoryFirestoreEmulatorTest {
   }
 
   /**
-   * Writes a rental document with the fields the chat reads, as `requestRental` will (#94). As an
-   * admin: the rules let only the borrower create a rental, and only for an existing listing.
+   * Writes a rental document with the fields the chat reads, as `requestRental` does. As an admin:
+   * the rules refuse every client create, since only the Cloud Function creates rentals.
    */
   private fun createRental(owner: String, borrower: String, lastMessageAt: Long): String {
     val id = "rental-${UUID.randomUUID()}"

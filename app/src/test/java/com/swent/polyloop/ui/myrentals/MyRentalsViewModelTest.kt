@@ -171,7 +171,7 @@ class MyRentalsViewModelTest {
             status = ListingStatus.PUBLISHED,
         )
 
-    rentals.requestRental(
+    rentals.addRequest(
         listing,
         "Vida",
         AuthUser("loca", "loca@epfl.ch", "Loca"),

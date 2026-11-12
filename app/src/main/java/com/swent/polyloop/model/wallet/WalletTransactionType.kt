@@ -17,6 +17,18 @@ enum class WalletTransactionType {
    */
   LATE_FEE,
 
+  /**
+   * The price of a rental was reserved from the balance when the request was sent. The amount is
+   * negative.
+   */
+  RENTAL_HELD,
+
+  /**
+   * The reserved price of a rental was given back to the balance, because the request ended without
+   * payment (declined, expired). The amount is positive.
+   */
+  RENTAL_RELEASED,
+
   /** A deposit was reserved from the balance. The amount is negative. */
   DEPOSIT_HELD,
 
