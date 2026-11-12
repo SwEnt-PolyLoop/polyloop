@@ -23,7 +23,7 @@ class AuthEndToEndTest : EndToEndTestBase() {
   fun signUpSignOutAndLogInAgain() {
     setApp()
     assertRoute(Screen.Auth)
-    composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar).assertAbsent()
 
     // Sign up: a non-EPFL email is refused on the form.
     composeTestRule.onNodeWithTag(C.Tag.auth_signup_tab).performClick()
@@ -33,10 +33,10 @@ class AuthEndToEndTest : EndToEndTestBase() {
     composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).performScrollTo().performClick()
     // Scrolled to: on a phone, the open keyboard pushes the form up past the email field.
     composeTestRule.onNodeWithTag(C.Tag.auth_email_error).performScrollTo().assertIsDisplayed()
-    composeTestRule.onNodeWithTag(C.Tag.auth_check_inbox_screen).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.auth_check_inbox_screen).assertAbsent()
 
     composeTestRule.onNodeWithTag(C.Tag.auth_email_field).performTextReplacement(email)
-    composeTestRule.onNodeWithTag(C.Tag.auth_email_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.auth_email_error).assertAbsent()
     composeTestRule.onNodeWithTag(C.Tag.auth_signup_button).performScrollTo().performClick()
 
     // Check your inbox: Resend waits, and "I've verified" before verifying stays here.
@@ -69,7 +69,7 @@ class AuthEndToEndTest : EndToEndTestBase() {
     waitForTag(C.Tag.auth_login_button)
     assertRoute(Screen.Auth)
     assertNull(navController.previousBackStackEntry)
-    composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar).assertAbsent()
     assertNull(RepositoryProvider.authRepository.getCurrentUser())
 
     // Log in: a wrong password is refused, the right one opens Browse.

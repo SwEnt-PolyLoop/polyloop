@@ -29,6 +29,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick as composePerformClick
@@ -83,7 +84,9 @@ import org.junit.Rule
  * What every end-to-end test shares: the whole app as merged on main, with the real repositories
  * pointed at the Firebase emulators (Auth, Firestore, Storage). Only the network status is faked
  * ([connectivity]), so a test can go offline without losing the emulators, and the server clock
- * keeps its time in memory. Needs `firebase emulators:start`.
+ * keeps its time in memory. Needs `firebase emulators:start --only auth,firestore,storage`, as on
+ * the CI: with the Functions emulator, `createWalletOnProfile` (#412) would create the wallet that
+ * [seedWallet] writes, which then fails.
  *
  * The CI starts no Functions emulator, so what a Cloud Function would write (another user's data,
  * an offer, a dispute, a wallet) is written by the test as an admin, and the steps that call a
@@ -127,8 +130,9 @@ abstract class EndToEndTestBase {
       }
 
   // Paths of the documents and collections written by the test or by the app, deleted after it.
-  private val seededDocs = mutableListOf<String>()
-  private val seededCollections = mutableListOf<String>()
+  // Sets, in the order added: a rental the test seeded is also found among the user's requests.
+  private val seededDocs = mutableSetOf<String>()
+  private val seededCollections = mutableSetOf<String>()
 
   @Before
   fun setUpEndToEnd() {
@@ -196,7 +200,7 @@ abstract class EndToEndTestBase {
     Firebase.auth.signOut()
   }
 
-  /** Shows the whole app, as MainActivity does. */
+  /** Shows [PolyLoopApp], the screens MainActivity shows inside its theme. */
   protected fun setApp() {
     composeTestRule.setContent {
       if (showApp) {
@@ -233,15 +237,6 @@ abstract class EndToEndTestBase {
     )
     seededDocs += path
   }
-
-  private fun profileFields(name: String, email: String, rating: Double = 0.0, reviews: Int = 0) =
-      mapOf(
-          ProfileFields.NAME to name,
-          ProfileFields.EMAIL to email,
-          ProfileFields.PHOTO_URL to "",
-          ProfileFields.AVERAGE_RATING to rating,
-          ProfileFields.REVIEW_COUNT to reviews,
-      )
 
   /**
    * A listing of [ownerId], as the app and the Cloud Functions would have saved it, available from
@@ -433,31 +428,37 @@ abstract class EndToEndTestBase {
    * Waits for a node matching [matcher]. While the activity is paused there is no screen at all,
    * which counts as not found yet instead of failing the test (#196).
    */
-  protected fun waitFor(matcher: SemanticsMatcher) {
+  protected fun waitFor(matcher: SemanticsMatcher) = composeTestRule.waitForNode(matcher)
+
+  /**
+   * Waits until no node matches [matcher] on a screen that is shown: while the activity is paused
+   * there is no screen at all, which would otherwise pass for no such node (#196).
+   */
+  protected fun waitForNone(matcher: SemanticsMatcher) {
     composeTestRule.waitUntil(timeoutMillis = TIMEOUT_MS) {
-      composeTestRule
-          .onAllNodes(matcher, useUnmergedTree = true)
-          .fetchSemanticsNodes(atLeastOneRootRequired = false)
-          .isNotEmpty()
+      composeTestRule.hasScreen() &&
+          composeTestRule
+              .onAllNodes(matcher, useUnmergedTree = true)
+              .fetchSemanticsNodes(atLeastOneRootRequired = false)
+              .isEmpty()
     }
   }
 
+  /** See [retryWhenPaused]. */
+  protected fun <T> whenResumed(step: () -> T): T = composeTestRule.retryWhenPaused(step)
+
   /**
-   * Runs [step] again once the app is back if the activity was paused when it looked for the screen
-   * (#196). The step had not touched anything yet: Compose looks for the screen before acting, and
-   * fails with "No compose hierarchies" when there is none.
+   * Like Compose's `assertDoesNotExist`, which a pause would let pass without a screen (#196): it
+   * is checked again until a screen was shown when it ran. A member of Compose, it cannot be
+   * replaced under the same name like the steps below.
    */
-  protected fun <T> whenResumed(step: () -> T): T {
-    repeat(MAX_PAUSES) {
-      try {
-        return step()
-      } catch (e: IllegalStateException) {
-        if (e.message?.startsWith(NO_SCREEN) != true) throw e
-        Log.w(TAG, "The app was paused, waiting for it to come back", e)
-        waitFor(isRoot())
-      }
+  protected fun SemanticsNodeInteraction.assertAbsent() {
+    repeat(MAX_PAUSES + 1) {
+      waitFor(isRoot())
+      assertDoesNotExist()
+      if (composeTestRule.hasScreen()) return
     }
-    return step()
+    fail("The app stayed paused")
   }
 
   // The Compose actions and assertions the tests use, run through whenResumed so that every step
@@ -574,7 +575,7 @@ abstract class EndToEndTestBase {
 
   private fun SemanticsNode.testTag(): String? = config.getOrNull(SemanticsProperties.TestTag)
 
-  /** What the end-to-end tests share, [AppStartEndToEndTest] included. */
+  /** What the end-to-end tests share, including the ones that cannot extend this class. */
   internal companion object {
     const val TAG = "EndToEndTest"
     // Roles, not first names: the signed-in user, and the other users of the test data.
@@ -618,6 +619,50 @@ abstract class EndToEndTestBase {
           user.delete().await()
         }
       }
+    }
+
+    /** The fields of a profile, as the app saves it. */
+    fun profileFields(name: String, email: String, rating: Double = 0.0, reviews: Int = 0) =
+        mapOf(
+            ProfileFields.NAME to name,
+            ProfileFields.EMAIL to email,
+            ProfileFields.PHOTO_URL to "",
+            ProfileFields.AVERAGE_RATING to rating,
+            ProfileFields.REVIEW_COUNT to reviews,
+        )
+
+    /**
+     * Waits for a node matching [matcher]. While the activity is paused there is no screen at all,
+     * which counts as not found yet instead of failing the test (#196).
+     */
+    fun ComposeTestRule.waitForNode(matcher: SemanticsMatcher) {
+      waitUntil(timeoutMillis = TIMEOUT_MS) {
+        onAllNodes(matcher, useUnmergedTree = true)
+            .fetchSemanticsNodes(atLeastOneRootRequired = false)
+            .isNotEmpty()
+      }
+    }
+
+    /** True while the app shows a screen, i.e. its activity is not paused (#196). */
+    fun ComposeTestRule.hasScreen() =
+        onAllNodes(isRoot()).fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty()
+
+    /**
+     * Runs [step] again once the app is back if the activity was paused when it looked for the
+     * screen (#196). The step had not touched anything yet: Compose looks for the screen before
+     * acting, and fails with "No compose hierarchies" when there is none.
+     */
+    fun <T> ComposeTestRule.retryWhenPaused(step: () -> T): T {
+      repeat(MAX_PAUSES) {
+        try {
+          return step()
+        } catch (e: IllegalStateException) {
+          if (e.message?.startsWith(NO_SCREEN) != true) throw e
+          Log.w(TAG, "The app was paused, waiting for it to come back", e)
+          waitForNode(isRoot())
+        }
+      }
+      return step()
     }
 
     /**
