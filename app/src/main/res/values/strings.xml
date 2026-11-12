@@ -10,6 +10,12 @@
     <string name="browse_category_all">All</string>
     <string name="browse_map">Map</string>
     <string name="browse_list">List</string>
+    <string name="browse_map_description">Map of the listings</string>
+    <!-- A pin on the Browse map holding several listings at the same point, e.g. "3 items" -->
+    <plurals name="browse_pin_items">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
     <string name="browse_error_fallback">Could not load the listings</string>
     <string name="browse_retry">Retry</string>
     <string name="browse_empty">No listings available yet</string>

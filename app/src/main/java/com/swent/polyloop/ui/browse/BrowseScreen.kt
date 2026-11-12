@@ -66,14 +66,17 @@ fun BrowseScreen(
       onCategoryClick = viewModel::toggleCategory,
       onAllClick = viewModel::clearCategories,
       onOpenMyRentals = onOpenMyRentals,
+      onShowMap = viewModel::showMap,
+      onShowList = viewModel::showList,
   )
 }
 
 /**
- * Stateless Browse content: the header with the search bar and category chips, then a loading
- * indicator, an error with a Retry button, an empty state or the listings passing the filter,
- * depending on [uiState]. Offline, browsing needs a connection: the offline banner, the title and
- * the offline state replace the rest.
+ * Stateless Browse content: the header with the search bar, category chips and Map | List toggle,
+ * then a loading indicator, an error with a Retry button, an empty state, or the listings passing
+ * the filter as a list or on a map, depending on [uiState]. The toggle calls [onShowMap] and
+ * [onShowList]. Offline, browsing needs a connection: the offline banner, the title and the offline
+ * state replace the rest, so the map never shows offline.
  */
 @Composable
 fun BrowseContent(
@@ -84,6 +87,8 @@ fun BrowseContent(
     onCategoryClick: (ListingCategory) -> Unit = {},
     onAllClick: () -> Unit = {},
     onOpenMyRentals: () -> Unit = {},
+    onShowMap: () -> Unit = {},
+    onShowList: () -> Unit = {},
 ) {
   Column(
       modifier =
@@ -109,7 +114,7 @@ fun BrowseContent(
             onCategoryClick = onCategoryClick,
             onAllClick = onAllClick,
         )
-        BrowseViewToggle()
+        BrowseViewToggle(view = uiState.view, onShowMap = onShowMap, onShowList = onShowList)
       }
     }
     when {
@@ -136,6 +141,7 @@ fun BrowseContent(
                 modifier = Modifier.testTag(C.Tag.browse_empty),
             )
           }
+      uiState.view == BrowseView.MAP -> BrowseMap(pins = uiState.pins)
       else ->
           LazyColumn(
               modifier = Modifier.fillMaxWidth().testTag(C.Tag.browse_list),
@@ -233,13 +239,16 @@ private fun BrowseOffline(onOpenMyRentals: () -> Unit) {
   }
 }
 
-/** Map | List toggle with List selected. Pressing Map does nothing yet. */
+/**
+ * Map | List toggle, with the button of [view] selected. Pressing Map calls [onShowMap], and
+ * pressing List calls [onShowList].
+ */
 @Composable
-private fun BrowseViewToggle() {
+private fun BrowseViewToggle(view: BrowseView, onShowMap: () -> Unit, onShowList: () -> Unit) {
   SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
     SegmentedButton(
-        selected = false,
-        onClick = {},
+        selected = view == BrowseView.MAP,
+        onClick = onShowMap,
         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
         icon = {},
         modifier = Modifier.testTag(C.Tag.browse_map_toggle),
@@ -247,8 +256,8 @@ private fun BrowseViewToggle() {
       Text(stringResource(R.string.browse_map))
     }
     SegmentedButton(
-        selected = true,
-        onClick = {},
+        selected = view == BrowseView.LIST,
+        onClick = onShowList,
         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
         icon = {},
         modifier = Modifier.testTag(C.Tag.browse_list_toggle),
