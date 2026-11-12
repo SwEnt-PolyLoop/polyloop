@@ -267,6 +267,34 @@ describe("expiring a request whose price is reserved", () => {
     expect(await rows(borrower)).toEqual([]);
   });
 
+  it("gives back the amount of the held row, even if the rental's totalPrice differs", async () => {
+    const { ref, borrower } = await heldRental();
+    await ref.update({ totalPrice: 99 });
+
+    expect(await expireOffer(ref, NOW)).toBe(true);
+
+    expect(await wallet(borrower)).toEqual({ available: 100, heldAsDeposits: 0, heldForRentals: 0 });
+    expect(await rows(borrower)).toContainEqual(
+      expect.objectContaining({ id: `rental_released_${ref.id}`, amount: 30 }),
+    );
+  });
+
+  it("reports a malformed held row as failed and changes nothing", async () => {
+    const { ref, borrower } = await heldRental();
+    await db
+      .collection("wallets")
+      .doc(borrower)
+      .collection("transactions")
+      .doc(`rental_held_${ref.id}`)
+      .update({ amount: 0 });
+
+    expect(await expireOverdueOffers(db, NOW)).toEqual({ expired: 0, failed: 1 });
+
+    expect((await ref.get()).get("status")).toBe("REQUESTED");
+    expect(await wallet(borrower)).toEqual({ available: 70, heldAsDeposits: 0, heldForRentals: 30 });
+    expect((await rows(borrower)).filter((row) => row.type === "RENTAL_RELEASED")).toEqual([]);
+  });
+
   it("gives back the prices of two expired requests of the same borrower", async () => {
     const first = await heldRental();
     const second = await heldRental();

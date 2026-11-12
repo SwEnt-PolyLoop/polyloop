@@ -6,6 +6,7 @@ import { Firestore, getFirestore } from "firebase-admin/firestore";
 import {
   Wallet,
   hasTransaction,
+  readTransactionAmount,
   readWallet,
   rentalHeldRowId,
   rentalReleasedRowId,
@@ -60,6 +61,20 @@ describe("writeWallet", () => {
     expect(saved.data()).toMatchObject({ type: "RECHARGE", amount: 5, itemTitle: "" });
     expect(saved.get("date").toMillis()).toBeGreaterThan(0);
     expect(await db.runTransaction((tx) => hasTransaction(tx, db, uid, row.id))).toBe(true);
+  });
+});
+
+describe("readTransactionAmount", () => {
+  it("is undefined without the row, null without an amount, and the stored amount otherwise", async () => {
+    const uid = randomUUID();
+    const rows = db.collection("wallets").doc(uid).collection("transactions");
+    await rows.doc("no-amount").set({ type: "RECHARGE" });
+    await rows.doc("with-amount").set({ type: "RENTAL_HELD", amount: -30 });
+    const read = (id: string) => db.runTransaction((tx) => readTransactionAmount(tx, db, uid, id));
+
+    expect(await read("missing")).toBeUndefined();
+    expect(await read("no-amount")).toBeNull();
+    expect(await read("with-amount")).toBe(-30);
   });
 });
 

@@ -26,6 +26,7 @@ import { runSweep } from "./sweep";
 import {
   Wallet,
   hasTransaction,
+  readTransactionAmount,
   readWallet,
   rentalHeldRowId,
   rentalReleasedRowId,
@@ -339,8 +340,10 @@ async function declineAndRelease(
 /**
  * Finds which of the requests [ended] have a price to give back: the `rental_held_<id>` row exists
  * and the `rental_released_<id>` row does not. A request sent before the price was reserved has no
- * such row and gets nothing back, so nothing is ever credited that was not held. Also reads the
- * wallet of each of those borrowers into [wallets], unless it is already there. Reads only.
+ * such row and gets nothing back, so nothing is ever credited that was not held. The price given
+ * back is the one the held row recorded (stored as -price), not the rental's `totalPrice`; a held
+ * row whose amount is not a negative whole number fails with `internal`. Also reads the wallet of
+ * each of those borrowers into [wallets], unless it is already there. Reads only.
  */
 async function readHolds(
   tx: Transaction,
@@ -350,15 +353,19 @@ async function readHolds(
 ): Promise<Hold[]> {
   const holds: Hold[] = [];
   for (const { ref, rental } of ended) {
-    const { borrowerId, totalPrice } = rental;
+    const { borrowerId } = rental;
     if (typeof borrowerId !== "string" || borrowerId === "") continue;
-    if (typeof totalPrice !== "number" || !Number.isInteger(totalPrice) || totalPrice < 1) continue;
-    if (!(await hasTransaction(tx, db, borrowerId, rentalHeldRowId(ref.id)))) continue;
+    const held = await readTransactionAmount(tx, db, borrowerId, rentalHeldRowId(ref.id));
+    if (held === undefined) continue;
     if (await hasTransaction(tx, db, borrowerId, rentalReleasedRowId(ref.id))) continue;
+    // The row stores -price. A hold that cannot be read must not stay reserved unnoticed.
+    if (typeof held !== "number" || !Number.isInteger(held) || held > -1) {
+      throw new RequestError("internal", `The held price of rental ${ref.id} is not valid.`);
+    }
     holds.push({
       rentalId: ref.id,
       borrowerId,
-      price: totalPrice,
+      price: -held,
       itemTitle: listingTitleOf(rental),
     });
   }

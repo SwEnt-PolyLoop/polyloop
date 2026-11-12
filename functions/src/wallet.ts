@@ -69,6 +69,22 @@ export async function hasTransaction(
 }
 
 /**
+ * Reads the `amount` of history row [id] in the caller's transaction.
+ *
+ * @returns undefined if the row does not exist, null if it exists without an amount, otherwise the
+ *   stored amount as it is (not checked).
+ */
+export async function readTransactionAmount(
+  tx: Transaction,
+  db: Firestore,
+  uid: string,
+  id: string,
+): Promise<unknown> {
+  const snap = await tx.get(transactionRef(db, uid, id));
+  return snap.exists ? (snap.get("amount") ?? null) : undefined;
+}
+
+/**
  * Sets the balances of [uid], creating the wallet if it does not exist, and adds [row] to the
  * history, dated with the server's time. Runs inside the caller's transaction, after its reads.
  *

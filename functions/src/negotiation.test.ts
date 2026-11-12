@@ -698,6 +698,74 @@ describe("giving the rental price back", () => {
     expect(await releases(borrower)).toEqual([]);
   });
 
+  it("gives back the amount of the held row, even if the rental's totalPrice differs", async () => {
+    const id = await request(await listing());
+    await hold(id, 30);
+    await db.collection("rentals").doc(id).update({ totalPrice: 99 });
+    const borrower = await borrowerOf(id);
+
+    await declineRequest(db, LENDER, id);
+
+    expect(await wallet(borrower)).toEqual(BACK);
+    expect(await releases(borrower)).toEqual([30]);
+  });
+
+  it.each([0, 5, 1.5, "30", null])(
+    "refuses to decline when the held row's amount is %p, and changes nothing",
+    async (amount) => {
+      const id = await request(await listing());
+      await hold(id, 30);
+      const borrower = await borrowerOf(id);
+      const held = db
+        .collection("wallets")
+        .doc(borrower)
+        .collection("transactions")
+        .doc(`rental_held_${id}`);
+      await held.set({ type: "RENTAL_HELD", amount, itemTitle: "Camping tent" });
+      const before = await wallet(borrower);
+
+      await expect(declineRequest(db, LENDER, id)).rejects.toMatchObject({ code: "internal" });
+
+      expect((await rental(id))?.status).toBe("REQUESTED");
+      expect(await wallet(borrower)).toEqual(before);
+      expect(await releases(borrower)).toEqual([]);
+    },
+  );
+
+  it("refuses when the held row has no amount", async () => {
+    const id = await request(await listing());
+    await hold(id, 30);
+    const borrower = await borrowerOf(id);
+    await db
+      .collection("wallets")
+      .doc(borrower)
+      .collection("transactions")
+      .doc(`rental_held_${id}`)
+      .set({ type: "RENTAL_HELD", itemTitle: "Camping tent" });
+
+    await expect(declineRequest(db, LENDER, id)).rejects.toMatchObject({ code: "internal" });
+
+    expect((await rental(id))?.status).toBe("REQUESTED");
+  });
+
+  it("does not look at a malformed held row once the price was already released", async () => {
+    const id = await request(await listing());
+    await hold(id, 30);
+    const borrower = await borrowerOf(id);
+    await declineRequest(db, LENDER, id);
+    await db
+      .collection("wallets")
+      .doc(borrower)
+      .collection("transactions")
+      .doc(`rental_held_${id}`)
+      .update({ amount: 0 });
+    await db.collection("rentals").doc(id).update({ status: "REQUESTED" });
+
+    await declineRequest(db, LENDER, id);
+
+    expect(await releases(borrower)).toEqual([30]);
+  });
+
   it("gives back at most what the wallet holds", async () => {
     const id = await request(await listing());
     await hold(id, 30);
