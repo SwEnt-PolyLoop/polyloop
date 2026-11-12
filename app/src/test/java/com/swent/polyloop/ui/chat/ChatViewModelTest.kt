@@ -523,6 +523,83 @@ class ChatViewModelTest {
     assertEquals(3, state.messages.size)
   }
 
+  /** The chat, whose saves fail while [fails] is true, each waiting for [gate] first if set. */
+  private inner class FlakyMarking : ChatRepository by chat {
+    var fails = true
+    var gate: CompletableDeferred<Unit>? = null
+    var calls = 0
+
+    override suspend fun markAsRead(rentalId: String): Result<Unit> {
+      calls++
+      val fail = fails
+      gate?.await()
+      return if (fail) Result.failure(IOException("offline")) else chat.markAsRead(rentalId)
+    }
+  }
+
+  @Test
+  fun failedMarkAsReadIsTriedAgainWhenComingBack() {
+    val flaky = FlakyMarking()
+    val vm = viewModel(flaky)
+    vm.onStarted()
+    vm.onStopped()
+
+    flaky.fails = false
+    vm.onStarted()
+
+    assertEquals(2, flaky.calls)
+    assertEquals(chat.now, chat.conversations.single().lastReadAt["me"])
+  }
+
+  @Test
+  fun failedMarkAsReadIsTriedAgainWhenTheConnectionComesBack() {
+    val flaky = FlakyMarking()
+    val connectivity = FakeConnectivityRepository()
+    viewModel(flaky, connectivity = connectivity).onStarted()
+
+    flaky.fails = false
+    connectivity.setOnline(false)
+    connectivity.setOnline(true)
+
+    assertEquals(2, flaky.calls)
+    assertEquals(chat.now, chat.conversations.single().lastReadAt["me"])
+  }
+
+  @Test
+  fun markAsReadIsTriedUntilItSucceedsThenNotAgain() {
+    val flaky = FlakyMarking()
+    val vm = viewModel(flaky)
+    vm.onStarted()
+    vm.onStopped()
+    vm.onStarted() // fails again
+    vm.onStopped()
+
+    flaky.fails = false
+    vm.onStarted()
+    vm.onStopped()
+    vm.onStarted() // saved by now, so not again
+
+    assertEquals(3, flaky.calls)
+  }
+
+  @Test
+  fun olderFailedSaveDoesNotUndoANewerOne() {
+    val flaky = FlakyMarking()
+    val slow = CompletableDeferred<Unit>()
+    flaky.gate = slow
+    val vm = viewModel(flaky)
+    vm.onStarted() // this save fails, but only once the newer one is done
+
+    flaky.gate = null
+    flaky.fails = false
+    chat.messages = mapOf("tent" to listOf(fromAna, great))
+    slow.complete(Unit)
+    vm.onStopped()
+    vm.onStarted()
+
+    assertEquals(2, flaky.calls)
+  }
+
   @Test
   fun unconfirmedMarkAsReadDoesNotHoldBackNewMessages() {
     val neverConfirmed =

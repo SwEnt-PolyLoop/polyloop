@@ -295,7 +295,8 @@ class ChatViewModel(
    * the connection comes back instead. The same newest message is saved only once, and not at all
    * when it is the user's own, since sending saves their read time with it. Launched on its own,
    * since offline the save waits up to 10 seconds and must not hold back the next messages. A
-   * failure is ignored: it only leaves the dot, which is not worth an error on the chat.
+   * failure only leaves the dot, which is not worth an error on the chat: the save is tried again
+   * when the screen shows again or the connection comes back, unless a newer message was saved.
    */
   private fun markAsRead() {
     val state = _uiState.value
@@ -303,7 +304,9 @@ class ChatViewModel(
     if (!isStarted || state.isOffline || newest.id == markedId) return
     markedId = newest.id
     if (newest.kind == MessageKind.MINE) return
-    viewModelScope.launch { chatRepository.markAsRead(rentalId) }
+    viewModelScope.launch {
+      chatRepository.markAsRead(rentalId).onFailure { if (markedId == newest.id) markedId = null }
+    }
   }
 
   /**
