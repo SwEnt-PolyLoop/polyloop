@@ -85,8 +85,7 @@ import org.junit.Rule
  * pointed at the Firebase emulators (Auth, Firestore, Storage). Only the network status is faked
  * ([connectivity]), so a test can go offline without losing the emulators, and the server clock
  * keeps its time in memory. Needs `firebase emulators:start --only auth,firestore,storage`, as on
- * the CI: with the Functions emulator, `createWalletOnProfile` (#412) would create the wallet that
- * [seedWallet] writes, which then fails.
+ * the CI.
  *
  * The CI starts no Functions emulator, so what a Cloud Function would write (another user's data,
  * an offer, a dispute, a wallet) is written by the test as an admin, and the steps that call a
@@ -340,8 +339,8 @@ abstract class EndToEndTestBase {
 
   /**
    * The wallet of [uid], in PP, as the Cloud Functions write it. Returns its path, under which the
-   * history goes. It must not exist yet: a Function that creates wallets (`createWalletOnProfile`)
-   * would make this fail once the CI runs the Functions emulator.
+   * history goes. It replaces the wallet that `createWalletOnProfile` (#412) creates for a new
+   * profile when the Functions emulator runs.
    */
   protected fun seedWallet(
       uid: String,
@@ -350,7 +349,7 @@ abstract class EndToEndTestBase {
       heldForRentals: Int = 0,
   ): String {
     val path = "${WalletFields.COLLECTION}/$uid"
-    FirebaseEmulator.createDocumentAsAdmin(
+    FirebaseEmulator.setDocumentAsAdmin(
         path,
         mapOf(
             WalletFields.AVAILABLE to available,
