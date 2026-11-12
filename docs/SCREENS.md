@@ -57,7 +57,7 @@ The Wallet screen holds the user's in-app balance, which pays for rentals and de
 
 - The available balance in PolyPoints (everything held excluded), then “Held as deposits”, the deposits held, and, only when it is above 0, “Held for rentals”, the rental prices reserved since a request was sent (the deposit only exists once an offer is accepted). Available plus both held amounts is the user's total.
 - A “Recharge” button: the user enters a whole Swiss franc amount from 1 to 99,999 and receives the same number of PolyPoints. Recharging is simulated; no real payment is made.
-- A transaction history, newest first: recharges, rental payments, late fees, and deposits held, released, split or forfeited (the rest of the deposit, paid to the lender once the item is lost). The amounts add up to the available balance; late fees and forfeited deposits show only in the lender's history, and a borrower's late fees appear as a smaller deposit release.
+- A transaction history, newest first: recharges, rental payments, "Rental price held" and "Rental price released" (the price reserved when a request is sent, and given back when it is declined or expires), late fees, and deposits held, released, split or forfeited (the rest of the deposit, paid to the lender once the item is lost). The amounts add up to the available balance; late fees and forfeited deposits show only in the lender's history, and a borrower's late fees appear as a smaller deposit release.
 - PolyPoints cannot be withdrawn back to Swiss francs.
 - Offline: balance and history stay readable from cache; recharging is disabled.
 
@@ -99,7 +99,7 @@ Listing detail is where a borrower decides and sends a request. ViewModel: Listi
 - A small map of the pickup area, placed by geocoding the typed address. The exact address only appears on Rental detail after acceptance. The map is a still picture that cannot be scrolled or zoomed, with a circle of about 700 m around the area's rounded point. Until the address is geocoded, and while offline, the map is replaced by the area name as text.
 - The lender's availability window, and a “Request” button that opens a date picker limited to that window. Booked days (accepted rentals only; a pending request blocks no day), plus a 1-day buffer before and after each booking, are greyed out. The total is the price per day times the number of days. Disabled offline.
 - When the request is sent, the booked days are read again from the server. If the dates were booked meanwhile, nothing is sent: the picker greys out the new booked days and shows “These dates are no longer available”, until the user taps a new day. If the listing was deleted or unpublished meanwhile, the picker closes and the listing shows as not found.
-- Sending a request reserves the rental price from the borrower's balance; if the balance is too low, the request does not go through.
+- Sending a request reserves the rental price from the borrower's balance; if the balance is too low, the request does not go through and the screen shows "You don't have enough PolyPoints to reserve this rental." Sending needs a connection, because the app calls the Cloud Function.
 - On your own listing: “Edit” and “Delete” instead of “Request”, locked while a rental is accepted or active.
 
 ## Create / edit listing

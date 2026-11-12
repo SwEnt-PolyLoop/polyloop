@@ -73,7 +73,7 @@ The app writes only content it owns (listings, profile fields, chat messages, ph
 - wallet balance changes (recharge, payments, late fees, refunds)
 - dispute outcomes and applying court rulings
 
-Firestore security rules must reject client writes to those fields. One temporary exception: until the `requestRental` Cloud Function exists, the app creates a rental request itself (see "Firestore schema" below).
+Firestore security rules must reject client writes to those fields. That includes creating a rental: only the `requestRental` Cloud Function creates one.
 
 ## Rental statuses
 
@@ -89,7 +89,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 **Money (PolyPoints)**
 - In-app currency: PolyPoints (PP), 1 CHF = 1 PP. Recharge on the Wallet screen with a whole CHF amount from 1 to 99,999 (the same cap as a listing price); a recharge that would overflow the balance is refused. Payments are simulated. No withdrawals.
-- Sending a request reserves the rental price (price per day × days) from the borrower's balance; the request fails if the balance is too low. The wallet shows that price as `heldForRentals` and the deposits as `heldAsDeposits`; `reserved` is their sum, computed and never stored, and `available` + `reserved` is the user's total. A missing field reads as 0. (Not yet: until then, `payLender` takes the price from `available`.) (Not yet: the app does not call `requestRental` until the client change; nothing releases the price when a rental is cancelled.)
+- Sending a request reserves the rental price (price per day × days) from the borrower's balance; the request fails if the balance is too low. The wallet shows that price as `heldForRentals` and the deposits as `heldAsDeposits`; `reserved` is their sum, computed and never stored, and `available` + `reserved` is the user's total. A missing field reads as 0. (Not yet: until then, `payLender` takes the price from `available`.) (Not yet: nothing releases the price when a rental is cancelled.)
 - The lender is paid the rental price once the item has been picked up (`payLender`); until the price is reserved when a request is sent, it is taken from `available`, afterwards it will come from `heldForRentals`.
 - The deposit is negotiated before acceptance, and only the deposit: the rental price is fixed. The item value is shown as the suggested deposit. An offer or a counteroffer is a whole amount from 1 to 99,999 PP (the same cap as a listing price).
     1. On a request without an offer, the lender either sends an offer (the deposit and both exact addresses) or declines.
@@ -192,7 +192,7 @@ Rentals:
 - `lateFees` is the total of the late fees taken from the deposit, in PolyPoints. Only Cloud Functions will write it, the scheduled job that charges late fees, once a return is late, so a rental that was never late has no such field, and missing reads as 0.
 - `offer` is the offer waiting for an answer: `amount`, `authorId`, `isCounter`, `createdAt`, `expiresAt`, and on a counteroffer `previousAmount`, the lender's offer. It is missing when no offer is waiting, and removed when the negotiation ends. `expireOffers` queries `offer.expiresAt` alone, so it needs no composite index, and answering also refuses an expired offer, in case `expireOffers` has not run yet.
 - Each step of the negotiation adds a `SYSTEM` message to the chat, written by the Cloud Functions; the chat's offer card reads `offer`, so there is no new message type.
-- **Temporary exception to the core rule:** until the `requestRental` Cloud Function exists, the app creates the rental itself, with status `REQUESTED` only and no money reserved. The security rules allow only that creation, and afterwards only `lastMessage` and `lastMessageAt` can be changed by the participants. Until then, the dates are checked against `bookedRanges` only in the app (Listing detail reads them again from the server just before sending), so a client that skips this check is not stopped.
+- Rentals are created only by the `requestRental` Cloud Function, which holds the price in the same transaction. The app never creates one, and the security rules refuse it. The participants can change only `lastMessage` and `lastMessageAt` afterwards. The dates are checked against `bookedRanges` by the function, and Listing detail also reads them again from the server just before sending.
 
 Wallet:
 - `WalletRepositoryFirestore` only reads, with plain snapshot listeners, so the wallet and the history stay readable offline from the cache. The history is not sorted there (`WalletViewModel` sorts it). An invalid uid reads as an empty wallet and history. `recharge` always fails ("not available yet") until a recharge Cloud Function exists.
@@ -210,7 +210,7 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 
 `firestore.rules` and `storage.rules` are listed in `firebase.json`, so the emulators enforce them; `FirestoreRulesTest` and `StorageRulesTest` (in `androidTest/.../rules/`) check them. Every read and write needs a verified `@epfl.ch` account. Beyond the notes in the schema above:
 - A listing must pass the same checks as `Listing.canPublish` (3 to 10 photo URLs, all strings, prices from 1 to 99,999 PP, `availableFrom` before `availableTo`, a known category and status). Clients never write `bookedRanges` (a Cloud Function will, on acceptance) and never change `ownerId`. They create `pickupArea` and `dropOffArea` empty, never write `pickupPoint` or `dropOffPoint`, and never change any of the four afterwards (`geocodeListingAddresses` does). A listing cannot be created at an id whose `private/addresses` is left over from a deleted listing.
-- A rental request must match its listing, which must be `PUBLISHED`: same owner, title, first photo (`""` if the listing has none), price per day and areas, dates inside the availability window, and `totalPrice` equal to the price per day × the number of days.
+- Clients cannot create a rental. `requestRental` checks the listing (it must be `PUBLISHED`, with dates inside the availability window and free) and computes `totalPrice` as the price per day × the number of days.
 - Clients never write a rental's `deposit`, `offer`, `pickupAddress` or `returnAddress`, and have no access to `rentals/{rentalId}/private/addresses`.
 - Wallets: a user reads only their own `wallets/{uid}` and its `transactions`; nobody writes them from the app, the owner included (`allow write: if false`). Cloud Functions write them.
 - A dispute is read only by the two participants of its rental (`participants`), and never written by a client.
