@@ -245,6 +245,7 @@ object C {
     const val rental_detail_pickup_note = "rental_detail_pickup_note"
     const val rental_detail_cancel_until = "rental_detail_cancel_until"
     const val rental_detail_cancel_button = "rental_detail_cancel_button"
+    const val rental_detail_cancel_not_available = "rental_detail_cancel_not_available"
     const val rental_detail_loading = "rental_detail_loading"
     const val rental_detail_error = "rental_detail_error"
     const val rental_detail_retry_button = "rental_detail_retry_button"
@@ -317,6 +318,7 @@ object C {
     const val drawer_name = "drawer_name"
     const val drawer_rating = "drawer_rating"
     const val drawer_admin_badge = "drawer_admin_badge"
+    const val drawer_court_rulings_not_available = "drawer_court_rulings_not_available"
     const val drawer_footer = "drawer_footer"
 
     const val my_rentals_screen = "my_rentals_screen"
@@ -349,6 +351,7 @@ object C {
     const val wallet_held_deposits = "wallet_held_deposits"
     const val wallet_held_rentals = "wallet_held_rentals"
     const val wallet_recharge_button = "wallet_recharge_button"
+    const val wallet_recharge_not_available = "wallet_recharge_not_available"
     const val wallet_loading = "wallet_loading"
     const val wallet_error = "wallet_error"
     const val wallet_retry_button = "wallet_retry_button"

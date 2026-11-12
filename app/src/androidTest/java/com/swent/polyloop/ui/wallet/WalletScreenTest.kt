@@ -13,6 +13,8 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
@@ -237,6 +239,28 @@ class WalletScreenTest {
     setContent(state(isOffline = true))
 
     composeTestRule.onNodeWithTag(C.Tag.wallet_recharge_button).assertIsNotEnabled()
+  }
+
+  @Test
+  fun rechargeSaysItIsNotAvailableYet() {
+    setContent(state())
+
+    assertNotAvailableYet()
+  }
+
+  @Test
+  fun rechargeSaysItIsNotAvailableYetOffline() {
+    setContent(state(isOffline = true))
+
+    assertNotAvailableYet()
+  }
+
+  private fun assertNotAvailableYet() {
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    composeTestRule
+        .onNodeWithTag(C.Tag.wallet_recharge_not_available)
+        .assertIsDisplayed()
+        .assertTextEquals(context.getString(R.string.not_available_yet))
   }
 
   @Test
