@@ -80,8 +80,8 @@ Each rental has exactly one 1:1 conversation between its lender and borrower. Vi
 
 Browse shows available items near the user, as a map or a list. ViewModel: BrowseViewModel, using ListingRepository and LocationRepository.
 
-- A toggle between map view (Google Maps SDK) and list view.
-- Map pins sit at each listing's pickup area, never the exact address.
+- A toggle between map view (Google Maps SDK) and list view, list by default. Both show the listings passing the search and categories.
+- Map pins sit at each listing's pickup area, never the exact address. Listings in the same area share one rounded point, so one pin holds all of them: it shows the price per day of a single listing, or how many listings it holds (“3 items”). A listing whose address is not geocoded yet has no pin. The map can be scrolled and zoomed; it opens framed on all the pins (on EPFL when there are none), and keeps the user's view while they search or filter.
 - List sorted by distance, using the phone's GPS.
 - Listing cards with the first photo, title, price per day in PolyPoints, distance and pickup area. Tapping a card opens Listing detail.
 - A search bar and filters, such as category and price.
