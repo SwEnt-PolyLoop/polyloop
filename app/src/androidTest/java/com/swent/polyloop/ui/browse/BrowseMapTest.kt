@@ -8,6 +8,8 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.google.android.gms.maps.CameraUpdate
+import com.google.android.gms.maps.MapsInitializer
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
@@ -15,6 +17,8 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.resources.C
 import java.time.LocalDate
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,6 +31,8 @@ class BrowseMapTest {
   private val resources = InstrumentationRegistry.getInstrumentation().targetContext.resources
 
   private val ecublens = MapPoint(latitude = 46.52, longitude = 6.57)
+
+  private val lausanne = MapPoint(latitude = 46.51, longitude = 6.63)
 
   private fun listing(id: String, pricePerDay: Int) =
       Listing(
@@ -74,5 +80,70 @@ class BrowseMapTest {
     }
 
     composeTestRule.onNodeWithTag(C.Tag.browse_map).assertIsDisplayed()
+  }
+
+  /**
+   * Loads the Maps SDK, which builds the camera moves. The map does it when it shows, but the
+   * framing tests below build moves without showing one.
+   */
+  private fun initializeMaps() {
+    val instrumentation = InstrumentationRegistry.getInstrumentation()
+    instrumentation.runOnMainSync { MapsInitializer.initialize(instrumentation.targetContext) }
+  }
+
+  /** The camera moves made by [framePinsOnce] for [pins], and the flag it returns. */
+  private fun frame(
+      alreadyFramed: Boolean,
+      pins: List<BrowsePin>,
+  ): Pair<List<CameraUpdate>, Boolean> {
+    val moves = mutableListOf<CameraUpdate>()
+    val framed = framePinsOnce(alreadyFramed, pins, FRAMING_PADDING_PX, moves::add)
+    return moves to framed
+  }
+
+  @Test
+  fun framingNoPinLeavesTheCameraOnTheCampus() {
+    val (moves, framed) = frame(alreadyFramed = false, pins = emptyList())
+
+    assertTrue(moves.isEmpty())
+    assertTrue(framed)
+  }
+
+  @Test
+  fun framingOnePinMovesTheCameraOnce() {
+    initializeMaps()
+
+    val (moves, framed) = frame(false, listOf(BrowsePin(ecublens, listOf(listing("tent", 15)))))
+
+    assertEquals(1, moves.size)
+    assertTrue(framed)
+  }
+
+  @Test
+  fun framingSeveralPinsMovesTheCameraOnce() {
+    initializeMaps()
+    val pins =
+        listOf(
+            BrowsePin(ecublens, listOf(listing("tent", 15))),
+            BrowsePin(lausanne, listOf(listing("drill", 8))),
+        )
+
+    val (moves, framed) = frame(alreadyFramed = false, pins = pins)
+
+    assertEquals(1, moves.size)
+    assertTrue(framed)
+  }
+
+  @Test
+  fun alreadyFramedMapKeepsTheUsersView() {
+    val (moves, framed) = frame(true, listOf(BrowsePin(ecublens, listOf(listing("tent", 15)))))
+
+    assertTrue(moves.isEmpty())
+    assertTrue(framed)
+  }
+
+  private companion object {
+    /** Space kept around the pins in the framing tests; any value works there. */
+    const val FRAMING_PADDING_PX = 64
   }
 }

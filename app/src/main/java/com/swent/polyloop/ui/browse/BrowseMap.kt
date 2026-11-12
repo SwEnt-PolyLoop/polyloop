@@ -107,10 +107,8 @@ fun BrowseMap(pins: List<BrowsePin>, modifier: Modifier = Modifier) {
       uiSettings = MapUiSettings(mapToolbarEnabled = false, zoomControlsEnabled = false),
       // Fitting a box needs the map's size on screen, which is known once the map has loaded.
       onMapLoaded = {
-        if (!hasFramedPins) {
-          cameraUpdateFor(framingOf(currentPins), framingPaddingPx)?.let(cameraPositionState::move)
-          hasFramedPins = true
-        }
+        hasFramedPins =
+            framePinsOnce(hasFramedPins, currentPins, framingPaddingPx, cameraPositionState::move)
       },
   ) {
     // Keyed on the point, so a pin keeps its marker when the filter changes the other pins.
@@ -119,10 +117,25 @@ fun BrowseMap(pins: List<BrowsePin>, modifier: Modifier = Modifier) {
 }
 
 /**
+ * Frames [pins] with [move] (see [framingOf]), keeping [paddingPx] pixels between the pins and the
+ * edges, unless [alreadyFramed]: the map frames them only once per opening. Returns true, the new
+ * value of the "already framed" flag.
+ */
+internal fun framePinsOnce(
+    alreadyFramed: Boolean,
+    pins: List<BrowsePin>,
+    paddingPx: Int,
+    move: (CameraUpdate) -> Unit,
+): Boolean {
+  if (!alreadyFramed) cameraUpdateFor(framingOf(pins), paddingPx)?.let(move)
+  return true
+}
+
+/**
  * The camera move that shows [framing], keeping [paddingPx] pixels between the pins and the edges,
  * or null for [MapFraming.Campus], where the map already opens.
  */
-private fun cameraUpdateFor(framing: MapFraming, paddingPx: Int): CameraUpdate? =
+internal fun cameraUpdateFor(framing: MapFraming, paddingPx: Int): CameraUpdate? =
     when (framing) {
       MapFraming.Campus -> null
       is MapFraming.OnePin -> CameraUpdateFactory.newLatLngZoom(framing.point.toLatLng(), MAP_ZOOM)
