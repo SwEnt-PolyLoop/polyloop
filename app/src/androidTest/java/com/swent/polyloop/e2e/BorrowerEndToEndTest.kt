@@ -83,8 +83,11 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     composeTestRule
         .onNodeWithTag(C.Tag.date_picker_summary_total)
         .assertTextEquals(context.getString(R.string.listing_card_price, 2 * PRICE_PER_DAY))
-    // Send request is enabled: the placeholder balance covers the price for now, and the seeded
-    // wallet will once Listing detail reads the wallet (#413).
+    // The picker shows the borrower's wallet balance, which covers the price: Send request is
+    // enabled.
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_balance)
+        .assertTextEquals(context.getString(R.string.listing_card_price, BALANCE))
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
     waitForText(C.Tag.chat_header_item, listing.title)
     assertRoute(Screen.Chat)
@@ -282,9 +285,8 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
   }
 
   /**
-   * Presses "Request" once it is enabled, which it will only be once the wallet's balance is read,
-   * when Listing detail reads the wallet (#413). It sits in a bar pinned at the bottom of the
-   * screen, so there is nothing to scroll first.
+   * Presses "Request" once it is enabled, which it is once the wallet's balance is read. It sits in
+   * a bar pinned at the bottom of the screen, so there is nothing to scroll first.
    */
   private fun pressRequest() {
     waitUntilEnabled(C.Tag.listing_detail_request_button)
@@ -305,7 +307,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
   private companion object {
     const val OFFER = 80
 
-    // Far more than the requests cost (a few days at PRICE_PER_DAY), once the picker reads it.
+    // Far more than the requests cost (a few days at PRICE_PER_DAY).
     const val BALANCE = 100
   }
 }

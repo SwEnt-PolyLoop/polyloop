@@ -16,6 +16,7 @@ import com.swent.polyloop.MainActivity
 import com.swent.polyloop.e2e.EndToEndTestBase.Companion.CLEANUP_TIMEOUT_MS
 import com.swent.polyloop.e2e.EndToEndTestBase.Companion.PASSWORD
 import com.swent.polyloop.e2e.EndToEndTestBase.Companion.USER_NAME
+import com.swent.polyloop.e2e.EndToEndTestBase.Companion.assertAbsent
 import com.swent.polyloop.e2e.EndToEndTestBase.Companion.deleteAccount
 import com.swent.polyloop.e2e.EndToEndTestBase.Companion.profileFields
 import com.swent.polyloop.e2e.EndToEndTestBase.Companion.retryWhenPaused
@@ -80,7 +81,7 @@ class AppStartEndToEndTest {
   @Test
   fun theAppStartsOnTheLogInFormAndLogsIn() {
     composeTestRule.waitForNode(hasTestTag(C.Tag.auth_login_button))
-    step { composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist() }
+    composeTestRule.assertAbsent(hasTestTag(C.Tag.top_bar))
 
     step { composeTestRule.onNodeWithTag(C.Tag.auth_email_field).performScrollTo() }
     step { composeTestRule.onNodeWithTag(C.Tag.auth_email_field).performTextInput(email) }
