@@ -63,7 +63,7 @@ class ChatEndToEndTest : EndToEndTestBase() {
     pressBack()
     assertRoute(Screen.ChatList)
     waitFor(lastMessageOf(conversation, SENT))
-    unreadDot(conversation).assertDoesNotExist()
+    inNode(conversation, C.Tag.chat_list_row_unread).assertAbsent()
 
     // The lender answers from their phone, whose app writes the message and the rental's last
     // message as this one does: the chat list shows it with a red dot. It is sent just after the
@@ -83,7 +83,7 @@ class ChatEndToEndTest : EndToEndTestBase() {
         mapOf(RentalFields.LAST_MESSAGE to RECEIVED, RentalFields.LAST_MESSAGE_AT to sentAt),
     )
     waitFor(lastMessageOf(conversation, RECEIVED))
-    waitFor(hasTestTag(C.Tag.chat_list_row_unread) and hasAnyAncestor(hasTestTag(conversation)))
+    waitFor(unreadDotOf(conversation))
 
     // Opening the chat shows both messages and marks it read: back on the list, the dot is gone.
     composeTestRule.onNodeWithTag(conversation).performClick()
@@ -93,19 +93,12 @@ class ChatEndToEndTest : EndToEndTestBase() {
     assertRoute(Screen.ChatList)
     // The row first, so a list still loading cannot pass for one without a dot.
     waitFor(lastMessageOf(conversation, RECEIVED))
-    composeTestRule.waitUntil(TIMEOUT_MS) {
-      composeTestRule
-          .onAllNodes(
-              hasTestTag(C.Tag.chat_list_row_unread) and hasAnyAncestor(hasTestTag(conversation)),
-              useUnmergedTree = true,
-          )
-          .fetchSemanticsNodes()
-          .isEmpty()
-    }
+    waitForNone(unreadDotOf(conversation))
   }
 
   /** The red dot of the chat list row [rowTag]. */
-  private fun unreadDot(rowTag: String) = inNode(rowTag, C.Tag.chat_list_row_unread)
+  private fun unreadDotOf(rowTag: String) =
+      hasTestTag(C.Tag.chat_list_row_unread) and hasAnyAncestor(hasTestTag(rowTag))
 
   /**
    * When [uid] last read the chat of [rentalId], as the server saved it with the message [SENT].

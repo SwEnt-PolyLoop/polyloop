@@ -53,7 +53,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
         .onNodeWithTag(C.Tag.browseCategoryChip(ListingCategory.ELECTRONICS))
         .performScrollTo()
         .performClick()
-    composeTestRule.onNodeWithTag(card).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(card).assertAbsent()
     composeTestRule.onNodeWithTag(C.Tag.browse_category_all).performScrollTo().performClick()
     composeTestRule.onNodeWithTag(card).assertIsDisplayed()
 
@@ -76,7 +76,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
 
     // Two days instead: both picked, priced at two days; sending opens the new rental's chat.
     pickDay(firstDay.plusDays(1))
-    composeTestRule.onNodeWithTag(C.Tag.date_picker_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_error).assertAbsent()
     composeTestRule.onNodeWithTag(C.Tag.datePickerDay(firstDay)).assertIsSelected()
     composeTestRule.onNodeWithTag(C.Tag.datePickerDay(firstDay.plusDays(1))).assertIsSelected()
     composeTestRule.onNodeWithTag(C.Tag.datePickerDay(lastDay)).assertIsNotSelected()
@@ -145,7 +145,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     // Free days after the booking go through: the request is sent and its chat opens.
     val retryStart = booked.end.plusDays(2)
     pickDays(retryStart, retryStart.plusDays(1))
-    composeTestRule.onNodeWithTag(C.Tag.date_picker_send_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_send_error).assertAbsent()
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
     waitForText(C.Tag.chat_header_item, listing.title)
     assertRoute(Screen.Chat)
@@ -210,6 +210,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     seedProfile(lenderId, LENDER_NAME)
     val listing = seedListing()
     val uid = signInWithoutTheUi()
+    val start = firstDay.plusDays(1)
     // The offer fields the app reads, as makeOffer writes them; the CI cannot call it (no
     // Functions).
     val offer =
@@ -217,9 +218,10 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
             RentalFields.OFFER_AMOUNT to OFFER,
             RentalFields.OFFER_AUTHOR_ID to lenderId,
             RentalFields.OFFER_IS_COUNTER to false,
-            // An offer expires on the rental's first day when that comes before a week.
+            // An offer expires on the rental's first day when that comes before a week. The
+            // rental starts the day after firstDay, so it is still a day away past midnight.
             RentalFields.OFFER_EXPIRES_AT to
-                timestamp(firstDay.atStartOfDay(ZoneId.systemDefault()).toInstant()),
+                timestamp(start.atStartOfDay(ZoneId.systemDefault()).toInstant()),
         )
     val rentalId =
         seedRental(
@@ -227,8 +229,8 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
             uid,
             USER_NAME,
             LENDER_NAME,
-            firstDay,
-            firstDay.plusDays(1),
+            start,
+            start.plusDays(1),
             RentalStatus.REQUESTED,
             extra = mapOf(RentalFields.OFFER to offer),
         )

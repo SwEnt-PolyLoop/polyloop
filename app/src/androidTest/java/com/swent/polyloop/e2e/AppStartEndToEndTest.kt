@@ -3,6 +3,7 @@
 package com.swent.polyloop.e2e
 
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -14,9 +15,11 @@ import com.google.firebase.auth.auth
 import com.swent.polyloop.MainActivity
 import com.swent.polyloop.e2e.EndToEndTestBase.Companion.CLEANUP_TIMEOUT_MS
 import com.swent.polyloop.e2e.EndToEndTestBase.Companion.PASSWORD
-import com.swent.polyloop.e2e.EndToEndTestBase.Companion.TIMEOUT_MS
 import com.swent.polyloop.e2e.EndToEndTestBase.Companion.USER_NAME
 import com.swent.polyloop.e2e.EndToEndTestBase.Companion.deleteAccount
+import com.swent.polyloop.e2e.EndToEndTestBase.Companion.profileFields
+import com.swent.polyloop.e2e.EndToEndTestBase.Companion.retryWhenPaused
+import com.swent.polyloop.e2e.EndToEndTestBase.Companion.waitForNode
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.profile.ProfileFields
@@ -55,7 +58,7 @@ class AppStartEndToEndTest {
           val uid = runBlocking { FirebaseEmulator.signUpVerified(email, PASSWORD) }
           FirebaseEmulator.createDocumentAsAdmin(
               "${ProfileFields.COLLECTION}/$uid",
-              mapOf(ProfileFields.NAME to USER_NAME, ProfileFields.EMAIL to email),
+              profileFields(USER_NAME, email),
           )
           Firebase.auth.signOut()
         }
@@ -70,20 +73,28 @@ class AppStartEndToEndTest {
 
   @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
 
+  /**
+   * Each step goes through the base's pause helpers (#196): the activity is most likely to be
+   * paused right after it starts, which is when this test runs.
+   */
   @Test
   fun theAppStartsOnTheLogInFormAndLogsIn() {
-    composeTestRule.onNodeWithTag(C.Tag.auth_login_button).performScrollTo()
-    composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist()
+    composeTestRule.waitForNode(hasTestTag(C.Tag.auth_login_button))
+    step { composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist() }
 
-    composeTestRule.onNodeWithTag(C.Tag.auth_email_field).performScrollTo().performTextInput(email)
-    composeTestRule
-        .onNodeWithTag(C.Tag.auth_password_field)
-        .performScrollTo()
-        .performTextInput(PASSWORD)
-    composeTestRule.onNodeWithTag(C.Tag.auth_login_button).performScrollTo().performClick()
+    step { composeTestRule.onNodeWithTag(C.Tag.auth_email_field).performScrollTo() }
+    step { composeTestRule.onNodeWithTag(C.Tag.auth_email_field).performTextInput(email) }
+    step { composeTestRule.onNodeWithTag(C.Tag.auth_password_field).performScrollTo() }
+    step { composeTestRule.onNodeWithTag(C.Tag.auth_password_field).performTextInput(PASSWORD) }
+    step { composeTestRule.onNodeWithTag(C.Tag.auth_login_button).performScrollTo() }
+    step { composeTestRule.onNodeWithTag(C.Tag.auth_login_button).performClick() }
 
-    composeTestRule.waitUntil(timeoutMillis = TIMEOUT_MS) {
-      composeTestRule.onAllNodes(hasTestTag(C.Tag.browse_screen)).fetchSemanticsNodes().isNotEmpty()
-    }
+    composeTestRule.waitForNode(hasTestTag(C.Tag.browse_screen))
+  }
+
+  /** Runs [action] once a screen is shown, again if the activity was paused meanwhile. */
+  private fun step(action: () -> Unit) {
+    composeTestRule.waitForNode(isRoot())
+    composeTestRule.retryWhenPaused(action)
   }
 }
