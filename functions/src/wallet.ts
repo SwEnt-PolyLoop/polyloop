@@ -8,7 +8,9 @@ import { RequestError } from "./rentalRules";
  * PolyPoints (see "Firestore schema" in docs/ARCHITECTURE.md): `wallets/{uid}` holds the balances,
  * and `wallets/{uid}/transactions/{id}` the history. Only Cloud Functions write them. As in every
  * Firestore transaction, read first (`readWallet`, `hasTransaction`), check (`requireFunds`), then
- * write (`writeWallet`, or `writeDepositHold` for a deposit, whose row id is `depositRowId`).
+ * write (`writeWallet`, `writeDepositHold` for a deposit, whose row id is `depositRowId`, or
+ * `writeRentalHold` and `writeRentalRelease` for a rental price, whose row ids are `rentalHeldRowId`
+ * and `rentalReleasedRowId`).
  */
 
 /** The balances of a wallet, in whole PolyPoints. */
@@ -147,6 +149,98 @@ export function writeDepositHold(
     },
     { id: depositRowId(rentalId), type: DEPOSIT_HELD, amount: -deposit, itemTitle },
   );
+}
+
+/** The `type` of the history row of a held rental price. */
+const RENTAL_HELD = "RENTAL_HELD";
+
+/** The `type` of the history row of a rental price given back to `available`. */
+const RENTAL_RELEASED = "RENTAL_RELEASED";
+
+/** The id of the history row of a rental's price hold, which makes the hold idempotent. */
+export function rentalHeldRowId(rentalId: string): string {
+  return `rental_held_${rentalId}`;
+}
+
+/** The id of the history row of a rental's price release, which makes the release idempotent. */
+export function rentalReleasedRowId(rentalId: string): string {
+  return `rental_released_${rentalId}`;
+}
+
+/**
+ * Write step of a rental price hold, inside the caller's transaction after its reads: `available
+ * -= price`, `heldForRentals += price`, and the `RENTAL_HELD` row `rental_held_<rentalId>` with the
+ * amount `-price`. The funds are checked before, with `requireFunds`.
+ *
+ * @param tx the transaction to write in.
+ * @param db the Firestore database.
+ * @param borrowerId the owner of the wallet.
+ * @param wallet the borrower's wallet, as read in the same transaction.
+ * @param price the rental's total price, a whole number above 0.
+ * @param rentalId the rental the price belongs to.
+ * @param itemTitle the title of the item, or "".
+ */
+export function writeRentalHold(
+  tx: Transaction,
+  db: Firestore,
+  borrowerId: string,
+  wallet: Wallet,
+  price: number,
+  rentalId: string,
+  itemTitle: string,
+): void {
+  writeWallet(
+    tx,
+    db,
+    borrowerId,
+    {
+      ...wallet,
+      available: wallet.available - price,
+      heldForRentals: wallet.heldForRentals + price,
+    },
+    { id: rentalHeldRowId(rentalId), type: RENTAL_HELD, amount: -price, itemTitle },
+  );
+}
+
+/**
+ * Write step of a rental price release, inside the caller's transaction after its reads: gives
+ * back `min(price, heldForRentals)` from `heldForRentals` to `available`, and adds the
+ * `RENTAL_RELEASED` row `rental_released_<rentalId>` with the amount released. It never credits
+ * more than the wallet holds. When nothing is held, it writes nothing. The caller checks first
+ * that the hold row exists and the release row does not.
+ *
+ * @param tx the transaction to write in.
+ * @param db the Firestore database.
+ * @param borrowerId the owner of the wallet.
+ * @param wallet the borrower's wallet, as read in the same transaction.
+ * @param price the rental's total price.
+ * @param rentalId the rental the price belongs to.
+ * @param itemTitle the title of the item, or "".
+ * @returns the amount given back, 0 if nothing was written.
+ */
+export function writeRentalRelease(
+  tx: Transaction,
+  db: Firestore,
+  borrowerId: string,
+  wallet: Wallet,
+  price: number,
+  rentalId: string,
+  itemTitle: string,
+): number {
+  const released = Math.min(price, wallet.heldForRentals);
+  if (released <= 0) return 0;
+  writeWallet(
+    tx,
+    db,
+    borrowerId,
+    {
+      ...wallet,
+      available: wallet.available + released,
+      heldForRentals: wallet.heldForRentals - released,
+    },
+    { id: rentalReleasedRowId(rentalId), type: RENTAL_RELEASED, amount: released, itemTitle },
+  );
+  return released;
 }
 
 function walletRef(db: Firestore, uid: string): DocumentReference {
