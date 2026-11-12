@@ -425,6 +425,17 @@ class RentalDetailScreenTest {
   }
 
   @Test
+  fun cancelSaysItIsNotAvailableYet() {
+    setContent()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).performScrollTo()
+    assertShown(
+        C.Tag.rental_detail_cancel_not_available,
+        context.getString(R.string.not_available_yet),
+    )
+  }
+
+  @Test
   fun cancelRowShowsOnTheLastCancelDay() {
     // Pickup tomorrow: today (Mon 28 Sep) is the last day to cancel, so its date still shows.
     setContent(requested.copy(startDate = today.plusDays(1)))
@@ -454,6 +465,7 @@ class RentalDetailScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_map).performScrollTo()
     assertAbsent(C.Tag.rental_detail_cancel_until)
     assertAbsent(C.Tag.rental_detail_cancel_button)
+    assertAbsent(C.Tag.rental_detail_cancel_not_available)
   }
 
   @Test

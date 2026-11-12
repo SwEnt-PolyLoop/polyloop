@@ -52,6 +52,7 @@ import coil3.compose.AsyncImage
 import com.swent.polyloop.R
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.NotAvailableYet
 
 /**
  * The navigation drawer opened by the top bar's menu button (Figma frame 03): a header with the
@@ -194,7 +195,15 @@ private fun DrawerItem(
     showAdminBadge: Boolean = false,
 ) {
   NavigationDrawerItem(
-      label = { Text(stringResource(screen.labelRes)) },
+      label = {
+        Column {
+          Text(stringResource(screen.labelRes))
+          // Opens a placeholder until the Admin court ruling screen is built.
+          if (screen == Screen.AdminCourtRuling) {
+            NotAvailableYet(C.Tag.drawer_court_rulings_not_available)
+          }
+        }
+      },
       icon = { Icon(screen.iconPainter(), contentDescription = null) },
       badge = {
         if (showAdminBadge) {

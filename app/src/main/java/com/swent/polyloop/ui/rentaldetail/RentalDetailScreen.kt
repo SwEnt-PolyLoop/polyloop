@@ -50,6 +50,7 @@ import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.NotAvailableYet
 import com.swent.polyloop.ui.components.PickupMap
 import com.swent.polyloop.ui.components.RatingLine
 import com.swent.polyloop.ui.components.badgeColors
@@ -763,13 +764,16 @@ private fun CancelRow(lastCancelDay: LocalDate?, today: LocalDate, locale: Local
       Spacer(Modifier.weight(1f))
     }
     // Does nothing on purpose: cancelling needs a repository call and a rules change, which the
-    // cancel issue adds. Until then the button is only shown.
-    TextButton(onClick = {}, modifier = Modifier.testTag(C.Tag.rental_detail_cancel_button)) {
-      Text(
-          text = stringResource(R.string.rental_detail_cancel_request),
-          color = MaterialTheme.colorScheme.primary,
-          fontWeight = FontWeight.Bold,
-      )
+    // cancel issue adds. Until then the button is only shown, with "Not available yet" under it.
+    Column(horizontalAlignment = Alignment.End) {
+      TextButton(onClick = {}, modifier = Modifier.testTag(C.Tag.rental_detail_cancel_button)) {
+        Text(
+            text = stringResource(R.string.rental_detail_cancel_request),
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold,
+        )
+      }
+      NotAvailableYet(C.Tag.rental_detail_cancel_not_available, Modifier.padding(end = 12.dp))
     }
   }
 }

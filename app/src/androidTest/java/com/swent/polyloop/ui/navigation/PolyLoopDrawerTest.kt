@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.material3.DrawerDefaults
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -90,6 +92,12 @@ class PolyLoopDrawerTest {
   // Inside the clickable item, whose semantics merge it away.
   private fun badge() =
       composeTestRule.onNodeWithTag(C.Tag.drawer_admin_badge, useUnmergedTree = true)
+
+  private fun notAvailableYet() =
+      composeTestRule.onNodeWithTag(
+          C.Tag.drawer_court_rulings_not_available,
+          useUnmergedTree = true,
+      )
 
   // ---------- header ----------
 
@@ -191,6 +199,7 @@ class PolyLoopDrawerTest {
 
     item(Screen.AdminCourtRuling).assertDoesNotExist()
     badge().assertDoesNotExist()
+    notAvailableYet().assertDoesNotExist()
   }
 
   @Test
@@ -199,6 +208,22 @@ class PolyLoopDrawerTest {
 
     item(Screen.AdminCourtRuling).performScrollTo().assertIsDisplayed()
     badge().assertIsDisplayed()
+  }
+
+  @Test
+  fun onlyCourtRulingsSaysItIsNotAvailableYet() {
+    setDrawer(isAdmin = true)
+
+    item(Screen.AdminCourtRuling).performScrollTo()
+    notAvailableYet()
+        .assertIsDisplayed()
+        .assertTextEquals(context.getString(R.string.not_available_yet))
+    composeTestRule
+        .onAllNodesWithText(
+            context.getString(R.string.not_available_yet),
+            useUnmergedTree = true,
+        )
+        .assertCountEquals(1)
   }
 
   // ---------- width ----------
