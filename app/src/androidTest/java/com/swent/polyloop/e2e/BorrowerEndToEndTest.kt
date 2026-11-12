@@ -43,7 +43,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
   fun browseFindsAListingAndSendsARequest() {
     seedProfile(lenderId, LENDER_NAME)
     val listing = seedListing()
-    signInWithoutTheUi()
+    seedWallet(signInWithoutTheUi(), BALANCE)
     setApp()
     val card = C.Tag.listing_card_ + listing.id
     val lastDay = listing.availableTo
@@ -78,7 +78,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
         .assertIsDisplayed()
 
     // Request: ending on the last available day leaves no free day after it, so it is refused.
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).performClick()
+    pressRequest()
     waitForTag(C.Tag.date_picker_sheet)
     pickDays(firstDay, lastDay)
     composeTestRule.onNodeWithTag(C.Tag.date_picker_error).assertIsDisplayed()
@@ -93,8 +93,8 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     composeTestRule
         .onNodeWithTag(C.Tag.date_picker_summary_total)
         .assertTextEquals(context.getString(R.string.listing_card_price, 2 * PRICE_PER_DAY))
-    // Enabled only because Listing detail still uses a placeholder balance: once it reads the
-    // wallet, the test must give the new account enough PolyPoints first.
+    // Send request is enabled: the placeholder balance covers the price for now, and the seeded
+    // wallet will once Listing detail reads the wallet (#413).
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
     waitForText(C.Tag.chat_header_item, listing.title)
     assertRoute(Screen.Chat)
@@ -115,6 +115,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     val booked = BookedRange(firstDay.plusDays(4), firstDay.plusDays(5))
     val listing = seedListing(to = firstDay.plusDays(LAST_TEST_DAY), bookedRanges = listOf(booked))
     val uid = signInWithoutTheUi()
+    seedWallet(uid, BALANCE)
     setApp()
     openRequestPicker(listing)
 
@@ -284,8 +285,18 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     waitForTag(card)
     composeTestRule.onNodeWithTag(card).performClick()
     waitForText(C.Tag.listing_detail_title, listing.title)
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).performClick()
+    pressRequest()
     waitForTag(C.Tag.date_picker_sheet)
+  }
+
+  /**
+   * Presses "Request" once it is enabled, which it will only be once the wallet's balance is read,
+   * when Listing detail reads the wallet (#413). It sits in a bar pinned at the bottom of the
+   * screen, so there is nothing to scroll first.
+   */
+  private fun pressRequest() {
+    waitUntilEnabled(C.Tag.listing_detail_request_button)
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).performClick()
   }
 
   /**
@@ -301,5 +312,8 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
 
   private companion object {
     const val OFFER = 80
+
+    // Far more than the requests cost (a few days at PRICE_PER_DAY), once the picker reads it.
+    const val BALANCE = 100
   }
 }

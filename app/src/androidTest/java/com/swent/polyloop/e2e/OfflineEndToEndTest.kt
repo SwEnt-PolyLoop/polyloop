@@ -9,10 +9,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.polyloop.model.rental.RentalStatus
-import com.swent.polyloop.model.wallet.WalletFields
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
-import com.swent.polyloop.utils.FirebaseEmulator
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -38,9 +36,7 @@ class OfflineEndToEndTest : EndToEndTestBase() {
             firstDay.plusDays(1),
             RentalStatus.REQUESTED,
         )
-    val walletPath = "${WalletFields.COLLECTION}/$uid"
-    FirebaseEmulator.createDocumentAsAdmin(walletPath, mapOf(WalletFields.AVAILABLE to BALANCE))
-    trackDocument(walletPath)
+    seedWallet(uid, BALANCE)
     setApp()
     val card = C.Tag.listing_card_ + listing.id
     val row = C.Tag.my_rentals_row_ + rentalId

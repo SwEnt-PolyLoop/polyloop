@@ -26,7 +26,7 @@ class WalletEndToEndTest : EndToEndTestBase() {
   @Test
   fun walletShowsTheBalanceAndTheHistoryNewestFirst() {
     val uid = signInWithoutTheUi()
-    seedWallet(uid)
+    seedWalletWithHistory(uid)
     setApp()
 
     openFromMenu(Screen.Wallet)
@@ -62,17 +62,14 @@ class WalletEndToEndTest : EndToEndTestBase() {
   }
 
   /** The wallet of [uid] after a recharge and a deposit held, as the Cloud Functions write it. */
-  private fun seedWallet(uid: String) {
-    val walletPath = "${WalletFields.COLLECTION}/$uid"
-    FirebaseEmulator.createDocumentAsAdmin(
-        walletPath,
-        mapOf(
-            WalletFields.AVAILABLE to AVAILABLE,
-            WalletFields.HELD_AS_DEPOSITS to DEPOSIT,
-            WalletFields.HELD_FOR_RENTALS to HELD_FOR_RENTALS,
-        ),
-    )
-    trackDocument(walletPath)
+  private fun seedWalletWithHistory(uid: String) {
+    val walletPath =
+        seedWallet(
+            uid,
+            AVAILABLE,
+            heldAsDeposits = DEPOSIT,
+            heldForRentals = HELD_FOR_RENTALS,
+        )
     val now = Instant.now()
     seedTransaction(
         "$walletPath/${WalletFields.TRANSACTIONS}/$RECHARGE_ROW",

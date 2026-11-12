@@ -45,6 +45,7 @@ import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalFields
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.model.rental.ServerClock
+import com.swent.polyloop.model.wallet.WalletFields
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.utils.FirebaseEmulator
@@ -323,6 +324,30 @@ abstract class EndToEndTestBase {
   protected fun trackRental(id: String) {
     seededDocs += "${RentalFields.COLLECTION}/$id"
     seededCollections += "${RentalFields.COLLECTION}/$id/messages"
+  }
+
+  /**
+   * The wallet of [uid], in PP, as the Cloud Functions write it. Returns its path, under which the
+   * history goes. It must not exist yet: a Function that creates wallets (`createWalletOnProfile`)
+   * would make this fail once the CI runs the Functions emulator.
+   */
+  protected fun seedWallet(
+      uid: String,
+      available: Int,
+      heldAsDeposits: Int = 0,
+      heldForRentals: Int = 0,
+  ): String {
+    val path = "${WalletFields.COLLECTION}/$uid"
+    FirebaseEmulator.createDocumentAsAdmin(
+        path,
+        mapOf(
+            WalletFields.AVAILABLE to available,
+            WalletFields.HELD_AS_DEPOSITS to heldAsDeposits,
+            WalletFields.HELD_FOR_RENTALS to heldForRentals,
+        ),
+    )
+    trackDocument(path)
+    return path
   }
 
   /** Deletes the document at [path], written by the test as an admin, after the test. */
