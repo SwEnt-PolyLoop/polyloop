@@ -89,6 +89,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 **Money (PolyPoints)**
 - In-app currency: PolyPoints (PP), 1 CHF = 1 PP. Recharge on the Wallet screen with a whole CHF amount from 1 to 99,999 (the same cap as a listing price); a recharge that would overflow the balance is refused. Payments are simulated. No withdrawals.
+- Every new user starts with 120 PP: when their profile is created, on their first verified log-in, the `createWalletOnProfile` Cloud Function creates `wallets/{uid}` with `available` 120, nothing held, and one `RECHARGE` history row of +120 PP (id `starting_balance`, no item). A wallet that already exists is left as it is, so nobody gets them twice.
 - Sending a request reserves the rental price (price per day × days) from the borrower's balance; the request fails if the balance is too low. The wallet shows that price as `heldForRentals` and the deposits as `heldAsDeposits`; `reserved` is their sum, computed and never stored, and `available` + `reserved` is the user's total. A missing field reads as 0. (Not yet: until then, `payLender` takes the price from `available`.)
 - The lender is paid the rental price once the item has been picked up (`payLender`); until the price is reserved when a request is sent, it is taken from `available`, afterwards it will come from `heldForRentals`.
 - The deposit is negotiated before acceptance, and only the deposit: the rental price is fixed. The item value is shown as the suggested deposit. An offer or a counteroffer is a whole amount from 1 to 99,999 PP (the same cap as a listing price).
@@ -193,7 +194,7 @@ Rentals:
 
 Wallet:
 - `WalletRepositoryFirestore` only reads, with plain snapshot listeners, so the wallet and the history stay readable offline from the cache. The history is not sorted there (`WalletViewModel` sorts it). An invalid uid reads as an empty wallet and history. `recharge` always fails ("not available yet") until a recharge Cloud Function exists.
-- Until recharging exists, give a test user PolyPoints by hand: edit `wallets/{uid}` in the Firebase console, or write it with a script against the emulator (Admin SDK or the emulator's REST API with the `Bearer owner` token, which skips the rules). Add a matching `RECHARGE` row in `transactions` if the history should add up to `available`.
+- Until recharging exists, a user has only the 120 PP they start with (see "Money"); give a test user more by hand: edit `wallets/{uid}` in the Firebase console, or write it with a script against the emulator (Admin SDK or the emulator's REST API with the `Bearer owner` token, which skips the rules). Add a matching `RECHARGE` row in `transactions` if the history should add up to `available`.
 
 Disputes:
 - One per rental, at the rental's id. Nothing is copied from the rental: the item, both participants and the deposit are read from it.
@@ -220,7 +221,7 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 ## Not decided yet — ask before implementing
 
 - Security rules for collections not listed in the schema above
-- Cloud Function names and signatures, apart from `geocodeListingAddresses` (see "Firestore schema") and the negotiation's: `makeOffer({rentalId, deposit, pickupAddress, returnAddress})`, `respondToOffer({rentalId, action, deposit})` (`action` is `ACCEPT`, `DECLINE` or `COUNTER`; `deposit` only for `COUNTER`), `declineRequest({rentalId})`, `serverToday()` (returns `{today: "YYYY-MM-DD", now: epoch ms}`, `today` in Europe/Zurich), the scheduled `expireOffers`, the dispute's: `proposeSplit({rentalId, lenderPercent})`, `acceptSplit({rentalId, lenderPercent})`, `escalateDispute({rentalId})` and the scheduled `escalateDisputes`, and the wallet's: `reserveDeposit({rentalId})` and `payLender({rentalId})`
+- Cloud Function names and signatures, apart from `geocodeListingAddresses` (see "Firestore schema") and the negotiation's: `makeOffer({rentalId, deposit, pickupAddress, returnAddress})`, `respondToOffer({rentalId, action, deposit})` (`action` is `ACCEPT`, `DECLINE` or `COUNTER`; `deposit` only for `COUNTER`), `declineRequest({rentalId})`, `serverToday()` (returns `{today: "YYYY-MM-DD", now: epoch ms}`, `today` in Europe/Zurich), the scheduled `expireOffers`, the dispute's: `proposeSplit({rentalId, lenderPercent})`, `acceptSplit({rentalId, lenderPercent})`, `escalateDispute({rentalId})` and the scheduled `escalateDisputes`, and the wallet's: `reserveDeposit({rentalId})`, `payLender({rentalId})` and `createWalletOnProfile` (triggered when `users/{uid}` is created)
 - Whether the auto-cancel waits until a set time on the pickup day (e.g. noon) so offline return scans can sync first
 - What happens when nobody shows up on the pickup day: condition photos are refused from the next day and cancelling closed the day before, so the rental stays Accepted with the price and the deposit held
 - The exact list of push notifications

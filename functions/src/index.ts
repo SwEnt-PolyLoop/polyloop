@@ -18,6 +18,7 @@ export { expireOffers } from "./expireOffers";
 export { reserveDeposit } from "./reserveDeposit";
 export { serverToday } from "./serverToday";
 export { payLender } from "./payLender";
+export { createWalletOnProfile } from "./createWalletOnProfile";
 export { proposeSplit } from "./proposeSplit";
 export { acceptSplit } from "./acceptSplit";
 export { escalateDispute } from "./escalateDispute";
