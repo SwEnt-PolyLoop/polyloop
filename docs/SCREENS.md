@@ -13,6 +13,7 @@ Elements shared across screens:
 - **Top bar.** Transparent, with a menu button and a profile button. Rental screens also show a role pill, “You lend” or “You borrow”.
 - **Navigation drawer** (Figma frame 03). The menu button opens it. It takes 80% of the screen's width, but no more than 360 dp (its width in landscape) and no less than 240 dp, so a strip of the current screen stays visible beside it: a fifth of the width on screens of at least 300 dp, less below, and none under 240 dp, where the drawer fills the screen. Back, a tap on that strip or a swipe closes it. A header with the signed-in user's avatar (photo, or their initial), name and rating, then every standalone screen with an icon, the current one highlighted: Browse, Create listing, My rentals, Chats, Wallet, Profile. After a divider, “Court rulings” with an “Admin” badge, for admins only. A footer notes that screens tied to one listing or rental open from inside the app, not from the drawer. Tapping an item opens it and closes the drawer. ViewModel: DrawerViewModel, using ProfileRepository.
 - **Currency.** All prices and deposits are in PolyPoints, PolyLoop's in-app currency, at 1 CHF = 1 PolyPoint. Users recharge on the Wallet screen. Recharging is simulated: no real payment is made.
+- **Not available yet.** A button shown before its feature exists has a small grey “Not available yet” next to it, so testers know it is planned, not broken. The label goes away in the change that makes the button work. Today: Map on Browse, “Cancel request” on Rental detail, “Recharge” on Wallet and, for admins, “Court rulings” in the drawer.
 - **Offline banner.** Shown at the top of every screen while offline. Actions that need a connection (browsing new listings, recharging, payments, sending messages) stay visible but disabled.
 - **Locations offline.** Map tiles need a connection, so offline screens show meeting points as text (the address).
 - **Photos.** Every photo is taken with the in-app camera, never picked from the gallery.
@@ -56,7 +57,7 @@ Edit profile is where the signed-in user changes their name and photo. It opens 
 The Wallet screen holds the user's in-app balance, which pays for rentals and deposits. ViewModel: WalletViewModel, using WalletRepository. The balance is only ever changed by Cloud Functions; the app sends a request and shows the result.
 
 - The available balance in PolyPoints (everything held excluded), then “Held as deposits”, the deposits held, and, only when it is above 0, “Held for rentals”, the rental prices reserved since a request was sent (the deposit only exists once an offer is accepted). Available plus both held amounts is the user's total.
-- A “Recharge” button: the user enters a whole Swiss franc amount from 1 to 99,999 and receives the same number of PolyPoints. Recharging is simulated; no real payment is made.
+- A “Recharge” button: the user enters a whole Swiss franc amount from 1 to 99,999 and receives the same number of PolyPoints. Recharging is simulated; no real payment is made. Not built yet: the button does nothing and shows “Not available yet” under it.
 - A transaction history, newest first: recharges, rental payments, late fees, and deposits held, released, split or forfeited (the rest of the deposit, paid to the lender once the item is lost). The amounts add up to the available balance; late fees and forfeited deposits show only in the lender's history, and a borrower's late fees appear as a smaller deposit release.
 - PolyPoints cannot be withdrawn back to Swiss francs.
 - Offline: balance and history stay readable from cache; recharging is disabled.
@@ -80,7 +81,7 @@ Each rental has exactly one 1:1 conversation between its lender and borrower. Vi
 
 Browse shows available items near the user, as a map or a list. ViewModel: BrowseViewModel, using ListingRepository and LocationRepository.
 
-- A toggle between map view (Google Maps SDK) and list view.
+- A toggle between map view (Google Maps SDK) and list view. The map view is not built yet: “Map” does nothing and shows “Not available yet” under it.
 - Map pins sit at each listing's pickup area, never the exact address.
 - List sorted by distance, using the phone's GPS.
 - Listing cards with the first photo, title, price per day in PolyPoints, distance and pickup area. Tapping a card opens Listing detail.
@@ -158,7 +159,7 @@ Start Pickup opens from the server's date, not the phone's, so changing the phon
     - Active: “Start return”, which opens Handover.
     - Disputed: “View dispute”, which opens Dispute.
     - Closed: the review prompt (see Profile & reviews).
-- Either party can cancel until the day before pickup. On the pickup day the rental is locked and can no longer be cancelled. The 1-day buffer between rentals gives the lender time to cancel the next rental if the previous one went wrong. If the item is still not back from the previous rental on the pickup day, the rental is cancelled automatically and the borrower gets the reserved price and the deposit back.
+- Either party can cancel until the day before pickup. On the pickup day the rental is locked and can no longer be cancelled. Not built yet: “Cancel request” does nothing and shows “Not available yet” under it. The 1-day buffer between rentals gives the lender time to cancel the next rental if the previous one went wrong. If the item is still not back from the previous rental on the pickup day, the rental is cancelled automatically and the borrower gets the reserved price and the deposit back.
 - **Late returns.** After the deadline there is a 3-day grace period with daily reminders. Each late day deducts the price per day plus a fixed fee of 2 PolyPoints from the held deposit and pays it to the lender, so returning late always costs more than renting longer. Fees stop once the deposit is used up. After 3 days the item counts as lost and whatever remains of the deposit goes to the lender.
 
 ## Handover
