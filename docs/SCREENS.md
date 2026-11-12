@@ -92,7 +92,7 @@ Browse shows available items near the user, as a map or a list. ViewModel: Brows
 
 ## Listing detail
 
-Listing detail is where a borrower decides and sends a request. ViewModel: ListingDetailViewModel, using ListingRepository, RentalRepository (to send the request) and ProfileRepository.
+Listing detail is where a borrower decides and sends a request. ViewModel: ListingDetailViewModel, using ListingRepository, RentalRepository (to send the request), ProfileRepository and WalletRepository (the balance).
 
 - Photo carousel, title, description, price per day, and the suggested deposit (the item's value), all in PolyPoints. The final deposit is negotiated after the request: the lender offers an amount, and the borrower answers in the chat.
 - The owner's photo (round, or their initial without one), name and rating, linking to their profile, read along with the listing. An owner with no reviews shows “No reviews yet”. If their profile is missing or cannot be read, the listing still shows, with “No name yet” and no rating. If the owner is someone else and their profile is already open further back (the user came from it), the link goes back to it instead of opening it again.
@@ -100,6 +100,7 @@ Listing detail is where a borrower decides and sends a request. ViewModel: Listi
 - The lender's availability window, and a “Request” button that opens a date picker limited to that window. Booked days (accepted rentals only; a pending request blocks no day), plus a 1-day buffer before and after each booking, are greyed out. The total is the price per day times the number of days. Disabled offline.
 - When the request is sent, the booked days are read again from the server. If the dates were booked meanwhile, nothing is sent: the picker greys out the new booked days and shows “These dates are no longer available”, until the user taps a new day. If the listing was deleted or unpublished meanwhile, the picker closes and the listing shows as not found.
 - Sending a request reserves the rental price from the borrower's balance; if the balance is too low, the request does not go through.
+- The date picker compares the price to the user's available PolyPoints (held amounts excluded), read from the wallet. A missing wallet counts as 0. While the balance is unknown (loading, or the wallet cannot be read), “Request” is disabled. This check only guides the user; the server does not check the balance yet.
 - On your own listing: “Edit” and “Delete” instead of “Request”, locked while a rental is accepted or active.
 
 ## Create / edit listing

@@ -54,6 +54,7 @@ import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.RentalFields
 import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.model.wallet.FakeWalletRepository
+import com.swent.polyloop.model.wallet.Wallet
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.utils.FirebaseEmulator
@@ -124,7 +125,7 @@ class EndToEndTest {
     Firebase.auth.signOut()
     RepositoryProvider.reset()
     RepositoryProvider.connectivityRepository = FakeConnectivityRepository(online = true)
-    RepositoryProvider.walletRepository = FakeWalletRepository()
+    RepositoryProvider.walletRepository = FakeWalletRepository(wallet = Wallet(available = 1000))
     // Saves in memory, so no test writes a server time to the app's real preferences.
     RepositoryProvider.serverClock =
         ServerClock(
@@ -332,8 +333,6 @@ class EndToEndTest {
     composeTestRule
         .onNodeWithTag(C.Tag.date_picker_summary_total)
         .assertTextEquals(context.getString(R.string.listing_card_price, 2 * PRICE_PER_DAY))
-    // Enabled only because Listing detail still uses a placeholder balance: once it reads the
-    // wallet, the test must give the new account enough PolyPoints first.
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
     waitForText(C.Tag.chat_header_item, listing.title)
     assertRoute(Screen.Chat)

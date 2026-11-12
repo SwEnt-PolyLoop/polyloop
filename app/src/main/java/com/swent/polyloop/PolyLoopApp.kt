@@ -284,6 +284,7 @@ private fun PolyLoopScaffold(
                         authRepository = RepositoryProvider.authRepository,
                         profileRepository = RepositoryProvider.profileRepository,
                         connectivityRepository = RepositoryProvider.connectivityRepository,
+                        walletRepository = RepositoryProvider.walletRepository,
                     )
             )
         ListingDetailScreen(

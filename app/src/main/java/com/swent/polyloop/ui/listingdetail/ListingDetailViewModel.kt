@@ -14,11 +14,14 @@ import com.swent.polyloop.model.listing.bookedDays
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.RentalRepository
+import com.swent.polyloop.model.wallet.WalletRepository
 import com.swent.polyloop.ui.components.isRequestable
 import java.time.LocalDate
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -33,6 +36,10 @@ import kotlinx.coroutines.launch
  * [isOffline] is true while the phone has no connection; the screen then shows the pickup area as
  * text, since the map tiles need a connection. [owner] is the lender's profile, or null when it is
  * missing or could not be read (the listing still shows, without the lender's details).
+ * [availableBalance] is the signed-in user's spendable balance in whole PP (`Wallet.available`,
+ * held amounts excluded), or null until the wallet has been read, or when it cannot be read or
+ * nobody is signed in; the screen then disables "Request" instead of guessing. A missing wallet is
+ * a real balance of 0.
  */
 data class ListingDetailUiState(
     val listing: Listing? = null,
@@ -50,12 +57,14 @@ data class ListingDetailUiState(
     val disabledDates: Set<LocalDate> = emptySet(),
     val datesTaken: Boolean = false,
     val isOffline: Boolean = false,
+    val availableBalance: Int? = null,
 )
 
 /**
  * Shows one published listing, holds the dates the borrower picks and sends the request. It follows
  * the network status from [connectivityRepository], so the screen knows when to replace the map.
- * [today] gives the phone's date, the same one the date picker uses.
+ * [today] gives the phone's date, the same one the date picker uses. The balance the date picker
+ * compares the price to comes from [walletRepository].
  */
 class ListingDetailViewModel(
     private val listingId: String,
@@ -64,14 +73,18 @@ class ListingDetailViewModel(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
     private val connectivityRepository: ConnectivityRepository,
+    private val walletRepository: WalletRepository,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(ListingDetailUiState())
   val uiState: StateFlow<ListingDetailUiState> = _uiState.asStateFlow()
 
+  private var observingWallet: Job? = null
+
   init {
     load()
+    observeWallet()
     viewModelScope.launch {
       connectivityRepository.isOnline.collect { online ->
         _uiState.update { it.copy(isOffline = !online) }
@@ -79,8 +92,23 @@ class ListingDetailViewModel(
     }
   }
 
-  /** Loads the listing again, e.g. after an error. */
-  fun retry() = load()
+  /** Loads the listing and follows the wallet again, e.g. after an error. */
+  fun retry() {
+    load()
+    observeWallet()
+  }
+
+  private fun observeWallet() {
+    observingWallet?.cancel()
+    _uiState.update { it.copy(availableBalance = null) }
+    val uid = authRepository.getCurrentUser()?.uid ?: return
+    observingWallet = viewModelScope.launch {
+      walletRepository
+          .observeWallet(uid)
+          .catch { _uiState.update { it.copy(availableBalance = null) } }
+          .collect { wallet -> _uiState.update { it.copy(availableBalance = wallet.available) } }
+    }
+  }
 
   private fun load() {
     _uiState.update { it.copy(isLoading = true, errorMsg = null, listingNotFound = false) }
@@ -238,6 +266,7 @@ class ListingDetailViewModel(
       private val authRepository: AuthRepository,
       private val profileRepository: ProfileRepository,
       private val connectivityRepository: ConnectivityRepository,
+      private val walletRepository: WalletRepository,
       private val today: () -> LocalDate = LocalDate::now,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -252,6 +281,7 @@ class ListingDetailViewModel(
           authRepository,
           profileRepository,
           connectivityRepository,
+          walletRepository,
           today,
       )
           as T

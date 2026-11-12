@@ -13,6 +13,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -38,6 +39,8 @@ import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.wallet.FakeWalletRepository
+import com.swent.polyloop.model.wallet.Wallet
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.utils.FakePhotoServerRule
 import com.swent.polyloop.utils.FakePhotos
@@ -98,7 +101,7 @@ class ListingDetailScreenTest {
     composeTestRule.setContent {
       grey = MaterialTheme.colorScheme.surfaceVariant
       ListingDetailContent(
-          uiState = ListingDetailUiState(listing = listing),
+          uiState = ListingDetailUiState(listing = listing, availableBalance = 120),
           onRequestDates = { requestClicks++ },
           onConfirmDates = { start, end -> confirmedDates += start to end },
           onDismissDatePicker = {},
@@ -257,6 +260,7 @@ class ListingDetailScreenTest {
             FakeAuthRepository(),
             FakeProfileRepository(profiles = listOf(owner)),
             FakeConnectivityRepository(),
+            FakeWalletRepository(),
         )
     composeTestRule.setContent {
       ListingDetailScreen(viewModel = viewModel, onLenderClick = {}, onRequestSent = {})
@@ -335,6 +339,7 @@ class ListingDetailScreenTest {
             FakeAuthRepository(),
             FakeProfileRepository(),
             connectivity,
+            FakeWalletRepository(),
         )
     composeTestRule.setContent {
       ListingDetailScreen(viewModel = viewModel, onLenderClick = {}, onRequestSent = {})
@@ -364,6 +369,20 @@ class ListingDetailScreenTest {
 
     assertEquals(1, requestClicks)
     assertEquals(0, lenderClicks)
+  }
+
+  @Test
+  fun requestButtonIsDisabledWhileTheBalanceIsUnknown() {
+    setContent(uiState = ListingDetailUiState(listing = listing, availableBalance = null))
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).assertIsNotEnabled()
+  }
+
+  @Test
+  fun requestButtonIsEnabledOnceTheBalanceIsKnown() {
+    setContent(uiState = ListingDetailUiState(listing = listing, availableBalance = 0))
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).assertIsEnabled()
   }
 
   @Test
@@ -570,7 +589,10 @@ class ListingDetailScreenTest {
 
   @Test
   fun datePickerShowsListingWindowAndPrice() {
-    setContent(uiState = ListingDetailUiState(listing = listing, isDatePickerOpen = true))
+    setContent(
+        uiState =
+            ListingDetailUiState(listing = listing, isDatePickerOpen = true, availableBalance = 120)
+    )
 
     composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertIsDisplayed()
     val (from, to) =
@@ -594,10 +616,14 @@ class ListingDetailScreenTest {
   }
 
   @Test
-  fun sendRequestDisabledWhenTotalExceedsPlaceholderBalance() {
+  fun sendRequestDisabledWhenTotalExceedsBalance() {
     setContent(
         uiState =
-            ListingDetailUiState(listing = listing.copy(pricePerDay = 50), isDatePickerOpen = true)
+            ListingDetailUiState(
+                listing = listing.copy(pricePerDay = 50),
+                isDatePickerOpen = true,
+                availableBalance = 120,
+            )
     )
 
     tapDays(oct(15), oct(17))
@@ -611,7 +637,10 @@ class ListingDetailScreenTest {
 
   @Test
   fun sendRequestCallsOnConfirmDates() {
-    setContent(uiState = ListingDetailUiState(listing = listing, isDatePickerOpen = true))
+    setContent(
+        uiState =
+            ListingDetailUiState(listing = listing, isDatePickerOpen = true, availableBalance = 120)
+    )
 
     tapDays(oct(15), oct(17))
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
@@ -665,6 +694,7 @@ class ListingDetailScreenTest {
             FakeAuthRepository(),
             FakeProfileRepository(),
             FakeConnectivityRepository(),
+            FakeWalletRepository(),
         )
     var clickedOwnerId: String? = null
     composeTestRule.setContent {
@@ -698,7 +728,12 @@ class ListingDetailScreenTest {
     composeTestRule.setContent {
       ListingDetailContent(
           uiState =
-              ListingDetailUiState(listing = listing, isDatePickerOpen = true, sentRentalId = "r1"),
+              ListingDetailUiState(
+                  listing = listing,
+                  isDatePickerOpen = true,
+                  availableBalance = 120,
+                  sentRentalId = "r1",
+              ),
           onRequestDates = {},
           onConfirmDates = { _, _ -> },
           onDismissDatePicker = {},
@@ -721,6 +756,7 @@ class ListingDetailScreenTest {
             ListingDetailUiState(
                 listing = listing,
                 isDatePickerOpen = true,
+                availableBalance = 120,
                 sendError = "Network down",
             )
     )
@@ -739,6 +775,7 @@ class ListingDetailScreenTest {
             ListingDetailUiState(
                 listing = listing,
                 isDatePickerOpen = true,
+                availableBalance = 120,
                 disabledDates = setOf(oct(10)),
                 datesTaken = true,
                 sendError = "Network down",
@@ -759,7 +796,12 @@ class ListingDetailScreenTest {
     var dayPicks = 0
     composeTestRule.setContent {
       ListingDetailContent(
-          uiState = ListingDetailUiState(listing = listing, isDatePickerOpen = true),
+          uiState =
+              ListingDetailUiState(
+                  listing = listing,
+                  isDatePickerOpen = true,
+                  availableBalance = 120,
+              ),
           onRequestDates = {},
           onConfirmDates = { _, _ -> },
           onDismissDatePicker = {},
@@ -799,6 +841,7 @@ class ListingDetailScreenTest {
             FakeAuthRepository(signedInUser = AuthUser("me", "loca@epfl.ch", "Loca")),
             FakeProfileRepository(),
             FakeConnectivityRepository(),
+            FakeWalletRepository(wallet = Wallet(available = 489)),
         )
     val sent = mutableListOf<String>()
     composeTestRule.setContent {
