@@ -1,10 +1,13 @@
 // Made with Claude.
 
 import { randomUUID } from "node:crypto";
-import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
+import { createWalletOnProfile } from "./index";
 import { STARTING_BALANCE_ROW_ID, createStartingWallet } from "./createWalletOnProfile";
 import { fund, rows, wallet } from "./testing/walletFixtures";
+
+// Firebase loads this ES module to verify tokens, which Jest cannot load.
+jest.mock("jose", () => ({}));
 
 let db: Firestore;
 
@@ -16,7 +19,6 @@ beforeAll(() => {
         'firebase emulators:exec --only firestore "npm test"',
     );
   }
-  if (getApps().length === 0) initializeApp({ projectId: process.env.GCLOUD_PROJECT });
   db = getFirestore();
 });
 
@@ -62,5 +64,50 @@ describe("createStartingWallet", () => {
 
     expect(await wallet(uid)).toEqual({});
     expect(await rows(uid)).toEqual([]);
+  });
+
+  it("gives the PolyPoints once when it runs again, e.g. for a profile created again", async () => {
+    const uid = newUser();
+    await createStartingWallet(db, uid);
+
+    expect(await createStartingWallet(db, uid)).toBe(false);
+
+    expect(await wallet(uid)).toEqual(STARTING_WALLET);
+    expect(await rows(uid)).toHaveLength(1);
+  });
+
+  it("gives the PolyPoints once when two runs race", async () => {
+    const uid = newUser();
+
+    const created = await Promise.all([
+      createStartingWallet(db, uid),
+      createStartingWallet(db, uid),
+    ]);
+
+    expect(created.filter(Boolean)).toHaveLength(1);
+    expect(await wallet(uid)).toEqual(STARTING_WALLET);
+    expect(await rows(uid)).toHaveLength(1);
+  });
+
+  it("gives each user their own wallet", async () => {
+    const [ana, ben] = [newUser(), newUser()];
+    await fund(ben, { available: 7 });
+
+    await createStartingWallet(db, ana);
+    await createStartingWallet(db, ben);
+
+    expect(await wallet(ana)).toEqual(STARTING_WALLET);
+    expect(await wallet(ben)).toEqual({ available: 7 });
+  });
+});
+
+describe("createWalletOnProfile", () => {
+  it("creates the wallet of the user whose profile was created", async () => {
+    const uid = newUser();
+
+    await createWalletOnProfile.run({ params: { uid } } as never);
+
+    expect(await wallet(uid)).toEqual(STARTING_WALLET);
+    expect(await rows(uid)).toHaveLength(1);
   });
 });

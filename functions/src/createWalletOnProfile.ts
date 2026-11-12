@@ -1,6 +1,7 @@
 // Made with Claude.
 
-import { Firestore } from "firebase-admin/firestore";
+import { Firestore, getFirestore } from "firebase-admin/firestore";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { Wallet, writeWallet } from "./wallet";
 
 /** The PolyPoints every new user starts with (see "Money" in docs/ARCHITECTURE.md). */
@@ -32,3 +33,15 @@ export async function createStartingWallet(db: Firestore, uid: string): Promise<
     return true;
   });
 }
+
+/**
+ * When a profile is created, on the user's first verified log-in, creates their wallet with the
+ * starting balance (see [createStartingWallet]). An account that is never verified gets no profile,
+ * so no wallet. A run that fails is retried; running twice is harmless.
+ */
+export const createWalletOnProfile = onDocumentCreated(
+  { document: "users/{uid}", retry: true },
+  async (event) => {
+    await createStartingWallet(getFirestore(), event.params.uid);
+  },
+);
