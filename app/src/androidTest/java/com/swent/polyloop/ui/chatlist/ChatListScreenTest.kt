@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.chatlist
 
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
@@ -210,5 +211,21 @@ class ChatListScreenTest {
     rowNode("tent", C.Tag.chat_list_row_name).assertTextEquals("Ana")
     composeTestRule.onNodeWithTag(C.Tag.chat_list_row_ + "tent").performClick()
     assertEquals("tent", clicked)
+  }
+
+  @Test
+  fun redDotShowsOnlyOnUnreadConversations() {
+    val read = tent.copy(rentalId = "read")
+    setContent(
+        ChatListUiState(rows = listOf(tent.copy(isUnread = true), read, drill), isLoading = false)
+    )
+
+    rowNode("tent", C.Tag.chat_list_row_unread)
+        .assertIsDisplayed()
+        .assertContentDescriptionEquals(context.getString(R.string.chat_list_unread))
+    rowNode("read", C.Tag.chat_list_row_unread).assertDoesNotExist()
+    rowNode("drill", C.Tag.chat_list_row_unread).assertDoesNotExist()
+    // The message is still shown next to the dot.
+    rowNode("tent", C.Tag.chat_list_row_message).assertTextEquals("See you at 5?")
   }
 }

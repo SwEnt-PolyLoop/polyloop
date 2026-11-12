@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.resources.C
@@ -59,6 +60,11 @@ fun ChatScreen(
     onStartPickupClick: () -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  // Messages count as seen only while the chat is visible, not from the back stack or background.
+  LifecycleStartEffect(viewModel) {
+    viewModel.onStarted()
+    onStopOrDispose { viewModel.onStopped() }
+  }
   ChatContent(
       uiState = uiState,
       onDraftChange = viewModel::onDraftChange,

@@ -50,6 +50,10 @@ class FakeChatRepository(
   var sendMessageCalls = 0
     private set
 
+  // How many times markAsRead was called, including the calls that failed.
+  var markAsReadCalls = 0
+    private set
+
   override fun observeConversations(uid: String): Flow<List<Conversation>> =
       failing()
           ?: storedConversations.map { all ->
@@ -84,7 +88,33 @@ class FakeChatRepository(
     }
     storedConversations.update { all ->
       all.map {
-        if (it.rentalId == rentalId) it.copy(lastMessage = text, lastMessageAt = now) else it
+        if (it.rentalId == rentalId) {
+          // Like the real repository: the sender's read time is the message's time.
+          it.copy(
+              lastMessage = text,
+              lastMessageAt = now,
+              lastReadAt = it.lastReadAt + (uid to now),
+          )
+        } else {
+          it
+        }
+      }
+    }
+    return Result.success(Unit)
+  }
+
+  override suspend fun markAsRead(rentalId: String): Result<Unit> {
+    markAsReadCalls++
+    failure?.let {
+      return Result.failure(it)
+    }
+    val uid = currentUid ?: return Result.failure(IllegalStateException("Nobody is signed in"))
+    if (conversations.none { it.rentalId == rentalId }) {
+      return Result.failure(NoSuchElementException("No rental $rentalId"))
+    }
+    storedConversations.update { all ->
+      all.map {
+        if (it.rentalId == rentalId) it.copy(lastReadAt = it.lastReadAt + (uid to now)) else it
       }
     }
     return Result.success(Unit)

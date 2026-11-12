@@ -38,4 +38,11 @@ interface ChatRepository {
    * decided whether this is the right behaviour.
    */
   suspend fun sendMessage(rentalId: String, text: String): Result<Unit>
+
+  /**
+   * Saves that the signed-in user has just opened the chat of [rentalId], at the server's time, so
+   * the chat list stops showing it as unread for them. Fails like [sendMessage] for an invalid id,
+   * nobody signed in, or a write error; offline, the save stays queued and is a success.
+   */
+  suspend fun markAsRead(rentalId: String): Result<Unit>
 }

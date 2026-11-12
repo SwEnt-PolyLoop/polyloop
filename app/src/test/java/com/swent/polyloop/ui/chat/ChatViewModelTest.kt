@@ -79,14 +79,11 @@ class ChatViewModelTest {
     Dispatchers.resetMain()
   }
 
-  private fun viewModel(repository: ChatRepository = chat, rentalId: String = "tent") =
-      ChatViewModel(
-          rentalId,
-          repository,
-          auth,
-          FakeRentalRepository(),
-          FakeConnectivityRepository(),
-      )
+  private fun viewModel(
+      repository: ChatRepository = chat,
+      rentalId: String = "tent",
+      connectivity: FakeConnectivityRepository = FakeConnectivityRepository(),
+  ) = ChatViewModel(rentalId, repository, auth, FakeRentalRepository(), connectivity)
 
   // ---------- loading ----------
 
@@ -352,6 +349,272 @@ class ChatViewModelTest {
 
     assertEquals("And another thing", vm.uiState.value.draft)
     assertTrue(vm.uiState.value.sendFailed)
+  }
+
+  // ---------- marking as read ----------
+
+  private val great = message("m4", "ana", "Great", MessageType.USER)
+
+  @Test
+  fun openingTheChatMarksItAsRead() {
+    viewModel().onStarted()
+
+    assertEquals(1, chat.markAsReadCalls)
+    assertEquals(chat.now, chat.conversations.single().lastReadAt["me"])
+  }
+
+  @Test
+  fun chatIsNotMarkedAsReadBeforeTheScreenIsVisible() {
+    viewModel()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun newMessageWhileTheChatIsOpenMarksItAgain() {
+    viewModel().onStarted()
+
+    chat.messages = mapOf("tent" to listOf(fromAna, great))
+
+    assertEquals(2, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun newMessageWhileTheChatIsHiddenStaysUnread() {
+    val vm = viewModel()
+    vm.onStarted()
+    vm.onStopped() // e.g. Rental detail opened on top of the chat
+
+    chat.messages = mapOf("tent" to listOf(fromAna, great))
+
+    assertEquals(1, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun comingBackToTheChatMarksTheMessagesReceivedMeanwhile() {
+    val vm = viewModel()
+    vm.onStarted()
+    vm.onStopped()
+    chat.messages = mapOf("tent" to listOf(fromAna, great))
+
+    vm.onStarted()
+
+    assertEquals(2, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun comingBackWithoutNewMessagesDoesNotMarkAgain() {
+    val vm = viewModel()
+    vm.onStarted()
+    vm.onStopped()
+
+    vm.onStarted()
+
+    assertEquals(1, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun sameNewestMessageConfirmedByTheServerIsNotMarkedAgain() {
+    viewModel().onStarted()
+
+    // Firestore sends the list again when the server confirms a message's time.
+    chat.messages =
+        mapOf("tent" to listOf(fromAna, fromMe, fromApp.copy(sentAt = at.plusSeconds(9))))
+
+    assertEquals(1, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun ownNewestMessageIsNotMarked() {
+    chat.messages = mapOf("tent" to listOf(fromAna, fromMe))
+
+    viewModel().onStarted()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun sendingAMessageDoesNotMarkTheChatAgain() {
+    val vm = viewModel()
+    vm.onStarted()
+
+    vm.onDraftChange("See you then")
+    vm.send()
+
+    assertEquals("See you then", vm.uiState.value.messages.last().text)
+    assertEquals(1, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun chatOpenedOfflineIsNotMarkedAsRead() {
+    viewModel(connectivity = FakeConnectivityRepository(online = false)).onStarted()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun reconnectingWithTheChatOpenMarksItAsRead() {
+    val connectivity = FakeConnectivityRepository(online = false)
+    viewModel(connectivity = connectivity).onStarted()
+
+    connectivity.setOnline(true)
+
+    assertEquals(1, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun reconnectingWhileTheChatIsHiddenDoesNotMarkIt() {
+    val connectivity = FakeConnectivityRepository(online = false)
+    val vm = viewModel(connectivity = connectivity)
+    vm.onStarted()
+    vm.onStopped()
+
+    connectivity.setOnline(true)
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun chatWithoutMessagesIsNotMarkedAsRead() {
+    chat.messages = emptyMap() // e.g. offline, with no message in the cache
+
+    viewModel().onStarted()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun chatStillLoadingIsNotMarkedAsRead() {
+    val loading =
+        object : ChatRepository by chat {
+          override fun observeMessages(rentalId: String): Flow<List<Message>> = MutableSharedFlow()
+        }
+
+    viewModel(loading).onStarted()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun chatThatCannotBeShownIsNotMarkedAsRead() {
+    auth.signedInUser = null
+    viewModel().onStarted()
+    auth.signedInUser = me
+    viewModel(rentalId = "nope").onStarted()
+    chat.failure = IOException("offline")
+    viewModel().onStarted()
+
+    assertEquals(0, chat.markAsReadCalls)
+  }
+
+  @Test
+  fun failedMarkAsReadShowsNoError() {
+    val failing =
+        object : ChatRepository by chat {
+          override suspend fun markAsRead(rentalId: String) =
+              Result.failure<Unit>(IOException("offline"))
+        }
+
+    val vm = viewModel(failing)
+    vm.onStarted()
+    val state = vm.uiState.value
+
+    assertNull(state.errorMsg)
+    assertEquals(3, state.messages.size)
+  }
+
+  /** The chat, whose saves fail while [fails] is true, each waiting for [gate] first if set. */
+  private inner class FlakyMarking : ChatRepository by chat {
+    var fails = true
+    var gate: CompletableDeferred<Unit>? = null
+    var calls = 0
+
+    override suspend fun markAsRead(rentalId: String): Result<Unit> {
+      calls++
+      val fail = fails
+      gate?.await()
+      return if (fail) Result.failure(IOException("offline")) else chat.markAsRead(rentalId)
+    }
+  }
+
+  @Test
+  fun failedMarkAsReadIsTriedAgainWhenComingBack() {
+    val flaky = FlakyMarking()
+    val vm = viewModel(flaky)
+    vm.onStarted()
+    vm.onStopped()
+
+    flaky.fails = false
+    vm.onStarted()
+
+    assertEquals(2, flaky.calls)
+    assertEquals(chat.now, chat.conversations.single().lastReadAt["me"])
+  }
+
+  @Test
+  fun failedMarkAsReadIsTriedAgainWhenTheConnectionComesBack() {
+    val flaky = FlakyMarking()
+    val connectivity = FakeConnectivityRepository()
+    viewModel(flaky, connectivity = connectivity).onStarted()
+
+    flaky.fails = false
+    connectivity.setOnline(false)
+    connectivity.setOnline(true)
+
+    assertEquals(2, flaky.calls)
+    assertEquals(chat.now, chat.conversations.single().lastReadAt["me"])
+  }
+
+  @Test
+  fun markAsReadIsTriedUntilItSucceedsThenNotAgain() {
+    val flaky = FlakyMarking()
+    val vm = viewModel(flaky)
+    vm.onStarted()
+    vm.onStopped()
+    vm.onStarted() // fails again
+    vm.onStopped()
+
+    flaky.fails = false
+    vm.onStarted()
+    vm.onStopped()
+    vm.onStarted() // saved by now, so not again
+
+    assertEquals(3, flaky.calls)
+  }
+
+  @Test
+  fun olderFailedSaveDoesNotUndoANewerOne() {
+    val flaky = FlakyMarking()
+    val slow = CompletableDeferred<Unit>()
+    flaky.gate = slow
+    val vm = viewModel(flaky)
+    vm.onStarted() // this save fails, but only once the newer one is done
+
+    flaky.gate = null
+    flaky.fails = false
+    chat.messages = mapOf("tent" to listOf(fromAna, great))
+    slow.complete(Unit)
+    vm.onStopped()
+    vm.onStarted()
+
+    assertEquals(2, flaky.calls)
+  }
+
+  @Test
+  fun unconfirmedMarkAsReadDoesNotHoldBackNewMessages() {
+    val neverConfirmed =
+        object : ChatRepository by chat {
+          override suspend fun markAsRead(rentalId: String): Result<Unit> {
+            CompletableDeferred<Unit>().await() // offline: the server never answers
+            return Result.success(Unit)
+          }
+        }
+    val vm = viewModel(neverConfirmed)
+    vm.onStarted()
+
+    chat.messages = mapOf("tent" to listOf(fromAna, great))
+
+    assertEquals("Great", vm.uiState.value.messages.last().text)
   }
 
   // ---------- factory ----------

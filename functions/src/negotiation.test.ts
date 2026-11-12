@@ -5,6 +5,7 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { declineRequest, makeOffer, respondToOffer } from "./negotiation";
 import { reserveRentalDeposit } from "./reserveDeposit";
+import { hasSeenLastMessage } from "./testing/readTimes";
 import { fund, people, rows, wallet } from "./testing/walletFixtures";
 
 // reserveDeposit.ts loads firebase-functions, which loads an ES module that Jest cannot load.
@@ -575,6 +576,61 @@ describe("respondToOffer: who and when", () => {
     await expect(
       respondToOffer(db, people().borrower, { rentalId: randomUUID(), action: "ACCEPT" }, NOW),
     ).rejects.toMatchObject({ code: "not-found" });
+  });
+});
+
+describe("who has seen each system message", () => {
+  /** Whether the lender and the borrower of [id] have seen its last message, in that order. */
+  async function seenBy(id: string): Promise<[boolean, boolean]> {
+    const data = await rental(id);
+    return [hasSeenLastMessage(data, LENDER), hasSeenLastMessage(data, data?.borrowerId)];
+  }
+
+  it("the lender who sends an offer or declines a request, not the borrower", async () => {
+    const offer = await offered(await listing());
+    const declined = await request(await listing());
+    await declineRequest(db, LENDER, declined);
+
+    for (const id of [offer, declined]) {
+      expect(await seenBy(id)).toEqual([true, false]);
+    }
+  });
+
+  it("the borrower who accepts, declines or counters, not the lender", async () => {
+    const accepted = await offered(await listing());
+    const declined = await offered(await listing());
+    const countered = await offered(await listing());
+
+    for (const [id, answer] of [
+      [accepted, { action: "ACCEPT" }],
+      [declined, { action: "DECLINE" }],
+      [countered, { action: "COUNTER", deposit: 1 }],
+    ] as const) {
+      await respondToOffer(db, await borrowerOf(id), { rentalId: id, ...answer }, NOW);
+      expect(await seenBy(id)).toEqual([false, true]);
+    }
+  });
+
+  it("the lender who declines overlapping requests by accepting a counteroffer", async () => {
+    const listingId = await listing();
+    const id = await countered(listingId);
+    const overlapping = await request(listingId);
+
+    await respondToOffer(db, LENDER, { rentalId: id, action: "ACCEPT" }, NOW);
+
+    expect(await rental(overlapping)).toMatchObject({ status: "DECLINED" });
+    expect(await seenBy(overlapping)).toEqual([true, false]);
+  });
+
+  it("nobody, on requests declined because a borrower accepted another offer", async () => {
+    const listingId = await listing();
+    const id = await offered(listingId);
+    const overlapping = await offered(listingId);
+
+    await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, NOW);
+
+    expect(await rental(overlapping)).toMatchObject({ status: "DECLINED" });
+    expect(await seenBy(overlapping)).toEqual([false, false]);
   });
 });
 

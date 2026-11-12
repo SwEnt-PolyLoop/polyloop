@@ -84,6 +84,7 @@ class ChatRepositoryFirestoreTest {
     every { batch.set(newMessage, capture(messageData)) } returns batch
     every { batch.update(rental, capture(rentalUpdate)) } returns batch
     every { batch.commit() } returns Tasks.forResult(null)
+    every { rental.update(any<String>(), any(), *anyVararg()) } returns Tasks.forResult(null)
   }
 
   // ---------- sendMessage ----------
@@ -102,7 +103,11 @@ class ChatRepositoryFirestoreTest {
         messageData.captured,
     )
     assertEquals(
-        mapOf("lastMessage" to " See you at 5? ", "lastMessageAt" to FieldValue.serverTimestamp()),
+        mapOf(
+            "lastMessage" to " See you at 5? ",
+            "lastMessageAt" to FieldValue.serverTimestamp(),
+            "lastReadAt.u1" to FieldValue.serverTimestamp(), // my own message is not unread
+        ),
         rentalUpdate.captured,
     )
     verify(exactly = 1) { batch.commit() }
@@ -149,6 +154,35 @@ class ChatRepositoryFirestoreTest {
     // Queued offline: Firestore sends it later, so the caller must not see a failure.
     assertTrue(repository.sendMessage("r1", "Hi").isSuccess)
     verify(exactly = 1) { batch.commit() }
+  }
+
+  // ---------- markAsRead ----------
+
+  @Test
+  fun markAsReadSavesOnlyMyEntryAtTheServerTime() = runTest {
+    assertTrue(repository.markAsRead("r1").isSuccess)
+    verify(exactly = 1) { rental.update("lastReadAt.u1", FieldValue.serverTimestamp()) }
+  }
+
+  @Test
+  fun markAsReadIsRefusedWithoutWritingForAnInvalidIdOrWhenSignedOut() = runTest {
+    for (id in listOf("", " ", "r1/messages")) {
+      assertTrue(repository.markAsRead(id).exceptionOrNull() is IllegalArgumentException)
+    }
+    every { auth.currentUser } returns null
+    assertTrue(repository.markAsRead("r1").exceptionOrNull() is IllegalStateException)
+    verify(exactly = 0) { rental.update(any<String>(), any(), *anyVararg()) }
+  }
+
+  @Test
+  fun markAsReadReturnsTheFirestoreErrorButNotAMissingConfirmation() = runTest {
+    every { rental.update(any<String>(), any(), *anyVararg()) } returns Tasks.forException(notFound)
+    assertSame(notFound, repository.markAsRead("r1").exceptionOrNull())
+
+    // Queued offline: Firestore sends it later, and the cache already shows the chat as read.
+    every { rental.update(any<String>(), any(), *anyVararg()) } returns
+        TaskCompletionSource<Void>().task
+    assertTrue(repository.markAsRead("r1").isSuccess)
   }
 
   // ---------- observeMessages ----------

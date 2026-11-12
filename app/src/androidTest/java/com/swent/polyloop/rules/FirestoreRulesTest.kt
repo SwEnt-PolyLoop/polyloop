@@ -468,6 +468,14 @@ class FirestoreRulesTest {
         assertDenied { rental.update("status", "ACCEPTED").await() }
         assertDenied { rental.update("lastMessageAt", Timestamp(5_000, 0)).await() }
         assertDenied { rental.delete().await() }
+        // An empty preview would read as "no message yet" and hide the other person's red dot.
+        assertDenied {
+          rental
+              .update(mapOf("lastMessage" to "", "lastMessageAt" to FieldValue.serverTimestamp()))
+              .await()
+        }
+        // An update that changes nothing is refused too.
+        assertDenied { rental.update("lastMessage", "Hi").await() }
 
         newAccount() // a stranger
         assertDenied {
@@ -476,6 +484,50 @@ class FirestoreRulesTest {
                   mapOf("lastMessage" to "Spam", "lastMessageAt" to FieldValue.serverTimestamp())
               )
               .await()
+        }
+      }
+
+  @Test
+  fun participantsSaveOnlyTheirOwnReadTimeAsTheServerTime() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid) // no lastReadAt yet
+
+        rental.update("lastReadAt.${borrower.uid}", FieldValue.serverTimestamp()).await()
+        rental.update("lastReadAt.${borrower.uid}", FieldValue.serverTimestamp()).await() // again
+        assertDenied {
+          rental.update("lastReadAt.${owner.uid}", FieldValue.serverTimestamp()).await()
+        }
+        assertDenied { rental.update("lastReadAt.${borrower.uid}", Timestamp(5_000, 0)).await() }
+        assertDenied { rental.update("lastReadAt.${borrower.uid}", FieldValue.delete()).await() }
+        assertDenied { rental.update("lastReadAt", "yesterday").await() }
+        assertDenied {
+          rental
+              .update(
+                  mapOf(
+                      "lastReadAt.${borrower.uid}" to FieldValue.serverTimestamp(),
+                      "status" to "ACCEPTED",
+                  )
+              )
+              .await()
+        }
+
+        // Sending a message also saves the sender's read time, in the same update.
+        signInAs(owner)
+        rental
+            .update(
+                mapOf(
+                    "lastMessage" to "Hi",
+                    "lastMessageAt" to FieldValue.serverTimestamp(),
+                    "lastReadAt.${owner.uid}" to FieldValue.serverTimestamp(),
+                )
+            )
+            .await()
+
+        val stranger = newAccount()
+        assertDenied {
+          rental.update("lastReadAt.${stranger.uid}", FieldValue.serverTimestamp()).await()
         }
       }
 

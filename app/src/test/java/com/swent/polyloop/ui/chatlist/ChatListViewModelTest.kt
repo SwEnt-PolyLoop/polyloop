@@ -97,6 +97,7 @@ class ChatListViewModelTest {
             lastMessage = "Last in tent",
             lastMessageAt = at,
             status = RentalStatus.REQUESTED,
+            isUnread = true, // vida's message, and I never opened the chat
         ),
         viewModel().uiState.value.rows.first(),
     )
@@ -124,6 +125,18 @@ class ChatListViewModelTest {
     assertEquals("drill", top.rentalId)
     assertEquals("Is it still free?", top.lastMessage)
     assertEquals(at.plusSeconds(60), top.lastMessageAt)
+    assertFalse(top.isUnread) // my own message
+  }
+
+  @Test
+  fun openingAChatClearsItsUnreadMarkWithoutReloading() = runTest {
+    chat.conversations = listOf(borrowed.copy(lastReadAt = mapOf("vida" to at.plusSeconds(1))))
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.rows.single().isUnread) // only vida's read time is newer
+
+    chat.markAsRead("tent")
+
+    assertFalse(vm.uiState.value.rows.single().isUnread)
   }
 
   @Test
@@ -134,6 +147,7 @@ class ChatListViewModelTest {
 
     assertEquals("", row.otherPersonName)
     assertEquals("", row.lastMessage)
+    assertFalse(row.isUnread) // no message yet
   }
 
   @Test

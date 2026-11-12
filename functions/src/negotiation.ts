@@ -79,15 +79,21 @@ export async function makeOffer(
     await requireFreeListing(tx, rentalRef, rental, dates);
 
     tx.set(addressesRef(rentalRef), { pickup: input.pickupAddress, dropOff: input.returnAddress });
-    writeWithSystemMessage(tx, rentalRef, `Offer sent · ${input.deposit} PP deposit`, {
-      offer: {
-        amount: input.deposit,
-        authorId: lenderId,
-        isCounter: false,
-        createdAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromDate(expiresAt),
+    writeWithSystemMessage(
+      tx,
+      rentalRef,
+      `Offer sent · ${input.deposit} PP deposit`,
+      {
+        offer: {
+          amount: input.deposit,
+          authorId: lenderId,
+          isCounter: false,
+          createdAt: FieldValue.serverTimestamp(),
+          expiresAt: Timestamp.fromDate(expiresAt),
+        },
       },
-    });
+      lenderId,
+    );
   });
 }
 
@@ -124,10 +130,10 @@ export async function respondToOffer(
 
     switch (answer.action) {
       case "ACCEPT":
-        await accept(tx, rentalRef, rental, offer);
+        await accept(tx, rentalRef, rental, offer, callerId);
         return;
       case "DECLINE":
-        decline(tx, rentalRef, "Offer declined");
+        decline(tx, rentalRef, "Offer declined", callerId);
         return;
       case "COUNTER":
         if (offer.isCounter) {
@@ -135,16 +141,22 @@ export async function respondToOffer(
         }
         // Only the borrower counters, so this is the caller's own wallet.
         requireFunds(await readWallet(tx, rentalRef.firestore, callerId), answer.deposit);
-        writeWithSystemMessage(tx, rentalRef, `Counteroffer · ${answer.deposit} PP`, {
-          offer: {
-            amount: answer.deposit,
-            previousAmount: offer.amount,
-            authorId: callerId,
-            isCounter: true,
-            createdAt: FieldValue.serverTimestamp(),
-            expiresAt: Timestamp.fromDate(offerExpiry(now, requireDates(rental).start)),
+        writeWithSystemMessage(
+          tx,
+          rentalRef,
+          `Counteroffer · ${answer.deposit} PP`,
+          {
+            offer: {
+              amount: answer.deposit,
+              previousAmount: offer.amount,
+              authorId: callerId,
+              isCounter: true,
+              createdAt: FieldValue.serverTimestamp(),
+              expiresAt: Timestamp.fromDate(offerExpiry(now, requireDates(rental).start)),
+            },
           },
-        });
+          callerId,
+        );
     }
   });
 }
@@ -171,7 +183,7 @@ export async function declineRequest(
     if (rental.offer) {
       throw new RequestError("failed-precondition", "An offer is waiting for an answer.");
     }
-    decline(tx, rentalRef, "Request declined");
+    decline(tx, rentalRef, "Request declined", lenderId);
   });
 }
 
@@ -218,20 +230,21 @@ export async function expireOffer(rentalRef: DocumentReference, now: Date): Prom
     if (rental?.status !== REQUESTED || !offer || !isExpired(offer, now)) {
       return false;
     }
-    decline(tx, rentalRef, "Offer expired · request declined");
+    decline(tx, rentalRef, "Offer expired · request declined", null);
     return true;
   });
 }
 
 /**
- * The acceptance: reads the listing, the addresses, the other requests and the borrower's wallet,
- * then writes it all, holding the deposit last.
+ * The acceptance by [callerId]: reads the listing, the addresses, the other requests and the
+ * borrower's wallet, then writes it all, holding the deposit last.
  */
 async function accept(
   tx: Transaction,
   rentalRef: DocumentReference,
   rental: DocumentData,
   offer: StoredOffer,
+  callerId: string,
 ): Promise<void> {
   const dates = requireDates(rental);
   const db = rentalRef.firestore;
@@ -263,18 +276,27 @@ async function accept(
   requireFunds(wallet, offer.amount);
 
   tx.delete(addressesRef(rentalRef));
-  writeWithSystemMessage(tx, rentalRef, `Accepted · ${offer.amount} PP deposit`, {
-    status: "ACCEPTED",
-    deposit: offer.amount,
-    pickupAddress: addresses.pickup,
-    returnAddress: addresses.dropOff,
-    offer: FieldValue.delete(),
-  });
+  writeWithSystemMessage(
+    tx,
+    rentalRef,
+    `Accepted · ${offer.amount} PP deposit`,
+    {
+      status: "ACCEPTED",
+      deposit: offer.amount,
+      pickupAddress: addresses.pickup,
+      returnAddress: addresses.dropOff,
+      offer: FieldValue.delete(),
+    },
+    callerId,
+  );
+  // The other requests have the same lender. A lender accepting a counteroffer declines them
+  // themselves; a borrower accepting takes no part in them, so for the lender they are news.
+  const decliner = callerId === rental.ownerId ? callerId : null;
   tx.update(listingRef, {
     bookedRanges: FieldValue.arrayUnion({ start: dates.start, end: dates.end }),
   });
   for (const doc of overlapping) {
-    decline(tx, doc.ref, "Dates booked · request declined");
+    decline(tx, doc.ref, "Dates booked · request declined", decliner);
   }
   // No hasTransaction read: a REQUESTED rental cannot have its deposit row yet.
   writeDepositHold(tx, db, borrowerId, wallet, offer.amount, rentalRef.id, listingTitleOf(rental));
@@ -282,24 +304,44 @@ async function accept(
 
 /**
  * Ends a negotiation with no rental: DECLINED, with no offer and no addresses left, and [text] in
- * the chat. Runs inside the caller's transaction, after its reads.
+ * the chat, seen by [actorId] (see writeWithSystemMessage). Runs inside the caller's transaction,
+ * after its reads.
  */
-function decline(tx: Transaction, rentalRef: DocumentReference, text: string): void {
+function decline(
+  tx: Transaction,
+  rentalRef: DocumentReference,
+  text: string,
+  actorId: string | null,
+): void {
   tx.delete(addressesRef(rentalRef));
-  writeWithSystemMessage(tx, rentalRef, text, { status: DECLINED, offer: FieldValue.delete() });
+  writeWithSystemMessage(
+    tx,
+    rentalRef,
+    text,
+    { status: DECLINED, offer: FieldValue.delete() },
+    actorId,
+  );
 }
 
-/** Updates the rental with [fields], and adds [text] to its chat as a SYSTEM message. */
+/**
+ * Updates the rental with [fields], and adds [text] to its chat as a SYSTEM message. [actorId] is
+ * the participant whose action this message reports: their read time is set to the message's, as
+ * when they send a message, so the chat list shows no red dot for their own action. It is null
+ * when the message is news for both participants: a scheduled job, a deadline that passed, or
+ * another rental's acceptance. It has no default, so each caller says who acted.
+ */
 export function writeWithSystemMessage(
   tx: Transaction,
   rentalRef: DocumentReference,
   text: string,
   fields: DocumentData,
+  actorId: string | null,
 ): void {
   tx.update(rentalRef, {
     ...fields,
     lastMessage: text,
     lastMessageAt: FieldValue.serverTimestamp(),
+    ...(actorId ? { [`lastReadAt.${actorId}`]: FieldValue.serverTimestamp() } : {}),
   });
   tx.set(rentalRef.collection("messages").doc(), {
     senderId: "",
