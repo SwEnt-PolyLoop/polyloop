@@ -46,11 +46,19 @@ export async function wallet(uid: string) {
   return (await getFirestore().collection("wallets").doc(uid).get()).data();
 }
 
-export async function rows(uid: string) {
+/** A row of a wallet's history, as stored. */
+export interface HistoryRow {
+  id: string;
+  type?: string;
+  amount?: number;
+  itemTitle?: string;
+}
+
+export async function rows(uid: string): Promise<HistoryRow[]> {
   const snapshot = await getFirestore()
     .collection("wallets")
     .doc(uid)
     .collection("transactions")
     .get();
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as HistoryRow);
 }

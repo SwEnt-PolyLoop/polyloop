@@ -5,7 +5,7 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { DocumentReference, Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { expireOffer, expireOverdueOffers, respondToOffer } from "./negotiation";
-import { fund, people, wallet } from "./testing/walletFixtures";
+import { fund, people, rows, wallet } from "./testing/walletFixtures";
 
 jest.mock("firebase-functions/logger");
 
@@ -202,5 +202,95 @@ describe("an answer racing the expiry", () => {
       expect(booked).toEqual([]);
     }
     await listingRef.delete();
+  });
+});
+
+describe("expiring a request whose price is reserved", () => {
+  /** A rental with an expired offer whose 30 PP price is held in the borrower's wallet. */
+  async function heldRental(withRow = true): Promise<{ ref: DocumentReference; borrower: string }> {
+    const { borrower } = people();
+    const ref = await rentalWithOffer(EXPIRED, {
+      status: "REQUESTED",
+      borrowerId: borrower,
+      totalPrice: 30,
+      listingTitle: "Camping tent",
+    });
+    await fund(borrower, { available: 70, heldAsDeposits: 0, heldForRentals: 30 });
+    if (withRow) {
+      await db
+        .collection("wallets")
+        .doc(borrower)
+        .collection("transactions")
+        .doc(`rental_held_${ref.id}`)
+        .set({ type: "RENTAL_HELD", amount: -30, itemTitle: "Camping tent" });
+    }
+    return { ref, borrower };
+  }
+
+  it("gives the price back when the sweep declines it, with one RENTAL_RELEASED row", async () => {
+    const { ref, borrower } = await heldRental();
+
+    expect(await expireOverdueOffers(db, NOW)).toEqual({ expired: 1, failed: 0 });
+
+    expect((await ref.get()).get("status")).toBe("DECLINED");
+    expect(await wallet(borrower)).toEqual({
+      available: 100,
+      heldAsDeposits: 0,
+      heldForRentals: 0,
+    });
+    expect(await rows(borrower)).toContainEqual(
+      expect.objectContaining({
+        id: `rental_released_${ref.id}`,
+        type: "RENTAL_RELEASED",
+        amount: 30,
+        itemTitle: "Camping tent",
+      }),
+    );
+  });
+
+  it("does not give it back twice when the sweep runs again", async () => {
+    const { borrower } = await heldRental();
+
+    await expireOverdueOffers(db, NOW);
+    expect(await expireOverdueOffers(db, NOW)).toEqual({ expired: 0, failed: 0 });
+
+    expect(await wallet(borrower)).toMatchObject({ available: 100, heldForRentals: 0 });
+    expect((await rows(borrower)).filter((row) => row.type === "RENTAL_RELEASED")).toHaveLength(1);
+  });
+
+  it("gives back nothing for a request that never had its price reserved", async () => {
+    const { ref, borrower } = await heldRental(false);
+
+    expect(await expireOffer(ref, NOW)).toBe(true);
+
+    expect(await wallet(borrower)).toEqual({ available: 70, heldAsDeposits: 0, heldForRentals: 30 });
+    expect(await rows(borrower)).toEqual([]);
+  });
+
+  it("gives back the prices of two expired requests of the same borrower", async () => {
+    const first = await heldRental();
+    const second = await heldRental();
+    await second.ref.update({ borrowerId: first.borrower });
+    await db
+      .collection("wallets")
+      .doc(first.borrower)
+      .collection("transactions")
+      .doc(`rental_held_${second.ref.id}`)
+      .set({ type: "RENTAL_HELD", amount: -30, itemTitle: "Camping tent" });
+    await fund(first.borrower, { available: 40, heldAsDeposits: 0, heldForRentals: 60 });
+    await db
+      .collection("wallets")
+      .doc(second.borrower)
+      .collection("transactions")
+      .doc(`rental_held_${second.ref.id}`)
+      .delete();
+
+    expect(await expireOverdueOffers(db, NOW)).toEqual({ expired: 2, failed: 0 });
+
+    expect(await wallet(first.borrower)).toEqual({
+      available: 100,
+      heldAsDeposits: 0,
+      heldForRentals: 0,
+    });
   });
 });

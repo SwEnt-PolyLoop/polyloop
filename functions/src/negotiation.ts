@@ -23,7 +23,16 @@ import {
   requirePerson,
 } from "./rentalRules";
 import { runSweep } from "./sweep";
-import { readWallet, requireFunds, writeDepositHold } from "./wallet";
+import {
+  Wallet,
+  hasTransaction,
+  readWallet,
+  rentalHeldRowId,
+  rentalReleasedRowId,
+  requireFunds,
+  writeDepositHold,
+  writeRentalRelease,
+} from "./wallet";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
 const RENTALS = "rentals";
@@ -99,7 +108,8 @@ export async function makeOffer(
  * dates to the listing's `bookedRanges`, and declines every other REQUESTED rental of the listing
  * whose dates overlap (buffer day included). It also holds the deposit, the offered amount (the
  * counter amount after a counteroffer), in the borrower's wallet, whoever accepts. The rental price
- * is not reserved.
+ * of each request it declines is given back to its borrower (see `releaseHolds`); the price of the
+ * accepted rental stays reserved. Declining the offer gives the price back too.
  *
  * @param db the Firestore database.
  * @param callerId the participant answering.
@@ -127,7 +137,7 @@ export async function respondToOffer(
         await accept(tx, rentalRef, rental, offer);
         return;
       case "DECLINE":
-        decline(tx, rentalRef, "Offer declined");
+        await declineAndRelease(tx, rentalRef, rental, "Offer declined");
         return;
       case "COUNTER":
         if (offer.isCounter) {
@@ -171,7 +181,7 @@ export async function declineRequest(
     if (rental.offer) {
       throw new RequestError("failed-precondition", "An offer is waiting for an answer.");
     }
-    decline(tx, rentalRef, "Request declined");
+    await declineAndRelease(tx, rentalRef, rental, "Request declined");
   });
 }
 
@@ -218,7 +228,7 @@ export async function expireOffer(rentalRef: DocumentReference, now: Date): Prom
     if (rental?.status !== REQUESTED || !offer || !isExpired(offer, now)) {
       return false;
     }
-    decline(tx, rentalRef, "Offer expired · request declined");
+    await declineAndRelease(tx, rentalRef, rental, "Offer expired · request declined");
     return true;
   });
 }
@@ -261,6 +271,14 @@ async function accept(
   }
   const wallet = await readWallet(tx, db, borrowerId);
   requireFunds(wallet, offer.amount);
+  // The funds are checked on the balance as it is now: the prices released below do not count.
+  const wallets: Wallets = new Map([[borrowerId, wallet]]);
+  const holds = await readHolds(
+    tx,
+    db,
+    overlapping.map((doc) => ({ ref: doc.ref, rental: doc.data() })),
+    wallets,
+  );
 
   tx.delete(addressesRef(rentalRef));
   writeWithSystemMessage(tx, rentalRef, `Accepted · ${offer.amount} PP deposit`, {
@@ -276,8 +294,104 @@ async function accept(
   for (const doc of overlapping) {
     decline(tx, doc.ref, "Dates booked · request declined");
   }
+  // The releases come first: a borrower with a competing request is also the one who pays the
+  // deposit, from a wallet that has just got that request's price back.
+  releaseHolds(tx, db, holds, wallets);
   // No hasTransaction read: a REQUESTED rental cannot have its deposit row yet.
-  writeDepositHold(tx, db, borrowerId, wallet, offer.amount, rentalRef.id, listingTitleOf(rental));
+  writeDepositHold(
+    tx,
+    db,
+    borrowerId,
+    wallets.get(borrowerId) ?? wallet,
+    offer.amount,
+    rentalRef.id,
+    listingTitleOf(rental),
+  );
+}
+
+/** The wallets read in a transaction, by user id, as they are after the writes made so far. */
+type Wallets = Map<string, Wallet>;
+
+/** The reserved price of a request that is ending, found by [readHolds]. */
+interface Hold {
+  rentalId: string;
+  borrowerId: string;
+  price: number;
+  itemTitle: string;
+}
+
+/**
+ * Declines [rental] and gives its price back to the borrower, in the caller's transaction. Reads
+ * first, then writes, so it must be called before the caller's first write.
+ */
+async function declineAndRelease(
+  tx: Transaction,
+  rentalRef: DocumentReference,
+  rental: DocumentData,
+  text: string,
+): Promise<void> {
+  const wallets: Wallets = new Map();
+  const holds = await readHolds(tx, rentalRef.firestore, [{ ref: rentalRef, rental }], wallets);
+  decline(tx, rentalRef, text);
+  releaseHolds(tx, rentalRef.firestore, holds, wallets);
+}
+
+/**
+ * Finds which of the requests [ended] have a price to give back: the `rental_held_<id>` row exists
+ * and the `rental_released_<id>` row does not. A request sent before the price was reserved has no
+ * such row and gets nothing back, so nothing is ever credited that was not held. Also reads the
+ * wallet of each of those borrowers into [wallets], unless it is already there. Reads only.
+ */
+async function readHolds(
+  tx: Transaction,
+  db: Firestore,
+  ended: { ref: DocumentReference; rental: DocumentData }[],
+  wallets: Wallets,
+): Promise<Hold[]> {
+  const holds: Hold[] = [];
+  for (const { ref, rental } of ended) {
+    const { borrowerId, totalPrice } = rental;
+    if (typeof borrowerId !== "string" || borrowerId === "") continue;
+    if (typeof totalPrice !== "number" || !Number.isInteger(totalPrice) || totalPrice < 1) continue;
+    if (!(await hasTransaction(tx, db, borrowerId, rentalHeldRowId(ref.id)))) continue;
+    if (await hasTransaction(tx, db, borrowerId, rentalReleasedRowId(ref.id))) continue;
+    holds.push({
+      rentalId: ref.id,
+      borrowerId,
+      price: totalPrice,
+      itemTitle: listingTitleOf(rental),
+    });
+  }
+  for (const { borrowerId } of holds) {
+    if (!wallets.has(borrowerId)) wallets.set(borrowerId, await readWallet(tx, db, borrowerId));
+  }
+  return holds;
+}
+
+/**
+ * Gives back the price of each of [holds], one after the other: when a borrower has several, each
+ * release starts from the wallet the previous one left, kept in [wallets]. Runs inside the caller's
+ * transaction, after all its reads.
+ */
+function releaseHolds(tx: Transaction, db: Firestore, holds: Hold[], wallets: Wallets): void {
+  for (const hold of holds) {
+    const wallet = wallets.get(hold.borrowerId);
+    if (!wallet) continue;
+    const released = writeRentalRelease(
+      tx,
+      db,
+      hold.borrowerId,
+      wallet,
+      hold.price,
+      hold.rentalId,
+      hold.itemTitle,
+    );
+    wallets.set(hold.borrowerId, {
+      ...wallet,
+      available: wallet.available + released,
+      heldForRentals: wallet.heldForRentals - released,
+    });
+  }
 }
 
 /**

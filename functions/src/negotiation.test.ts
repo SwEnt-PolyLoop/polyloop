@@ -617,3 +617,208 @@ describe("declineRequest", () => {
     });
   });
 });
+
+/**
+ * Reserves [price] PP for the request [id], as `requestRental` does: the price on the rental, moved
+ * from `available` to `heldForRentals` in the borrower's wallet, and the `rental_held_<id>` row.
+ */
+async function hold(id: string, price: number): Promise<void> {
+  const borrower = await borrowerOf(id);
+  const current = (await wallet(borrower)) ?? {};
+  await db
+    .collection("wallets")
+    .doc(borrower)
+    .set({
+      available: (current.available ?? 0) - price,
+      heldAsDeposits: current.heldAsDeposits ?? 0,
+      heldForRentals: (current.heldForRentals ?? 0) + price,
+    });
+  await db.collection("rentals").doc(id).update({ totalPrice: price });
+  await db
+    .collection("wallets")
+    .doc(borrower)
+    .collection("transactions")
+    .doc(`rental_held_${id}`)
+    .set({ type: "RENTAL_HELD", amount: -price, itemTitle: "Camping tent" });
+}
+
+/** The RENTAL_RELEASED rows of [uid], by amount. */
+async function releases(uid: string): Promise<number[]> {
+  return (await rows(uid))
+    .filter((row) => row.type === "RENTAL_RELEASED")
+    .map((row) => row.amount as number)
+    .sort((a, b) => a - b);
+}
+
+describe("giving the rental price back", () => {
+  const BACK = { available: 1000, heldAsDeposits: 0, heldForRentals: 0 };
+
+  it("returns it when the borrower declines the offer, with one RENTAL_RELEASED row", async () => {
+    const id = await offered(await listing());
+    await hold(id, 30);
+    const borrower = await borrowerOf(id);
+
+    await respondToOffer(db, borrower, { rentalId: id, action: "DECLINE" }, NOW);
+
+    expect(await wallet(borrower)).toEqual(BACK);
+    expect(await rows(borrower)).toContainEqual(
+      expect.objectContaining({
+        id: `rental_released_${id}`,
+        type: "RENTAL_RELEASED",
+        amount: 30,
+        itemTitle: "Camping tent",
+      }),
+    );
+  });
+
+  it("returns it when the lender declines a request or a counteroffer", async () => {
+    const asked = await request(await listing());
+    await hold(asked, 30);
+    const counter = await countered(await listing());
+    await hold(counter, 45);
+
+    await declineRequest(db, LENDER, asked);
+    await respondToOffer(db, LENDER, { rentalId: counter, action: "DECLINE" }, NOW);
+
+    expect(await wallet(await borrowerOf(asked))).toEqual(BACK);
+    expect(await wallet(await borrowerOf(counter))).toEqual(BACK);
+    expect(await releases(await borrowerOf(asked))).toEqual([30]);
+    expect(await releases(await borrowerOf(counter))).toEqual([45]);
+  });
+
+  it("gives back nothing for a request sent before prices were reserved", async () => {
+    const id = await request(await listing());
+    await db.collection("rentals").doc(id).update({ totalPrice: 30 });
+    const borrower = await borrowerOf(id);
+
+    await declineRequest(db, LENDER, id);
+
+    expect((await rental(id))?.status).toBe("DECLINED");
+    expect(await wallet(borrower)).toEqual(funds(1000));
+    expect(await releases(borrower)).toEqual([]);
+  });
+
+  it("gives back at most what the wallet holds", async () => {
+    const id = await request(await listing());
+    await hold(id, 30);
+    const borrower = await borrowerOf(id);
+    await db.collection("wallets").doc(borrower).update({ heldForRentals: 10 });
+
+    await declineRequest(db, LENDER, id);
+
+    expect(await wallet(borrower)).toMatchObject({ available: 980, heldForRentals: 0 });
+    expect(await releases(borrower)).toEqual([10]);
+  });
+
+  it("does not give it back twice", async () => {
+    const id = await request(await listing());
+    await hold(id, 30);
+    const borrower = await borrowerOf(id);
+    await declineRequest(db, LENDER, id);
+    // The rental is REQUESTED again, as after a replayed write: the release row is still there.
+    await db.collection("rentals").doc(id).update({ status: "REQUESTED" });
+
+    await declineRequest(db, LENDER, id);
+
+    expect(await wallet(borrower)).toEqual(BACK);
+    expect(await releases(borrower)).toEqual([30]);
+  });
+
+  it("returns the price of a competing request when another is accepted", async () => {
+    const listingId = await listing();
+    const accepted = await offered(listingId);
+    const competing = await request(listingId, "2026-12-02", "2026-12-04");
+    await hold(accepted, 30);
+    await hold(competing, 50);
+    const winner = await borrowerOf(accepted);
+    const loser = await borrowerOf(competing);
+
+    await respondToOffer(db, winner, { rentalId: accepted, action: "ACCEPT" }, NOW);
+
+    expect((await rental(competing))?.status).toBe("DECLINED");
+    expect(await wallet(loser)).toEqual(BACK);
+    expect(await releases(loser)).toEqual([50]);
+    // The accepted rental keeps its price reserved, and its deposit is held on top.
+    expect(await wallet(winner)).toEqual({
+      available: 790,
+      heldAsDeposits: 180,
+      heldForRentals: 30,
+    });
+    expect(await releases(winner)).toEqual([]);
+  });
+
+  it("returns both prices, one after the other, to a borrower with two competing requests", async () => {
+    const listingId = await listing();
+    const accepted = await offered(listingId);
+    const first = await request(listingId, "2026-12-02", "2026-12-04");
+    const second = await request(listingId, "2026-12-03", "2026-12-05");
+    const other = await borrowerOf(first);
+    await db.collection("rentals").doc(second).update({ borrowerId: other });
+    await hold(first, 30);
+    await hold(second, 50);
+    expect(await wallet(other)).toEqual({ available: 920, heldAsDeposits: 0, heldForRentals: 80 });
+
+    await respondToOffer(db, await borrowerOf(accepted), { rentalId: accepted, action: "ACCEPT" }, NOW);
+
+    expect((await rental(first))?.status).toBe("DECLINED");
+    expect((await rental(second))?.status).toBe("DECLINED");
+    expect(await wallet(other)).toEqual(BACK);
+    expect(await releases(other)).toEqual([30, 50]);
+    expect(await rows(other)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: `rental_released_${first}`, amount: 30 }),
+        expect.objectContaining({ id: `rental_released_${second}`, amount: 50 }),
+      ]),
+    );
+  });
+
+  it("starts the deposit from the wallet the releases left, when the accepter has a competing request", async () => {
+    const listingId = await listing();
+    const accepted = await offered(listingId);
+    const competing = await request(listingId, "2026-12-02", "2026-12-04");
+    const borrower = await borrowerOf(accepted);
+    await db.collection("rentals").doc(competing).update({ borrowerId: borrower });
+    await hold(accepted, 30);
+    await hold(competing, 50);
+
+    await respondToOffer(db, borrower, { rentalId: accepted, action: "ACCEPT" }, NOW);
+
+    expect(await wallet(borrower)).toEqual({
+      available: 790,
+      heldAsDeposits: 180,
+      heldForRentals: 30,
+    });
+    expect(await releases(borrower)).toEqual([50]);
+    // The two seeded RENTAL_HELD rows, the release and the deposit.
+    expect(await rows(borrower)).toHaveLength(4);
+  });
+
+  it("returns nothing for a competing request when the accept is refused for lack of funds", async () => {
+    const listingId = await listing();
+    const accepted = await offered(listingId);
+    const competing = await request(listingId, "2026-12-02", "2026-12-04");
+    await hold(competing, 50);
+    const winner = await borrowerOf(accepted);
+    await fund(winner, funds(100));
+
+    await expect(
+      respondToOffer(db, winner, { rentalId: accepted, action: "ACCEPT" }, NOW),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+
+    expect((await rental(competing))?.status).toBe("REQUESTED");
+    expect(await wallet(await borrowerOf(competing))).toMatchObject({ heldForRentals: 50 });
+    expect(await releases(await borrowerOf(competing))).toEqual([]);
+  });
+
+  it("leaves requests on other dates untouched", async () => {
+    const listingId = await listing();
+    const accepted = await offered(listingId);
+    const apart = await request(listingId, "2026-12-20", "2026-12-22");
+    await hold(apart, 50);
+
+    await respondToOffer(db, await borrowerOf(accepted), { rentalId: accepted, action: "ACCEPT" }, NOW);
+
+    expect((await rental(apart))?.status).toBe("REQUESTED");
+    expect(await wallet(await borrowerOf(apart))).toMatchObject({ heldForRentals: 50 });
+  });
+});
