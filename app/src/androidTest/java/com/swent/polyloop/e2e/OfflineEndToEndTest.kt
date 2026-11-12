@@ -51,7 +51,7 @@ class OfflineEndToEndTest : EndToEndTestBase() {
     openFromMenu(Screen.Browse)
     waitForTag(C.Tag.browse_offline)
     composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertIsDisplayed()
-    composeTestRule.onNodeWithTag(card).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(card).assertAbsent()
     composeTestRule.onNodeWithTag(C.Tag.browse_offline_my_rentals_button).performClick()
 
     // My rentals and the wallet still read from the cache; recharging is disabled.
@@ -71,7 +71,7 @@ class OfflineEndToEndTest : EndToEndTestBase() {
     openFromMenu(Screen.Browse)
     searchOnBrowse()
     waitForTag(C.Tag.listing_card_ + publishedOffline.id)
-    composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertAbsent()
   }
 
   private fun searchOnBrowse() {

@@ -54,7 +54,7 @@ class CreateListingEndToEndTest : EndToEndTestBase() {
     waitForTag(C.Tag.date_picker_sheet)
     pickDays(firstDay, firstDay.plusDays(1))
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
-    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertAbsent()
     fillField(C.Tag.create_listing_pickup_field, "Route Cantonale 1, Ecublens")
     fillField(C.Tag.create_listing_drop_off_field, "Avenue Piccard 2, Lausanne")
 

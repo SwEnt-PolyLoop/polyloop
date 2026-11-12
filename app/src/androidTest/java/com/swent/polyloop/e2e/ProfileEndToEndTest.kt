@@ -113,7 +113,7 @@ class ProfileEndToEndTest : EndToEndTestBase() {
     val card = C.Tag.listing_card_ + published.id
     composeTestRule.onNodeWithTag(C.Tag.browse_search_bar).performTextInput(titleWord)
     waitForTag(card)
-    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + draft.id).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + draft.id).assertAbsent()
     composeTestRule.onNodeWithTag(card).performClick()
     waitForText(C.Tag.listing_detail_title, published.title)
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_lender_card).performScrollTo().performClick()
@@ -122,9 +122,9 @@ class ProfileEndToEndTest : EndToEndTestBase() {
 
     // Their card lists the published listing, without a pill, and leaves the draft out.
     waitForTag(C.Tag.profile_listing_ + published.id)
-    composeTestRule.onNodeWithTag(C.Tag.profile_listing_ + draft.id).assertDoesNotExist()
-    composeTestRule.onNodeWithTag(C.Tag.profile_listing_status_ + published.id).assertDoesNotExist()
-    composeTestRule.onNodeWithTag(C.Tag.profile_sign_out_button).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.profile_listing_ + draft.id).assertAbsent()
+    composeTestRule.onNodeWithTag(C.Tag.profile_listing_status_ + published.id).assertAbsent()
+    composeTestRule.onNodeWithTag(C.Tag.profile_sign_out_button).assertAbsent()
   }
 
   private fun assertPill(listing: Listing, labelRes: Int) =

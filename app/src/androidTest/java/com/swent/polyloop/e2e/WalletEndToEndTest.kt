@@ -36,7 +36,7 @@ class WalletEndToEndTest : EndToEndTestBase() {
         .assertTextEquals(context.getString(R.string.wallet_pp_amount, HELD_FOR_RENTALS))
     composeTestRule.onNodeWithTag(C.Tag.wallet_recharge_button).assertIsEnabled()
 
-    // Each row names its type and its item, or its date for a recharge, and its signed amount.
+    // The deposit row names its type and its item, and each row shows its signed amount.
     val deposit = C.Tag.wallet_row_ + DEPOSIT_ROW
     val recharge = C.Tag.wallet_row_ + RECHARGE_ROW
     waitForTag(deposit)
