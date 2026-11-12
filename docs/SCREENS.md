@@ -83,6 +83,7 @@ Browse shows available items near the user, as a map or a list. ViewModel: Brows
 
 - A toggle between map view (Google Maps SDK) and list view, list by default. Both show the listings passing the search and categories.
 - Map pins sit at each listing's pickup area, never the exact address. Listings in the same area share one rounded point, so one pin holds all of them: it shows the price per day of a single listing, or how many listings it holds (“3 items”). A listing whose address is not geocoded yet has no pin. The map can be scrolled and zoomed; it opens framed on all the pins (on EPFL when there are none), and keeps the user's view while they search or filter.
+- Pins are white, and the selected one is red. Tapping a pin selects it, centres the map on it and shows its listings as cards in a row under the map, which scrolls sideways when the pin holds several. Tapping a card opens Listing detail; tapping the map elsewhere hides the cards. Switching to the list clears the selection, and so does a search, a filter or a reload that leaves no listing at that pin.
 - List sorted by distance, using the phone's GPS.
 - Listing cards with the first photo, title, price per day in PolyPoints, distance and pickup area. Tapping a card opens Listing detail.
 - A search bar and filters, such as category and price.

@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.browse
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,6 +52,12 @@ private val PIN_PADDING_VERTICAL = 4.dp
 /** Rounding of a pin's corners: half its height, so the ends are round. */
 private const val PIN_CORNER_PERCENT = 50
 
+/** Width of the border around a pin, which sets a white pin apart from light parts of the map. */
+private val PIN_BORDER_WIDTH = 1.dp
+
+/** Drawing order of the selected pin: above the others (0 by default), so they never hide it. */
+private const val SELECTED_PIN_Z_INDEX = 1f
+
 /** Space kept between the outermost pins and the edges of the map when it fits them all. */
 private val FRAMING_PADDING = 64.dp
 
@@ -88,10 +95,18 @@ internal fun framingOf(pins: List<BrowsePin>): MapFraming =
  * zoomed, with one pin per entry of [pins]. Once loaded, it frames the pins (see [framingOf]), once
  * per opening of the map: changing the filter afterwards keeps the user's view, and so does coming
  * back from a listing or rotating the phone. The map toolbar and zoom buttons are hidden, so
- * tapping the map never leaves the app.
+ * tapping the map never leaves the app. Tapping a pin calls [onPinClick] with its point, and the
+ * map centres on it; tapping the map anywhere else calls [onMapClick]. The pin at [selectedPoint],
+ * if any, is highlighted (see [BrowsePinLabel]).
  */
 @Composable
-fun BrowseMap(pins: List<BrowsePin>, modifier: Modifier = Modifier) {
+fun BrowseMap(
+    pins: List<BrowsePin>,
+    selectedPoint: MapPoint?,
+    onPinClick: (MapPoint) -> Unit,
+    onMapClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
   val cameraPositionState = rememberCameraPositionState {
     position = CameraPosition.fromLatLngZoom(EPFL, MAP_ZOOM)
   }
@@ -105,6 +120,7 @@ fun BrowseMap(pins: List<BrowsePin>, modifier: Modifier = Modifier) {
       cameraPositionState = cameraPositionState,
       contentDescription = stringResource(R.string.browse_map_description),
       uiSettings = MapUiSettings(mapToolbarEnabled = false, zoomControlsEnabled = false),
+      onMapClick = { onMapClick() },
       // Fitting a box needs the map's size on screen, which is known once the map has loaded.
       onMapLoaded = {
         hasFramedPins =
@@ -112,7 +128,15 @@ fun BrowseMap(pins: List<BrowsePin>, modifier: Modifier = Modifier) {
       },
   ) {
     // Keyed on the point, so a pin keeps its marker when the filter changes the other pins.
-    pins.forEach { pin -> key(pin.point) { BrowsePinMarker(pin) } }
+    pins.forEach { pin ->
+      key(pin.point) {
+        BrowsePinMarker(
+            pin = pin,
+            isSelected = pin.point == selectedPoint,
+            onClick = { onPinClick(pin.point) },
+        )
+      }
+    }
   }
 }
 
@@ -149,18 +173,28 @@ internal fun cameraUpdateFor(framing: MapFraming, paddingPx: Int): CameraUpdate?
 /** This point as the Maps SDK's own type. */
 private fun MapPoint.toLatLng() = LatLng(latitude, longitude)
 
-/** The marker of [pin] at its point, drawn as [BrowsePinLabel] and read out as its label. */
+/**
+ * The marker of [pin] at its point, drawn as [BrowsePinLabel], highlighted and above the other pins
+ * when [isSelected], and read out as [pinDescription]. Tapping it calls [onClick].
+ */
 @Composable
-private fun BrowsePinMarker(pin: BrowsePin) {
+private fun BrowsePinMarker(pin: BrowsePin, isSelected: Boolean, onClick: () -> Unit) {
   val label = pinLabel(pin)
   MarkerComposable(
       // The marker's picture is drawn once, and again only when one of these keys changes.
       pin.point,
       label,
+      isSelected,
       state = rememberUpdatedMarkerState(pin.point.toLatLng()),
-      contentDescription = label,
+      contentDescription = pinDescription(pin, isSelected),
+      zIndex = if (isSelected) SELECTED_PIN_Z_INDEX else 0f,
+      onClick = {
+        onClick()
+        // Not consumed, so the map still does what it does on a tap: it centres on the pin.
+        false
+      },
   ) {
-    BrowsePinLabel(label)
+    BrowsePinLabel(label, isSelected)
   }
 }
 
@@ -178,13 +212,29 @@ internal fun pinLabel(pin: BrowsePin): String {
   }
 }
 
-/** How a pin looks: [label] in bold, in a pill of the app's main colour. */
+/**
+ * What a screen reader says for [pin]: its [pinLabel], followed by "selected" when [isSelected].
+ * The map draws a marker as a picture, so this description is the only way TalkBack can tell the
+ * selected pin apart.
+ */
 @Composable
-internal fun BrowsePinLabel(label: String, modifier: Modifier = Modifier) {
+internal fun pinDescription(pin: BrowsePin, isSelected: Boolean): String {
+  val label = pinLabel(pin)
+  return if (isSelected) stringResource(R.string.browse_pin_selected, label) else label
+}
+
+/**
+ * How a pin looks: [label] in bold, in a pill with a thin border. The selected pin ([isSelected])
+ * is in the app's main colour and the others are white, so the selected one stands out.
+ */
+@Composable
+internal fun BrowsePinLabel(label: String, isSelected: Boolean, modifier: Modifier = Modifier) {
+  val colors = MaterialTheme.colorScheme
   Surface(
       shape = RoundedCornerShape(percent = PIN_CORNER_PERCENT),
-      color = MaterialTheme.colorScheme.primary,
-      contentColor = MaterialTheme.colorScheme.onPrimary,
+      color = if (isSelected) colors.primary else colors.surface,
+      contentColor = if (isSelected) colors.onPrimary else colors.onSurface,
+      border = BorderStroke(PIN_BORDER_WIDTH, colors.outlineVariant),
       modifier = modifier,
   ) {
     Text(

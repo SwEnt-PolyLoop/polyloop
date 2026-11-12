@@ -50,9 +50,50 @@ class BrowseMapTest {
           pickupPoint = ecublens,
       )
 
-  /** Shows the pin of [listings], all at Ecublens, as the map draws it. */
-  private fun setPin(listings: List<Listing>) {
-    composeTestRule.setContent { BrowsePinLabel(pinLabel(BrowsePin(ecublens, listings))) }
+  /**
+   * Shows the pin of [listings], all at Ecublens, as the map draws it, selected if [isSelected].
+   */
+  private fun setPin(listings: List<Listing>, isSelected: Boolean = false) {
+    composeTestRule.setContent {
+      BrowsePinLabel(pinLabel(BrowsePin(ecublens, listings)), isSelected = isSelected)
+    }
+  }
+
+  /** What a screen reader says for the pin of [listings], at Ecublens, selected if [isSelected]. */
+  private fun descriptionOf(listings: List<Listing>, isSelected: Boolean): String {
+    var description = ""
+    composeTestRule.setContent {
+      description = pinDescription(BrowsePin(ecublens, listings), isSelected)
+    }
+    composeTestRule.waitForIdle()
+    return description
+  }
+
+  @Test
+  fun selectedPinIsReadOutAsSelected() {
+    val price = resources.getString(R.string.listing_card_price, 15)
+
+    assertEquals(
+        resources.getString(R.string.browse_pin_selected, price),
+        descriptionOf(listOf(listing("tent", 15)), isSelected = true),
+    )
+  }
+
+  @Test
+  fun otherPinsAreReadOutAsTheirLabel() {
+    assertEquals(
+        resources.getQuantityString(R.plurals.browse_pin_items, 2, 2),
+        descriptionOf(listOf(listing("tent", 15), listing("drill", 8)), isSelected = false),
+    )
+  }
+
+  @Test
+  fun selectedPinStillShowsItsLabel() {
+    setPin(listOf(listing("tent", 15)), isSelected = true)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.browse_pin_label)
+        .assertTextEquals(resources.getString(R.string.listing_card_price, 15))
   }
 
   @Test
@@ -76,7 +117,12 @@ class BrowseMapTest {
   @Test
   fun mapWithPinsIsDisplayed() {
     composeTestRule.setContent {
-      BrowseMap(pins = listOf(BrowsePin(ecublens, listOf(listing("tent", 15)))))
+      BrowseMap(
+          pins = listOf(BrowsePin(ecublens, listOf(listing("tent", 15)))),
+          selectedPoint = ecublens,
+          onPinClick = {},
+          onMapClick = {},
+      )
     }
 
     composeTestRule.onNodeWithTag(C.Tag.browse_map).assertIsDisplayed()
