@@ -23,6 +23,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -585,6 +586,9 @@ class EndToEndTest {
         PolyLoopApp(navController = navController)
       }
     }
+    // On CI the activity is sometimes paused for a moment just after the emulator boots, and
+    // Compose then reports no screen at all (#196): wait for it to come back before the first step.
+    waitFor(isRoot())
   }
 
   private fun assertRoute(screen: Screen) {
@@ -608,9 +612,16 @@ class EndToEndTest {
     composeTestRule.waitForIdle()
   }
 
+  /**
+   * Waits for a node matching [matcher]. While the activity is paused there is no screen at all,
+   * which counts as not found yet instead of failing the test (#196).
+   */
   private fun waitFor(matcher: SemanticsMatcher) {
     composeTestRule.waitUntil(timeoutMillis = TIMEOUT_MS) {
-      composeTestRule.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+      composeTestRule
+          .onAllNodes(matcher, useUnmergedTree = true)
+          .fetchSemanticsNodes(atLeastOneRootRequired = false)
+          .isNotEmpty()
     }
   }
 
