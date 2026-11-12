@@ -38,6 +38,8 @@ import com.swent.polyloop.ui.chatlist.ChatListScreen
 import com.swent.polyloop.ui.chatlist.ChatListViewModel
 import com.swent.polyloop.ui.createlisting.CreateListingScreen
 import com.swent.polyloop.ui.createlisting.CreateListingViewModel
+import com.swent.polyloop.ui.dispute.DisputeScreen
+import com.swent.polyloop.ui.dispute.DisputeViewModel
 import com.swent.polyloop.ui.dummy.DummyScreen
 import com.swent.polyloop.ui.handover.HandoverScreen
 import com.swent.polyloop.ui.handover.HandoverViewModel
@@ -395,7 +397,18 @@ private fun PolyLoopScaffold(
         HandoverScreen(viewModel = handoverViewModel)
       }
       composable(Screen.Dispute.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
-        DummyScreen(Screen.Dispute.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
+        val disputeViewModel: DisputeViewModel =
+            viewModel(
+                factory =
+                    DisputeViewModel.Factory(
+                        rentalId = entry.stringArg(Screen.ARG_RENTAL_ID),
+                        disputeRepository = RepositoryProvider.disputeRepository,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
+                    )
+            )
+        DisputeScreen(disputeViewModel)
       }
       composable(Screen.UserProfile.route, stringArgument(Screen.ARG_USER_ID)) { entry ->
         ProfileRoute(entry.stringArg(Screen.ARG_USER_ID), navController, navigationActions)

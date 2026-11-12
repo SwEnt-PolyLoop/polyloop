@@ -10,16 +10,20 @@ import {
   Timestamp,
   Transaction,
 } from "firebase-admin/firestore";
-import * as logger from "firebase-functions/logger";
 import {
   DateRange,
   OfferAnswer,
   OfferInput,
   RequestError,
   conflicts,
+  isValidDeposit,
+  listingTitleOf,
   offerExpiry,
   readRange,
+  requirePerson,
 } from "./rentalRules";
+import { runSweep } from "./sweep";
+import { readWallet, requireFunds, writeDepositHold } from "./wallet";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
 const RENTALS = "rentals";
@@ -99,16 +103,19 @@ export async function makeOffer(
  *
  * Accepting makes the rental ACCEPTED with the offered deposit and the exact addresses, adds its
  * dates to the listing's `bookedRanges`, and declines every other REQUESTED rental of the listing
- * whose dates overlap (buffer day included). Reserving the deposit waits for the wallet's Firestore
- * implementation, so the balance is not checked yet.
+ * whose dates overlap (buffer day included). It also holds the deposit, the offered amount (the
+ * counter amount after a counteroffer), in the borrower's wallet, whoever accepts. The rental price
+ * is not reserved.
  *
  * @param db the Firestore database.
  * @param callerId the participant answering.
  * @param answer the answer, already checked by `parseOfferAnswer`.
  * @param now the current time, passed so that tests can set it.
- * @throws RequestError `not-found`, `permission-denied` (not a participant, or the offer's author)
- *   or `failed-precondition` (no offer waiting, expired, already countered, or dates no longer
- *   free). Nothing is written then.
+ * @throws RequestError `not-found`, `permission-denied` (not a participant, or the offer's author),
+ *   `failed-precondition` (no offer waiting, expired, already countered, dates no longer free, or,
+ *   on ACCEPT or COUNTER, the borrower's available balance is below the deposit) or `internal` (the
+ *   stored rental or offer is broken: no valid dates, borrower, addresses or deposit). Nothing is
+ *   written then.
  */
 export async function respondToOffer(
   db: Firestore,
@@ -132,6 +139,8 @@ export async function respondToOffer(
         if (offer.isCounter) {
           throw new RequestError("failed-precondition", "A counteroffer cannot be countered.");
         }
+        // Only the borrower counters, so this is the caller's own wallet.
+        requireFunds(await readWallet(tx, rentalRef.firestore, callerId), answer.deposit);
         writeWithSystemMessage(
           tx,
           rentalRef,
@@ -198,18 +207,12 @@ export async function expireOverdueOffers(
     .where("offer.expiresAt", "<=", Timestamp.fromDate(now))
     .select()
     .get();
-  const results = await Promise.allSettled(
-    overdue.docs.map((doc) =>
-      expire(doc.ref, now).catch((error) => {
-        logger.error(`Could not expire the offer of rental ${doc.id}`, error);
-        throw error;
-      }),
-    ),
+  const { done, failed } = await runSweep(
+    overdue.docs.map((doc) => doc.ref),
+    (ref) => expire(ref, now),
+    (id) => `Could not expire the offer of rental ${id}`,
   );
-  return {
-    expired: results.filter((result) => result.status === "fulfilled" && result.value).length,
-    failed: results.filter((result) => result.status === "rejected").length,
-  };
+  return { expired: done, failed };
 }
 
 /**
@@ -233,8 +236,8 @@ export async function expireOffer(rentalRef: DocumentReference, now: Date): Prom
 }
 
 /**
- * The acceptance by [callerId]: reads the listing, the addresses and the other requests, then
- * writes it all.
+ * The acceptance by [callerId]: reads the listing, the addresses, the other requests and the
+ * borrower's wallet, then writes it all, holding the deposit last.
  */
 async function accept(
   tx: Transaction,
@@ -264,6 +267,14 @@ async function accept(
     (doc) => doc.id !== rentalRef.id && overlapsRequest(doc, dates),
   );
 
+  // The borrower pays, whoever accepts. The amount is the offer's: `deposit` is set only below.
+  const borrowerId = requirePerson(rental.borrowerId, "borrower");
+  if (!isValidDeposit(offer.amount)) {
+    throw new RequestError("internal", "The offer has no valid deposit.");
+  }
+  const wallet = await readWallet(tx, db, borrowerId);
+  requireFunds(wallet, offer.amount);
+
   tx.delete(addressesRef(rentalRef));
   writeWithSystemMessage(
     tx,
@@ -287,6 +298,8 @@ async function accept(
   for (const doc of overlapping) {
     decline(tx, doc.ref, "Dates booked · request declined", decliner);
   }
+  // No hasTransaction read: a REQUESTED rental cannot have its deposit row yet.
+  writeDepositHold(tx, db, borrowerId, wallet, offer.amount, rentalRef.id, listingTitleOf(rental));
 }
 
 /**

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -228,20 +229,18 @@ private fun EscalationFooter(uiState: DisputeUiState, onAskEscalate: () -> Unit)
         )
     uiState.stage == DisputeStage.SETTLE ->
         Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-              text =
-                  if (uiState.daysUntilEscalation <= 0)
-                      stringResource(R.string.dispute_auto_escalates_today)
-                  else
-                      pluralStringResource(
-                          R.plurals.dispute_auto_escalates,
-                          uiState.daysUntilEscalation,
-                          uiState.daysUntilEscalation,
-                      ),
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.weight(1f).testTag(C.Tag.dispute_escalation),
-          )
+          val days = uiState.daysUntilEscalation
+          // Without a deadline, the dispute never moves on by itself: no days left to show.
+          if (days == null) Spacer(Modifier.weight(1f))
+          else
+              Text(
+                  text =
+                      if (days <= 0) stringResource(R.string.dispute_auto_escalates_today)
+                      else pluralStringResource(R.plurals.dispute_auto_escalates, days, days),
+                  style = MaterialTheme.typography.bodyMedium,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.weight(1f).testTag(C.Tag.dispute_escalation),
+              )
           TextButton(
               onClick = onAskEscalate,
               enabled = uiState.canEscalate,
@@ -287,7 +286,7 @@ private fun DisputeContentPreview() {
         uiState =
             DisputeUiState(
                 itemTitle = "Bike pump",
-                otherPersonName = "Ana",
+                otherPersonName = "Lender",
                 deposit = 60,
                 history =
                     listOf(

@@ -13,6 +13,8 @@ import com.swent.polyloop.model.chat.ChatRepository
 import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepositoryAndroid
+import com.swent.polyloop.model.dispute.DisputeRepository
+import com.swent.polyloop.model.dispute.DisputeRepositoryFirestore
 import com.swent.polyloop.model.handover.HandoverRepository
 import com.swent.polyloop.model.handover.HandoverRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepository
@@ -49,6 +51,7 @@ object RepositoryProvider {
   private var connectivity: ConnectivityRepository? = null
   private var handover: HandoverRepository? = null
   private var wallet: WalletRepository? = null
+  private var dispute: DisputeRepository? = null
   private var clock: ServerClock? = null
 
   /** Keeps the app context for the repositories that need one. Called once at app startup. */
@@ -139,6 +142,15 @@ object RepositoryProvider {
     }
 
   /**
+   * The dispute repository: Firestore by default, read-only for the app (Cloud Functions write).
+   */
+  var disputeRepository: DisputeRepository
+    get() = dispute ?: DisputeRepositoryFirestore().also { dispute = it }
+    set(value) {
+      dispute = value
+    }
+
+  /**
    * The Cloud Storage instance that repositories upload photos and PDFs to. Read on each access, so
    * Storage is not touched until a repository needs it. Repositories should take it as a lazy
    * provider defaulting to `{ RepositoryProvider.storage }` and read it through `by lazy`, so
@@ -161,6 +173,7 @@ object RepositoryProvider {
     connectivity = null
     handover = null
     wallet = null
+    dispute = null
     clock = null
   }
 

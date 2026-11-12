@@ -16,6 +16,7 @@ import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
@@ -356,6 +357,168 @@ class BrowseViewModelTest {
 
     assertEquals(setOf(ListingCategory.ELECTRONICS), vm.uiState.value.filter.categories)
     assertEquals(listOf(projector, speaker), vm.uiState.value.visibleListings)
+  }
+
+  // ---------- list or map ----------
+
+  @Test
+  fun listIsShownByDefault() =
+      assertEquals(
+          BrowseView.LIST,
+          BrowseViewModel(repository, authRepository, connectivity).uiState.value.view,
+      )
+
+  @Test
+  fun showMapThenShowListSwitchesTheViewAndKeepsTheFilter() {
+    val vm = filterViewModel()
+    vm.setQuery("drill")
+
+    vm.showMap()
+    assertEquals(BrowseView.MAP, vm.uiState.value.view)
+    assertEquals(listOf(drill), vm.uiState.value.visibleListings)
+
+    vm.showList()
+    assertEquals(BrowseView.LIST, vm.uiState.value.view)
+    assertEquals(listOf(drill), vm.uiState.value.visibleListings)
+  }
+
+  @Test
+  fun refreshKeepsTheMapView() {
+    val vm = filterViewModel()
+    vm.showMap()
+
+    vm.refresh()
+
+    assertEquals(BrowseView.MAP, vm.uiState.value.view)
+  }
+
+  // ---------- pins ----------
+
+  private val ecublens = MapPoint(46.52, 6.57)
+  private val renens = MapPoint(46.54, 6.59)
+
+  @Test
+  fun listingsAtTheSamePointShareOnePinAndListingsWithoutAPointHaveNone() {
+    val tentHere = tent.copy(pickupPoint = ecublens)
+    val drillThere = drill.copy(pickupPoint = renens)
+    val bikeHere = listing("bike").copy(pickupPoint = ecublens)
+    repository.listings = listOf(tentHere, projector, drillThere, bikeHere)
+
+    val pins = BrowseViewModel(repository, authRepository, connectivity).uiState.value.pins
+
+    assertEquals(
+        listOf(
+            BrowsePin(ecublens, listOf(tentHere, bikeHere)),
+            BrowsePin(renens, listOf(drillThere)),
+        ),
+        pins,
+    )
+  }
+
+  @Test
+  fun pinsFollowTheSearchAndCategories() {
+    val tentHere = tent.copy(pickupPoint = ecublens)
+    val projectorHere = projector.copy(pickupPoint = ecublens)
+    val drillThere = drill.copy(pickupPoint = renens)
+    repository.listings = listOf(tentHere, projectorHere, drillThere)
+    val vm = BrowseViewModel(repository, authRepository, connectivity)
+
+    vm.setQuery("drill")
+    assertEquals(listOf(BrowsePin(renens, listOf(drillThere))), vm.uiState.value.pins)
+
+    vm.setQuery("")
+    vm.toggleCategory(ListingCategory.ELECTRONICS)
+    assertEquals(listOf(BrowsePin(ecublens, listOf(projectorHere))), vm.uiState.value.pins)
+  }
+
+  @Test
+  fun noPinsWhenNoListingHasAPoint() =
+      assertEquals(emptyList<BrowsePin>(), filterViewModel().uiState.value.pins)
+
+  // ---------- selected pin ----------
+
+  private val tentHere = tent.copy(pickupPoint = ecublens)
+  private val projectorHere = projector.copy(pickupPoint = ecublens)
+  private val drillThere = drill.copy(pickupPoint = renens)
+
+  /** A ViewModel whose tent and projector share the Ecublens pin, and the drill is in Renens. */
+  private fun pinViewModel(): BrowseViewModel {
+    repository.listings = listOf(tentHere, projectorHere, drillThere)
+    return BrowseViewModel(repository, authRepository, connectivity)
+  }
+
+  @Test
+  fun selectingAPinGivesItsListingsAndClearingTheSelectionRemovesThem() {
+    val vm = pinViewModel()
+    assertNull(vm.uiState.value.selectedPin)
+
+    vm.selectPin(ecublens)
+    assertEquals(BrowsePin(ecublens, listOf(tentHere, projectorHere)), vm.uiState.value.selectedPin)
+
+    vm.clearSelection()
+    assertNull(vm.uiState.value.selectedPoint)
+    assertNull(vm.uiState.value.selectedPin)
+  }
+
+  @Test
+  fun filterKeepingSomeListingsOfTheSelectedPinKeepsTheSelection() {
+    val vm = pinViewModel()
+    vm.selectPin(ecublens)
+
+    vm.toggleCategory(ListingCategory.ELECTRONICS)
+
+    assertEquals(BrowsePin(ecublens, listOf(projectorHere)), vm.uiState.value.selectedPin)
+  }
+
+  @Test
+  fun filterHidingTheSelectedPinDropsTheSelectionForGood() {
+    val vm = pinViewModel()
+    vm.selectPin(ecublens)
+
+    vm.setQuery("drill")
+    assertNull(vm.uiState.value.selectedPoint)
+    assertNull(vm.uiState.value.selectedPin)
+
+    vm.setQuery("")
+    assertNull(vm.uiState.value.selectedPin)
+  }
+
+  @Test
+  fun reloadWithoutTheSelectedPinDropsTheSelectionForGood() {
+    val vm = pinViewModel()
+    vm.selectPin(ecublens)
+
+    // Both Ecublens listings were unpublished meanwhile.
+    repository.listings = listOf(drillThere)
+    vm.refresh()
+    assertNull(vm.uiState.value.selectedPoint)
+
+    repository.listings = listOf(tentHere, projectorHere, drillThere)
+    vm.refresh()
+    assertNull(vm.uiState.value.selectedPin)
+  }
+
+  @Test
+  fun selectingAPointWithoutAPinSelectsNothing() {
+    val vm = pinViewModel()
+
+    vm.selectPin(MapPoint(46.60, 6.70))
+
+    assertNull(vm.uiState.value.selectedPoint)
+    assertNull(vm.uiState.value.selectedPin)
+  }
+
+  @Test
+  fun showingTheListClearsTheSelection() {
+    val vm = pinViewModel()
+    vm.showMap()
+    vm.selectPin(ecublens)
+
+    vm.showList()
+    vm.showMap()
+
+    assertNull(vm.uiState.value.selectedPoint)
+    assertNull(vm.uiState.value.selectedPin)
   }
 
   @Test

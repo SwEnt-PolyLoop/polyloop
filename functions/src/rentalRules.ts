@@ -193,6 +193,11 @@ export function requirePerson(value: unknown, role: string): string {
   return value;
 }
 
+/** The rental's item title, or "" when it has none. */
+export function listingTitleOf(rental: Record<string, unknown>): string {
+  return typeof rental.listingTitle === "string" ? rental.listingTitle : "";
+}
+
 /** The fields of a callable's input, or none if it is not an object. */
 export function asFields(data: unknown): Record<string, unknown> {
   return (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>;
