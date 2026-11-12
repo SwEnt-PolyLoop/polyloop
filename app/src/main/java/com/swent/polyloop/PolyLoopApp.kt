@@ -3,6 +3,8 @@
 package com.swent.polyloop
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalNavigationDrawer
@@ -150,7 +152,10 @@ private fun PolyLoopScaffold(
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = Modifier.padding(innerPadding),
+        // The screens end above the keyboard instead of being pushed up by it (the manifest's
+        // adjustResize stops that). The keyboard covers the navigation bar, which innerPadding
+        // already leaves room for, so that part is not counted twice.
+        modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding).imePadding(),
     ) {
       composable(Screen.Auth.route) {
         val authViewModel: AuthViewModel =

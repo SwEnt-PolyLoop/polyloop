@@ -2,11 +2,14 @@
 
 package com.swent.polyloop.ui.chat
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -17,6 +20,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -98,6 +102,41 @@ class ChatScreenTest {
 
   private fun bounds(tag: String) =
       composeTestRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+
+  // ---------- keyboard ----------
+
+  @Test
+  fun theNewestMessageStaysInViewWhenTheScreenGetsShorter() {
+    val many =
+        List(15) {
+          ChatMessageRow(
+              "n$it",
+              "Message $it",
+              now,
+              if (it % 2 == 0) MessageKind.THEIRS else MessageKind.MINE,
+          )
+        }
+    var height by mutableStateOf(800.dp)
+    composeTestRule.setContent {
+      PolyLoopTheme {
+        Box(Modifier.height(height)) {
+          ChatContent(
+              uiState = loaded.copy(messages = many),
+              onDraftChange = {},
+              onSend = {},
+              onRetry = {},
+              onRentalDetailsClick = {},
+              now = now,
+          )
+        }
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.chat_message_ + "n14").assertIsDisplayed()
+
+    height = 400.dp // as when the keyboard opens
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_message_ + "n14").assertIsDisplayed()
+  }
 
   // ---------- pickup ----------
 

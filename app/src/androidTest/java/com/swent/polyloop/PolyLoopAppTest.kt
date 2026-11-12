@@ -3,8 +3,10 @@
 package com.swent.polyloop
 
 import android.net.Uri
+import android.view.View
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -22,6 +24,9 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -79,6 +84,9 @@ class PolyLoopAppTest {
   private lateinit var navController: NavHostController
 
   private lateinit var backDispatcher: OnBackPressedDispatcher
+
+  /** The app's view, to send it a keyboard in tests. */
+  private lateinit var appView: View
 
   private val listing =
       Listing(
@@ -260,6 +268,7 @@ class PolyLoopAppTest {
   private fun setApp(isAdmin: Boolean = false) {
     composeTestRule.setContent {
       backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+      appView = LocalView.current
       navController = rememberNavController()
       PolyLoopApp(navController = navController, isAdmin = isAdmin)
     }
@@ -714,6 +723,31 @@ class PolyLoopAppTest {
     )
 
     assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
+  }
+
+  @Test
+  fun anOpenKeyboardShrinksTheScreenAboveItInsteadOfPushingItUp() {
+    openAsBorrower(Screen.Chat.createRoute(rental.id))
+    waitForTag(C.Tag.chat_input)
+    val screenBottom = composeTestRule.onRoot().fetchSemanticsNode().boundsInRoot.bottom
+    // Half the screen, so it fits on any emulator (CI's is only 640 px tall).
+    val keyboard = (screenBottom / 2).toInt()
+
+    // Sent as Android does when the keyboard opens, so the test does not depend on a real one.
+    composeTestRule.runOnUiThread {
+      val insets =
+          WindowInsetsCompat.Builder()
+              .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, keyboard))
+              .setVisible(WindowInsetsCompat.Type.ime(), true)
+              .build()
+      ViewCompat.dispatchApplyWindowInsets(appView, insets)
+    }
+    composeTestRule.waitForIdle()
+
+    val field = composeTestRule.onNodeWithTag(C.Tag.chat_input).fetchSemanticsNode().boundsInRoot
+    assertTrue(field.bottom <= screenBottom - keyboard)
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.chat_header_name).assertIsDisplayed()
   }
 
   @Test

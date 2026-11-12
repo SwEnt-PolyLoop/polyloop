@@ -31,7 +31,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -243,12 +245,15 @@ private fun formatDates(start: LocalDate, end: LocalDate): String {
 }
 
 /**
- * The messages, oldest first, scrolled to the newest one when the chat opens or a message arrives.
+ * The messages, oldest first, scrolled to the newest one when the chat opens, a message arrives, or
+ * the list changes height, as when the keyboard opens: otherwise the list would keep its first
+ * message in place and hide the newest ones under the field.
  */
 @Composable
 private fun MessageList(messages: List<ChatMessageRow>, now: Instant) {
   val listState = rememberLazyListState()
-  LaunchedEffect(messages.size) { listState.scrollToItem(messages.lastIndex) }
+  val height by remember { derivedStateOf { listState.layoutInfo.viewportSize.height } }
+  LaunchedEffect(messages.size, height) { listState.scrollToItem(messages.lastIndex) }
   LazyColumn(
       state = listState,
       modifier = Modifier.fillMaxSize().testTag(C.Tag.chat_messages),
