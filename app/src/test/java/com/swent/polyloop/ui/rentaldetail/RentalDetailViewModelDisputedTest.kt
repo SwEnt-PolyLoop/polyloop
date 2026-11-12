@@ -8,9 +8,11 @@ import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.Instant
 import java.time.LocalDate
@@ -65,9 +67,12 @@ class RentalDetailViewModelDisputedTest {
           )
       )
 
+  // Also runs the server clock's reads, so they finish before each assertion.
+  private val testDispatcher = UnconfinedTestDispatcher()
+
   @Before
   fun setUp() {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
+    Dispatchers.setMain(testDispatcher)
   }
 
   @After
@@ -86,6 +91,13 @@ class RentalDetailViewModelDisputedTest {
           profiles,
           FakeAuthRepository(signedInUser = AuthUser(signedInUid, "$signedInUid@epfl.ch", "")),
           FakeConnectivityRepository(),
+          ServerClock(
+              rentals,
+              InMemoryServerClockStore(),
+              elapsedRealtime = { 0L },
+              bootCount = { 0 },
+              ioDispatcher = testDispatcher,
+          ),
       )
 
   @Test

@@ -6,14 +6,20 @@ import { toCallableError } from "./callable";
 import {
   RequestError,
   isValidDeposit,
+  listingTitleOf,
   parseRentalId,
   requirePerson,
   requireVerifiedEpfl,
 } from "./rentalRules";
-import { hasTransaction, readWallet, writeWallet } from "./wallet";
+import {
+  depositRowId,
+  hasTransaction,
+  readWallet,
+  requireFunds,
+  writeDepositHold,
+} from "./wallet";
 
 const ACCEPTED = "ACCEPTED";
-const DEPOSIT_HELD = "DEPOSIT_HELD";
 
 /**
  * Holds the deposit of the accepted rental [rentalId] in the borrower's wallet, in one transaction:
@@ -48,8 +54,7 @@ export async function reserveRentalDeposit(
       throw new RequestError("permission-denied", "Only the two participants can do this.");
     }
     const borrowerId = requirePerson(rental.borrowerId, "borrower");
-    const rowId = `deposit_held_${rentalId}`;
-    if (await hasTransaction(tx, db, borrowerId, rowId)) return;
+    if (await hasTransaction(tx, db, borrowerId, depositRowId(rentalId))) return;
     if (rental.status !== ACCEPTED) {
       throw new RequestError(
         "failed-precondition",
@@ -58,25 +63,8 @@ export async function reserveRentalDeposit(
     }
     const deposit = requireDeposit(rental);
     const wallet = await readWallet(tx, db, borrowerId);
-    if (wallet.available < deposit) {
-      throw new RequestError("failed-precondition", "Insufficient funds to hold the deposit.");
-    }
-    writeWallet(
-      tx,
-      db,
-      borrowerId,
-      {
-        ...wallet,
-        available: wallet.available - deposit,
-        heldAsDeposits: wallet.heldAsDeposits + deposit,
-      },
-      {
-        id: rowId,
-        type: DEPOSIT_HELD,
-        amount: -deposit,
-        itemTitle: typeof rental.listingTitle === "string" ? rental.listingTitle : "",
-      },
-    );
+    requireFunds(wallet, deposit);
+    writeDepositHold(tx, db, borrowerId, wallet, deposit, rentalId, listingTitleOf(rental));
   });
 }
 

@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.update
  * every call fails with it; an observer throws it when it subscribes or at the next change, not as
  * soon as it is set. When [gate] is set, the suspending calls wait for it to complete, so tests can
  * see a loading state. [clock] gives the creation time of new rentals and the current time of the
- * negotiation.
+ * negotiation; the server's time, which [serverNow] returns, is set separately.
  *
  * The negotiation follows the rules of the Cloud Functions, except for what the fake cannot know:
  * - it does not know who calls it, so it does not check the caller's role;
@@ -49,6 +49,13 @@ class FakeRentalRepository(
   /** The rentals currently stored, e.g. to check what a ViewModel requested. */
   val rentals: List<Rental>
     get() = stored.value
+
+  /** The time [serverNow] returns, apart from [clock] so that tests can set it on its own. */
+  var serverNow: Instant = Instant.parse("2026-10-13T10:00:00Z")
+
+  /** How many times [serverNow] was called, e.g. to check that a ViewModel did not ask. */
+  var serverNowCalls: Int = 0
+    private set
 
   override suspend fun requestRental(
       listing: Listing,
@@ -192,6 +199,12 @@ class FakeRentalRepository(
         check(rental.offer == null) { "An offer is waiting for an answer" }
         rental.copy(status = RentalStatus.DECLINED)
       }
+
+  override suspend fun serverNow(): Result<Instant> {
+    serverNowCalls++
+    gate?.await()
+    return failure?.let { Result.failure(it) } ?: Result.success(serverNow)
+  }
 
   /**
    * Runs one step of the negotiation on the REQUESTED rental [rentalId] and stores what [step]

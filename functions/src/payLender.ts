@@ -3,7 +3,13 @@
 import { DocumentData, Firestore, getFirestore } from "firebase-admin/firestore";
 import { onCall } from "firebase-functions/v2/https";
 import { toCallableError } from "./callable";
-import { RequestError, parseRentalId, requirePerson, requireVerifiedEpfl } from "./rentalRules";
+import {
+  RequestError,
+  listingTitleOf,
+  parseRentalId,
+  requirePerson,
+  requireVerifiedEpfl,
+} from "./rentalRules";
 import { hasTransaction, readWallet, writeWallet } from "./wallet";
 
 /**
@@ -72,7 +78,7 @@ export async function payRentalLender(
       throw new RequestError("failed-precondition", "Insufficient funds to pay the rental.");
     }
     const lender = await readWallet(tx, db, lenderId);
-    const itemTitle = typeof rental.listingTitle === "string" ? rental.listingTitle : "";
+    const itemTitle = listingTitleOf(rental);
     writeWallet(
       tx,
       db,

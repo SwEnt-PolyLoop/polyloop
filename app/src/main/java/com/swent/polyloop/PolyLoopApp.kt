@@ -40,6 +40,8 @@ import com.swent.polyloop.ui.chatlist.ChatListScreen
 import com.swent.polyloop.ui.chatlist.ChatListViewModel
 import com.swent.polyloop.ui.createlisting.CreateListingScreen
 import com.swent.polyloop.ui.createlisting.CreateListingViewModel
+import com.swent.polyloop.ui.dispute.DisputeScreen
+import com.swent.polyloop.ui.dispute.DisputeViewModel
 import com.swent.polyloop.ui.dummy.DummyScreen
 import com.swent.polyloop.ui.handover.HandoverScreen
 import com.swent.polyloop.ui.handover.HandoverViewModel
@@ -287,6 +289,7 @@ private fun PolyLoopScaffold(
                         authRepository = RepositoryProvider.authRepository,
                         profileRepository = RepositoryProvider.profileRepository,
                         connectivityRepository = RepositoryProvider.connectivityRepository,
+                        walletRepository = RepositoryProvider.walletRepository,
                     )
             )
         ListingDetailScreen(
@@ -316,13 +319,19 @@ private fun PolyLoopScaffold(
                         profileRepository = RepositoryProvider.profileRepository,
                         authRepository = RepositoryProvider.authRepository,
                         connectivityRepository = RepositoryProvider.connectivityRepository,
+                        serverClock = RepositoryProvider.serverClock,
                     )
             )
         RentalDetailScreen(
             viewModel = rentalDetailViewModel,
             onChatClick = { navController.navigateOrGoBack(Screen.Chat.createRoute(rentalId)) },
             onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
-            onStartPickupClick = { navController.navigate(Screen.Handover.createRoute(rentalId)) },
+            // Single top: a fast double tap opens Handover once, not twice.
+            onStartPickupClick = {
+              navController.navigate(Screen.Handover.createRoute(rentalId)) {
+                launchSingleTop = true
+              }
+            },
             onViewDisputeClick = { navController.navigate(Screen.Dispute.createRoute(rentalId)) },
         )
       }
@@ -371,6 +380,12 @@ private fun PolyLoopScaffold(
             onRentalDetailsClick = {
               navController.navigateOrGoBack(Screen.RentalDetail.createRoute(rentalId))
             },
+            // Single top: a fast double tap opens Handover once, not twice.
+            onStartPickupClick = {
+              navController.navigate(Screen.Handover.createRoute(rentalId)) {
+                launchSingleTop = true
+              }
+            },
         )
       }
       composable(Screen.Handover.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
@@ -388,7 +403,18 @@ private fun PolyLoopScaffold(
         HandoverScreen(viewModel = handoverViewModel)
       }
       composable(Screen.Dispute.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
-        DummyScreen(Screen.Dispute.createRoute(entry.stringArg(Screen.ARG_RENTAL_ID)))
+        val disputeViewModel: DisputeViewModel =
+            viewModel(
+                factory =
+                    DisputeViewModel.Factory(
+                        rentalId = entry.stringArg(Screen.ARG_RENTAL_ID),
+                        disputeRepository = RepositoryProvider.disputeRepository,
+                        rentalRepository = RepositoryProvider.rentalRepository,
+                        authRepository = RepositoryProvider.authRepository,
+                        connectivityRepository = RepositoryProvider.connectivityRepository,
+                    )
+            )
+        DisputeScreen(disputeViewModel)
       }
       composable(Screen.UserProfile.route, stringArgument(Screen.ARG_USER_ID)) { entry ->
         ProfileRoute(entry.stringArg(Screen.ARG_USER_ID), navController, navigationActions)

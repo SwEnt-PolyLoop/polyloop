@@ -4,6 +4,7 @@ package com.swent.polyloop.ui.chat
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +21,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthRepository
@@ -27,6 +32,8 @@ import com.swent.polyloop.model.auth.AuthResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.chat.Conversation
 import com.swent.polyloop.model.chat.FakeChatRepository
+import com.swent.polyloop.model.chat.Message
+import com.swent.polyloop.model.chat.MessageType
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
@@ -64,6 +71,11 @@ class ChatScreenTest {
   private var sends = 0
   private var retries = 0
   private var rentalDetailsClicks = 0
+  private var pickupClicks = 0
+
+  // The day the screen takes as today; a test can change it after setContent and the screen
+  // follows.
+  private var today by mutableStateOf(start)
 
   private fun setContent(uiState: ChatUiState) {
     composeTestRule.setContent {
@@ -75,6 +87,8 @@ class ChatScreenTest {
             onRetry = { retries++ },
             onRentalDetailsClick = { rentalDetailsClicks++ },
             now = now,
+            today = today,
+            onStartPickupClick = { pickupClicks++ },
         )
       }
     }
@@ -122,6 +136,65 @@ class ChatScreenTest {
     height = 400.dp // as when the keyboard opens
 
     composeTestRule.onNodeWithTag(C.Tag.chat_message_ + "n14").assertIsDisplayed()
+  }
+
+  // ---------- pickup ----------
+
+  @Test
+  fun onThePickupDayTheBarShowsAndItsButtonStartsThePickup() {
+    setContent(loaded.copy(pickupDate = start))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.chat_start_pickup_button)
+        .assertTextEquals(context.getString(R.string.chat_start_pickup))
+        .performClick()
+    assertEquals(1, pickupClicks)
+  }
+
+  @Test
+  fun theBarShowsOnlyOnThePickupDayItself() {
+    today = start.minusDays(1)
+    setContent(loaded.copy(pickupDate = start))
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+
+    today = start.plusDays(1)
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+
+    today = start
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertIsDisplayed()
+  }
+
+  @Test
+  fun aRentalThatIsNotAcceptedHasNoBar() {
+    setContent(loaded)
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+  }
+
+  @Test
+  fun theBarIsHiddenWhileTheChatLoads() {
+    setContent(loaded.copy(pickupDate = start, isLoading = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_loading).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+  }
+
+  @Test
+  fun theBarIsHiddenWhenTheChatCannotBeLoaded() {
+    setContent(loaded.copy(pickupDate = start, errorMsg = "Network error"))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+  }
+
+  @Test
+  fun theStartPickupButtonStaysEnabledOfflineUnderTheHeader() {
+    setContent(loaded.copy(pickupDate = start, isOffline = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_start_pickup_button).assertIsEnabled()
+    assertTrue(bounds(C.Tag.chat_pickup_bar).top >= bounds(C.Tag.chat_header_item).bottom)
+    assertTrue(bounds(C.Tag.chat_pickup_bar).bottom <= bounds(C.Tag.chat_messages).top)
   }
 
   // ---------- states ----------
@@ -296,25 +369,23 @@ class ChatScreenTest {
 
   // ---------- with the real ViewModel ----------
 
-  @Test
-  fun sentMessageAppearsOnTheRight() {
-    val chat = FakeChatRepository(currentUid = "me", now = now)
-    chat.conversations =
-        listOf(
-            Conversation(
-                "tent",
-                "Camping tent",
-                "ana",
-                "Ana",
-                "me",
-                "Me",
-                "",
-                now,
-                RentalStatus.REQUESTED,
-                start,
-                end,
-            )
-        )
+  // I borrow Ana's tent.
+  private val tent =
+      Conversation(
+          "tent",
+          "Camping tent",
+          "ana",
+          "Ana",
+          "me",
+          "Me",
+          "",
+          now,
+          RentalStatus.REQUESTED,
+          start,
+          end,
+      )
+
+  private fun realViewModel(chat: FakeChatRepository): ChatViewModel {
     val auth =
         object : AuthRepository {
           override suspend fun signUp(name: String, email: String, password: String) =
@@ -330,8 +401,14 @@ class ChatScreenTest {
 
           override fun signOut() = Unit
         }
-    val viewModel =
-        ChatViewModel("tent", chat, auth, FakeRentalRepository(), FakeConnectivityRepository())
+    return ChatViewModel("tent", chat, auth, FakeRentalRepository(), FakeConnectivityRepository())
+  }
+
+  @Test
+  fun sentMessageAppearsOnTheRight() {
+    val chat = FakeChatRepository(currentUid = "me", now = now)
+    chat.conversations = listOf(tent)
+    val viewModel = realViewModel(chat)
 
     composeTestRule.setContent { PolyLoopTheme { ChatScreen(viewModel) } }
     composeTestRule.onNodeWithTag(C.Tag.chat_input).performTextInput("See you at 5?")
@@ -340,5 +417,37 @@ class ChatScreenTest {
     inMessage("m1", C.Tag.chat_message_text).assertTextEquals("See you at 5?")
     assertEquals("", viewModel.uiState.value.draft)
     composeTestRule.onNodeWithTag(C.Tag.chat_send_button).assertIsNotEnabled()
+  }
+
+  @Test
+  fun chatIsMarkedAsReadOnlyWhileItIsVisible() {
+    val hi = Message("m1", "ana", "Hi", now, MessageType.USER)
+    val chat = FakeChatRepository(currentUid = "me", now = now)
+    chat.conversations = listOf(tent)
+    chat.messages = mapOf("tent" to listOf(hi))
+    val viewModel = realViewModel(chat)
+    val owner =
+        object : LifecycleOwner {
+          override val lifecycle = LifecycleRegistry(this)
+        }
+    composeTestRule.runOnUiThread { owner.lifecycle.currentState = Lifecycle.State.RESUMED }
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+        PolyLoopTheme { ChatScreen(viewModel) }
+      }
+    }
+    composeTestRule.runOnIdle { assertEquals(1, chat.markAsReadCalls) }
+
+    // Hidden, like the app in the background: Ana's new message stays unread.
+    composeTestRule.runOnUiThread { owner.lifecycle.currentState = Lifecycle.State.CREATED }
+    composeTestRule.runOnIdle {
+      chat.messages =
+          mapOf("tent" to listOf(hi, Message("m2", "ana", "Ok?", now, MessageType.USER)))
+    }
+    composeTestRule.runOnIdle { assertEquals(1, chat.markAsReadCalls) }
+
+    // Visible again: the user now sees it.
+    composeTestRule.runOnUiThread { owner.lifecycle.currentState = Lifecycle.State.RESUMED }
+    composeTestRule.runOnIdle { assertEquals(2, chat.markAsReadCalls) }
   }
 }

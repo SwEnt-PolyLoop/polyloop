@@ -10,7 +10,7 @@ import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.functions
 import com.google.firebase.storage.storage
-import com.swent.polyloop.model.rental.RentalRepositoryFirestore
+import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -52,8 +52,8 @@ object FirebaseEmulator {
     Firebase.auth.useEmulator(HOST, AUTH_PORT)
     Firebase.firestore.useEmulator(HOST, FIRESTORE_PORT)
     Firebase.storage.useEmulator(HOST, STORAGE_PORT)
-    // The negotiation Functions run in RentalRepositoryFirestore.REGION, as deployed.
-    Firebase.functions(RentalRepositoryFirestore.REGION).useEmulator(HOST, FUNCTIONS_PORT)
+    // The Functions run in FUNCTIONS_REGION, as deployed.
+    Firebase.functions(FUNCTIONS_REGION).useEmulator(HOST, FUNCTIONS_PORT)
     connected = true
   }
 

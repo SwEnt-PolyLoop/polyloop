@@ -41,16 +41,16 @@ class DisputeViewModelTest {
 
   private val now = Instant.parse("2026-10-03T10:00:00Z")
   private val me = AuthUser(uid = "me", email = "me@epfl.ch", name = "Me")
-  private val ana = AuthUser(uid = "ana", email = "ana@epfl.ch", name = "Ana")
+  private val lender = AuthUser(uid = "lender", email = "lender@epfl.ch", name = "Lender")
 
-  // I borrowed Ana's bike pump; I proposed 40/60, she countered 70/30.
+  // I borrowed the lender's bike pump; I proposed 40/60, the lender countered 70/30.
   private val pump =
       Rental(
           id = "pump",
           listingId = "listing",
           listingTitle = "Bike pump",
-          ownerId = "ana",
-          ownerName = "Ana",
+          ownerId = "lender",
+          ownerName = "Lender",
           borrowerId = "me",
           borrowerName = "Me",
           startDate = LocalDate.of(2026, 9, 20),
@@ -64,12 +64,12 @@ class DisputeViewModelTest {
           createdAt = now.minus(Duration.ofDays(20)),
       )
   private val mine = Proposal("me", 40, now.minus(Duration.ofDays(2)))
-  private val hers = Proposal("ana", 70, now.minus(Duration.ofDays(1)))
+  private val lenderProposal = Proposal("lender", 70, now.minus(Duration.ofDays(1)))
   private val open =
       Dispute(
           rentalId = "pump",
           stage = DisputeStage.SETTLE,
-          proposals = listOf(mine, hers),
+          proposals = listOf(mine, lenderProposal),
           escalatesAt = now + Duration.ofDays(27).plusHours(12),
       )
 
@@ -82,7 +82,7 @@ class DisputeViewModelTest {
   @Before
   fun setUp() {
     Dispatchers.setMain(dispatcher)
-    disputes = FakeDisputeRepository(listOf(open), clock = { now })
+    disputes = fakeDisputes(open)
     rentals = FakeRentalRepository(listOf(pump))
     auth = FakeAuthRepository(signedInUser = me)
     connectivity = FakeConnectivityRepository()
@@ -91,6 +91,22 @@ class DisputeViewModelTest {
   @After
   fun tearDown() {
     Dispatchers.resetMain()
+  }
+
+  /** Holds [stored]; each call acts as the user signed in to [auth] at that moment. */
+  private fun fakeDisputes(vararg stored: Dispute) =
+      FakeDisputeRepository(
+          stored.toList(),
+          currentUid = { auth.signedInUser?.uid },
+          clock = { now },
+      )
+
+  /** Runs [action] on the disputes as the lender, the other person, then signs the user back in. */
+  private fun asLender(action: suspend FakeDisputeRepository.() -> Result<Unit>) {
+    val user = auth.signedInUser
+    auth.signedInUser = lender
+    runBlocking { disputes.action() }
+    auth.signedInUser = user
   }
 
   private fun viewModel(rentalId: String = "pump", clock: () -> Instant = { now }) =
@@ -105,14 +121,14 @@ class DisputeViewModelTest {
     assertFalse(state.isLoading)
     assertFalse(state.loadFailed)
     assertEquals("Bike pump", state.itemTitle)
-    assertEquals("Ana", state.otherPersonName)
+    assertEquals("Lender", state.otherPersonName)
     assertFalse(state.isLender)
     assertEquals(DisputeStage.SETTLE, state.stage)
   }
 
   @Test
   fun lenderSeesTheBorrowerAndTheirRole() {
-    auth.signedInUser = ana
+    auth.signedInUser = lender
 
     val state = viewModel().uiState.value
 
@@ -129,7 +145,7 @@ class DisputeViewModelTest {
   fun historyIsNewestFirstAndMarksMyProposals() {
     assertEquals(
         listOf(
-            ProposalRow(byMe = false, lenderPercent = 70, createdAt = hers.createdAt),
+            ProposalRow(byMe = false, lenderPercent = 70, createdAt = lenderProposal.createdAt),
             ProposalRow(byMe = true, lenderPercent = 40, createdAt = mine.createdAt),
         ),
         viewModel().uiState.value.history,
@@ -140,9 +156,22 @@ class DisputeViewModelTest {
   fun daysUntilEscalationAreRoundedUpAndZeroOncePassed() {
     assertEquals(28, viewModel().uiState.value.daysUntilEscalation)
 
-    disputes = FakeDisputeRepository(listOf(open.copy(escalatesAt = now.minusSeconds(1))))
+    disputes = fakeDisputes(open.copy(escalatesAt = now.minusSeconds(1)))
 
     assertEquals(0, viewModel().uiState.value.daysUntilEscalation)
+  }
+
+  @Test
+  fun aDisputeWithoutEscalatesAtHasNoDaysLeftAndStaysOpen() {
+    disputes = fakeDisputes(open.copy(escalatesAt = null))
+    val vm = viewModel(clock = { time })
+    val screen = show(vm)
+
+    elapse(Duration.ofDays(40))
+
+    assertNull(vm.uiState.value.daysUntilEscalation)
+    assertTrue(vm.uiState.value.canEscalate)
+    screen.cancel()
   }
 
   /**
@@ -187,7 +216,7 @@ class DisputeViewModelTest {
 
   @Test
   fun countdownReachesZeroWhenTheDeadlinePassesWhileTheScreenIsShown() {
-    disputes = FakeDisputeRepository(listOf(open.copy(escalatesAt = now + Duration.ofHours(12))))
+    disputes = fakeDisputes(open.copy(escalatesAt = now + Duration.ofHours(12)))
     val vm = viewModel(clock = { time })
     val screen = show(vm)
     assertEquals(1, vm.uiState.value.daysUntilEscalation)
@@ -237,7 +266,7 @@ class DisputeViewModelTest {
 
   @Test
   fun errorWhenTheRentalHasNoDispute() {
-    disputes = FakeDisputeRepository()
+    disputes = fakeDisputes()
 
     assertTrue(viewModel().uiState.value.loadFailed)
   }
@@ -336,7 +365,7 @@ class DisputeViewModelTest {
 
   @Test
   fun editingStartsFromAnEvenSplitWithoutAProposal() {
-    disputes = FakeDisputeRepository(listOf(open.copy(proposals = emptyList())))
+    disputes = fakeDisputes(open.copy(proposals = emptyList()))
     val vm = viewModel()
 
     vm.startEditing()
@@ -350,7 +379,7 @@ class DisputeViewModelTest {
     vm.startEditing()
     vm.setDraft(55)
 
-    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now))))
+    disputes.put(open.copy(proposals = listOf(mine, lenderProposal, Proposal("lender", 80, now))))
     assertEquals(55, vm.uiState.value.draftLenderPercent)
 
     disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL))
@@ -417,11 +446,11 @@ class DisputeViewModelTest {
 
   @Test
   fun anAgreementReachedMeanwhileEndsTheEditing() {
-    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    disputes = fakeDisputes(open.copy(proposals = listOf(lenderProposal, mine)))
     val vm = viewModel()
     vm.startEditing()
 
-    runBlocking { disputes.accept("pump", "ana", 40) }
+    asLender { accept("pump", 40) }
 
     assertFalse(vm.uiState.value.isEditing)
   }
@@ -438,7 +467,7 @@ class DisputeViewModelTest {
 
   @Test
   fun acceptDoesNothingOnMyOwnProposal() {
-    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    disputes = fakeDisputes(open.copy(proposals = listOf(lenderProposal, mine)))
     val vm = viewModel()
 
     vm.accept()
@@ -450,10 +479,10 @@ class DisputeViewModelTest {
   @Test
   fun acceptOfAProposalThatChangedSettlesNothingAndSaysSo() {
     val vm = viewModel()
-    // Ana's update reaches the server before the screen.
+    // The lender's update reaches the server before the screen.
     disputes.gate = CompletableDeferred()
     vm.accept()
-    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+    disputes.put(open.copy(proposals = listOf(mine, lenderProposal, Proposal("lender", 90, now))))
     disputes.gate?.complete(Unit)
 
     assertFalse(vm.uiState.value.isSettled)
@@ -507,11 +536,11 @@ class DisputeViewModelTest {
 
   @Test
   fun confirmationClosesWhenAnAgreementIsReachedMeanwhile() {
-    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    disputes = fakeDisputes(open.copy(proposals = listOf(lenderProposal, mine)))
     val vm = viewModel()
     vm.askEscalate()
 
-    runBlocking { disputes.accept("pump", "ana", 40) }
+    asLender { accept("pump", 40) }
 
     assertFalse(vm.uiState.value.isConfirmingEscalation)
   }
@@ -522,7 +551,7 @@ class DisputeViewModelTest {
     val vm = viewModel()
     vm.askEscalate()
 
-    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "lender"))
     vm.escalate()
 
     // Nothing is sent: a request would wait for the gate.
@@ -535,7 +564,7 @@ class DisputeViewModelTest {
     disputes.failure = IOException("offline")
     disputes.put(open.copy(proposals = listOf(mine)))
     disputes.failure = null
-    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "lender"))
 
     confirmEscalate(vm)
 
@@ -552,7 +581,7 @@ class DisputeViewModelTest {
     disputes.failure = IOException("offline")
     disputes.put(open.copy(proposals = listOf(mine)))
     disputes.failure = null
-    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+    disputes.put(open.copy(proposals = listOf(mine, lenderProposal, Proposal("lender", 90, now))))
 
     vm.accept()
 
@@ -568,12 +597,25 @@ class DisputeViewModelTest {
     val vm = viewModel()
 
     confirmEscalate(vm)
-    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "lender"))
     disputes.gate?.complete(Unit)
 
     assertEquals(DisputeStage.LLM_PROPOSAL, disputes.disputes.single().stage)
     assertNull(vm.uiState.value.actionError)
     assertEquals(EscalationNotice.BY_OTHER, vm.uiState.value.escalationNotice)
+  }
+
+  @Test
+  fun aProposalSentOnceTheTimeIsUpShowsTheNextStageWithoutAnError() {
+    disputes = fakeDisputes(open.copy(escalatesAt = now))
+    val vm = viewModel()
+
+    propose(vm, 50)
+
+    val state = vm.uiState.value
+    assertEquals(DisputeStage.LLM_PROPOSAL, state.stage)
+    assertNull(state.actionError)
+    assertEquals(EscalationNotice.AUTOMATIC, state.escalationNotice)
   }
 
   @Test
@@ -649,7 +691,7 @@ class DisputeViewModelTest {
     confirmEscalate(vm)
     disputes.failure = null
 
-    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "lender"))
     assertNull(vm.uiState.value.actionError)
 
     disputes.put(open)
@@ -667,7 +709,7 @@ class DisputeViewModelTest {
     val vm = viewModel()
     assertFalse(vm.uiState.value.offerUpdated)
 
-    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now))))
+    disputes.put(open.copy(proposals = listOf(mine, lenderProposal, Proposal("lender", 80, now))))
     assertTrue(vm.uiState.value.showsOfferUpdated)
 
     vm.startEditing()
@@ -678,7 +720,7 @@ class DisputeViewModelTest {
   fun theirNewOfferIsNoLongerToldOnceISendSomething() {
     val vm = viewModel()
     vm.startEditing()
-    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now))))
+    disputes.put(open.copy(proposals = listOf(mine, lenderProposal, Proposal("lender", 80, now))))
     assertTrue(vm.uiState.value.offerUpdated)
 
     vm.setDraft(55)
@@ -690,7 +732,7 @@ class DisputeViewModelTest {
   @Test
   fun theirNewOfferIsNoLongerToldOnceTheDisputeLeavesDirectSettlement() {
     val vm = viewModel()
-    val updated = open.copy(proposals = listOf(mine, hers, Proposal("ana", 80, now)))
+    val updated = open.copy(proposals = listOf(mine, lenderProposal, Proposal("lender", 80, now)))
     disputes.put(updated)
     assertTrue(vm.uiState.value.offerUpdated)
 
@@ -713,7 +755,7 @@ class DisputeViewModelTest {
     val vm = viewModel()
     disputes.gate = CompletableDeferred()
     vm.accept()
-    disputes.put(open.copy(proposals = listOf(mine, hers, Proposal("ana", 90, now))))
+    disputes.put(open.copy(proposals = listOf(mine, lenderProposal, Proposal("lender", 90, now))))
     disputes.gate?.complete(Unit)
 
     assertTrue(vm.uiState.value.offerUpdated)
@@ -722,10 +764,10 @@ class DisputeViewModelTest {
 
   @Test
   fun theirAcceptanceOfMyProposalIsTold() {
-    disputes = FakeDisputeRepository(listOf(open.copy(proposals = listOf(hers, mine))))
+    disputes = fakeDisputes(open.copy(proposals = listOf(lenderProposal, mine)))
     val vm = viewModel()
 
-    runBlocking { disputes.accept("pump", "ana", 40) }
+    asLender { accept("pump", 40) }
 
     assertTrue(vm.uiState.value.acceptedByOther)
   }
@@ -744,7 +786,7 @@ class DisputeViewModelTest {
   fun anEscalationTellsWhetherTheOtherPersonOrNobodyDidIt() {
     val vm = viewModel()
 
-    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "ana"))
+    disputes.put(open.copy(stage = DisputeStage.LLM_PROPOSAL, escalatedBy = "lender"))
     assertEquals(EscalationNotice.BY_OTHER, vm.uiState.value.escalationNotice)
 
     disputes.put(open.copy(stage = DisputeStage.COURT))
@@ -753,10 +795,10 @@ class DisputeViewModelTest {
 
   @Test
   fun myOwnEscalationAndADisputeAlreadySettledAreNotTold() {
-    disputes = FakeDisputeRepository(listOf(open.copy(agreedAt = now)))
+    disputes = fakeDisputes(open.copy(agreedAt = now))
     assertFalse(viewModel().uiState.value.acceptedByOther)
 
-    disputes = FakeDisputeRepository(listOf(open), clock = { now })
+    disputes = fakeDisputes(open)
     val vm = viewModel()
     confirmEscalate(vm)
 

@@ -565,8 +565,8 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
 }
 
 /**
- * "Deposit" and its amount, pinned under the scrolling content. Not "Deposit held" until deposits
- * are really reserved (`reserveDeposit` is not called yet), as on Rental detail.
+ * "Deposit" and its amount, pinned under the scrolling content. The deposit is held from
+ * acceptance, but this screen does not show the "Held" state yet, as on Rental detail.
  */
 @Composable
 private fun DepositFooter(deposit: Int) {

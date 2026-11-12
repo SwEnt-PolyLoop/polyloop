@@ -151,6 +151,7 @@ object C {
     const val chat_list_row_time = "chat_list_row_time"
     const val chat_list_row_item = "chat_list_row_item"
     const val chat_list_row_message = "chat_list_row_message"
+    const val chat_list_row_unread = "chat_list_row_unread"
 
     const val profile_screen = "profile_screen"
     const val profile_avatar = "profile_avatar"
@@ -218,6 +219,8 @@ object C {
     const val chat_offer_counter_field = "chat_offer_counter_field"
     const val chat_offer_counter_back = "chat_offer_counter_back"
     const val chat_offer_counter_send = "chat_offer_counter_send"
+    const val chat_pickup_bar = "chat_pickup_bar"
+    const val chat_start_pickup_button = "chat_start_pickup_button"
 
     const val rental_detail_screen = "rental_detail_screen"
     const val rental_detail_title = "rental_detail_title"
@@ -255,6 +258,7 @@ object C {
     const val rental_detail_chat_paused = "rental_detail_chat_paused"
     const val rental_detail_action_button = "rental_detail_action_button"
     const val rental_detail_pickup_available_on = "rental_detail_pickup_available_on"
+    const val rental_detail_pickup_needs_connection = "rental_detail_pickup_needs_connection"
 
     const val review_request_screen = "review_request_screen"
     const val review_request_loading = "review_request_loading"

@@ -44,6 +44,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.resources.C
@@ -53,10 +54,19 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
 import java.time.LocalDate
 
-/** The Chat screen of one rental (Figma frame 19). */
+/** The Chat screen of one rental (Figma frames 19 and 19.16). */
 @Composable
-fun ChatScreen(viewModel: ChatViewModel, onRentalDetailsClick: () -> Unit = {}) {
+fun ChatScreen(
+    viewModel: ChatViewModel,
+    onRentalDetailsClick: () -> Unit = {},
+    onStartPickupClick: () -> Unit = {},
+) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  // Messages count as seen only while the chat is visible, not from the back stack or background.
+  LifecycleStartEffect(viewModel) {
+    viewModel.onStarted()
+    onStopOrDispose { viewModel.onStopped() }
+  }
   ChatContent(
       uiState = uiState,
       onDraftChange = viewModel::onDraftChange,
@@ -69,6 +79,7 @@ fun ChatScreen(viewModel: ChatViewModel, onRentalDetailsClick: () -> Unit = {}) 
       onCancelCounter = viewModel::cancelCounter,
       onCounterDraftChange = viewModel::onCounterDraftChange,
       onSendCounter = viewModel::sendCounter,
+      onStartPickupClick = onStartPickupClick,
   )
 }
 
@@ -91,6 +102,8 @@ fun ChatContent(
     onCancelCounter: () -> Unit = {},
     onCounterDraftChange: (String) -> Unit = {},
     onSendCounter: () -> Unit = {},
+    today: LocalDate = LocalDate.now(),
+    onStartPickupClick: () -> Unit = {},
 ) {
   Column(
       modifier =
@@ -100,6 +113,12 @@ fun ChatContent(
   ) {
     uiState.header?.let {
       ChatHeaderBar(header = it, onRentalDetailsClick = onRentalDetailsClick)
+      HorizontalDivider()
+    }
+    // Only on the pickup day itself: Handover takes pickup photos on that day only. Like the offer
+    // card, only once the chat is loaded, not above its spinner or its error.
+    if (!uiState.isLoading && uiState.errorMsg == null && uiState.pickupDate == today) {
+      PickupBar(onStartPickupClick = onStartPickupClick)
       HorizontalDivider()
     }
     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -180,6 +199,41 @@ private fun ChatHeaderBar(header: ChatHeader, onRentalDetailsClick: () -> Unit) 
                 .clickable(onClick = onRentalDetailsClick)
                 .testTag(C.Tag.chat_rental_details),
     )
+  }
+}
+
+/**
+ * "Pickup is today" with a hint, and the Start pickup button (Figma frame 19.16). It stays enabled
+ * offline: Handover works offline too.
+ */
+@Composable
+private fun PickupBar(onStartPickupClick: () -> Unit) {
+  Row(
+      modifier =
+          Modifier.fillMaxWidth()
+              .background(MaterialTheme.colorScheme.surface)
+              .padding(horizontal = 16.dp, vertical = 12.dp)
+              .testTag(C.Tag.chat_pickup_bar),
+      verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(
+          text = stringResource(R.string.chat_pickup_today),
+          style = MaterialTheme.typography.titleSmall,
+          fontWeight = FontWeight.SemiBold,
+      )
+      Text(
+          text = stringResource(R.string.chat_pickup_hint),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    Button(
+        onClick = onStartPickupClick,
+        modifier = Modifier.padding(start = 12.dp).testTag(C.Tag.chat_start_pickup_button),
+    ) {
+      Text(stringResource(R.string.chat_start_pickup))
+    }
   }
 }
 

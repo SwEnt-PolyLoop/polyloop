@@ -12,6 +12,7 @@ import com.swent.polyloop.model.chat.MessageType
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
+import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.ui.createlisting.isWholeNumberAboveZero
 import java.time.Instant
 import java.time.LocalDate
@@ -93,6 +94,9 @@ data class ChatOffer(
  * answer is being sent. [offerError] is non-null when an answer failed; it is blank when the
  * failure carried no message. [isOffline] is true while the phone has no connection, which disables
  * the answers.
+ *
+ * [pickupDate] is the rental's first day while it is accepted, and null otherwise; the screen shows
+ * "Start pickup" when it is today.
  */
 data class ChatUiState(
     val header: ChatHeader? = null,
@@ -107,6 +111,7 @@ data class ChatUiState(
     val isAnswering: Boolean = false,
     val offerError: String? = null,
     val isOffline: Boolean = false,
+    val pickupDate: LocalDate? = null,
 ) {
   /** True when Send can be pressed: there is some text. */
   val canSend: Boolean
@@ -144,14 +149,32 @@ class ChatViewModel(
 
   private var observing: Job? = null
 
+  // True while the Chat screen is visible: only then does it count the messages as seen.
+  private var isStarted = false
+
+  // The newest message already counted as seen, so the same messages are not saved twice.
+  private var markedId: String? = null
+
   init {
     // Apart from the chat job, so that retry() neither stops nor duplicates it.
     viewModelScope.launch {
       connectivityRepository.isOnline.collect { online ->
         _uiState.update { it.copy(isOffline = !online) }
+        if (online) markAsRead() // what was shown offline is saved once the connection is back
       }
     }
     observe()
+  }
+
+  /** The screen is visible again (opened, or back from another screen or the background). */
+  fun onStarted() {
+    isStarted = true
+    markAsRead()
+  }
+
+  /** The screen is hidden: another screen is on top of it, or the app is in the background. */
+  fun onStopped() {
+    isStarted = false
   }
 
   /** Loads the chat again, e.g. after an error. */
@@ -256,24 +279,55 @@ class ChatViewModel(
           .catch { e -> showError(e.message ?: "") }
           .collect { rows ->
             _uiState.update { it.copy(messages = rows, isLoading = false, errorMsg = null) }
+            markAsRead()
           }
     }
   }
 
   /**
-   * Follows the offer of the rental. Without it the conversation still works, so a read error only
-   * hides the card. The form closes if the offer it answers is gone.
+   * Saves that the user has seen the messages on screen, each time they change while the chat is
+   * visible, so a message received meanwhile does not leave a red dot in the chat list. Nothing is
+   * saved while the screen is hidden (e.g. behind Rental detail), so a message arriving then keeps
+   * its dot, nor while no message is shown (still loading, or none in the cache offline).
+   *
+   * Nothing is saved offline either: the save would get the server's time only once the phone
+   * reconnects, which would also cover messages received meanwhile and never seen; it is saved when
+   * the connection comes back instead. The same newest message is saved only once, and not at all
+   * when it is the user's own, since sending saves their read time with it. Launched on its own,
+   * since offline the save waits up to 10 seconds and must not hold back the next messages. A
+   * failure only leaves the dot, which is not worth an error on the chat: the save is tried again
+   * when the screen shows again or the connection comes back, unless a newer message was saved.
+   */
+  private fun markAsRead() {
+    val state = _uiState.value
+    val newest = state.messages.lastOrNull() ?: return
+    if (!isStarted || state.isOffline || newest.id == markedId) return
+    markedId = newest.id
+    if (newest.kind == MessageKind.MINE) return
+    viewModelScope.launch {
+      chatRepository.markAsRead(rentalId).onFailure { if (markedId == newest.id) markedId = null }
+    }
+  }
+
+  /**
+   * Follows the offer and the pickup date of the rental. Without them the conversation still works,
+   * so a read error only hides the card and the pickup. The form closes if the offer it answers is
+   * gone.
    */
   private suspend fun observeOffer(uid: String) {
     combine(
             rentalRepository.observeRental(rentalId).catch { emit(null) },
             rentalRepository.observeRentalsAsLender(uid).catch { emit(emptyList()) },
         ) { rental, lent ->
-          rental?.toChatOffer(uid, lent)
+          rental to rental?.toChatOffer(uid, lent)
         }
-        .collect { offer ->
+        .collect { (rental, offer) ->
           _uiState.update {
-            it.copy(offer = offer, isCountering = it.isCountering && offer?.canCounter == true)
+            it.copy(
+                offer = offer,
+                isCountering = it.isCountering && offer?.canCounter == true,
+                pickupDate = rental?.startDate?.takeIf { rental.status == RentalStatus.ACCEPTED },
+            )
           }
         }
   }

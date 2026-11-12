@@ -10,16 +10,20 @@ import {
   Timestamp,
   Transaction,
 } from "firebase-admin/firestore";
-import * as logger from "firebase-functions/logger";
 import {
   DateRange,
   OfferAnswer,
   OfferInput,
   RequestError,
   conflicts,
+  isValidDeposit,
+  listingTitleOf,
   offerExpiry,
   readRange,
+  requirePerson,
 } from "./rentalRules";
+import { runSweep } from "./sweep";
+import { readWallet, requireFunds, writeDepositHold } from "./wallet";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
 const RENTALS = "rentals";
@@ -75,15 +79,21 @@ export async function makeOffer(
     await requireFreeListing(tx, rentalRef, rental, dates);
 
     tx.set(addressesRef(rentalRef), { pickup: input.pickupAddress, dropOff: input.returnAddress });
-    writeWithSystemMessage(tx, rentalRef, `Offer sent · ${input.deposit} PP deposit`, {
-      offer: {
-        amount: input.deposit,
-        authorId: lenderId,
-        isCounter: false,
-        createdAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromDate(expiresAt),
+    writeWithSystemMessage(
+      tx,
+      rentalRef,
+      `Offer sent · ${input.deposit} PP deposit`,
+      {
+        offer: {
+          amount: input.deposit,
+          authorId: lenderId,
+          isCounter: false,
+          createdAt: FieldValue.serverTimestamp(),
+          expiresAt: Timestamp.fromDate(expiresAt),
+        },
       },
-    });
+      lenderId,
+    );
   });
 }
 
@@ -93,16 +103,19 @@ export async function makeOffer(
  *
  * Accepting makes the rental ACCEPTED with the offered deposit and the exact addresses, adds its
  * dates to the listing's `bookedRanges`, and declines every other REQUESTED rental of the listing
- * whose dates overlap (buffer day included). Reserving the deposit waits for the wallet's Firestore
- * implementation, so the balance is not checked yet.
+ * whose dates overlap (buffer day included). It also holds the deposit, the offered amount (the
+ * counter amount after a counteroffer), in the borrower's wallet, whoever accepts. The rental price
+ * is not reserved.
  *
  * @param db the Firestore database.
  * @param callerId the participant answering.
  * @param answer the answer, already checked by `parseOfferAnswer`.
  * @param now the current time, passed so that tests can set it.
- * @throws RequestError `not-found`, `permission-denied` (not a participant, or the offer's author)
- *   or `failed-precondition` (no offer waiting, expired, already countered, or dates no longer
- *   free). Nothing is written then.
+ * @throws RequestError `not-found`, `permission-denied` (not a participant, or the offer's author),
+ *   `failed-precondition` (no offer waiting, expired, already countered, dates no longer free, or,
+ *   on ACCEPT or COUNTER, the borrower's available balance is below the deposit) or `internal` (the
+ *   stored rental or offer is broken: no valid dates, borrower, addresses or deposit). Nothing is
+ *   written then.
  */
 export async function respondToOffer(
   db: Firestore,
@@ -117,25 +130,33 @@ export async function respondToOffer(
 
     switch (answer.action) {
       case "ACCEPT":
-        await accept(tx, rentalRef, rental, offer);
+        await accept(tx, rentalRef, rental, offer, callerId);
         return;
       case "DECLINE":
-        decline(tx, rentalRef, "Offer declined");
+        decline(tx, rentalRef, "Offer declined", callerId);
         return;
       case "COUNTER":
         if (offer.isCounter) {
           throw new RequestError("failed-precondition", "A counteroffer cannot be countered.");
         }
-        writeWithSystemMessage(tx, rentalRef, `Counteroffer · ${answer.deposit} PP`, {
-          offer: {
-            amount: answer.deposit,
-            previousAmount: offer.amount,
-            authorId: callerId,
-            isCounter: true,
-            createdAt: FieldValue.serverTimestamp(),
-            expiresAt: Timestamp.fromDate(offerExpiry(now, requireDates(rental).start)),
+        // Only the borrower counters, so this is the caller's own wallet.
+        requireFunds(await readWallet(tx, rentalRef.firestore, callerId), answer.deposit);
+        writeWithSystemMessage(
+          tx,
+          rentalRef,
+          `Counteroffer · ${answer.deposit} PP`,
+          {
+            offer: {
+              amount: answer.deposit,
+              previousAmount: offer.amount,
+              authorId: callerId,
+              isCounter: true,
+              createdAt: FieldValue.serverTimestamp(),
+              expiresAt: Timestamp.fromDate(offerExpiry(now, requireDates(rental).start)),
+            },
           },
-        });
+          callerId,
+        );
     }
   });
 }
@@ -162,7 +183,7 @@ export async function declineRequest(
     if (rental.offer) {
       throw new RequestError("failed-precondition", "An offer is waiting for an answer.");
     }
-    decline(tx, rentalRef, "Request declined");
+    decline(tx, rentalRef, "Request declined", lenderId);
   });
 }
 
@@ -186,18 +207,12 @@ export async function expireOverdueOffers(
     .where("offer.expiresAt", "<=", Timestamp.fromDate(now))
     .select()
     .get();
-  const results = await Promise.allSettled(
-    overdue.docs.map((doc) =>
-      expire(doc.ref, now).catch((error) => {
-        logger.error(`Could not expire the offer of rental ${doc.id}`, error);
-        throw error;
-      }),
-    ),
+  const { done, failed } = await runSweep(
+    overdue.docs.map((doc) => doc.ref),
+    (ref) => expire(ref, now),
+    (id) => `Could not expire the offer of rental ${id}`,
   );
-  return {
-    expired: results.filter((result) => result.status === "fulfilled" && result.value).length,
-    failed: results.filter((result) => result.status === "rejected").length,
-  };
+  return { expired: done, failed };
 }
 
 /**
@@ -215,17 +230,21 @@ export async function expireOffer(rentalRef: DocumentReference, now: Date): Prom
     if (rental?.status !== REQUESTED || !offer || !isExpired(offer, now)) {
       return false;
     }
-    decline(tx, rentalRef, "Offer expired · request declined");
+    decline(tx, rentalRef, "Offer expired · request declined", null);
     return true;
   });
 }
 
-/** The acceptance: reads the listing, the addresses and the other requests, then writes it all. */
+/**
+ * The acceptance by [callerId]: reads the listing, the addresses, the other requests and the
+ * borrower's wallet, then writes it all, holding the deposit last.
+ */
 async function accept(
   tx: Transaction,
   rentalRef: DocumentReference,
   rental: DocumentData,
   offer: StoredOffer,
+  callerId: string,
 ): Promise<void> {
   const dates = requireDates(rental);
   const db = rentalRef.firestore;
@@ -248,42 +267,81 @@ async function accept(
     (doc) => doc.id !== rentalRef.id && overlapsRequest(doc, dates),
   );
 
+  // The borrower pays, whoever accepts. The amount is the offer's: `deposit` is set only below.
+  const borrowerId = requirePerson(rental.borrowerId, "borrower");
+  if (!isValidDeposit(offer.amount)) {
+    throw new RequestError("internal", "The offer has no valid deposit.");
+  }
+  const wallet = await readWallet(tx, db, borrowerId);
+  requireFunds(wallet, offer.amount);
+
   tx.delete(addressesRef(rentalRef));
-  writeWithSystemMessage(tx, rentalRef, `Accepted · ${offer.amount} PP deposit`, {
-    status: "ACCEPTED",
-    deposit: offer.amount,
-    pickupAddress: addresses.pickup,
-    returnAddress: addresses.dropOff,
-    offer: FieldValue.delete(),
-  });
+  writeWithSystemMessage(
+    tx,
+    rentalRef,
+    `Accepted · ${offer.amount} PP deposit`,
+    {
+      status: "ACCEPTED",
+      deposit: offer.amount,
+      pickupAddress: addresses.pickup,
+      returnAddress: addresses.dropOff,
+      offer: FieldValue.delete(),
+    },
+    callerId,
+  );
+  // The other requests have the same lender. A lender accepting a counteroffer declines them
+  // themselves; a borrower accepting takes no part in them, so for the lender they are news.
+  const decliner = callerId === rental.ownerId ? callerId : null;
   tx.update(listingRef, {
     bookedRanges: FieldValue.arrayUnion({ start: dates.start, end: dates.end }),
   });
   for (const doc of overlapping) {
-    decline(tx, doc.ref, "Dates booked · request declined");
+    decline(tx, doc.ref, "Dates booked · request declined", decliner);
   }
+  // No hasTransaction read: a REQUESTED rental cannot have its deposit row yet.
+  writeDepositHold(tx, db, borrowerId, wallet, offer.amount, rentalRef.id, listingTitleOf(rental));
 }
 
 /**
  * Ends a negotiation with no rental: DECLINED, with no offer and no addresses left, and [text] in
- * the chat. Runs inside the caller's transaction, after its reads.
+ * the chat, seen by [actorId] (see writeWithSystemMessage). Runs inside the caller's transaction,
+ * after its reads.
  */
-function decline(tx: Transaction, rentalRef: DocumentReference, text: string): void {
+function decline(
+  tx: Transaction,
+  rentalRef: DocumentReference,
+  text: string,
+  actorId: string | null,
+): void {
   tx.delete(addressesRef(rentalRef));
-  writeWithSystemMessage(tx, rentalRef, text, { status: DECLINED, offer: FieldValue.delete() });
+  writeWithSystemMessage(
+    tx,
+    rentalRef,
+    text,
+    { status: DECLINED, offer: FieldValue.delete() },
+    actorId,
+  );
 }
 
-/** Updates the rental with [fields], and adds [text] to its chat as a SYSTEM message. */
+/**
+ * Updates the rental with [fields], and adds [text] to its chat as a SYSTEM message. [actorId] is
+ * the participant whose action this message reports: their read time is set to the message's, as
+ * when they send a message, so the chat list shows no red dot for their own action. It is null
+ * when the message is news for both participants: a scheduled job, a deadline that passed, or
+ * another rental's acceptance. It has no default, so each caller says who acted.
+ */
 export function writeWithSystemMessage(
   tx: Transaction,
   rentalRef: DocumentReference,
   text: string,
   fields: DocumentData,
+  actorId: string | null,
 ): void {
   tx.update(rentalRef, {
     ...fields,
     lastMessage: text,
     lastMessageAt: FieldValue.serverTimestamp(),
+    ...(actorId ? { [`lastReadAt.${actorId}`]: FieldValue.serverTimestamp() } : {}),
   });
   tx.set(rentalRef.collection("messages").doc(), {
     senderId: "",

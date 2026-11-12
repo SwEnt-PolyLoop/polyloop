@@ -1,12 +1,14 @@
 // Made with Claude.
 
 import { FieldValue, Firestore, DocumentReference, Transaction } from "firebase-admin/firestore";
+import { RequestError } from "./rentalRules";
 
 /**
  * Reading and writing a user's wallet inside a transaction, shared by the functions that move
  * PolyPoints (see "Firestore schema" in docs/ARCHITECTURE.md): `wallets/{uid}` holds the balances,
  * and `wallets/{uid}/transactions/{id}` the history. Only Cloud Functions write them. As in every
- * Firestore transaction, read first (`readWallet`, `hasTransaction`), then write (`writeWallet`).
+ * Firestore transaction, read first (`readWallet`, `hasTransaction`), check (`requireFunds`), then
+ * write (`writeWallet`, or `writeDepositHold` for a deposit, whose row id is `depositRowId`).
  */
 
 /** The balances of a wallet, in whole PolyPoints. */
@@ -88,6 +90,63 @@ export function writeWallet(
     itemTitle: row.itemTitle,
     date: FieldValue.serverTimestamp(),
   });
+}
+
+/** The `type` of the history row of a held deposit. */
+const DEPOSIT_HELD = "DEPOSIT_HELD";
+
+/** The id of the history row of a rental's deposit hold, which makes the hold idempotent. */
+export function depositRowId(rentalId: string): string {
+  return `deposit_held_${rentalId}`;
+}
+
+/**
+ * Refuses a hold of [amount] if [wallet] cannot cover it. Called after the caller's other checks,
+ * so the order of refusals stays the caller's.
+ *
+ * @param wallet the borrower's wallet, as read in the same transaction.
+ * @param amount the deposit to hold.
+ * @throws RequestError `failed-precondition` when `available` is below [amount].
+ */
+export function requireFunds(wallet: Wallet, amount: number): void {
+  if (wallet.available < amount) {
+    throw new RequestError("failed-precondition", "Insufficient funds to hold the deposit.");
+  }
+}
+
+/**
+ * Write step of a deposit hold, inside the caller's transaction after its reads: `available -=
+ * deposit`, `heldAsDeposits += deposit`, and the `DEPOSIT_HELD` row `deposit_held_<rentalId>` with
+ * the amount `-deposit`. The funds are checked before, with `requireFunds`.
+ *
+ * @param tx the transaction to write in.
+ * @param db the Firestore database.
+ * @param borrowerId the owner of the wallet.
+ * @param wallet the borrower's wallet, as read in the same transaction.
+ * @param deposit the amount to hold.
+ * @param rentalId the rental the deposit belongs to.
+ * @param itemTitle the title of the item, or "".
+ */
+export function writeDepositHold(
+  tx: Transaction,
+  db: Firestore,
+  borrowerId: string,
+  wallet: Wallet,
+  deposit: number,
+  rentalId: string,
+  itemTitle: string,
+): void {
+  writeWallet(
+    tx,
+    db,
+    borrowerId,
+    {
+      ...wallet,
+      available: wallet.available - deposit,
+      heldAsDeposits: wallet.heldAsDeposits + deposit,
+    },
+    { id: depositRowId(rentalId), type: DEPOSIT_HELD, amount: -deposit, itemTitle },
+  );
 }
 
 function walletRef(db: Firestore, uid: string): DocumentReference {

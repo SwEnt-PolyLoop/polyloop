@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
-    <cloud-backup />
+    <!-- The server clock's saved pair holds the uptime and boot count of this phone only:
+         restored on another, it could put the day ahead and open Start Pickup early. -->
+    <cloud-backup>
+        <exclude domain="sharedpref" path="server_clock.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="server_clock.xml" />
+    </device-transfer>
 </data-extraction-rules>

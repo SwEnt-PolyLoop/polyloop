@@ -8,28 +8,32 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.AccessibilityAction
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertIsNotSelected
-import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsDisplayed as composeAssertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled as composeAssertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled as composeAssertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected as composeAssertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected as composeAssertIsSelected
+import androidx.compose.ui.test.assertTextEquals as composeAssertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performSemanticsAction
-import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performClick as composePerformClick
+import androidx.compose.ui.test.performScrollTo as composePerformScrollTo
+import androidx.compose.ui.test.performSemanticsAction as composePerformSemanticsAction
+import androidx.compose.ui.test.performTextInput as composePerformTextInput
+import androidx.compose.ui.test.performTextReplacement as composePerformTextReplacement
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -46,8 +50,11 @@ import com.swent.polyloop.model.listing.ListingFields
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.listingToDocument
 import com.swent.polyloop.model.profile.ProfileFields
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.RentalFields
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.model.wallet.FakeWalletRepository
+import com.swent.polyloop.model.wallet.Wallet
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
 import com.swent.polyloop.utils.FirebaseEmulator
@@ -118,7 +125,14 @@ class EndToEndTest {
     Firebase.auth.signOut()
     RepositoryProvider.reset()
     RepositoryProvider.connectivityRepository = FakeConnectivityRepository(online = true)
-    RepositoryProvider.walletRepository = FakeWalletRepository()
+    RepositoryProvider.walletRepository = FakeWalletRepository(wallet = Wallet(available = 1000))
+    // Saves in memory, so no test writes a server time to the app's real preferences.
+    RepositoryProvider.serverClock =
+        ServerClock(
+            RepositoryProvider.rentalRepository,
+            InMemoryServerClockStore(),
+            bootCount = { 0 },
+        )
   }
 
   @After
@@ -319,8 +333,6 @@ class EndToEndTest {
     composeTestRule
         .onNodeWithTag(C.Tag.date_picker_summary_total)
         .assertTextEquals(context.getString(R.string.listing_card_price, 2 * PRICE_PER_DAY))
-    // Enabled only because Listing detail still uses a placeholder balance: once it reads the
-    // wallet, the test must give the new account enough PolyPoints first.
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
     waitForText(C.Tag.chat_header_item, listing.title)
     assertRoute(Screen.Chat)
@@ -541,10 +553,12 @@ class EndToEndTest {
       if (moves++ == MAX_MONTH_MOVES) fail("The date picker never reached the month of $day")
       val arrow = if (shown < target) C.Tag.date_picker_next_month else C.Tag.date_picker_prev_month
       if (
-          composeTestRule
-              .onAllNodes(hasTestTag(arrow) and isEnabled())
-              .fetchSemanticsNodes()
-              .isEmpty()
+          whenResumed {
+            composeTestRule
+                .onAllNodes(hasTestTag(arrow) and isEnabled())
+                .fetchSemanticsNodes()
+                .isEmpty()
+          }
       ) {
         fail("The date picker shows $shown and cannot move towards $day")
       }
@@ -557,12 +571,13 @@ class EndToEndTest {
   /** The month the open date picker shows, read from the tag of one of its days. */
   private fun shownMonth(): YearMonth {
     val dayTag = C.Tag.datePickerDay(firstDay).removeSuffix(firstDay.toString())
-    val tag =
-        composeTestRule
-            .onAllNodes(SemanticsMatcher("is a day") { it.testTag()?.startsWith(dayTag) == true })
-            .fetchSemanticsNodes()
-            .first()
-            .testTag()!!
+    val tag = whenResumed {
+      composeTestRule
+          .onAllNodes(SemanticsMatcher("is a day") { it.testTag()?.startsWith(dayTag) == true })
+          .fetchSemanticsNodes()
+          .first()
+          .testTag()!!
+    }
     return YearMonth.from(LocalDate.parse(tag.removePrefix(dayTag)))
   }
 
@@ -576,6 +591,9 @@ class EndToEndTest {
         PolyLoopApp(navController = navController)
       }
     }
+    // On CI the activity is sometimes paused for a moment just after the emulator boots, and
+    // Compose then reports no screen at all (#196): wait for it to come back before the first step.
+    waitFor(isRoot())
   }
 
   private fun assertRoute(screen: Screen) {
@@ -599,10 +617,77 @@ class EndToEndTest {
     composeTestRule.waitForIdle()
   }
 
+  /**
+   * Waits for a node matching [matcher]. While the activity is paused there is no screen at all,
+   * which counts as not found yet instead of failing the test (#196).
+   */
   private fun waitFor(matcher: SemanticsMatcher) {
     composeTestRule.waitUntil(timeoutMillis = TIMEOUT_MS) {
-      composeTestRule.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+      composeTestRule
+          .onAllNodes(matcher, useUnmergedTree = true)
+          .fetchSemanticsNodes(atLeastOneRootRequired = false)
+          .isNotEmpty()
     }
+  }
+
+  /**
+   * Runs [step] again once the app is back if the activity was paused when it looked for the screen
+   * (#196). The step had not touched anything yet: Compose looks for the screen before acting, and
+   * fails with "No compose hierarchies" when there is none.
+   */
+  private fun <T> whenResumed(step: () -> T): T {
+    repeat(MAX_PAUSES) {
+      try {
+        return step()
+      } catch (e: IllegalStateException) {
+        if (e.message?.startsWith(NO_SCREEN) != true) throw e
+        Log.w(TAG, "The app was paused, waiting for it to come back", e)
+        waitFor(isRoot())
+      }
+    }
+    return step()
+  }
+
+  // The Compose actions and assertions the test uses, run through whenResumed. Declared here with
+  // the same names, they replace the ones imported under another name, so every step of the test
+  // survives a pause without wrapping each call.
+
+  private fun SemanticsNodeInteraction.performClick() = whenResumed { composePerformClick() }
+
+  private fun SemanticsNodeInteraction.performScrollTo() = whenResumed { composePerformScrollTo() }
+
+  private fun SemanticsNodeInteraction.performSemanticsAction(
+      key: SemanticsPropertyKey<AccessibilityAction<() -> Boolean>>
+  ) = whenResumed { composePerformSemanticsAction(key) }
+
+  private fun SemanticsNodeInteraction.performTextInput(text: String) = whenResumed {
+    composePerformTextInput(text)
+  }
+
+  private fun SemanticsNodeInteraction.performTextReplacement(text: String) = whenResumed {
+    composePerformTextReplacement(text)
+  }
+
+  private fun SemanticsNodeInteraction.assertIsDisplayed() = whenResumed {
+    composeAssertIsDisplayed()
+  }
+
+  private fun SemanticsNodeInteraction.assertIsEnabled() = whenResumed { composeAssertIsEnabled() }
+
+  private fun SemanticsNodeInteraction.assertIsNotEnabled() = whenResumed {
+    composeAssertIsNotEnabled()
+  }
+
+  private fun SemanticsNodeInteraction.assertIsSelected() = whenResumed {
+    composeAssertIsSelected()
+  }
+
+  private fun SemanticsNodeInteraction.assertIsNotSelected() = whenResumed {
+    composeAssertIsNotSelected()
+  }
+
+  private fun SemanticsNodeInteraction.assertTextEquals(vararg values: String) = whenResumed {
+    composeAssertTextEquals(*values)
   }
 
   private companion object {
@@ -626,6 +711,12 @@ class EndToEndTest {
     const val PASSWORD = "Password123!"
     const val TIMEOUT_MS = 15_000L
     const val CLEANUP_TIMEOUT_MS = 30_000L
+
+    /** How Compose reports that there is no screen, e.g. while the activity is paused. */
+    const val NO_SCREEN = "No compose hierarchies found"
+
+    /** How many pauses one step survives before failing. */
+    const val MAX_PAUSES = 3
 
     /** The test's days are at most two months away; a year leaves plenty of room. */
     const val MAX_MONTH_MOVES = 12

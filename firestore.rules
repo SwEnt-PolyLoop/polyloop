@@ -172,12 +172,34 @@ service cloud.firestore {
       // borrower creates the request, with status REQUESTED only and no money reserved.
       allow create: if isVerifiedEpfl() && isValidNewRental(request.resource.data);
 
-      // Afterwards the participants may only update the chat preview (#101).
+      // Afterwards the participants may only update the chat preview (#101) and the time they last
+      // opened the chat (#181), which the app saves by itself.
       allow update: if isVerifiedEpfl()
           && request.auth.uid in resource.data.participants
-          && changedKeys().hasOnly(['lastMessage', 'lastMessageAt'])
-          && request.resource.data.lastMessage is string
-          && request.resource.data.lastMessageAt == request.time;
+          && changedKeys().size() > 0
+          && changedKeys().hasOnly(['lastMessage', 'lastMessageAt', 'lastReadAt'])
+          && (!changedKeys().hasAny(['lastMessage', 'lastMessageAt'])
+              || isChatPreview(request.resource.data))
+          && (!changedKeys().hasAny(['lastReadAt']) || isOwnReadTime(request.resource.data));
+
+      // The preview of a message just sent. Never empty: an empty preview means "no message yet",
+      // which would hide the other person's red dot. The text is not checked against a real
+      // message (that would need a Cloud Function).
+      function isChatPreview(rental) {
+        return rental.lastMessage is string
+            && rental.lastMessage.size() > 0
+            && rental.lastMessageAt == request.time;
+      }
+
+      // lastReadAt maps each participant's uid to when they last opened the chat. A user changes
+      // only their own entry, and only to the server's current time.
+      function isOwnReadTime(rental) {
+        let reads = rental.lastReadAt;
+        return reads is map
+            && reads.diff(resource.data.get('lastReadAt', {})).affectedKeys()
+                .hasOnly([request.auth.uid])
+            && reads[request.auth.uid] == request.time;
+      }
 
       function isValidNewRental(rental) {
         let fields = ['listingId', 'listingTitle', 'listingPhotoUrl', 'ownerId', 'ownerName',
@@ -272,7 +294,8 @@ service cloud.firestore {
     // ---------- disputes ----------
 
     // One dispute per rental, at the rental's id, visible only to the rental's two participants.
-    // Only Cloud Functions write it (proposeSplit, acceptSplit, escalateDispute): no client write.
+    // Only Cloud Functions write it (proposeSplit, acceptSplit, escalateDispute and the hourly
+    // escalateDisputes): no client write.
     // Reading the dispute of a rental that has none is allowed, so the app can read a missing
     // dispute as none.
     match /disputes/{rentalId} {

@@ -14,13 +14,17 @@ import com.swent.polyloop.model.chat.ChatRepositoryFirestore
 import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepositoryAndroid
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.dispute.DisputeRepositoryFirestore
+import com.swent.polyloop.model.dispute.FakeDisputeRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository
 import com.swent.polyloop.model.handover.HandoverRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.RentalRepositoryFirestore
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.model.wallet.WalletRepositoryFirestore
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
@@ -308,6 +312,27 @@ class RepositoryProviderTest {
     verify(exactly = 0) { FirebaseFirestore.getInstance() }
   }
 
+  // ---------- disputeRepository ----------
+
+  @Test
+  fun disputeRepositoryDefaultsToFirestoreImplementationCreatedOnce() {
+    val first = RepositoryProvider.disputeRepository
+
+    assertTrue(first is DisputeRepositoryFirestore)
+    assertSame(first, RepositoryProvider.disputeRepository)
+    verify(exactly = 1) { FirebaseFirestore.getInstance() }
+  }
+
+  @Test
+  fun disputeRepositoryReturnsAssignedRepository() {
+    val fake = FakeDisputeRepository(currentUid = { null })
+
+    RepositoryProvider.disputeRepository = fake
+
+    assertSame(fake, RepositoryProvider.disputeRepository)
+    verify(exactly = 0) { FirebaseFirestore.getInstance() }
+  }
+
   // ---------- laziness and reset ----------
 
   @Test
@@ -340,6 +365,7 @@ class RepositoryProviderTest {
     val fakeWallet = FakeWalletRepository()
     RepositoryProvider.walletRepository = fakeWallet
     RepositoryProvider.handoverRepository = FakeHandoverRepository()
+    RepositoryProvider.disputeRepository = FakeDisputeRepository(currentUid = { null })
 
     RepositoryProvider.reset()
 
@@ -352,6 +378,19 @@ class RepositoryProviderTest {
     assertTrue(RepositoryProvider.walletRepository is WalletRepositoryFirestore)
     assertNotSame(fakeWallet, RepositoryProvider.walletRepository)
     assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)
+    assertTrue(RepositoryProvider.disputeRepository is DisputeRepositoryFirestore)
+  }
+
+  @Test
+  fun resetForgetsAnAssignedServerClock() {
+    // The real clock built after reset opens the app's preferences.
+    every { appContext.getSharedPreferences(any(), any()) } returns mockk(relaxed = true)
+    val fake = ServerClock(FakeRentalRepository(), InMemoryServerClockStore(), bootCount = { 0 })
+    RepositoryProvider.serverClock = fake
+
+    RepositoryProvider.reset()
+
+    assertNotSame(fake, RepositoryProvider.serverClock)
   }
 
   @Test

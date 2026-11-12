@@ -1,2 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<full-backup-content />
+<full-backup-content>
+    <!-- The server clock's saved pair holds the uptime and boot count of this phone only:
+         restored on another, it could put the day ahead and open Start Pickup early. -->
+    <exclude domain="sharedpref" path="server_clock.xml" />
+</full-backup-content>

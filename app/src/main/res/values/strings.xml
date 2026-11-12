@@ -286,6 +286,7 @@
     <string name="chat_list_retry">Retry</string>
     <string name="chat_list_unknown_person">Unknown user</string>
     <string name="chat_list_no_messages">No messages yet</string>
+    <string name="chat_list_unread">Unread messages</string>
     <!-- The item, then the rental's status, e.g. "Camping tent · Requested" -->
     <string name="chat_list_item_status">%1$s · %2$s</string>
 
@@ -301,6 +302,10 @@
     <!-- A message written by the app, then its time, e.g. "Request sent · 15:02" -->
     <string name="chat_system_message">%1$s · %2$s</string>
     <string name="chat_send_failed">Message not sent. Press send to try again.</string>
+    <!-- The bar under the chat header on the pickup day (Figma frame 19.16). -->
+    <string name="chat_pickup_today">Pickup is today</string>
+    <string name="chat_pickup_hint">Meet and take your photos.</string>
+    <string name="chat_start_pickup">Start pickup</string>
     <!-- The deposit offer card in the chat. -->
     <string name="chat_offer_title">Deposit offer</string>
     <string name="chat_offer_title_mine">Your offer</string>
@@ -383,6 +388,8 @@
     <string name="rental_detail_start_pickup">Start Pickup</string>
     <!-- Under the disabled Start Pickup button, e.g. "Pickup will be available on 1 Oct" -->
     <string name="rental_detail_pickup_available_on">Pickup will be available on %1$s</string>
+    <!-- Under the disabled Start Pickup button when the server's date is unknown -->
+    <string name="rental_detail_pickup_needs_connection">Connect to the internet to check the pickup day.</string>
     <string name="rental_detail_view_dispute">View Dispute</string>
 
     <!-- Dispute -->

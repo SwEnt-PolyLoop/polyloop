@@ -11,7 +11,7 @@ Elements shared across screens:
 
 - **Navigation.** Users move between screens through buttons on the screens themselves and through the navigation drawer.
 - **Top bar.** Transparent, with a menu button and a profile button. Rental screens also show a role pill, “You lend” or “You borrow”.
-- **Navigation drawer** (Figma frame 03). The menu button opens it; Back, a tap outside or a swipe closes it. A header with the signed-in user's avatar (photo, or their initial), name and rating, then every standalone screen with an icon, the current one highlighted: Browse, Create listing, My rentals, Chats, Wallet, Profile. After a divider, “Court rulings” with an “Admin” badge, for admins only. A footer notes that screens tied to one listing or rental open from inside the app, not from the drawer. Tapping an item opens it and closes the drawer. ViewModel: DrawerViewModel, using ProfileRepository.
+- **Navigation drawer** (Figma frame 03). The menu button opens it. It takes 80% of the screen's width, but no more than 360 dp (its width in landscape) and no less than 240 dp, so a strip of the current screen stays visible beside it: a fifth of the width on screens of at least 300 dp, less below, and none under 240 dp, where the drawer fills the screen. Back, a tap on that strip or a swipe closes it. A header with the signed-in user's avatar (photo, or their initial), name and rating, then every standalone screen with an icon, the current one highlighted: Browse, Create listing, My rentals, Chats, Wallet, Profile. After a divider, “Court rulings” with an “Admin” badge, for admins only. A footer notes that screens tied to one listing or rental open from inside the app, not from the drawer. Tapping an item opens it and closes the drawer. ViewModel: DrawerViewModel, using ProfileRepository.
 - **Currency.** All prices and deposits are in PolyPoints, PolyLoop's in-app currency, at 1 CHF = 1 PolyPoint. Users recharge on the Wallet screen. Recharging is simulated: no real payment is made.
 - **Offline banner.** Shown at the top of every screen while offline. Actions that need a connection (browsing new listings, recharging, payments, sending messages) stay visible but disabled.
 - **Locations offline.** Map tiles need a connection, so offline screens show meeting points as text (the address).
@@ -65,10 +65,11 @@ The Wallet screen holds the user's in-app balance, which pays for rentals and de
 
 Each rental has exactly one 1:1 conversation between its lender and borrower. ViewModels: ChatListViewModel, using ChatRepository, ProfileRepository and ListingRepository; ChatViewModel, using ChatRepository, RentalRepository, ProfileRepository and ListingRepository.
 
-- **Chat list.** A separate screen lists all the user's conversations, one per rental, with the other person, the item and the last message.
+- **Chat list.** A separate screen lists all the user's conversations, one per rental, with the other person, the item and the last message. A red dot marks a conversation whose last message the user has not seen yet; opening the chat removes it, and the user's own messages and actions (such as declining a request) never add one. A message that arrives while the chat is hidden behind another screen, in the background or offline keeps its dot until the chat is on screen and online again.
 - The chat opens as soon as a request is sent, so both sides can agree on details before acceptance, such as the meeting point and the deposit.
-- **Offer card** (Figma frames 19.10 to 19.15). While an offer waits for an answer, the chat shows its amount and when it expires. The lender's offer gives the borrower “Decline”, “Counter” and “Accept”; “Counter” asks for an amount, with “Back” and “Send”. A counteroffer gives the lender “Decline” and “Accept” only. The author of the offer sees it as waiting, with no action. Each step adds a centred system message, including an accepted, declined or expired offer. The actions are disabled offline.
+- **Offer card** (Figma frames 19.10 to 19.15). While an offer waits for an answer, the chat shows its amount and when it expires. The lender's offer gives the borrower “Decline”, “Counter” and “Accept”; “Counter” asks for an amount, with “Back” and “Send”; an amount the borrower's available balance cannot cover is refused. A counteroffer gives the lender “Decline” and “Accept” only. The author of the offer sees it as waiting, with no action. Each step adds a centred system message, including an accepted, declined or expired offer. The actions are disabled offline.
 - Header with the other person's name, the item, and a link back to Rental detail.
+- **Start pickup** (Figma frame 19.16). On the pickup day of an accepted rental, and only on that day, a bar under the header says “Pickup is today” with a “Start pickup” button that opens Handover, for both people, once the chat is loaded (not above its spinner or its error). It stays enabled offline. After that day, Rental detail still has its own “Start Pickup” button.
 - Messages with timestamps, newest at the bottom, and a text field with a send button.
 - A push notification for each new message.
 - Offline: the chat list and the most recent messages stay readable from cache; the send button is disabled.
@@ -91,7 +92,7 @@ Browse shows available items near the user, as a map or a list. ViewModel: Brows
 
 ## Listing detail
 
-Listing detail is where a borrower decides and sends a request. ViewModel: ListingDetailViewModel, using ListingRepository, RentalRepository (to send the request) and ProfileRepository.
+Listing detail is where a borrower decides and sends a request. ViewModel: ListingDetailViewModel, using ListingRepository, RentalRepository (to send the request), ProfileRepository and WalletRepository (the balance).
 
 - Photo carousel, title, description, price per day, and the suggested deposit (the item's value), all in PolyPoints. The final deposit is negotiated after the request: the lender offers an amount, and the borrower answers in the chat.
 - The owner's photo (round, or their initial without one), name and rating, linking to their profile, read along with the listing. An owner with no reviews shows “No reviews yet”. If their profile is missing or cannot be read, the listing still shows, with “No name yet” and no rating. If the owner is someone else and their profile is already open further back (the user came from it), the link goes back to it instead of opening it again.
@@ -99,6 +100,7 @@ Listing detail is where a borrower decides and sends a request. ViewModel: Listi
 - The lender's availability window, and a “Request” button that opens a date picker limited to that window. Booked days (accepted rentals only; a pending request blocks no day), plus a 1-day buffer before and after each booking, are greyed out. The total is the price per day times the number of days. Disabled offline.
 - When the request is sent, the booked days are read again from the server. If the dates were booked meanwhile, nothing is sent: the picker greys out the new booked days and shows “These dates are no longer available”, until the user taps a new day. If the listing was deleted or unpublished meanwhile, the picker closes and the listing shows as not found.
 - Sending a request reserves the rental price from the borrower's balance; if the balance is too low, the request does not go through.
+- The date picker compares the price to the user's available PolyPoints (held amounts excluded), read from the wallet. A missing wallet counts as 0. While the balance is unknown (loading, or the wallet cannot be read), “Request” is disabled. This check only guides the user; the server does not check the balance yet.
 - On your own listing: “Edit” and “Delete” instead of “Request”, locked while a rental is accepted or active.
 
 ## Create / edit listing
@@ -143,8 +145,10 @@ Rental detail is the hub for one rental: what it is, where it stands, and the ne
 
 So far only the Requested, Accepted and Disputed states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Navigate”, cancelling or deposit state yet. A full-width button at the bottom gives the main action, for both roles: “Start Pickup” on Accepted, enabled from the pickup day (before it, disabled with “Pickup will be available on [day]”), and “View Dispute” on Disputed, always enabled; Requested has none. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added.
 
+Start Pickup opens from the server's date, not the phone's, so changing the phone's date cannot open it early. Offline, the date is worked out from the last server time and the time since the phone booted; if the server was not reached since the phone booted, the button stays grey with “Connect to the internet to check the pickup day.”
+
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
-- The deposit, once an offer is accepted, and its state: held, released, or frozen. “Held” appears only once deposits are really reserved, which needs the `reserveDeposit` Cloud Function; until then only the amount shows.
+- The deposit, once an offer is accepted, and its state: held, released, or frozen. Accepting an offer holds the deposit in the borrower's wallet, but the screen does not show the “Held” state yet: only the amount shows. Nothing releases or splits a held deposit yet, so “released” does not occur either.
 - While an offer waits for an answer, its amount and when it expires (Figma frame 13.10). If the rental can no longer be followed live, the offer is hidden, as in the chat, rather than left out of date.
 - The meeting point: the lender sets the pickup and drop-off addresses when sending the offer, after agreeing with the borrower in chat if needed. The exact addresses show only once the rental is accepted, on a map with a “Navigate” button; offline, as text.
 - A “Chat” button.
@@ -171,25 +175,25 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
 - After the return scan, the lender sees the pickup and return photos side by side, with two buttons:
     - “Item is fine” releases the full deposit to the borrower.
     - “Flag damage” opens a dispute and keeps the deposit held.
-- A footer showing the deposit (“Deposit held” once deposits are really reserved; until then only “Deposit”).
+- A footer showing the deposit (for now only “Deposit”: the deposit is held from acceptance, but this screen does not show that state yet; nothing releases it yet, so “Item is fine” and “Flag damage” do not move it).
 - Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading. Until the queue exists, the offline banner shows and no photo can be taken: the camera tiles are disabled.
 
 ## Dispute
 
-The Dispute screen walks both parties through the three settlement stages until the deposit is split. ViewModel: DisputeViewModel, using DisputeRepository, HandoverRepository (the photos, not used yet) and RentalRepository (the item, the other person and the deposit).
+The Dispute screen walks both parties through the three settlement stages until the deposit is split. It opens from “View Dispute” on Rental detail. ViewModel: DisputeViewModel, using DisputeRepository, HandoverRepository (the photos, not used yet) and RentalRepository (the item, the other person and the deposit).
 
 - A header with the item, the deposit amount, and the current stage.
 - Pickup and return photos side by side, as evidence.
-- **Stage 1, direct settlement.** Each party proposes a split as a percentage of the deposit (for example 70% to the lender, 30% to the borrower). The other can accept it or counter. The history of proposals is visible. An “Escalate now” button moves to stage 2 at once; otherwise escalation happens automatically after 30 days without agreement, and the screen shows the days left.
+- **Stage 1, direct settlement.** Each party proposes a split as a percentage of the deposit (for example 70% to the lender, 30% to the borrower). The other can accept it or counter. The history of proposals is visible. An “Escalate now” button moves to stage 2 at once; otherwise escalation happens automatically after 30 days without agreement, and the screen shows the days left. A dispute stored without that date never escalates by itself: the days left are not shown, and “Escalate now” stays.
 - **Stage 2, LLM proposal.** A card with the proposed split and the LLM's reasoning, plus “Accept” and “Reject” for each party. If both accept, the split is applied and the rental closes. There is no “Escalate now” and no automatic escalation here: the dispute goes to court only if either party rejects.
 - **Stage 3, court ruling.** Once the dispute reaches court, because either party rejected the LLM proposal, the deposit stays frozen. Either party can then upload the court ruling as a PDF. The screen shows its status: “Waiting for review”, then applied or rejected by an admin.
 - **The proposal card.** It offers “Propose a split” when there is no proposal, “Update” on the user's own proposal while they wait for the other person, and “Counter” or “Accept” on the other person's. The user sets the split by typing a whole percentage for either party, next to the bar (the other share follows), or by dragging or tapping the bar. The bar is hidden from screen readers, whose users set the split with the percent fields. The card shows what the user gets back in whole PolyPoints: the borrower's share is rounded down and the lender gets the rest, so 50% of a 33 PP deposit gives 16 PP to the borrower and 17 PP to the lender.
-- “Escalate now” first asks to confirm, naming the LLM proposal stage; the question closes by itself if the dispute moves on or settles meanwhile. An escalation sent just after the dispute moved on changes nothing, so no stage is skipped.
+- “Escalate now” first asks to confirm, naming the LLM proposal stage; the question closes by itself if the dispute moves on or settles meanwhile. An escalation sent just after the dispute moved on changes nothing, so no stage is skipped. Once the 30 days are up, a proposal, an acceptance or an escalation sent before the automatic escalation has run moves the dispute on instead; the screen shows the new stage as reached by itself, with no error.
 - **What the other person does** shows while the screen is open: a new offer (with the new split while the user edits their own, whose draft is kept), until the user opens the split editor or sends something, or the dispute leaves direct settlement; their acceptance of the user's proposal, until the screen is opened again; an escalation, by them or by itself, until the dispute moves on again. Nothing is shown for the user's own actions.
 - Accepting accepts only the split the user saw: if the offer changed just before, nothing is accepted and the card asks to check the new one.
 - **Errors.** Each part says when it failed, with “Try again”: a dispute that cannot be loaded fills the screen with Retry; a dispute that cannot be loaded again keeps the last version shown, with a note and Retry under the header; a proposal or an acceptance that fails shows its error in the proposal card; a failed proposal keeps the split being edited, so it can be sent again, and its error goes away if the user cancels the editor (Cancel is disabled while something is being sent); a failed escalation shows its error under “Escalate now”. An error goes away once the dispute moves on or settles, since its action no longer applies. Offline, the banner shows and every action that sends something is disabled.
 - The rental chat is disabled while the dispute is open.
-- For now, the evidence card has no photos, and the LLM proposal and court stages show “Coming soon”.
+- For now, the evidence card has no photos, the LLM proposal and court stages show “Coming soon”, and an agreed split moves no PolyPoints: the deposit stays held, since nothing releases or splits it yet, so the amounts shown are only what was agreed.
 
 ## Admin court ruling
 
