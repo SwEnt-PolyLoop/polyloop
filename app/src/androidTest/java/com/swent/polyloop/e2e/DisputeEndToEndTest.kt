@@ -65,7 +65,9 @@ class DisputeEndToEndTest : EndToEndTestBase() {
         .onNodeWithTag(C.Tag.rental_detail_chat_paused)
         .performScrollTo()
         .assertIsDisplayed()
-    pressWhenEnabled(C.Tag.rental_detail_action_button)
+    // Pinned at the bottom of the screen, outside the scrolling content: no scroll first.
+    waitUntilEnabled(C.Tag.rental_detail_action_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).performClick()
 
     // Dispute: the item and deposit, the lender's split to answer, and the days left to settle.
     waitForTag(C.Tag.dispute_proposal_card)

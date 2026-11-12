@@ -2,7 +2,6 @@
 
 package com.swent.polyloop.e2e
 
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -55,9 +54,11 @@ class ProfileEndToEndTest : EndToEndTestBase() {
     assertPill(requested, R.string.rental_status_requested)
     assertPill(booked, R.string.profile_listing_status_booked)
     assertPill(onLoan, R.string.profile_listing_status_on_loan)
-    composeTestRule
-        .onNodeWithTag(C.Tag.profile_listing_draft_ + draft.id)
-        .assertTextEquals(context.getString(R.string.profile_listing_status_draft))
+    // In the unmerged tree, like the pills: the clickable row merges its texts into itself.
+    waitForText(
+        C.Tag.profile_listing_draft_ + draft.id,
+        context.getString(R.string.profile_listing_status_draft),
+    )
 
     // A row opens its listing; Back returns to the profile.
     composeTestRule
