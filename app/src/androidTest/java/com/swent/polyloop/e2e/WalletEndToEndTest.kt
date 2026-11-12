@@ -31,9 +31,6 @@ class WalletEndToEndTest : EndToEndTestBase() {
     composeTestRule
         .onNodeWithTag(C.Tag.wallet_held_deposits)
         .assertTextEquals(context.getString(R.string.wallet_pp_amount, DEPOSIT))
-    composeTestRule
-        .onNodeWithTag(C.Tag.wallet_held_rentals)
-        .assertTextEquals(context.getString(R.string.wallet_pp_amount, HELD_FOR_RENTALS))
     composeTestRule.onNodeWithTag(C.Tag.wallet_recharge_button).assertIsEnabled()
 
     // The deposit row names its type and its item, and each row shows its signed amount.
@@ -60,13 +57,7 @@ class WalletEndToEndTest : EndToEndTestBase() {
 
   /** The wallet of [uid] after a recharge and a deposit held, as the Cloud Functions write it. */
   private fun seedWalletWithHistory(uid: String) {
-    val walletPath =
-        seedWallet(
-            uid,
-            AVAILABLE,
-            heldAsDeposits = DEPOSIT,
-            heldForRentals = HELD_FOR_RENTALS,
-        )
+    val walletPath = seedWallet(uid, AVAILABLE, heldAsDeposits = DEPOSIT)
     val now = Instant.now()
     seedTransaction(
         "$walletPath/${WalletFields.TRANSACTIONS}/$RECHARGE_ROW",
@@ -106,9 +97,9 @@ class WalletEndToEndTest : EndToEndTestBase() {
   private companion object {
     const val RECHARGE = 125
     const val DEPOSIT = 40
-    const val HELD_FOR_RENTALS = 10
-    // What the recharge left after the deposit and the rental price were held.
-    const val AVAILABLE = RECHARGE - DEPOSIT - HELD_FOR_RENTALS
+    // What the recharge left after the deposit was held, so the history adds up to it. Nothing
+    // reserves the rental price yet, so no price is held for rentals.
+    const val AVAILABLE = RECHARGE - DEPOSIT
     const val ITEM = "Camping tent"
     const val RECHARGE_ROW = "recharge"
     const val DEPOSIT_ROW = "deposit_held"
