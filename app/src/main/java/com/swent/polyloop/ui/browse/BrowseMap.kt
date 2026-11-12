@@ -88,10 +88,16 @@ internal fun framingOf(pins: List<BrowsePin>): MapFraming =
  * zoomed, with one pin per entry of [pins]. Once loaded, it frames the pins (see [framingOf]), once
  * per opening of the map: changing the filter afterwards keeps the user's view, and so does coming
  * back from a listing or rotating the phone. The map toolbar and zoom buttons are hidden, so
- * tapping the map never leaves the app.
+ * tapping the map never leaves the app. Tapping a pin calls [onPinClick] with its point, and the
+ * map centres on it; tapping the map anywhere else calls [onMapClick].
  */
 @Composable
-fun BrowseMap(pins: List<BrowsePin>, modifier: Modifier = Modifier) {
+fun BrowseMap(
+    pins: List<BrowsePin>,
+    onPinClick: (MapPoint) -> Unit,
+    onMapClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
   val cameraPositionState = rememberCameraPositionState {
     position = CameraPosition.fromLatLngZoom(EPFL, MAP_ZOOM)
   }
@@ -105,6 +111,7 @@ fun BrowseMap(pins: List<BrowsePin>, modifier: Modifier = Modifier) {
       cameraPositionState = cameraPositionState,
       contentDescription = stringResource(R.string.browse_map_description),
       uiSettings = MapUiSettings(mapToolbarEnabled = false, zoomControlsEnabled = false),
+      onMapClick = { onMapClick() },
       // Fitting a box needs the map's size on screen, which is known once the map has loaded.
       onMapLoaded = {
         hasFramedPins =
@@ -112,7 +119,9 @@ fun BrowseMap(pins: List<BrowsePin>, modifier: Modifier = Modifier) {
       },
   ) {
     // Keyed on the point, so a pin keeps its marker when the filter changes the other pins.
-    pins.forEach { pin -> key(pin.point) { BrowsePinMarker(pin) } }
+    pins.forEach { pin ->
+      key(pin.point) { BrowsePinMarker(pin, onClick = { onPinClick(pin.point) }) }
+    }
   }
 }
 
@@ -149,9 +158,12 @@ internal fun cameraUpdateFor(framing: MapFraming, paddingPx: Int): CameraUpdate?
 /** This point as the Maps SDK's own type. */
 private fun MapPoint.toLatLng() = LatLng(latitude, longitude)
 
-/** The marker of [pin] at its point, drawn as [BrowsePinLabel] and read out as its label. */
+/**
+ * The marker of [pin] at its point, drawn as [BrowsePinLabel] and read out as its label. Tapping it
+ * calls [onClick].
+ */
 @Composable
-private fun BrowsePinMarker(pin: BrowsePin) {
+private fun BrowsePinMarker(pin: BrowsePin, onClick: () -> Unit) {
   val label = pinLabel(pin)
   MarkerComposable(
       // The marker's picture is drawn once, and again only when one of these keys changes.
@@ -159,6 +171,11 @@ private fun BrowsePinMarker(pin: BrowsePin) {
       label,
       state = rememberUpdatedMarkerState(pin.point.toLatLng()),
       contentDescription = label,
+      onClick = {
+        onClick()
+        // Not consumed, so the map still does what it does on a tap: it centres on the pin.
+        false
+      },
   ) {
     BrowsePinLabel(label)
   }

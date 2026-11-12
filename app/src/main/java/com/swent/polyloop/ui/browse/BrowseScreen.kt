@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
@@ -40,12 +41,25 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.ListingCategory
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 
 // TODO: temporary until LocationRepository exists; every card shows the same distance.
 private const val FAKE_DISTANCE_TEXT = "0.6 km"
+
+/** Space around the row of cards under the map. */
+private val PIN_CARDS_PADDING = 16.dp
+
+/** Space between two cards in the row under the map. */
+private val PIN_CARDS_SPACING = 12.dp
+
+/**
+ * Width of each card under the map, as a share of the row, when the pin holds several listings: the
+ * next card shows at the edge, so the user sees the row scrolls. A single card takes the full row.
+ */
+private const val PIN_CARD_WIDTH_FRACTION = 0.85f
 
 /**
  * The Browse screen, showing the published listings loaded by [viewModel]. Offline, its button
@@ -68,6 +82,8 @@ fun BrowseScreen(
       onOpenMyRentals = onOpenMyRentals,
       onShowMap = viewModel::showMap,
       onShowList = viewModel::showList,
+      onPinClick = viewModel::selectPin,
+      onMapClick = viewModel::clearSelection,
   )
 }
 
@@ -77,6 +93,9 @@ fun BrowseScreen(
  * the filter as a list or on a map, depending on [uiState]. The toggle calls [onShowMap] and
  * [onShowList]. Offline, browsing needs a connection: the offline banner, the title and the offline
  * state replace the rest, so the map never shows offline.
+ *
+ * On the map, tapping a pin calls [onPinClick] with its point and tapping elsewhere calls
+ * [onMapClick]; the listings of [BrowseUiState.selectedPin] show as cards under the map.
  */
 @Composable
 fun BrowseContent(
@@ -89,6 +108,8 @@ fun BrowseContent(
     onOpenMyRentals: () -> Unit = {},
     onShowMap: () -> Unit = {},
     onShowList: () -> Unit = {},
+    onPinClick: (MapPoint) -> Unit = {},
+    onMapClick: () -> Unit = {},
 ) {
   Column(
       modifier =
@@ -141,7 +162,18 @@ fun BrowseContent(
                 modifier = Modifier.testTag(C.Tag.browse_empty),
             )
           }
-      uiState.view == BrowseView.MAP -> BrowseMap(pins = uiState.pins)
+      uiState.view == BrowseView.MAP ->
+          Column(modifier = Modifier.fillMaxSize()) {
+            BrowseMap(
+                pins = uiState.pins,
+                onPinClick = onPinClick,
+                onMapClick = onMapClick,
+                modifier = Modifier.weight(1f),
+            )
+            uiState.selectedPin?.let { pin ->
+              BrowsePinListings(pin = pin, onListingClick = onListingClick)
+            }
+          }
       else ->
           LazyColumn(
               modifier = Modifier.fillMaxWidth().testTag(C.Tag.browse_list),
@@ -156,6 +188,29 @@ fun BrowseContent(
               )
             }
           }
+    }
+  }
+}
+
+/**
+ * The listings of [pin], the pin selected on the map, as cards in a row under the map, which
+ * scrolls sideways when there are several. Tapping a card calls [onListingClick] with its id.
+ */
+@Composable
+private fun BrowsePinListings(pin: BrowsePin, onListingClick: (String) -> Unit) {
+  val cardWidthFraction = if (pin.listings.size == 1) 1f else PIN_CARD_WIDTH_FRACTION
+  LazyRow(
+      modifier = Modifier.fillMaxWidth().testTag(C.Tag.browse_pin_listings),
+      contentPadding = PaddingValues(PIN_CARDS_PADDING),
+      horizontalArrangement = Arrangement.spacedBy(PIN_CARDS_SPACING),
+  ) {
+    items(pin.listings, key = { it.id }) { listing ->
+      ListingCard(
+          listing = listing,
+          distanceText = FAKE_DISTANCE_TEXT,
+          modifier = Modifier.fillParentMaxWidth(cardWidthFraction),
+          onClick = { onListingClick(listing.id) },
+      )
     }
   }
 }

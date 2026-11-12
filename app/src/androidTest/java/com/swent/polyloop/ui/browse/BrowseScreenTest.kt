@@ -30,6 +30,7 @@ import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.resources.C
 import java.time.LocalDate
 import kotlinx.coroutines.awaitCancellation
@@ -337,6 +338,68 @@ class BrowseScreenTest {
 
     composeTestRule.onNodeWithTag(C.Tag.browse_offline).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.browse_map).assertDoesNotExist()
+  }
+
+  private val ecublens = MapPoint(latitude = 46.52, longitude = 6.57)
+
+  private val lausanne = MapPoint(latitude = 46.51, longitude = 6.63)
+
+  // Two pins on the map: the tent and the projector share Ecublens, the drill is in Lausanne.
+  private val listingsOnTheMap =
+      listOf(
+          listings[0].copy(pickupPoint = ecublens),
+          listings[1].copy(pickupPoint = ecublens),
+          listings[2].copy(pickupPoint = lausanne),
+      )
+
+  /** Shows [listingsOnTheMap] on the map, with the pin at [selectedPoint] selected, if any. */
+  private fun setMapContent(selectedPoint: MapPoint?, onListingClick: (String) -> Unit = {}) {
+    setContent(
+        uiState =
+            BrowseUiState(
+                listings = listingsOnTheMap,
+                view = BrowseView.MAP,
+                selectedPoint = selectedPoint,
+            ),
+        onListingClick = onListingClick,
+    )
+  }
+
+  @Test
+  fun selectedPinShowsItsListingsUnderTheMap() {
+    setMapContent(selectedPoint = ecublens)
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_map).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_pin_listings).assertIsDisplayed()
+    listOf("tent", "projector").forEach { id ->
+      val cardTag = C.Tag.listing_card_ + id
+      composeTestRule
+          .onNodeWithTag(C.Tag.browse_pin_listings)
+          .performScrollToNode(hasTestTag(cardTag))
+      composeTestRule.onNodeWithTag(cardTag).assertIsDisplayed()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "drill").assertDoesNotExist()
+  }
+
+  @Test
+  fun tappingACardUnderTheMapOpensItsListing() {
+    var clickedId: String? = null
+    setMapContent(selectedPoint = lausanne, onListingClick = { clickedId = it })
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "drill").performClick()
+
+    assertEquals("drill", clickedId)
+  }
+
+  @Test
+  fun noCardsShowUnderTheMapWithoutASelection() {
+    setMapContent(selectedPoint = null)
+
+    composeTestRule.onNodeWithTag(C.Tag.browse_map).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_pin_listings).assertDoesNotExist()
+    listingsOnTheMap.forEach {
+      composeTestRule.onNodeWithTag(C.Tag.listing_card_ + it.id).assertDoesNotExist()
+    }
   }
 
   @Test

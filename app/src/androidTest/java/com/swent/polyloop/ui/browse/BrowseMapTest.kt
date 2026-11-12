@@ -76,7 +76,11 @@ class BrowseMapTest {
   @Test
   fun mapWithPinsIsDisplayed() {
     composeTestRule.setContent {
-      BrowseMap(pins = listOf(BrowsePin(ecublens, listOf(listing("tent", 15)))))
+      BrowseMap(
+          pins = listOf(BrowsePin(ecublens, listOf(listing("tent", 15)))),
+          onPinClick = {},
+          onMapClick = {},
+      )
     }
 
     composeTestRule.onNodeWithTag(C.Tag.browse_map).assertIsDisplayed()
