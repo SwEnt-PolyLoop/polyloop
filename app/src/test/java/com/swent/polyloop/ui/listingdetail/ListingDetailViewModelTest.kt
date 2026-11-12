@@ -14,6 +14,8 @@ import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.wallet.FakeWalletRepository
+import com.swent.polyloop.model.wallet.Wallet
 import java.time.LocalDate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +60,7 @@ class ListingDetailViewModelTest {
   private lateinit var authRepository: FakeAuthRepository
   private lateinit var profileRepository: FakeProfileRepository
   private lateinit var connectivityRepository: FakeConnectivityRepository
+  private lateinit var walletRepository: FakeWalletRepository
 
   @Before
   fun setUp() {
@@ -68,6 +71,7 @@ class ListingDetailViewModelTest {
     profileRepository =
         FakeProfileRepository(profiles = listOf(UserProfile("owner", "Mara", "mara@epfl.ch")))
     connectivityRepository = FakeConnectivityRepository()
+    walletRepository = FakeWalletRepository(wallet = Wallet(available = 489, heldAsDeposits = 50))
   }
 
   @After
@@ -83,6 +87,7 @@ class ListingDetailViewModelTest {
           authRepository,
           profileRepository,
           connectivityRepository,
+          walletRepository,
           today = { today },
       )
 
@@ -94,6 +99,7 @@ class ListingDetailViewModelTest {
           authRepository,
           profileRepository,
           connectivityRepository,
+          walletRepository,
           today = { today },
       )
 
@@ -512,6 +518,7 @@ class ListingDetailViewModelTest {
                 authRepository,
                 profileRepository,
                 connectivityRepository,
+                walletRepository,
                 today = { now },
             )
             .also { it.openDatePicker() }
@@ -549,5 +556,53 @@ class ListingDetailViewModelTest {
     connectivityRepository.setOnline(true)
     assertFalse(vm.uiState.value.isOffline)
     assertEquals(listing, vm.uiState.value.listing)
+  }
+
+  @Test
+  fun balanceIsTheAvailableAmountOnly() {
+    assertEquals(489, viewModel().uiState.value.availableBalance)
+    assertEquals(listOf("me"), walletRepository.observedUids)
+  }
+
+  @Test
+  fun balanceFollowsTheWallet() {
+    val vm = viewModel()
+
+    walletRepository.emit(Wallet(available = 20), emptyList())
+
+    assertEquals(20, vm.uiState.value.availableBalance)
+  }
+
+  @Test
+  fun missingWalletReadsAsZero() {
+    walletRepository = FakeWalletRepository()
+
+    assertEquals(0, viewModel().uiState.value.availableBalance)
+  }
+
+  @Test
+  fun balanceIsUnknownWhenTheWalletCannotBeRead() {
+    walletRepository.failure = IllegalStateException("boom")
+
+    assertNull(viewModel().uiState.value.availableBalance)
+  }
+
+  @Test
+  fun balanceIsUnknownWhenNobodyIsSignedIn() {
+    authRepository = FakeAuthRepository()
+
+    assertNull(viewModel().uiState.value.availableBalance)
+    assertTrue(walletRepository.observedUids.isEmpty())
+  }
+
+  @Test
+  fun retryFollowsTheWalletAgain() {
+    walletRepository.failure = IllegalStateException("boom")
+    val vm = viewModel()
+    walletRepository.failure = null
+
+    vm.retry()
+
+    assertEquals(489, vm.uiState.value.availableBalance)
   }
 }

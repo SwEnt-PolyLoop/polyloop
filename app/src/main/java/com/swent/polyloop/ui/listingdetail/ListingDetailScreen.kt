@@ -64,9 +64,6 @@ import com.swent.polyloop.ui.navigation.PolyLoopTopBar
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
 
-/** Placeholder until the Wallet exists; replace with the user's real balance. */
-private const val PLACEHOLDER_BALANCE = 120
-
 /** Height of the pickup area, whether it shows the map or its placeholder. */
 private val PICKUP_AREA_HEIGHT = 120.dp
 
@@ -149,18 +146,20 @@ fun ListingDetailContent(
             listing = listing,
             owner = uiState.owner,
             showRequestButton = !uiState.isOwnListing,
+            requestEnabled = uiState.availableBalance != null,
             showMap = !uiState.isOffline,
             onRequestDates = onRequestDates,
             onLenderClick = { onLenderClick(listing.ownerId) },
         )
-        if (uiState.isDatePickerOpen && uiState.sentRentalId == null) {
+        val balance = uiState.availableBalance
+        if (balance != null && uiState.isDatePickerOpen && uiState.sentRentalId == null) {
           PolyLoopDateRangePicker(
               window = listing.availableFrom..listing.availableTo,
               disabledDates = uiState.disabledDates,
               mode =
                   DateRangePickerMode.Request(
                       pricePerDay = listing.pricePerDay,
-                      balance = PLACEHOLDER_BALANCE,
+                      balance = balance,
                   ),
               onConfirm = onConfirmDates,
               onDismiss = onDismissDatePicker,
@@ -200,14 +199,16 @@ private fun ListingDetailError(errorMsg: String, onRetry: () -> Unit) {
 /**
  * The loaded listing for a borrower: photos, title, price, description, the lender, the suggested
  * deposit and availability, the pickup area, and a pinned "Request dates" button unless
- * [showRequestButton] is false (the user's own listing). The pickup area is a map only if [showMap]
- * is true (the phone is online) and the listing has a pickup point; see [PickupArea].
+ * [showRequestButton] is false (the user's own listing). The button is disabled unless
+ * [requestEnabled], i.e. while the user's balance is not known. The pickup area is a map only if
+ * [showMap] is true (the phone is online) and the listing has a pickup point; see [PickupArea].
  */
 @Composable
 private fun ListingDetailLoaded(
     listing: Listing,
     owner: UserProfile?,
     showRequestButton: Boolean,
+    requestEnabled: Boolean,
     showMap: Boolean,
     onRequestDates: () -> Unit,
     onLenderClick: () -> Unit,
@@ -240,7 +241,7 @@ private fun ListingDetailLoaded(
       InfoCard(listing = listing)
       PickupArea(area = listing.pickupArea, point = listing.pickupPoint, showMap = showMap)
     }
-    if (showRequestButton) RequestBar(onRequestDates = onRequestDates)
+    if (showRequestButton) RequestBar(enabled = requestEnabled, onRequestDates = onRequestDates)
   }
 }
 
@@ -419,12 +420,13 @@ private fun PickupArea(area: String, point: MapPoint?, showMap: Boolean) {
 
 /** The pinned bottom bar with the full-width "Request dates" button. */
 @Composable
-private fun RequestBar(onRequestDates: () -> Unit) {
+private fun RequestBar(enabled: Boolean, onRequestDates: () -> Unit) {
   Surface(color = MaterialTheme.colorScheme.surface) {
     Column {
       HorizontalDivider()
       Button(
           onClick = onRequestDates,
+          enabled = enabled,
           shape = MaterialTheme.shapes.medium,
           modifier =
               Modifier.fillMaxWidth()
