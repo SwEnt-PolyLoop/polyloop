@@ -39,6 +39,7 @@ import com.swent.polyloop.model.wallet.Wallet
 import com.swent.polyloop.model.wallet.WalletTransaction
 import com.swent.polyloop.model.wallet.WalletTransactionType
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.NotAvailableYet
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.components.formatDay
 import com.swent.polyloop.ui.theme.PositiveGreen
@@ -132,6 +133,7 @@ fun WalletContent(
 /**
  * The balance card: the available PolyPoints, the amount held as deposits, the amount held for
  * rentals when it is above 0, and the Recharge button, which is disabled unless [enabled].
+ * Recharging does not exist yet, so "Not available yet" shows under the button.
  *
  * @param wallet the balance and the amounts held.
  * @param enabled whether the Recharge button can be tapped; false while offline.
@@ -173,6 +175,10 @@ private fun BalanceCard(wallet: Wallet, enabled: Boolean, onRecharge: () -> Unit
         Spacer(Modifier.width(8.dp))
         Text(stringResource(R.string.wallet_recharge))
       }
+      NotAvailableYet(
+          C.Tag.wallet_recharge_not_available,
+          Modifier.align(Alignment.CenterHorizontally),
+      )
     }
   }
 }

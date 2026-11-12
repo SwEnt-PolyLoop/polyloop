@@ -518,4 +518,7 @@
     <string name="review_request_action_error">Could not send your answer. Try again.</string>
     <string name="review_request_not_answerable">This request can no longer be answered here.</string>
 
+
+    <!-- Shown next to a button that does nothing yet (Map, Cancel request, Recharge, Court rulings) -->
+    <string name="not_available_yet">Not available yet</string>
 </resources>
