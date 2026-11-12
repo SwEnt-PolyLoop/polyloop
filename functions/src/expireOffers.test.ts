@@ -292,5 +292,13 @@ describe("expiring a request whose price is reserved", () => {
       heldAsDeposits: 0,
       heldForRentals: 0,
     });
+    const released = (await rows(first.borrower)).filter((row) => row.type === "RENTAL_RELEASED");
+    expect(released).toHaveLength(2);
+    expect(released).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: `rental_released_${first.ref.id}`, amount: 30 }),
+        expect.objectContaining({ id: `rental_released_${second.ref.id}`, amount: 30 }),
+      ]),
+    );
   });
 });

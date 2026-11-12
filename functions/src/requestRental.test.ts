@@ -44,17 +44,17 @@ async function scene(listing: object = {}): Promise<Scene> {
   await db.collection("users").doc(scene.borrower).set({ name: "Ben Borrower" });
   // A field given as undefined is left out of the listing, to test a missing field.
   const fields = {
-  ownerId: scene.lender,
-  title: "Camping tent",
-  photoUrls: ["https://x/0.jpg", "https://x/1.jpg", "https://x/2.jpg"],
-  pricePerDay: 10,
-  availableFrom: day(1),
-  availableTo: day(60),
-  status: "PUBLISHED",
-  pickupArea: "Ecublens",
-  dropOffArea: "Lausanne",
-  bookedRanges: [],
-  ...listing,
+    ownerId: scene.lender,
+    title: "Camping tent",
+    photoUrls: ["https://x/0.jpg", "https://x/1.jpg", "https://x/2.jpg"],
+    pricePerDay: 10,
+    availableFrom: day(1),
+    availableTo: day(60),
+    status: "PUBLISHED",
+    pickupArea: "Ecublens",
+    dropOffArea: "Lausanne",
+    bookedRanges: [],
+    ...listing,
   };
   const stored = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
   await db.collection("listings").doc(scene.listingId).set(stored);
