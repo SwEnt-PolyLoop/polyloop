@@ -263,6 +263,9 @@ object C {
     const val rental_detail_action_button = "rental_detail_action_button"
     const val rental_detail_pickup_available_on = "rental_detail_pickup_available_on"
     const val rental_detail_pickup_needs_connection = "rental_detail_pickup_needs_connection"
+    const val rental_detail_return_point_label = "rental_detail_return_point_label"
+    const val rental_detail_return_available_on = "rental_detail_return_available_on"
+    const val rental_detail_return_needs_connection = "rental_detail_return_needs_connection"
 
     const val review_request_screen = "review_request_screen"
     const val review_request_loading = "review_request_loading"

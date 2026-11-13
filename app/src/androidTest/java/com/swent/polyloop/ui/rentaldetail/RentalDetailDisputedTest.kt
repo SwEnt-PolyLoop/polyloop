@@ -65,6 +65,7 @@ class RentalDetailDisputedTest {
           onChatClick = { chatClicks++ },
           onPersonClick = { personClicks += it },
           onStartPickupClick = {},
+          onStartReturnClick = {},
           onViewDisputeClick = { viewDisputeClicks++ },
           today = LocalDate.of(2026, 10, 12),
           zone = ZoneOffset.UTC,
