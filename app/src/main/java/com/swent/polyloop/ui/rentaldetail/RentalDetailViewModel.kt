@@ -30,10 +30,10 @@ import kotlinx.coroutines.launch
  * [errorMsg] is non-null when the rental could not be read; it is blank when the failure carried no
  * message, and the screen then shows a generic text. [notFound] is true when there is no such
  * rental. [isSupported] is false for a status the screen does not handle yet (anything but
- * Requested, Accepted and Disputed): only [itemTitle] is then set, for the placeholder. [isLender]
- * is true when the signed-in user owns the item. [sentAt] is when the request was sent, [endDate]
- * the return day and [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is the
- * listing's item value in PolyPoints, or null when the listing is missing or could not be read.
+ * Requested, Accepted, Active and Disputed): only [itemTitle] is then set, for the placeholder.
+ * [isLender] is true when the signed-in user owns the item. [sentAt] is when the request was sent,
+ * [endDate] the return day and [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is
+ * the listing's item value in PolyPoints, or null when the listing is missing or could not be read.
  * [pickupArea] is the name copied on the rental, or the listing's if the request was sent before
  * the listing was geocoded. [pickupPoint] is the listing's public point, or null when the listing
  * is missing, could not be read or is not geocoded yet. [otherPerson] is the borrower for the
@@ -43,10 +43,10 @@ import kotlinx.coroutines.launch
  * user wrote it. [deposit] is the accepted amount in PolyPoints, and [pickupAddress] and
  * [returnAddress] are the exact addresses, set once the rental is accepted. [lateFees] is the total
  * taken from the deposit for a late return, in PolyPoints, and 0 when the return was never late.
- * [serverToday] is today by the server's clock, which Start Pickup opens from: read only for an
- * accepted rental, and null until it is read or when it is unknown (the server was not reached
- * since the phone booted). [isReadingServerToday] is true while it is being read, so the screen can
- * tell a read still running from an unknown date.
+ * [serverToday] is today by the server's clock, which Start Pickup and Start Return open from:
+ * read only for an accepted or active rental, and null until it is read or when it is unknown (the
+ * server was not reached since the phone booted). [isReadingServerToday] is true while it is being
+ * read, so the screen can tell a read still running from an unknown date.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -90,12 +90,13 @@ data class OtherPerson(
 )
 
 /**
- * Shows one rental as seen by the signed-in user. Requested, Accepted and Disputed are handled so
- * far. The rental is read once, then followed, so that the offer and an acceptance show without a
- * reload. It follows the network status from [connectivityRepository], so the screen knows when to
- * replace the map. For an accepted rental, it reads today from [serverClock], so that Start Pickup
- * does not open from the phone's date, which the user can change. The screen shows without waiting
- * for that date, and an unknown date is read again when the phone comes back online.
+ * Shows one rental as seen by the signed-in user. Requested, Accepted, Active and Disputed are
+ * handled so far. The rental is read once, then followed, so that the offer and an acceptance show
+ * without a reload. It follows the network status from [connectivityRepository], so the screen
+ * knows when to replace the map. For an accepted or active rental, it reads today from
+ * [serverClock], so that Start Pickup and Start Return do not open from the phone's date, which the
+ * user can change. The screen shows without waiting for that date, and an unknown date is read
+ * again when the phone comes back online.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
@@ -125,7 +126,7 @@ class RentalDetailViewModel(
         if (
             online &&
                 wasOnline == false &&
-                state.status == RentalStatus.ACCEPTED &&
+                needsServerToday(state.status) &&
                 state.serverToday == null
         ) {
           readServerToday()
@@ -135,7 +136,10 @@ class RentalDetailViewModel(
     }
   }
 
-  /** Reads today from [serverClock] for Start Pickup, unless a read is already running. */
+  /**
+   * Reads today from [serverClock] for Start Pickup or Start Return, unless a read is already
+   * running.
+   */
   private fun readServerToday() {
     if (serverTodayRead?.isActive == true) return
     _uiState.update { it.copy(isReadingServerToday = true) }
@@ -223,8 +227,9 @@ class RentalDetailViewModel(
       }
       // Read after the state is shown, not awaited with the listing and profile: only the bottom
       // button needs the date, and the Function can take seconds on a cold start. Only an accepted
-      // rental reads it, as only Start Pickup needs it.
-      var serverTodayAsked = rental.status == RentalStatus.ACCEPTED
+      // or active rental reads it: Start Return on an active rental opens from the server's day,
+      // like Start Pickup on an accepted one.
+      var serverTodayAsked = needsServerToday(rental.status)
       if (serverTodayAsked) readServerToday()
       // A read error here stops the updates: the rental read above stays on screen, but not its
       // offer, which could be out of date. The chat hides its offer card in the same way.
@@ -255,9 +260,11 @@ class RentalDetailViewModel(
                     )
                   }
             }
-            // A request accepted while the screen is open now needs the date for Start Pickup.
-            // Asked once, so an unknown date is not asked again at every change of the rental.
-            if (live?.status == RentalStatus.ACCEPTED && !serverTodayAsked) {
+            // A request accepted, or picked up, while the screen is open now needs the date for its
+            // button. Asked once, so an unknown date is not asked again at every change of the
+            // rental: from Accepted to Active, the day already read for Start Pickup serves Start
+            // Return too, and reconnecting still reads it if it is unknown.
+            if (live != null && needsServerToday(live.status) && !serverTodayAsked) {
               serverTodayAsked = true
               readServerToday()
             }
@@ -268,7 +275,16 @@ class RentalDetailViewModel(
   private companion object {
     /** The statuses the screen shows in full; every other one shows the placeholder. */
     val SUPPORTED_STATUSES =
-        setOf(RentalStatus.REQUESTED, RentalStatus.ACCEPTED, RentalStatus.DISPUTED)
+        setOf(
+            RentalStatus.REQUESTED,
+            RentalStatus.ACCEPTED,
+            RentalStatus.ACTIVE,
+            RentalStatus.DISPUTED,
+        )
+
+    /** Whether [status] has a bottom button that opens from the server's day. */
+    fun needsServerToday(status: RentalStatus?): Boolean =
+        status == RentalStatus.ACCEPTED || status == RentalStatus.ACTIVE
   }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */

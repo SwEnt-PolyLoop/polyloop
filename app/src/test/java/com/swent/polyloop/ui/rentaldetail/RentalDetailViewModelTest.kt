@@ -223,7 +223,7 @@ class RentalDetailViewModelTest {
 
   @Test
   fun statusNotBuiltYetIsUnsupportedAndKeepsOnlyItsTitle() {
-    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.RETURNED)))
 
     val state = viewModel().uiState.value
 
@@ -326,7 +326,7 @@ class RentalDetailViewModelTest {
 
   @Test
   fun unsupportedRentalDoesNotReadTheListing() {
-    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.RETURNED)))
 
     viewModel()
 
@@ -453,7 +453,7 @@ class RentalDetailViewModelTest {
 
   @Test
   fun retryOfAnUnsupportedRentalKeepsTheOfflineState() {
-    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.RETURNED)))
     val vm = viewModel()
     connectivityRepository.setOnline(false)
 
