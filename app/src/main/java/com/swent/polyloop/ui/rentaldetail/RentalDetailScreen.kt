@@ -733,9 +733,9 @@ private fun ChatPausedNote() {
 
 /**
  * An exact meeting point: the [label] (tagged [labelTag]), a map box, and the [address] (tagged
- * [addressTag]). Once accepted it is the pickup point (Figma frame 13.01), with [dropOffAddress]
- * on a "Drop-off" line under it; once active, the return point alone (Figma frame 13.02-active),
- * with no [dropOffAddress]. A missing address reads as "not known yet".
+ * [addressTag]). Once accepted it is the pickup point (Figma frame 13.01), with [dropOffAddress] on
+ * a "Drop-off" line under it; once active, the return point alone (Figma frame 13.02-active), with
+ * no [dropOffAddress]. A missing address reads as "not known yet".
  */
 @Composable
 private fun PickupPoint(

@@ -43,8 +43,8 @@ import kotlinx.coroutines.launch
  * user wrote it. [deposit] is the accepted amount in PolyPoints, and [pickupAddress] and
  * [returnAddress] are the exact addresses, set once the rental is accepted. [lateFees] is the total
  * taken from the deposit for a late return, in PolyPoints, and 0 when the return was never late.
- * [serverToday] is today by the server's clock, which Start Pickup and Start Return open from:
- * read only for an accepted or active rental, and null until it is read or when it is unknown (the
+ * [serverToday] is today by the server's clock, which Start Pickup and Start Return open from: read
+ * only for an accepted or active rental, and null until it is read or when it is unknown (the
  * server was not reached since the phone booted). [isReadingServerToday] is true while it is being
  * read, so the screen can tell a read still running from an unknown date.
  */
