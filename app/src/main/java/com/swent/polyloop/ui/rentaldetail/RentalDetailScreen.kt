@@ -984,38 +984,6 @@ private fun RentalDetailContentPreview() {
 
 @Preview(showBackground = true)
 @Composable
-private fun RentalDetailActivePreview() {
-  PolyLoopTheme {
-    Column {
-      PolyLoopTopBar(onMenuClick = {}, onProfileClick = {})
-      RentalDetailContent(
-          uiState =
-              RentalDetailUiState(
-                  itemTitle = "Ski helmet, size M",
-                  status = RentalStatus.ACTIVE,
-                  startDate = LocalDate.of(2026, 10, 1),
-                  endDate = LocalDate.of(2026, 10, 8),
-                  rentalPrice = 120,
-                  deposit = 60,
-                  returnAddress = "Rue de Lausanne 10, Renens",
-                  otherPerson =
-                      OtherPerson(uid = "lea", name = "Léa", averageRating = 4.6, reviewCount = 5),
-                  serverToday = LocalDate.of(2026, 10, 8),
-              ),
-          onRetry = {},
-          onChatClick = {},
-          onPersonClick = {},
-          onStartPickupClick = {},
-          onStartReturnClick = {},
-          onViewDisputeClick = {},
-          today = LocalDate.of(2026, 10, 8),
-      )
-    }
-  }
-}
-
-@Preview(showBackground = true)
-@Composable
 private fun RentalDetailDisputedPreview() {
   PolyLoopTheme {
     Column {

@@ -2,11 +2,13 @@
 
 package com.swent.polyloop.ui.rentaldetail
 
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -213,6 +215,21 @@ class RentalDetailActiveTest {
 
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_until).assertDoesNotExist()
+  }
+
+  @Test
+  fun anActiveRentalWithoutAReturnDayHasNoStartReturnAndNoReturnByRow() {
+    setContent(active.copy(endDate = null))
+
+    assertShown(C.Tag.rental_detail_status, context.getString(R.string.rental_status_active))
+    // Without a return day, the headline cannot say when the return is.
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_status_headline, useUnmergedTree = true)
+        .assert(!hasText("8 Oct", substring = true))
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).assertDoesNotExist()
+    // The Dates and Return by rows both need the two dates.
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_return).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_dates).assertDoesNotExist()
   }
 
   private fun assertStartReturnDisabled() {
