@@ -176,31 +176,31 @@ fun RentalDetailContent(
                 chatEnabled = !isDisputed,
             )
           }
-          if (isDisputed) {
-            ChatPausedNote()
-          } else if (uiState.status == RentalStatus.ACCEPTED) {
-            PickupPoint(
-                label = stringResource(R.string.rental_detail_pickup_point_label),
-                labelTag = C.Tag.rental_detail_pickup_point_label,
-                address = uiState.pickupAddress,
-                addressTag = C.Tag.rental_detail_pickup_address,
-                dropOffAddress = uiState.returnAddress,
-            )
-          } else if (uiState.status == RentalStatus.ACTIVE) {
+          when (uiState.status) {
+            RentalStatus.DISPUTED -> ChatPausedNote()
+            RentalStatus.ACCEPTED ->
+                PickupPoint(
+                    label = stringResource(R.string.rental_detail_pickup_point_label),
+                    labelTag = C.Tag.rental_detail_pickup_point_label,
+                    address = uiState.pickupAddress,
+                    addressTag = C.Tag.rental_detail_pickup_address,
+                    dropOffAddress = uiState.returnAddress,
+                )
             // The item is with the borrower, so only where it goes back matters now: the return
             // address alone, without a second "Drop-off" line.
-            PickupPoint(
-                label = stringResource(R.string.rental_detail_return_point_label),
-                labelTag = C.Tag.rental_detail_return_point_label,
-                address = uiState.returnAddress,
-                addressTag = C.Tag.rental_detail_return_address,
-            )
-          } else {
-            PickupArea(
-                area = uiState.pickupArea,
-                point = uiState.pickupPoint,
-                showMap = !uiState.isOffline,
-            )
+            RentalStatus.ACTIVE ->
+                PickupPoint(
+                    label = stringResource(R.string.rental_detail_return_point_label),
+                    labelTag = C.Tag.rental_detail_return_point_label,
+                    address = uiState.returnAddress,
+                    addressTag = C.Tag.rental_detail_return_address,
+                )
+            else ->
+                PickupArea(
+                    area = uiState.pickupArea,
+                    point = uiState.pickupPoint,
+                    showMap = !uiState.isOffline,
+                )
           }
           // A request that was never accepted can always be withdrawn, even after its pickup day,
           // so the borrower keeps the button for as long as the rental is Requested.
