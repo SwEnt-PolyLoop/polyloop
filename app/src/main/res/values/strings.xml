@@ -385,9 +385,9 @@
     <string name="rental_detail_cancel_request">Cancel request</string>
     <string name="rental_detail_disputed_headline">Damage flagged</string>
     <string name="rental_detail_disputed_body">The deposit stays held until a split is decided.</string>
-    <!-- The total rental price of a disputed rental, e.g. "120 PP · paid" -->
+    <!-- The total rental price of an active or disputed rental, e.g. "120 PP · paid" -->
     <string name="rental_detail_price_paid">%1$d PP · paid</string>
-    <!-- The deposit of a disputed rental, e.g. "60 PP · held" -->
+    <!-- The deposit of an active or disputed rental, e.g. "60 PP · held" -->
     <string name="rental_detail_deposit_held">%1$d PP · held</string>
     <string name="rental_detail_late_fees_label">Late fees</string>
     <!-- The late fees taken from the deposit, e.g. "0 PP" -->
@@ -399,6 +399,11 @@
     <!-- Under the disabled Start Pickup button when the server's date is unknown -->
     <string name="rental_detail_pickup_needs_connection">Connect to the internet to check the pickup day.</string>
     <string name="rental_detail_view_dispute">View Dispute</string>
+    <!-- The headline of an active rental, e.g. "Return on 8 Oct" -->
+    <string name="rental_detail_active_headline">Return on %1$s</string>
+    <string name="rental_detail_active_body">Meet at the return point.</string>
+    <string name="rental_detail_return_by_label">Return by</string>
+    <string name="rental_detail_return_point_label">RETURN POINT</string>
 
     <!-- Dispute -->
     <string name="dispute_title">Dispute</string>
