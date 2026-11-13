@@ -5,6 +5,7 @@ package com.swent.polyloop.ui.rentaldetail
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -50,6 +51,8 @@ class RentalDetailActiveTest {
       )
 
   private var chatClicks = 0
+  private var startPickupClicks = 0
+  private var startReturnClicks = 0
 
   private fun setContent(
       state: RentalDetailUiState = active,
@@ -61,7 +64,8 @@ class RentalDetailActiveTest {
           onRetry = {},
           onChatClick = { chatClicks++ },
           onPersonClick = {},
-          onStartPickupClick = {},
+          onStartPickupClick = { startPickupClicks++ },
+          onStartReturnClick = { startReturnClicks++ },
           onViewDisputeClick = {},
           today = today,
           zone = ZoneOffset.UTC,
@@ -209,5 +213,104 @@ class RentalDetailActiveTest {
 
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_until).assertDoesNotExist()
+  }
+
+  private fun assertStartReturnDisabled() {
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_action_button)
+        .assertIsDisplayed()
+        .assertIsNotEnabled()
+        .assertTextEquals(context.getString(R.string.rental_detail_start_return))
+  }
+
+  /** Like [assertShown], for a node pinned under the scrolling column, so not scrolled to. */
+  private fun assertPinned(tag: String, text: String) {
+    composeTestRule.onNodeWithTag(tag).assertIsDisplayed().assertTextEquals(text)
+  }
+
+  @Test
+  fun theServersDayBeforeTheReturnDisablesStartReturnEvenOnThePhonesReturnDay() {
+    setContent(
+        active.copy(serverToday = LocalDate.of(2026, 10, 7)),
+        today = LocalDate.of(2026, 10, 8),
+    )
+
+    assertStartReturnDisabled()
+    assertPinned(
+        C.Tag.rental_detail_return_available_on,
+        context.getString(R.string.rental_detail_return_available_on, "8 Oct"),
+    )
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_return_needs_connection).assertDoesNotExist()
+  }
+
+  @Test
+  fun theServersPickupDayStillDisablesStartReturn() {
+    setContent(active.copy(serverToday = LocalDate.of(2026, 10, 1)))
+
+    assertStartReturnDisabled()
+    assertPinned(
+        C.Tag.rental_detail_return_available_on,
+        context.getString(R.string.rental_detail_return_available_on, "8 Oct"),
+    )
+  }
+
+  @Test
+  fun aReturnInAnotherYearGivesTheYearUnderStartReturn() {
+    setContent(active.copy(endDate = LocalDate.of(2027, 1, 5)))
+
+    assertPinned(
+        C.Tag.rental_detail_return_available_on,
+        context.getString(R.string.rental_detail_return_available_on, "5 Jan 2027"),
+    )
+  }
+
+  @Test
+  fun anUnknownServerDayDisablesStartReturnAndAsksToConnectEvenOnThePhonesReturnDay() {
+    setContent(active.copy(serverToday = null), today = LocalDate.of(2026, 10, 8))
+
+    assertStartReturnDisabled()
+    assertPinned(
+        C.Tag.rental_detail_return_needs_connection,
+        context.getString(R.string.rental_detail_return_needs_connection),
+    )
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_return_available_on).assertDoesNotExist()
+  }
+
+  @Test
+  fun whileTheServersDayIsReadStartReturnIsDisabledWithNoTextUnderIt() {
+    setContent(
+        active.copy(serverToday = null, isReadingServerToday = true),
+        today = LocalDate.of(2026, 10, 8),
+    )
+
+    assertStartReturnDisabled()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_return_needs_connection).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_return_available_on).assertDoesNotExist()
+  }
+
+  @Test
+  fun onTheServersReturnDayStartReturnIsEnabledEvenOnThePhonesDayBefore() {
+    assertStartReturnOpensTheReturnOn(LocalDate.of(2026, 10, 8))
+  }
+
+  @Test
+  fun theServersDayAfterTheReturnStillEnablesStartReturnEvenOnThePhonesDayBefore() {
+    assertStartReturnOpensTheReturnOn(LocalDate.of(2026, 10, 9))
+  }
+
+  /** Start Return opens on [serverToday], while the phone's today is the day before the return. */
+  private fun assertStartReturnOpensTheReturnOn(serverToday: LocalDate) {
+    setContent(active.copy(serverToday = serverToday), today = LocalDate.of(2026, 10, 7))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_action_button)
+        .assertIsEnabled()
+        .assertTextEquals(context.getString(R.string.rental_detail_start_return))
+        .performClick()
+
+    assertEquals(1, startReturnClicks)
+    assertEquals(0, startPickupClicks)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_return_available_on).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_return_needs_connection).assertDoesNotExist()
   }
 }

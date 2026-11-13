@@ -51,6 +51,7 @@ class RentalDetailOfferTest {
           onChatClick = {},
           onPersonClick = {},
           onStartPickupClick = {},
+          onStartReturnClick = {},
           onViewDisputeClick = {},
           today = LocalDate.of(2026, 10, 1),
           zone = ZoneOffset.UTC,

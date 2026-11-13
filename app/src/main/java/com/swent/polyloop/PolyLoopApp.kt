@@ -332,6 +332,11 @@ private fun PolyLoopScaffold(
                 launchSingleTop = true
               }
             },
+            onStartReturnClick = {
+              navController.navigate(Screen.Handover.createRoute(rentalId)) {
+                launchSingleTop = true
+              }
+            },
             onViewDisputeClick = { navController.navigate(Screen.Dispute.createRoute(rentalId)) },
         )
       }

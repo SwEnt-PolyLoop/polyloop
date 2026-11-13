@@ -68,8 +68,9 @@ import java.util.Locale
 /**
  * The Rental detail screen, showing the rental loaded by [viewModel]. [onChatClick] opens the
  * rental's chat, [onPersonClick] the other person's profile, [onStartPickupClick] the pickup
- * (Handover) of an accepted rental and [onViewDisputeClick] the dispute of a disputed one. The
- * app's top bar is drawn by the navigation scaffold, not here.
+ * (Handover) of an accepted rental, [onStartReturnClick] the return (Handover) of an active one and
+ * [onViewDisputeClick] the dispute of a disputed one. The app's top bar is drawn by the navigation
+ * scaffold, not here.
  */
 @Composable
 fun RentalDetailScreen(
@@ -77,6 +78,7 @@ fun RentalDetailScreen(
     onChatClick: () -> Unit,
     onPersonClick: (uid: String) -> Unit,
     onStartPickupClick: () -> Unit,
+    onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -88,6 +90,7 @@ fun RentalDetailScreen(
       onChatClick = onChatClick,
       onPersonClick = onPersonClick,
       onStartPickupClick = onStartPickupClick,
+      onStartReturnClick = onStartReturnClick,
       onViewDisputeClick = onViewDisputeClick,
   )
 }
@@ -96,11 +99,12 @@ fun RentalDetailScreen(
  * Stateless Rental detail content: a loading indicator, an error with a Retry button, a not-found
  * message, a placeholder for a status not built yet, or the Requested, Accepted, Active or Disputed
  * rental, depending on [uiState]. An Accepted rental has "Start Pickup" ([onStartPickupClick])
- * pinned at the bottom and a Disputed one "View Dispute" ([onViewDisputeClick]). [today] and [zone]
- * decide how dates are written (e.g. whether the year is shown); tests pass fixed values so their
- * expected texts do not depend on the day they run. [today] is the phone's date, so it is only used
- * to write dates: Start Pickup opens from [RentalDetailUiState.serverToday] instead, and stays grey
- * while [RentalDetailUiState.isReadingServerToday]. [locale] decides the language of the month and
+ * pinned at the bottom, an Active one "Start Return" ([onStartReturnClick]) and a Disputed one
+ * "View Dispute" ([onViewDisputeClick]). [today] and [zone] decide how dates are written (e.g.
+ * whether the year is shown); tests pass fixed values so their expected texts do not depend on the
+ * day they run. [today] is the phone's date, so it is only used to write dates: Start Pickup and
+ * Start Return open from [RentalDetailUiState.serverToday] instead, and stay grey while
+ * [RentalDetailUiState.isReadingServerToday]. [locale] decides the language of the month and
  * weekday names; tests pass a fixed one so their expected dates do not depend on the device's
  * language.
  */
@@ -111,6 +115,7 @@ fun RentalDetailContent(
     onChatClick: () -> Unit,
     onPersonClick: (uid: String) -> Unit,
     onStartPickupClick: () -> Unit,
+    onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
@@ -213,6 +218,7 @@ fun RentalDetailContent(
             today = today,
             locale = locale,
             onStartPickupClick = onStartPickupClick,
+            onStartReturnClick = onStartReturnClick,
             onViewDisputeClick = onViewDisputeClick,
         )
       }
@@ -221,11 +227,10 @@ fun RentalDetailContent(
 }
 
 /**
- * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "View
- * Dispute" once disputed, and nothing for a request. Start Pickup opens on the pickup day by the
- * server's date ([RentalDetailUiState.serverToday]). While that date is being read, the button is
- * grey with nothing under it. Before the pickup day, the day it opens is written in [locale]; when
- * the server's date is unknown, the user is asked to connect.
+ * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "Start
+ * Return" once active, "View Dispute" once disputed, and nothing for a request. Start Pickup opens
+ * on the pickup day and Start Return on the return day, both by the server's date (see
+ * [ServerDayButton]); before that day, the day it opens is written in [locale].
  */
 @Composable
 private fun ActionBar(
@@ -233,47 +238,47 @@ private fun ActionBar(
     today: LocalDate,
     locale: Locale,
     onStartPickupClick: () -> Unit,
+    onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
 ) {
   val start = uiState.startDate
+  val end = uiState.endDate
   when (uiState.status) {
     RentalStatus.ACCEPTED ->
         if (start != null) {
-          // From the server's day, never the phone's [today]: the user can change the phone's date
-          // to open the pickup early. An unknown server day keeps it closed, as falling back on the
-          // phone's date would let airplane mode plus a changed date open it.
-          val serverToday = uiState.serverToday
-          val isReading = uiState.isReadingServerToday
-          val pickupOpen = !isReading && (serverToday?.let { !it.isBefore(start) } ?: false)
-          ActionBarSurface {
-            ActionButton(
-                text = stringResource(R.string.rental_detail_start_pickup),
-                enabled = pickupOpen,
-                onClick = onStartPickupClick,
-            )
-            // Shown disabled rather than hidden before the pickup day, so the user sees what comes
-            // next and from when. Nothing is written while the date is being read: it is not known
-            // yet, and asking to connect would be wrong online.
-            if (!pickupOpen && !isReading) {
-              val (text, tag) =
-                  if (serverToday == null) {
-                    stringResource(R.string.rental_detail_pickup_needs_connection) to
-                        C.Tag.rental_detail_pickup_needs_connection
-                  } else {
-                    stringResource(
-                        R.string.rental_detail_pickup_available_on,
-                        formatDay(start, withYear = start.year != today.year, locale = locale),
-                    ) to C.Tag.rental_detail_pickup_available_on
-                  }
-              Text(
-                  text = text,
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  textAlign = TextAlign.Center,
-                  modifier = Modifier.fillMaxWidth().testTag(tag),
-              )
-            }
-          }
+          ServerDayButton(
+              uiState = uiState,
+              text = stringResource(R.string.rental_detail_start_pickup),
+              opensOn = start,
+              availableOnText =
+                  stringResource(
+                      R.string.rental_detail_pickup_available_on,
+                      formatDay(start, withYear = start.year != today.year, locale = locale),
+                  ),
+              availableOnTag = C.Tag.rental_detail_pickup_available_on,
+              needsConnectionText = stringResource(R.string.rental_detail_pickup_needs_connection),
+              needsConnectionTag = C.Tag.rental_detail_pickup_needs_connection,
+              onClick = onStartPickupClick,
+          )
+        }
+    RentalStatus.ACTIVE ->
+        // From endDate, the "Return by" day, not startDate like Start Pickup: the item was already
+        // picked up on startDate, and the return is due on the rental's last day.
+        if (end != null) {
+          ServerDayButton(
+              uiState = uiState,
+              text = stringResource(R.string.rental_detail_start_return),
+              opensOn = end,
+              availableOnText =
+                  stringResource(
+                      R.string.rental_detail_return_available_on,
+                      formatDay(end, withYear = end.year != today.year, locale = locale),
+                  ),
+              availableOnTag = C.Tag.rental_detail_return_available_on,
+              needsConnectionText = stringResource(R.string.rental_detail_return_needs_connection),
+              needsConnectionTag = C.Tag.rental_detail_return_needs_connection,
+              onClick = onStartReturnClick,
+          )
         }
     RentalStatus.DISPUTED ->
         ActionBarSurface {
@@ -285,6 +290,50 @@ private fun ActionBar(
           )
         }
     else -> Unit
+  }
+}
+
+/**
+ * A bottom button that opens on [opensOn] by the server's date ([RentalDetailUiState.serverToday]),
+ * shared by Start Pickup and Start Return so both follow the same rule. While that date is being
+ * read, it is grey with nothing under it. Before [opensOn], it is grey with [availableOnText]
+ * (tagged [availableOnTag]) under it; when the server's date is unknown, with [needsConnectionText]
+ * (tagged [needsConnectionTag]). Once open, nothing is under it and a tap calls [onClick].
+ */
+@Composable
+private fun ServerDayButton(
+    uiState: RentalDetailUiState,
+    text: String,
+    opensOn: LocalDate,
+    availableOnText: String,
+    availableOnTag: String,
+    needsConnectionText: String,
+    needsConnectionTag: String,
+    onClick: () -> Unit,
+) {
+  // From the server's day, never the phone's: the user can change the phone's date to open the
+  // pickup or the return early. An unknown server day keeps it closed, as falling back on the
+  // phone's date would let airplane mode plus a changed date open it.
+  val serverToday = uiState.serverToday
+  val isReading = uiState.isReadingServerToday
+  val open = !isReading && (serverToday?.let { !it.isBefore(opensOn) } ?: false)
+  ActionBarSurface {
+    ActionButton(text = text, enabled = open, onClick = onClick)
+    // Shown disabled rather than hidden before the day, so the user sees what comes next and from
+    // when. Nothing is written while the date is being read: it is not known yet, and asking to
+    // connect would be wrong online.
+    if (!open && !isReading) {
+      val (note, tag) =
+          if (serverToday == null) needsConnectionText to needsConnectionTag
+          else availableOnText to availableOnTag
+      Text(
+          text = note,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth().testTag(tag),
+      )
+    }
   }
 }
 
@@ -925,6 +974,7 @@ private fun RentalDetailContentPreview() {
           onChatClick = {},
           onPersonClick = {},
           onStartPickupClick = {},
+          onStartReturnClick = {},
           onViewDisputeClick = {},
           today = LocalDate.of(2026, 9, 28),
       )
@@ -956,6 +1006,7 @@ private fun RentalDetailActivePreview() {
           onChatClick = {},
           onPersonClick = {},
           onStartPickupClick = {},
+          onStartReturnClick = {},
           onViewDisputeClick = {},
           today = LocalDate.of(2026, 10, 8),
       )
@@ -985,6 +1036,7 @@ private fun RentalDetailDisputedPreview() {
           onChatClick = {},
           onPersonClick = {},
           onStartPickupClick = {},
+          onStartReturnClick = {},
           onViewDisputeClick = {},
           today = LocalDate.of(2026, 10, 12),
       )
