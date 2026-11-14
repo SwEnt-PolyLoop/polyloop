@@ -5,6 +5,7 @@ import {
   DateRange,
   RequestError,
   asFields,
+  bookedRanges,
   conflicts,
   dayNumber,
   isDateString,
@@ -151,12 +152,6 @@ function requireAvailableDays(listing: DocumentData, dates: DateRange, now: Date
       "These dates are outside the listing's availability.",
     );
   }
-}
-
-/** The valid ranges of a listing's `bookedRanges`; malformed entries are ignored. */
-function bookedRanges(value: unknown): DateRange[] {
-  if (!Array.isArray(value)) return [];
-  return value.map(readRange).filter((range): range is DateRange => range !== null);
 }
 
 /** The listing's first photo URL, or "" when it has none (as the app did). */

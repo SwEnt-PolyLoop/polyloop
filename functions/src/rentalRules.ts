@@ -97,6 +97,12 @@ export function readRange(value: unknown): DateRange | null {
   return { start, end };
 }
 
+/** The valid ranges of a listing's `bookedRanges`; malformed entries are ignored. */
+export function bookedRanges(value: unknown): DateRange[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(readRange).filter((range): range is DateRange => range !== null);
+}
+
 /**
  * When an offer made at [now] expires: after [OFFER_LIFETIME_DAYS], or at the start of the rental's
  * first day ([startDate], in UTC like every date here) if that comes sooner.

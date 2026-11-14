@@ -13,14 +13,17 @@ interface RentalRepository {
 
   /**
    * Sends a request from [borrower] to rent [listing] from [startDate] to [endDate], both days
-   * included, and returns the new rental, with status [RentalStatus.REQUESTED]. Copies the
-   * listing's title, price and public areas, the borrower's name, and [ownerName], which the caller
-   * has from the owner's profile (a blank name is stored as ""; the screens show a placeholder).
+   * included, and returns the new rental, with status [RentalStatus.REQUESTED]. The rental holds
+   * the listing's title, price and public areas, the borrower's name, and the owner's name (a blank
+   * name is stored as ""; the screens show a placeholder). The Firestore implementation sends only
+   * the listing's id and the days to the `requestRental` Cloud Function, which copies the rest from
+   * the listing and the profiles; [ownerName] and the borrower's name are used by fakes.
    *
-   * Temporary: the app writes the rental itself, without reserving any money, until the
-   * `requestRental` Cloud Function exists. The caller checks the dates first (inside the
-   * availability window, not on booked days). Fails with an [IllegalArgumentException] if [endDate]
-   * is before [startDate], or with the cause if the rental cannot be written.
+   * No money is reserved yet. The caller checks the dates first (inside the availability window,
+   * not on booked days). Fails with an [IllegalArgumentException] if [endDate] is before
+   * [startDate], a [RentalDatesUnavailableException] if the days were booked meanwhile, a
+   * [ListingUnavailableException] if the listing was deleted or unpublished meanwhile, or with the
+   * cause if the request cannot be sent.
    */
   suspend fun requestRental(
       listing: Listing,
@@ -115,3 +118,9 @@ interface RentalRepository {
    */
   suspend fun serverNow(): Result<Instant>
 }
+
+/** Thrown when a request asks for days that were booked since the borrower picked them. */
+class RentalDatesUnavailableException : IllegalStateException("These dates are no longer available")
+
+/** Thrown when a request is sent for a listing that was deleted or unpublished meanwhile. */
+class ListingUnavailableException : IllegalStateException("This listing is no longer available")
