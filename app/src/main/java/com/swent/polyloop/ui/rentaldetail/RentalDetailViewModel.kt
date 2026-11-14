@@ -230,6 +230,8 @@ class RentalDetailViewModel(
             isOffline = it.isOffline,
             offer = rental.offer,
             isOfferMine = rental.offer?.authorId == uid,
+            // Kept, as the expiry check only runs again when the offer's expiry changes.
+            isOfferExpired = it.isOfferExpired,
             deposit = rental.deposit,
             pickupAddress = rental.pickupAddress,
             returnAddress = rental.returnAddress,
