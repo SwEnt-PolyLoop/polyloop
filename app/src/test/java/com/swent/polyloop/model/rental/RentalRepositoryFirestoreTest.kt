@@ -2,7 +2,6 @@
 
 package com.swent.polyloop.model.rental
 
-import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
@@ -15,7 +14,10 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
-import com.google.firebase.firestore.Source
+import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
+import com.google.firebase.functions.HttpsCallableReference
+import com.google.firebase.functions.HttpsCallableResult
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
@@ -44,7 +46,10 @@ class RentalRepositoryFirestoreTest {
 
   private val db = mockk<FirebaseFirestore>()
   private val collection = mockk<CollectionReference>()
-  private val repository = RentalRepositoryFirestore(db)
+  private val functions = mockk<FirebaseFunctions>()
+  private val callable = mockk<HttpsCallableReference>()
+  private val sent = slot<Any>()
+  private val repository = RentalRepositoryFirestore(db = db, functions = { functions })
 
   private val firestoreError =
       FirebaseFirestoreException("unavailable", FirebaseFirestoreException.Code.UNAVAILABLE)
@@ -125,84 +130,104 @@ class RentalRepositoryFirestoreTest {
   // ---------- requestRental ----------
 
   private val newDocument = mockk<DocumentReference>()
-  private val written = slot<Any>()
 
-  private fun newDocumentIsWritten() {
-    every { collection.document() } returns newDocument
-    every { newDocument.id } returns "new-id"
-    every { newDocument.set(capture(written)) } returns Tasks.forResult(null)
+  /** `requestRental` answers with [data], as the Cloud Function returns it. */
+  private fun requestRentalReturns(data: Any?) {
+    // A real result: data is a field MockK can't stub, and the constructor isn't public.
+    val result =
+        HttpsCallableResult::class
+            .java
+            .getDeclaredConstructor(Any::class.java)
+            .apply { isAccessible = true }
+            .newInstance(data)
+    every { functions.getHttpsCallable("requestRental") } returns callable
+    every { callable.call(capture(sent)) } returns Tasks.forResult(result)
   }
 
+  /** `requestRental` refuses with [code] and, if given, the `details.reason` [reason]. */
+  private fun requestRentalRefuses(
+      code: FirebaseFunctionsException.Code,
+      reason: String? = null,
+  ): FirebaseFunctionsException {
+    // Its constructor is internal to the SDK, so the error is a mock of the same class.
+    val refusal = mockk<FirebaseFunctionsException>(relaxed = true)
+    every { refusal.code } returns code
+    every { refusal.details } returns reason?.let { mapOf("reason" to it) }
+    every { functions.getHttpsCallable("requestRental") } returns callable
+    every { callable.call(any()) } returns Tasks.forException(refusal)
+    return refusal
+  }
+
+  private suspend fun request() = repository.requestRental(listing, "Vida", borrower, start, end)
+
   @Test
-  fun requestRentalWritesTheRequestAndReturnsItAsStored() = runTest {
-    newDocumentIsWritten()
+  fun requestRentalSendsOnlyTheListingAndTheDaysAndReturnsTheStoredRental() = runTest {
+    requestRentalReturns(mapOf("rentalId" to "new-id"))
+    every { collection.document("new-id") } returns newDocument
     every { newDocument.get() } returns Tasks.forResult(snapshot("new-id", storedData(createdAt)))
 
-    val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val rental = request().getOrThrow()
 
     assertEquals(expectedRental("new-id", createdAt), rental)
-    @Suppress("UNCHECKED_CAST") val fields = written.captured as Map<String, Any>
-    assertEquals(rentalRequestDocument(listing, "Vida", borrower, start, end).keys, fields.keys)
-    assertEquals("REQUESTED", fields[RentalFields.STATUS])
-    assertEquals("Vida", fields[RentalFields.OWNER_NAME])
+    assertEquals(
+        mapOf("listingId" to "listing-1", "startDate" to "2026-10-20", "endDate" to "2026-10-22"),
+        sent.captured,
+    )
   }
 
   @Test
-  fun requestRentalRejectsReversedDatesWithoutWriting() = runTest {
+  fun requestRentalRejectsReversedDatesWithoutCallingTheFunction() = runTest {
     val result = repository.requestRental(listing, "Vida", borrower, end, start)
 
     assertTrue(result.exceptionOrNull() is IllegalArgumentException)
-    verify(exactly = 0) { db.collection(any()) }
+    verify(exactly = 0) { functions.getHttpsCallable(any()) }
   }
 
   @Test
-  fun requestRentalFailsWhenTheWriteFails() = runTest {
-    every { collection.document() } returns newDocument
-    every { newDocument.set(any()) } returns Tasks.forException(firestoreError)
+  fun requestRentalFailsWhenTheFunctionReturnsNoValidId() = runTest {
+    for (data in listOf(null, mapOf("rentalId" to 5), mapOf("rentalId" to "a/b"))) {
+      requestRentalReturns(data)
 
-    val result = repository.requestRental(listing, "Vida", borrower, start, end)
-
-    assertSame(firestoreError, result.exceptionOrNull())
-  }
-
-  /** The server never confirms the write: it stays queued in Firestore, which sends it later. */
-  private fun newDocumentIsQueued() {
-    every { collection.document() } returns newDocument
-    every { newDocument.id } returns "new-id"
-    every { newDocument.set(any()) } returns TaskCompletionSource<Void>().task
+      assertTrue(request().exceptionOrNull() is IllegalStateException)
+    }
   }
 
   @Test
-  fun requestRentalReturnsTheQueuedRentalFromTheCacheWhenTheServerIsTooSlow() = runTest {
-    newDocumentIsQueued()
-    every { newDocument.get(Source.CACHE) } returns
-        Tasks.forResult(snapshot("new-id", storedData(createdAt)))
+  fun requestRentalFailsWhenTheNewRentalCannotBeRead() = runTest {
+    requestRentalReturns(mapOf("rentalId" to "new-id"))
+    every { collection.document("new-id") } returns newDocument
+    every { newDocument.get() } returns Tasks.forException(firestoreError)
 
-    val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    assertSame(firestoreError, request().exceptionOrNull())
 
-    // Not a failure, so the user is not led to request again and write a second rental.
-    assertEquals(expectedRental("new-id", createdAt), rental)
-    verify(exactly = 0) { newDocument.get() }
-  }
-
-  @Test
-  fun requestRentalFailsWhenTheQueuedRentalIsNotInTheCache() = runTest {
-    newDocumentIsQueued()
-    every { newDocument.get(Source.CACHE) } returns Tasks.forException(firestoreError)
-
-    val result = repository.requestRental(listing, "Vida", borrower, start, end)
-
-    assertSame(firestoreError, result.exceptionOrNull())
-  }
-
-  @Test
-  fun requestRentalFailsWhenTheStoredRentalCannotBeRead() = runTest {
-    newDocumentIsWritten()
     every { newDocument.get() } returns Tasks.forResult(snapshot("new-id", null))
 
-    val result = repository.requestRental(listing, "Vida", borrower, start, end)
+    assertTrue(request().exceptionOrNull() is IllegalStateException)
+  }
 
-    assertTrue(result.exceptionOrNull() is IllegalStateException)
+  @Test
+  fun requestRentalReportsBookedDaysAsUnavailableDates() = runTest {
+    requestRentalRefuses(FirebaseFunctionsException.Code.FAILED_PRECONDITION, "DATES_UNAVAILABLE")
+
+    assertTrue(request().exceptionOrNull() is RentalDatesUnavailableException)
+  }
+
+  @Test
+  fun requestRentalReportsADeletedOrUnpublishedListingAsUnavailable() = runTest {
+    requestRentalRefuses(FirebaseFunctionsException.Code.NOT_FOUND)
+
+    assertTrue(request().exceptionOrNull() is ListingUnavailableException)
+
+    requestRentalRefuses(FirebaseFunctionsException.Code.FAILED_PRECONDITION)
+
+    assertTrue(request().exceptionOrNull() is ListingUnavailableException)
+  }
+
+  @Test
+  fun requestRentalReturnsAnyOtherRefusalAsItIs() = runTest {
+    val refusal = requestRentalRefuses(FirebaseFunctionsException.Code.UNAVAILABLE)
+
+    assertSame(refusal, request().exceptionOrNull())
   }
 
   // ---------- getRental ----------

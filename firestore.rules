@@ -55,11 +55,6 @@ service cloud.firestore {
           && (list.size() <= 9 || list[9] is string);
     }
 
-    // Midnight UTC of a YYYY-MM-DD string, in milliseconds.
-    function dateMillis(date) {
-      return timestamp.date(int(date[0:4]), int(date[5:7]), int(date[8:10])).toMillis();
-    }
-
     // ---------- users ----------
 
     match /users/{uid} {
@@ -168,11 +163,7 @@ service cloud.firestore {
               || request.auth.uid == resource.data.ownerId
               || request.auth.uid in resource.data.participants);
 
-      // Temporary exception to the core rule, until the requestRental Cloud Function exists: the
-      // borrower creates the request, with status REQUESTED only and no money reserved.
-      allow create: if isVerifiedEpfl() && isValidNewRental(request.resource.data);
-
-      // Afterwards the participants may only update the chat preview (#101) and the time they last
+      // Only the requestRental Cloud Function creates a rental. The participants may only update the chat preview (#101) and the time they last
       // opened the chat (#181), which the app saves by itself.
       allow update: if isVerifiedEpfl()
           && request.auth.uid in resource.data.participants
@@ -199,48 +190,6 @@ service cloud.firestore {
             && reads.diff(resource.data.get('lastReadAt', {})).affectedKeys()
                 .hasOnly([request.auth.uid])
             && reads[request.auth.uid] == request.time;
-      }
-
-      function isValidNewRental(rental) {
-        let fields = ['listingId', 'listingTitle', 'listingPhotoUrl', 'ownerId', 'ownerName',
-            'borrowerId', 'borrowerName', 'participants', 'startDate', 'endDate', 'status',
-            'pricePerDay', 'totalPrice', 'pickupArea', 'dropOffArea', 'pickupAddress',
-            'returnAddress', 'createdAt', 'lastMessage', 'lastMessageAt'];
-        let listing = get(listingPath(rental.listingId)).data;
-        return rental.keys().hasOnly(fields)
-            && rental.keys().hasAll(fields)
-            && rental.borrowerId == request.auth.uid
-            && rental.ownerId == listing.ownerId
-            && rental.ownerId != rental.borrowerId
-            && rental.participants == [rental.ownerId, rental.borrowerId]
-            && rental.ownerName is string
-            && rental.borrowerName is string
-            && rental.status == 'REQUESTED'
-            && listing.status == 'PUBLISHED'
-            // The copies of the listing match it.
-            && rental.listingTitle == listing.title
-            // The first photo, or "" for a listing from before the photo rules that has none.
-            && rental.listingPhotoUrl == (listing.get('photoUrls', []).size() > 0
-                ? listing.photoUrls[0] : '')
-            && rental.pricePerDay == listing.pricePerDay
-            && rental.pickupArea == listing.get('pickupArea', '')
-            && rental.dropOffArea == listing.get('dropOffArea', '')
-            && isDate(rental.startDate)
-            && isDate(rental.endDate)
-            && rental.startDate <= rental.endDate
-            && rental.startDate >= listing.availableFrom
-            && rental.endDate <= listing.availableTo
-            // totalPrice is pricePerDay × days, both days included (Rental.totalPrice).
-            && rental.totalPrice is int
-            && rental.totalPrice * 86400000
-                == rental.pricePerDay
-                    * (dateMillis(rental.endDate) - dateMillis(rental.startDate) + 86400000)
-            // The exact addresses stay empty until the lender accepts.
-            && rental.pickupAddress == ''
-            && rental.returnAddress == ''
-            && rental.createdAt == request.time
-            && rental.lastMessageAt == request.time
-            && rental.lastMessage == '';
       }
 
       // One conversation per rental, visible only to its two participants.

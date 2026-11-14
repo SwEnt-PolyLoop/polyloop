@@ -15,6 +15,7 @@ import {
   OfferAnswer,
   OfferInput,
   RequestError,
+  bookedRanges,
   conflicts,
   isValidDeposit,
   listingTitleOf,
@@ -433,12 +434,6 @@ function requireLiveOffer(rental: DocumentData, callerId: string, now: Date): St
     throw new RequestError("failed-precondition", "This offer has expired.");
   }
   return offer;
-}
-
-/** The valid ranges of a listing's `bookedRanges`; malformed entries are ignored. */
-function bookedRanges(value: unknown): DateRange[] {
-  if (!Array.isArray(value)) return [];
-  return value.map(readRange).filter((range): range is DateRange => range !== null);
 }
 
 /** True if a stored request's dates conflict with [dates], buffer days included. */

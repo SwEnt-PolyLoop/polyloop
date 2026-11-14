@@ -8,13 +8,12 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
 import com.swent.polyloop.model.firestore.callCloudFunction
-import com.swent.polyloop.model.firestore.confirmWrite
 import com.swent.polyloop.model.firestore.isValidDocumentId
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
@@ -57,17 +56,43 @@ class RentalRepositoryFirestore(
           IllegalArgumentException("endDate $endDate is before startDate $startDate")
       )
     }
-    return withFirebaseErrors {
-      val document = rentals.document()
-      val fields = rentalRequestDocument(listing, ownerName, borrower, startDate, endDate)
-      val confirmed = confirmWrite { document.set(fields) }
-      // Confirmed: read back to get createdAt as the server set it. Not confirmed in time: the
-      // write is still queued and Firestore sends it later, so it is not a failure; reporting one
-      // would make the user request again and write a second rental. Read it from the local cache,
-      // where it already is (with an estimated createdAt).
-      val snapshot = (if (confirmed) document.get() else document.get(Source.CACHE)).await()
-      toRental(snapshot)?.let { Result.success(it) }
-          ?: Result.failure(IllegalStateException("Rental ${document.id} cannot be read"))
+    val input =
+        mapOf(
+            "listingId" to listing.id,
+            "startDate" to startDate.toString(),
+            "endDate" to endDate.toString(),
+        )
+    val result = withFirebaseErrors {
+      val data = functions().getHttpsCallable(REQUEST_RENTAL).call(input).await().data
+      val id = (data as? Map<*, *>)?.get("rentalId") as? String
+      if (id == null || !isValidDocumentId(id)) {
+        return@withFirebaseErrors Result.failure(
+            IllegalStateException("$REQUEST_RENTAL returned no rental id")
+        )
+      }
+      // The Function has written it, so it is read from the server, createdAt included.
+      readRental(rentals.document(id))?.let { Result.success(it) }
+          ?: Result.failure(IllegalStateException("Rental $id cannot be read"))
+    }
+    return result.exceptionOrNull()?.let(::requestRefusal)?.let { Result.failure(it) } ?: result
+  }
+
+  /**
+   * The exception the app expects when [error] is `requestRental`'s refusal of the days or of the
+   * listing, or null. Read from the code and `details.reason`, never from the message.
+   */
+  private fun requestRefusal(error: Throwable): Exception? {
+    val refusal = error as? FirebaseFunctionsException ?: return null
+    return when (refusal.code) {
+      FirebaseFunctionsException.Code.NOT_FOUND -> ListingUnavailableException()
+      FirebaseFunctionsException.Code.FAILED_PRECONDITION ->
+          if ((refusal.details as? Map<*, *>)?.get(REASON) == DATES_UNAVAILABLE) {
+            RentalDatesUnavailableException()
+          } else {
+            // The only other refusal of this code: the listing is no longer published.
+            ListingUnavailableException()
+          }
+      else -> null
     }
   }
 
@@ -158,5 +183,10 @@ class RentalRepositoryFirestore(
 
   companion object {
     private const val SERVER_TODAY = "serverToday"
+    private const val REQUEST_RENTAL = "requestRental"
+
+    /** The key and value of a refusal's `details` (see `rentalRequest.ts` in functions/src). */
+    private const val REASON = "reason"
+    private const val DATES_UNAVAILABLE = "DATES_UNAVAILABLE"
   }
 }

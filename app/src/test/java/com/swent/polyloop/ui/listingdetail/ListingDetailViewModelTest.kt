@@ -13,6 +13,8 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.ListingUnavailableException
+import com.swent.polyloop.model.rental.RentalDatesUnavailableException
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.model.wallet.Wallet
@@ -500,6 +502,58 @@ class ListingDetailViewModelTest {
 
     val state = vm.uiState.value
     assertTrue(rentalRepository.rentals.isEmpty())
+    assertTrue(state.listingNotFound)
+    assertNull(state.listing)
+    assertFalse(state.isDatePickerOpen)
+    assertFalse(state.isSending)
+  }
+
+  @Test
+  fun daysTheServerFindsBookedShowDatesTakenWithTheNewBookedDays() {
+    val gate = CompletableDeferred<Unit>()
+    rentalRepository.gate = gate
+    rentalRepository.failure = RentalDatesUnavailableException()
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+    // Booked after the app's own check, before the server's.
+    repository.listings =
+        listOf(listing.copy(ownerId = "owner", bookedRanges = listOf(BookedRange(oct6, oct6))))
+    gate.complete(Unit)
+
+    val state = vm.uiState.value
+    assertTrue(state.datesTaken)
+    assertEquals(setOf(oct6), state.disabledDates)
+    assertTrue(state.isDatePickerOpen)
+    assertFalse(state.isSending)
+    assertNull(state.sendError)
+  }
+
+  @Test
+  fun daysTheServerFindsBookedKeepTheGreyedDaysWhenTheyCannotBeReadAgain() {
+    val gate = CompletableDeferred<Unit>()
+    rentalRepository.gate = gate
+    rentalRepository.failure = RentalDatesUnavailableException()
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+    repository.failure = IllegalStateException("Network down")
+    gate.complete(Unit)
+
+    val state = vm.uiState.value
+    assertTrue(state.datesTaken)
+    assertEquals(emptySet<LocalDate>(), state.disabledDates)
+    assertNull(state.sendError)
+  }
+
+  @Test
+  fun aListingTheServerFindsGoneShowsNotFound() {
+    rentalRepository.failure = ListingUnavailableException()
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+
+    val state = vm.uiState.value
     assertTrue(state.listingNotFound)
     assertNull(state.listing)
     assertFalse(state.isDatePickerOpen)
