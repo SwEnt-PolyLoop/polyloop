@@ -557,9 +557,9 @@ class PolyLoopAppTest {
     )
   }
 
-  @Test
-  fun sendOfferOpensTheChatAndBackSkipsTheForm() {
-    openReviewRequest()
+  /** Fills both addresses on Review request and sends the offer. */
+  private fun sendOfferOnReviewRequest() {
+    waitForTag(C.Tag.review_request_send)
     composeTestRule
         .onNodeWithTag(C.Tag.review_request_pickup)
         .performScrollTo()
@@ -568,8 +568,95 @@ class PolyLoopAppTest {
         .onNodeWithTag(C.Tag.review_request_return)
         .performScrollTo()
         .performTextReplacement("Rue de Lausanne 10")
-
     composeTestRule.onNodeWithTag(C.Tag.review_request_send).performClick()
+  }
+
+  /** Signs in [me] as the lender of a request with no offer, then opens [route] for it. */
+  private fun openAsLender(route: String) {
+    val request =
+        rental.copy(ownerId = me.uid, borrowerId = "user-1", status = RentalStatus.REQUESTED)
+    useRentals(
+        FakeRentalRepository(
+            rentals = listOf(request),
+            // Before the rental's first day, or the offer is refused.
+            clock = { Instant.parse("2026-10-01T10:00:00Z") },
+        )
+    )
+    chatRepository.conversations =
+        listOf(
+            Conversation(
+                request.id,
+                request.listingTitle,
+                request.ownerId,
+                request.ownerName,
+                request.borrowerId,
+                request.borrowerName,
+                "",
+                request.createdAt,
+                request.status,
+                request.startDate,
+                request.endDate,
+            )
+        )
+    setAppSignedIn()
+    composeTestRule.runOnUiThread { NavigationActions(navController).navigateTo(route) }
+    composeTestRule.waitForIdle()
+  }
+
+  @Test
+  fun anOfferSentFromTheChatsBarGoesBackToThatChat() {
+    openAsLender(Screen.Chat.createRoute(rental.id))
+    val chatEntry = currentEntryId()
+    waitForTag(C.Tag.chat_review_request_button)
+    composeTestRule.onNodeWithTag(C.Tag.chat_review_request_button).performClick()
+    assertCurrentScreen(Screen.ReviewRequest)
+
+    sendOfferOnReviewRequest()
+
+    waitForTag(C.Tag.chat_screen)
+    assertCurrentScreen(Screen.Chat)
+    // The same chat, not a second copy on top of the form.
+    assertEquals(chatEntry, currentEntryId())
+  }
+
+  @Test
+  fun reviewRequestOnRentalDetailOpensTheFormThenTheChat() {
+    openAsLender(Screen.RentalDetail.createRoute(rental.id))
+    waitForTag(C.Tag.rental_detail_action_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).performClick()
+    assertCurrentScreen(Screen.ReviewRequest, Screen.ReviewRequest.createRoute(rental.id))
+
+    sendOfferOnReviewRequest()
+
+    waitForTag(C.Tag.chat_screen)
+    assertCurrentScreen(Screen.Chat)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.RentalDetail)
+  }
+
+  @Test
+  fun theChatsBarGoesBackToTheFormTheChatWasOpenedFrom() {
+    openReviewRequest()
+    val formEntry = currentEntryId()
+    // The chat link on the borrower's card.
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
+    waitForTag(C.Tag.chat_review_request_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_review_request_button).performClick()
+
+    assertCurrentScreen(Screen.ReviewRequest)
+    assertEquals(formEntry, currentEntryId())
+    sendOfferOnReviewRequest()
+    waitForTag(C.Tag.chat_screen)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.MyRentals)
+  }
+
+  @Test
+  fun sendOfferOpensTheChatAndBackSkipsTheForm() {
+    openReviewRequest()
+
+    sendOfferOnReviewRequest()
 
     waitForTag(C.Tag.chat_screen)
     assertCurrentScreen(Screen.Chat)

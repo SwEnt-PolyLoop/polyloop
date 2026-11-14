@@ -319,9 +319,9 @@ class ChatViewModel(
   }
 
   /**
-   * Follows the offer and the pickup date of the rental. Without them the conversation still works,
-   * so a read error only hides the card and the pickup. The form closes if the offer it answers is
-   * gone or expires.
+   * Follows the offer, the pickup date and whether the user can review the request. Without them
+   * the conversation still works, so a read error only hides the card, the pickup and the review
+   * request bar. The form closes if the offer it answers is gone or expires.
    */
   private suspend fun observeOffer(uid: String) {
     combine(

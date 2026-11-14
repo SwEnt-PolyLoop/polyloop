@@ -397,10 +397,9 @@ private fun PolyLoopScaffold(
                 launchSingleTop = true
               }
             },
+            // Back to the form when the chat was opened from it, so no stale form stays behind.
             onReviewRequestClick = {
-              navController.navigate(Screen.ReviewRequest.createRoute(rentalId)) {
-                launchSingleTop = true
-              }
+              navController.navigateOrGoBack(Screen.ReviewRequest.createRoute(rentalId))
             },
         )
       }
