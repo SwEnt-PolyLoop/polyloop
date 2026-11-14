@@ -60,6 +60,7 @@ fun ChatScreen(
     viewModel: ChatViewModel,
     onRentalDetailsClick: () -> Unit = {},
     onStartPickupClick: () -> Unit = {},
+    onReviewRequestClick: () -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   // Messages count as seen only while the chat is visible, not from the back stack or background.
@@ -80,6 +81,7 @@ fun ChatScreen(
       onCounterDraftChange = viewModel::onCounterDraftChange,
       onSendCounter = viewModel::sendCounter,
       onStartPickupClick = onStartPickupClick,
+      onReviewRequestClick = onReviewRequestClick,
   )
 }
 
@@ -104,6 +106,7 @@ fun ChatContent(
     onSendCounter: () -> Unit = {},
     today: LocalDate = LocalDate.now(),
     onStartPickupClick: () -> Unit = {},
+    onReviewRequestClick: () -> Unit = {},
 ) {
   Column(
       modifier =
@@ -119,6 +122,19 @@ fun ChatContent(
     // card, only once the chat is loaded, not above its spinner or its error.
     if (!uiState.isLoading && uiState.errorMsg == null && uiState.pickupDate == today) {
       PickupBar(onStartPickupClick = onStartPickupClick)
+      HorizontalDivider()
+    }
+    // The lender can answer a request with no offer only from Review request, so the chat leads
+    // there. Shown the same way as the pickup bar, once the chat is loaded.
+    if (!uiState.isLoading && uiState.errorMsg == null && uiState.canReviewRequest) {
+      ActionBar(
+          title = stringResource(R.string.chat_review_request_title),
+          hint = stringResource(R.string.chat_review_request_hint),
+          button = stringResource(R.string.my_rentals_review_request),
+          onClick = onReviewRequestClick,
+          barTag = C.Tag.chat_review_request_bar,
+          buttonTag = C.Tag.chat_review_request_button,
+      )
       HorizontalDivider()
     }
     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -207,32 +223,48 @@ private fun ChatHeaderBar(header: ChatHeader, onRentalDetailsClick: () -> Unit) 
  * offline: Handover works offline too.
  */
 @Composable
-private fun PickupBar(onStartPickupClick: () -> Unit) {
+private fun PickupBar(onStartPickupClick: () -> Unit) =
+    ActionBar(
+        title = stringResource(R.string.chat_pickup_today),
+        hint = stringResource(R.string.chat_pickup_hint),
+        button = stringResource(R.string.chat_start_pickup),
+        onClick = onStartPickupClick,
+        barTag = C.Tag.chat_pickup_bar,
+        buttonTag = C.Tag.chat_start_pickup_button,
+    )
+
+/** A bar under the header: a [title], a [hint] and a [button] calling [onClick]. */
+@Composable
+private fun ActionBar(
+    title: String,
+    hint: String,
+    button: String,
+    onClick: () -> Unit,
+    barTag: String,
+    buttonTag: String,
+) {
   Row(
       modifier =
           Modifier.fillMaxWidth()
               .background(MaterialTheme.colorScheme.surface)
               .padding(horizontal = 16.dp, vertical = 12.dp)
-              .testTag(C.Tag.chat_pickup_bar),
+              .testTag(barTag),
       verticalAlignment = Alignment.CenterVertically,
   ) {
     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
       Text(
-          text = stringResource(R.string.chat_pickup_today),
+          text = title,
           style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.SemiBold,
       )
       Text(
-          text = stringResource(R.string.chat_pickup_hint),
+          text = hint,
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
-    Button(
-        onClick = onStartPickupClick,
-        modifier = Modifier.padding(start = 12.dp).testTag(C.Tag.chat_start_pickup_button),
-    ) {
-      Text(stringResource(R.string.chat_start_pickup))
+    Button(onClick = onClick, modifier = Modifier.padding(start = 12.dp).testTag(buttonTag)) {
+      Text(button)
     }
   }
 }

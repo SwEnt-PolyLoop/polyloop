@@ -100,6 +100,22 @@ class RentalDetailViewModelOfferTest {
       )
 
   @Test
+  fun onlyTheLenderOfARequestWithNoOfferCanReviewIt() {
+    assertTrue(viewModel(lender).uiState.value.canReviewRequest)
+    assertFalse(viewModel(borrower).uiState.value.canReviewRequest)
+
+    rentals = FakeRentalRepository(listOf(request.copy(offer = offer)), clock = { now })
+    assertFalse(viewModel(lender).uiState.value.canReviewRequest)
+  }
+
+  @Test
+  fun anAcceptedRentalCannotBeReviewed() {
+    assertFalse(
+        RentalDetailUiState(isLender = true, status = RentalStatus.ACCEPTED).canReviewRequest
+    )
+  }
+
+  @Test
   fun aRequestWithoutAnOfferHasNone() {
     assertNull(viewModel().uiState.value.offer)
   }

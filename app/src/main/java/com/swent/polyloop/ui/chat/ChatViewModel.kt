@@ -101,7 +101,8 @@ data class ChatOffer(
  * the answers.
  *
  * [pickupDate] is the rental's first day while it is accepted, and null otherwise; the screen shows
- * "Start pickup" when it is today.
+ * "Start pickup" when it is today. [canReviewRequest] is true for the lender of a request that has
+ * no offer yet: the screen then offers to open Review request, where it is answered.
  */
 data class ChatUiState(
     val header: ChatHeader? = null,
@@ -117,6 +118,7 @@ data class ChatUiState(
     val offerError: String? = null,
     val isOffline: Boolean = false,
     val pickupDate: LocalDate? = null,
+    val canReviewRequest: Boolean = false,
 ) {
   /** True when Send can be pressed: there is some text. */
   val canSend: Boolean
@@ -317,9 +319,9 @@ class ChatViewModel(
   }
 
   /**
-   * Follows the offer and the pickup date of the rental. Without them the conversation still works,
-   * so a read error only hides the card and the pickup. The form closes if the offer it answers is
-   * gone or expires.
+   * Follows the offer, the pickup date and whether the user can review the request. Without them
+   * the conversation still works, so a read error only hides the card, the pickup and the review
+   * request bar. The form closes if the offer it answers is gone or expires.
    */
   private suspend fun observeOffer(uid: String) {
     combine(
@@ -337,6 +339,7 @@ class ChatViewModel(
                 offer = offer,
                 isCountering = it.isCountering && offer?.canCounter == true,
                 pickupDate = rental?.startDate?.takeIf { rental.status == RentalStatus.ACCEPTED },
+                canReviewRequest = rental?.isUnansweredRequestOf(uid) == true,
             )
           }
         }
@@ -371,6 +374,10 @@ class ChatViewModel(
   }
 
   private companion object {
+    /** True if [uid] lends this rental and it is a request with no offer yet. */
+    fun Rental.isUnansweredRequestOf(uid: String): Boolean =
+        ownerId == uid && status == RentalStatus.REQUESTED && offer == null
+
     /** The offer of this rental for the user [uid], who lends the rentals [lent], at [now]. */
     fun Rental.toChatOffer(uid: String, lent: List<Rental>, now: Instant): ChatOffer? = offer?.let {
       ChatOffer(

@@ -70,6 +70,7 @@ Each rental has exactly one 1:1 conversation between its lender and borrower. Vi
 - The chat opens as soon as a request is sent, so both sides can agree on details before acceptance, such as the meeting point and the deposit.
 - **Offer card** (Figma frames 19.10 to 19.15). While an offer waits for an answer, the chat shows its amount and when it expires. The lender's offer gives the borrower “Decline”, “Counter” and “Accept”; “Counter” asks for an amount, with “Back” and “Send”; an amount the borrower's available balance cannot cover is refused. A counteroffer gives the lender “Decline” and “Accept” only. The author of the offer sees it as waiting, with no action. Each step adds a centred system message, including an accepted, declined or expired offer. The actions are disabled offline. Once the offer has expired by the phone's clock, the card says “Offer expired” instead of when it expires and its actions are disabled, even before the hourly job removes it (the server refuses an expired offer anyway).
 - Header with the other person's name, the item, and a link back to Rental detail.
+- **New request.** For the lender of a request with no offer yet, once the chat is loaded, a bar under the header says “New request” with “Send a deposit offer or decline it.” and a “Review request” button that opens Review request. The borrower never sees it, and it goes away once an offer is sent or the request is answered.
 - **Start pickup** (Figma frame 19.16). On the pickup day of an accepted rental, and only on that day, a bar under the header says “Pickup is today” with a “Start pickup” button that opens Handover, for both people, once the chat is loaded (not above its spinner or its error). It stays enabled offline. After that day, Rental detail still has its own “Start Pickup” button.
 - Messages with timestamps, newest at the bottom, and a text field with a send button.
 - A push notification for each new message.
@@ -131,12 +132,12 @@ My rentals is the user's overview of everything they borrow and lend, and it wor
 
 ## Review request
 
-Review request is where the lender answers a request that has no offer yet (Figma frame 12.10). It opens from “Review request” on My rentals. ViewModel: ReviewRequestViewModel, using RentalRepository, ListingRepository and ProfileRepository.
+Review request is where the lender answers a request that has no offer yet (Figma frame 12.10). It opens from “Review request” on My rentals, and, for the lender of a request with no offer, from the chat and Rental detail. ViewModel: ReviewRequestViewModel, using RentalRepository, ListingRepository and ProfileRepository.
 
 - The item, the dates and number of days, the rental price, and the borrower with their rating.
 - A deposit field, filled in with the suggested deposit (the item's value): a whole amount from 1 to 99,999 PolyPoints.
 - The pickup and drop-off addresses, typed as text. The borrower sees them only once the rental is accepted.
-- “Send offer”, disabled until the deposit is valid and both addresses are filled in. It sends the offer and opens the chat, where the borrower answers.
+- “Send offer”, disabled until the deposit is valid and both addresses are filled in. It sends the offer and opens the chat, where the borrower answers (opened from that chat, it goes back to it).
 - “Decline”, which declines the request without an offer.
 - When other pending requests for the same item have dates that overlap this one (the 1-day buffer included), a warning above the buttons says how many: “If accepted, N requests with overlapping dates are declined.” It is only a warning: if those requests cannot be read, it is not shown.
 - While an action runs, both buttons are disabled; if it fails, the error is shown and the form keeps its content. Both are disabled offline.
@@ -145,7 +146,7 @@ Review request is where the lender answers a request that has no offer yet (Figm
 
 Rental detail is the hub for one rental: what it is, where it stands, and the next action. ViewModel: RentalDetailViewModel, using RentalRepository, ListingRepository and ProfileRepository.
 
-So far only the Requested, Accepted and Disputed states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Navigate”, cancelling or deposit state yet. A full-width button at the bottom gives the main action, for both roles: “Start Pickup” on Accepted, enabled from the pickup day (before it, disabled with “Pickup will be available on [day]”), and “View Dispute” on Disputed, always enabled; Requested has none. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added.
+So far only the Requested, Accepted and Disputed states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Navigate”, cancelling or deposit state yet. A full-width button at the bottom gives the main action, for both roles: “Start Pickup” on Accepted, enabled from the pickup day (before it, disabled with “Pickup will be available on [day]”), and “View Dispute” on Disputed, always enabled; on Requested, only the lender of a request with no offer yet gets one, “Review request”, which opens Review request. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added.
 
 Start Pickup opens from the server's date, not the phone's, so changing the phone's date cannot open it early. Offline, the date is worked out from the last server time and the time since the phone booted; if the server was not reached since the phone booted, the button stays grey with “Connect to the internet to check the pickup day.”
 

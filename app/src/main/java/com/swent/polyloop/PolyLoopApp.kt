@@ -333,6 +333,11 @@ private fun PolyLoopScaffold(
               }
             },
             onViewDisputeClick = { navController.navigate(Screen.Dispute.createRoute(rentalId)) },
+            onReviewRequestClick = {
+              navController.navigate(Screen.ReviewRequest.createRoute(rentalId)) {
+                launchSingleTop = true
+              }
+            },
         )
       }
       composable(Screen.ReviewRequest.route, stringArgument(Screen.ARG_RENTAL_ID)) { entry ->
@@ -352,13 +357,19 @@ private fun PolyLoopScaffold(
         ReviewRequestScreen(
             viewModel = reviewRequestViewModel,
             onOfferSent = {
-              // The chat replaces this form, so Back cannot send a second answer.
-              navController.navigate(Screen.Chat.createRoute(rentalId)) {
-                popUpTo(Screen.ReviewRequest.route) { inclusive = true }
+              // The chat replaces this form, so Back cannot send a second answer. Opened from that
+              // chat, the form just closes, so the chat is not stacked twice.
+              val chat = Screen.Chat.createRoute(rentalId)
+              if (navController.previousRoute() == chat) {
+                navController.popBackStack()
+              } else {
+                navController.navigate(chat) {
+                  popUpTo(Screen.ReviewRequest.route) { inclusive = true }
+                }
               }
             },
             onDeclined = { navController.popBackStack() },
-            onChatClick = { navController.navigate(Screen.Chat.createRoute(rentalId)) },
+            onChatClick = { navController.navigateOrGoBack(Screen.Chat.createRoute(rentalId)) },
             onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
         )
       }
@@ -384,6 +395,16 @@ private fun PolyLoopScaffold(
             onStartPickupClick = {
               navController.navigate(Screen.Handover.createRoute(rentalId)) {
                 launchSingleTop = true
+              }
+            },
+            // Back to the form when the chat was opened from it, so no stale form stays behind.
+            // Single top otherwise: a fast double tap opens the form once, not twice.
+            onReviewRequestClick = {
+              val form = Screen.ReviewRequest.createRoute(rentalId)
+              if (navController.previousRoute() == form) {
+                navController.popBackStack()
+              } else {
+                navController.navigate(form) { launchSingleTop = true }
               }
             },
         )
@@ -466,11 +487,14 @@ private fun NavBackStackEntry.stringArg(name: String): String =
 private fun NavHostController.navigateOrGoBack(route: String) {
   // Going back and forth between Chat and Rental detail would otherwise stack a new copy of each
   // screen on every hop, and Back would replay them all.
+  if (previousRoute() == route) popBackStack() else navigate(route)
+}
+
+/** The route of the screen right behind, with its rental id, or null if it has none. */
+private fun NavHostController.previousRoute(): String? {
   val previous = previousBackStackEntry
   // The entry keeps the route pattern (e.g. "chat/{rentalId}"), so its rental id is put back in.
-  val previousRoute =
-      previous?.arguments?.getString(Screen.ARG_RENTAL_ID)?.let { rentalId ->
-        previous.destination.route?.replace("{${Screen.ARG_RENTAL_ID}}", rentalId)
-      }
-  if (previousRoute == route) popBackStack() else navigate(route)
+  return previous?.arguments?.getString(Screen.ARG_RENTAL_ID)?.let { rentalId ->
+    previous.destination.route?.replace("{${Screen.ARG_RENTAL_ID}}", rentalId)
+  }
 }

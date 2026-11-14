@@ -180,6 +180,29 @@ class ChatViewModelOfferTest {
   }
 
   @Test
+  fun onlyTheLenderOfARequestWithNoOfferIsLedToReviewRequest() = runTest {
+    rentals = rentalsWith(request)
+
+    assertTrue(viewModel(lender).uiState.value.canReviewRequest)
+    assertFalse(viewModel(borrower).uiState.value.canReviewRequest)
+
+    // Once the offer is sent, the card replaces it.
+    val vm = viewModel(lender)
+    rentals.makeOffer("r1", 180, "A", "B").getOrThrow()
+    assertFalse(vm.uiState.value.canReviewRequest)
+  }
+
+  @Test
+  fun aDeclinedRequestNoLongerLeadsToReviewRequest() = runTest {
+    rentals = rentalsWith(request)
+    val vm = viewModel(lender)
+
+    rentals.declineRequest("r1").getOrThrow()
+
+    assertFalse(vm.uiState.value.canReviewRequest)
+  }
+
+  @Test
   fun noOfferMeansNoCard() {
     rentals = rentalsWith(request)
 

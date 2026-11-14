@@ -224,6 +224,8 @@ object C {
     const val chat_offer_counter_send = "chat_offer_counter_send"
     const val chat_pickup_bar = "chat_pickup_bar"
     const val chat_start_pickup_button = "chat_start_pickup_button"
+    const val chat_review_request_bar = "chat_review_request_bar"
+    const val chat_review_request_button = "chat_review_request_button"
 
     const val rental_detail_screen = "rental_detail_screen"
     const val rental_detail_title = "rental_detail_title"
