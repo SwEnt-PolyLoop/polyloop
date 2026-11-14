@@ -3,6 +3,7 @@
 package com.swent.polyloop.e2e
 
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.Source
@@ -91,7 +92,9 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
         .onNodeWithTag(C.Tag.date_picker_balance)
         .assertTextEquals(context.getString(R.string.listing_card_price, BALANCE))
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).assertIsEnabled()
-    pressBack()
+    // A real Back key, which the sheet's own window receives and handles by closing itself.
+    Espresso.pressBack()
+    composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertAbsent()
     assertRoute(Screen.ListingDetail)
 
