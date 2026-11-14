@@ -163,8 +163,9 @@ service cloud.firestore {
               || request.auth.uid == resource.data.ownerId
               || request.auth.uid in resource.data.participants);
 
-      // Only the requestRental Cloud Function creates a rental. The participants may only update the chat preview (#101) and the time they last
-      // opened the chat (#181), which the app saves by itself.
+      // Only the requestRental Cloud Function creates a rental. The participants may only update the
+      // chat preview (#101) and the time they last opened the chat (#181), which the app saves by
+      // itself.
       allow update: if isVerifiedEpfl()
           && request.auth.uid in resource.data.participants
           && changedKeys().size() > 0
