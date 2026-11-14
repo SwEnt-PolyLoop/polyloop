@@ -103,7 +103,12 @@ export function readRange(value: unknown): DateRange | null {
  */
 export function offerExpiry(now: Date, startDate: string): Date {
   const afterLifetime = now.getTime() + OFFER_LIFETIME_DAYS * MILLISECONDS_PER_DAY;
-  return new Date(Math.min(afterLifetime, Date.parse(`${startDate}T00:00:00Z`)));
+  return new Date(Math.min(afterLifetime, firstDayStart(startDate)));
+}
+
+/** The start of the rental's first day [startDate], in UTC like every date here, in epoch ms. */
+export function firstDayStart(startDate: string): number {
+  return Date.parse(`${startDate}T00:00:00Z`);
 }
 
 /** True for a whole deposit from 1 to [MAX_DEPOSIT]. */
