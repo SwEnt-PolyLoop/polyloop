@@ -283,6 +283,7 @@ private fun OfferRequestCard(
       formatDay(offer.expiresAt.atZone(ZoneId.systemDefault()).toLocalDate(), locale = locale)
   val badge =
       when {
+        row.isOfferExpired -> R.string.offer_expired
         row.isOfferMine && offer.isCounter -> R.string.my_rentals_badge_counter_sent
         row.isOfferMine -> R.string.my_rentals_badge_offer_sent
         offer.isCounter -> R.string.my_rentals_badge_counter_received
@@ -290,6 +291,7 @@ private fun OfferRequestCard(
       }
   val line =
       when {
+        row.isOfferExpired -> stringResource(R.string.my_rentals_offer_expired_line, offer.amount)
         offer.isCounter -> stringResource(R.string.my_rentals_counter_line, offer.amount, expiry)
         row.isOfferMine ->
             stringResource(R.string.my_rentals_offer_sent_line, row.totalPrice, offer.amount)

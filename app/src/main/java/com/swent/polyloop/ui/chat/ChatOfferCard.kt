@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.chat
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -106,16 +107,20 @@ private fun WaitingOffer(offer: ChatOffer, otherPersonName: String, zone: ZoneId
               if (offer.isCounter) R.string.chat_offer_title_my_counter
               else R.string.chat_offer_title_mine
           ),
-      badge = stringResource(R.string.chat_offer_badge_waiting),
+      badge = stringResource(badgeOf(offer, R.string.chat_offer_badge_waiting)),
       isAnswer = false,
   )
   Amount(stringResource(R.string.chat_offer_amount_mine, offer.amount))
   Note(
-      stringResource(
-          R.string.chat_offer_note_waiting,
-          otherPersonName.ifBlank { stringResource(R.string.chat_unknown_person) },
-          expiryDay(offer, zone),
-      )
+      if (offer.isExpired) {
+        stringResource(R.string.chat_offer_note_expired)
+      } else {
+        stringResource(
+            R.string.chat_offer_note_waiting,
+            otherPersonName.ifBlank { stringResource(R.string.chat_unknown_person) },
+            expiryDay(offer, zone),
+        )
+      }
   )
 }
 
@@ -134,13 +139,15 @@ private fun ReceivedOffer(
           stringResource(
               if (offer.isCounter) R.string.chat_offer_title_counter else R.string.chat_offer_title
           ),
-      badge = stringResource(R.string.chat_offer_badge_answer),
-      isAnswer = true,
+      badge = stringResource(badgeOf(offer, R.string.chat_offer_badge_answer)),
+      isAnswer = !offer.isExpired,
   )
   Amount(stringResource(R.string.listing_card_price, offer.amount))
   val previous = offer.previousAmount
   Note(
-      if (offer.isCounter && previous != null) {
+      if (offer.isExpired) {
+        stringResource(R.string.chat_offer_note_expired)
+      } else if (offer.isCounter && previous != null) {
         stringResource(R.string.chat_offer_note_counter, previous, expiryDay(offer, zone))
       } else {
         stringResource(R.string.chat_offer_note_expires, expiryDay(offer, zone))
@@ -280,6 +287,11 @@ private fun Note(text: String) {
       modifier = Modifier.testTag(C.Tag.chat_offer_note),
   )
 }
+
+/** "Offer expired" once [offer] has expired, else [badge]. */
+@StringRes
+private fun badgeOf(offer: ChatOffer, @StringRes badge: Int): Int =
+    if (offer.isExpired) R.string.offer_expired else badge
 
 /** The day the offer expires, e.g. "22 Oct". */
 @Composable

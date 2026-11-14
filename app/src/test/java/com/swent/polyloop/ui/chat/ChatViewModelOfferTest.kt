@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -64,13 +65,25 @@ class ChatViewModelOfferTest {
           createdAt = now,
       )
 
+  private val dispatcher = UnconfinedTestDispatcher()
+
+  // The phone's time: [clockStart], moved on by the test's virtual time.
+  private var clockStart = now
+  private val clock = { clockStart.plusMillis(dispatcher.scheduler.currentTime) }
+
+  /** Moves the phone's time on by [millis], running what was waiting for it. */
+  private fun advanceClock(millis: Long) {
+    dispatcher.scheduler.advanceTimeBy(millis)
+    dispatcher.scheduler.runCurrent()
+  }
+
   private lateinit var chat: FakeChatRepository
   private lateinit var connectivity: FakeConnectivityRepository
   private lateinit var rentals: FakeRentalRepository
 
   @Before
   fun setUp() {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
+    Dispatchers.setMain(dispatcher)
     chat = FakeChatRepository(currentUid = "borrower")
     chat.conversations =
         listOf(
@@ -110,11 +123,61 @@ class ChatViewModelOfferTest {
           FakeAuthRepository(signedInUser = user),
           repository,
           connectivity,
+          clock,
       )
 
   private suspend fun stored(id: String = "r1"): Rental = rentals.getRental(id).getOrThrow()!!
 
   // ---------- The card ----------
+
+  @Test
+  fun anOfferJustBeforeItsExpiryCanStillBeAnswered() {
+    clockStart = expiresAt.minusMillis(1)
+
+    val state = viewModel().uiState.value
+
+    assertFalse(state.offer!!.isExpired)
+    assertTrue(state.canAnswerOffer)
+    assertTrue(state.offer!!.canCounter)
+  }
+
+  @Test
+  fun anOfferLeftOpenBecomesExpiredRightAtItsExpiry() {
+    clockStart = expiresAt.minusMillis(1)
+    val vm = viewModel()
+
+    advanceClock(1)
+
+    val state = vm.uiState.value
+    assertTrue(state.offer!!.isExpired)
+    assertFalse(state.canAnswerOffer)
+    assertFalse(state.offer!!.canCounter)
+  }
+
+  @Test
+  fun anExpiredOfferCannotBeAnsweredAndClosesTheCounterForm() {
+    clockStart = expiresAt.minusMillis(1)
+    val vm = viewModel()
+    vm.startCounter()
+    vm.onCounterDraftChange("120")
+
+    advanceClock(1)
+    vm.acceptOffer()
+    vm.sendCounter()
+
+    assertFalse(vm.uiState.value.isCountering)
+    assertFalse(vm.uiState.value.canSendCounter)
+    vm.startCounter()
+    assertFalse(vm.uiState.value.isCountering)
+    runBlocking { assertEquals(RentalStatus.REQUESTED, stored().status) }
+  }
+
+  @Test
+  fun theAuthorAlsoSeesTheirOfferExpired() {
+    clockStart = expiresAt
+
+    assertTrue(viewModel(lender).uiState.value.offer!!.isExpired)
+  }
 
   @Test
   fun noOfferMeansNoCard() {

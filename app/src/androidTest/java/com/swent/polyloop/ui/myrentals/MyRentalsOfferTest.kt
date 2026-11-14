@@ -128,6 +128,17 @@ class MyRentalsOfferTest {
   }
 
   @Test
+  fun anExpiredOfferIsShownAsExpiredAndStillOpensTheChat() {
+    setBorrowing(row(first).copy(isOfferExpired = true))
+
+    inCard(C.Tag.my_rentals_row_status).assertTextEquals(string(R.string.offer_expired))
+    inCard(C.Tag.my_rentals_row_offer).assertTextEquals("180 PP deposit offered · expired")
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_open_chat_button).performClick()
+
+    assertEquals(listOf("tent"), chats)
+  }
+
+  @Test
   fun aLenderWithACounterofferIsAskedToAnswer() {
     setLending(row(counter))
 
