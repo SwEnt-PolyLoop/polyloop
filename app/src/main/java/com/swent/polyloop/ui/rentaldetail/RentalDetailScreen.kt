@@ -68,8 +68,9 @@ import java.util.Locale
 /**
  * The Rental detail screen, showing the rental loaded by [viewModel]. [onChatClick] opens the
  * rental's chat, [onPersonClick] the other person's profile, [onStartPickupClick] the pickup
- * (Handover) of an accepted rental and [onViewDisputeClick] the dispute of a disputed one. The
- * app's top bar is drawn by the navigation scaffold, not here.
+ * (Handover) of an accepted rental, [onViewDisputeClick] the dispute of a disputed one and
+ * [onReviewRequestClick] Review request, for the lender of a request with no offer. The app's top
+ * bar is drawn by the navigation scaffold, not here.
  */
 @Composable
 fun RentalDetailScreen(
@@ -78,6 +79,7 @@ fun RentalDetailScreen(
     onPersonClick: (uid: String) -> Unit,
     onStartPickupClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
+    onReviewRequestClick: () -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   // Split from the stateless content below so that tests and previews can set the state directly,
@@ -89,6 +91,7 @@ fun RentalDetailScreen(
       onPersonClick = onPersonClick,
       onStartPickupClick = onStartPickupClick,
       onViewDisputeClick = onViewDisputeClick,
+      onReviewRequestClick = onReviewRequestClick,
   )
 }
 
@@ -96,10 +99,11 @@ fun RentalDetailScreen(
  * Stateless Rental detail content: a loading indicator, an error with a Retry button, a not-found
  * message, a placeholder for a status not built yet, or the Requested, Accepted or Disputed rental,
  * depending on [uiState]. An Accepted rental has "Start Pickup" ([onStartPickupClick]) pinned at
- * the bottom and a Disputed one "View Dispute" ([onViewDisputeClick]). [today] and [zone] decide
- * how dates are written (e.g. whether the year is shown); tests pass fixed values so their expected
- * texts do not depend on the day they run. [today] is the phone's date, so it is only used to write
- * dates: Start Pickup opens from [RentalDetailUiState.serverToday] instead, and stays grey while
+ * the bottom, a Disputed one "View Dispute" ([onViewDisputeClick]), and a request with no offer
+ * "Review request" ([onReviewRequestClick]) for its lender. [today] and [zone] decide how dates are
+ * written (e.g. whether the year is shown); tests pass fixed values so their expected texts do not
+ * depend on the day they run. [today] is the phone's date, so it is only used to write dates: Start
+ * Pickup opens from [RentalDetailUiState.serverToday] instead, and stays grey while
  * [RentalDetailUiState.isReadingServerToday]. [locale] decides the language of the month and
  * weekday names; tests pass a fixed one so their expected dates do not depend on the device's
  * language.
@@ -113,6 +117,7 @@ fun RentalDetailContent(
     onStartPickupClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onReviewRequestClick: () -> Unit = {},
     today: LocalDate = LocalDate.now(),
     zone: ZoneId = ZoneId.systemDefault(),
     locale: Locale = LocalConfiguration.current.locales[0],
@@ -199,6 +204,7 @@ fun RentalDetailContent(
             locale = locale,
             onStartPickupClick = onStartPickupClick,
             onViewDisputeClick = onViewDisputeClick,
+            onReviewRequestClick = onReviewRequestClick,
         )
       }
     }
@@ -206,11 +212,11 @@ fun RentalDetailContent(
 }
 
 /**
- * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "View
- * Dispute" once disputed, and nothing for a request. Start Pickup opens on the pickup day by the
- * server's date ([RentalDetailUiState.serverToday]). While that date is being read, the button is
- * grey with nothing under it. Before the pickup day, the day it opens is written in [locale]; when
- * the server's date is unknown, the user is asked to connect.
+ * The main action at the bottom of the screen: "Start Pickup" once accepted and "View Dispute" once
+ * disputed, for both roles, and "Review request" for the lender of a request with no offer. Start
+ * Pickup opens on the pickup day by the server's date ([RentalDetailUiState.serverToday]). While
+ * that date is being read, the button is grey with nothing under it. Before the pickup day, the day
+ * it opens is written in [locale]; when the server's date is unknown, the user is asked to connect.
  */
 @Composable
 private fun ActionBar(
@@ -219,6 +225,7 @@ private fun ActionBar(
     locale: Locale,
     onStartPickupClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
+    onReviewRequestClick: () -> Unit,
 ) {
   val start = uiState.startDate
   when (uiState.status) {
@@ -268,6 +275,16 @@ private fun ActionBar(
               enabled = true,
               onClick = onViewDisputeClick,
           )
+        }
+    RentalStatus.REQUESTED ->
+        if (uiState.canReviewRequest) {
+          ActionBarSurface {
+            ActionButton(
+                text = stringResource(R.string.my_rentals_review_request),
+                enabled = true,
+                onClick = onReviewRequestClick,
+            )
+          }
         }
     else -> Unit
   }

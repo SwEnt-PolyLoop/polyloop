@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
@@ -21,6 +22,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.location.MapPoint
+import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import java.time.Instant
@@ -58,6 +60,7 @@ class RentalDetailScreenTest {
 
   private var retries = 0
   private var chatClicks = 0
+  private var reviewRequestClicks = 0
   private val personClicks = mutableListOf<String>()
 
   private fun setContent(uiState: RentalDetailUiState = requested) {
@@ -69,6 +72,7 @@ class RentalDetailScreenTest {
           onPersonClick = { personClicks += it },
           onStartPickupClick = {},
           onViewDisputeClick = {},
+          onReviewRequestClick = { reviewRequestClicks++ },
           today = today,
           zone = ZoneOffset.UTC,
           // English is fixed so the expected dates pass on an emulator in any language.
@@ -87,6 +91,26 @@ class RentalDetailScreenTest {
 
   private fun assertAbsent(tag: String) {
     composeTestRule.onNodeWithTag(tag).assertDoesNotExist()
+  }
+
+  @Test
+  fun theLenderOfARequestWithNoOfferOpensReviewRequest() {
+    setContent(requested.copy(isLender = true))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_action_button)
+        .assertTextEquals(context.getString(R.string.my_rentals_review_request))
+        .assertIsEnabled()
+        .performClick()
+    assertEquals(1, reviewRequestClicks)
+  }
+
+  @Test
+  fun theLenderOfARequestWithAnOfferHasNoActionButton() {
+    val offer = DepositOffer(180, "lender", false, null, Instant.parse("2026-10-22T12:00:00Z"))
+    setContent(requested.copy(isLender = true, offer = offer))
+
+    assertAbsent(C.Tag.rental_detail_action_button)
   }
 
   @Test

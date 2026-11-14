@@ -79,7 +79,11 @@ data class RentalDetailUiState(
     val lateFees: Int = 0,
     val serverToday: LocalDate? = null,
     val isReadingServerToday: Boolean = false,
-)
+) {
+  /** True for the lender of a request with no offer yet, who answers it on Review request. */
+  val canReviewRequest: Boolean
+    get() = isLender && status == RentalStatus.REQUESTED && offer == null
+}
 
 /**
  * The other side of the rental, shown on the person card with their initial. [name] comes from
