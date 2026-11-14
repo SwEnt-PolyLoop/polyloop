@@ -391,6 +391,8 @@ private fun StatusCard(
           when {
             status == RentalStatus.ACCEPTED -> stringResource(R.string.rental_detail_accepted_body)
             status == RentalStatus.DISPUTED -> stringResource(R.string.rental_detail_disputed_body)
+            offer != null && uiState.isOfferExpired ->
+                stringResource(R.string.rental_detail_offer_body_expired, offer.amount)
             offer != null -> offerBody(offer, uiState.isOfferMine, zone, locale)
             sentAt != null -> {
               val sentDay = sentAt.atZone(zone).toLocalDate()
@@ -424,7 +426,7 @@ private fun statusHeadline(uiState: RentalDetailUiState, today: LocalDate, local
   }
   val start = uiState.startDate
   if (uiState.status != RentalStatus.ACCEPTED || start == null) {
-    return stringResource(offerHeadline(uiState.offer, uiState.isOfferMine))
+    return stringResource(offerHeadline(uiState.offer, uiState.isOfferMine, uiState.isOfferExpired))
   }
   return stringResource(
       R.string.rental_detail_accepted_headline,
@@ -434,9 +436,10 @@ private fun statusHeadline(uiState: RentalDetailUiState, today: LocalDate, local
 
 /** The headline while requested: where the offer stands, or the default without one. */
 @StringRes
-private fun offerHeadline(offer: DepositOffer?, isMine: Boolean): Int =
+private fun offerHeadline(offer: DepositOffer?, isMine: Boolean, isExpired: Boolean): Int =
     when {
       offer == null -> R.string.rental_detail_status_headline
+      isExpired -> R.string.offer_expired
       isMine && offer.isCounter -> R.string.rental_detail_status_counter_sent
       isMine -> R.string.rental_detail_status_offer_sent
       offer.isCounter -> R.string.rental_detail_status_counter_received

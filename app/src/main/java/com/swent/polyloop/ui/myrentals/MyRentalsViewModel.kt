@@ -10,6 +10,9 @@ import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.ui.components.isOfferExpired
+import com.swent.polyloop.ui.components.withNowAtExpiries
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -38,6 +42,8 @@ enum class RentalsTab {
  *   shows a grey box.
  * @property offer the deposit offer waiting for an answer, if any.
  * @property isOfferMine true when the signed-in user wrote [offer] and waits for the answer.
+ * @property isOfferExpired true once [offer] has expired by the phone's clock, even before the
+ *   hourly `expireOffers` job removes it.
  */
 data class RentalRow(
     val rentalId: String,
@@ -51,6 +57,7 @@ data class RentalRow(
     val listingPhotoUrl: String = "",
     val offer: DepositOffer? = null,
     val isOfferMine: Boolean = false,
+    val isOfferExpired: Boolean = false,
 )
 
 /**
@@ -90,11 +97,12 @@ data class MyRentalsUiState(
 
 /**
  * Shows what the signed-in user borrows and lends. Both lists follow the repository live, so a new
- * request appears without reloading.
+ * request appears without reloading, and an offer shows as expired once it expires by [clock].
  */
 class MyRentalsViewModel(
     private val rentalRepository: RentalRepository,
     private val authRepository: AuthRepository,
+    private val clock: () -> Instant = Instant::now,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(MyRentalsUiState())
@@ -134,7 +142,15 @@ class MyRentalsViewModel(
               rentalRepository.observeRentalsAsBorrower(uid),
               rentalRepository.observeRentalsAsLender(uid),
           ) { borrowed, lent ->
-            borrowed.toSections(uid) to lent.toSections(uid)
+            borrowed to lent
+          }
+          .withNowAtExpiries(
+              { (borrowed, lent) -> (borrowed + lent).mapNotNull { it.offer?.expiresAt } },
+              clock,
+          )
+          .map { (rentals, now) ->
+            val (borrowed, lent) = rentals
+            borrowed.toSections(uid, now) to lent.toSections(uid, now)
           }
           .catch { e -> _uiState.update { it.copy(isLoading = false, errorMsg = e.message ?: "") } }
           .collect { (borrowing, lending) ->
@@ -198,20 +214,23 @@ class MyRentalsViewModel(
 
     /**
      * Splits rentals, given newest first, into the REQUESTS and CURRENT sections of a tab, as rows
-     * for [uid]. Both tabs go through here, so that they cannot drift apart.
+     * for [uid] at [now]. Both tabs go through here, so that they cannot drift apart.
      *
      * REQUESTS holds pending requests only: they are the rentals still waiting for an answer, and
      * once answered a rental is CURRENT, whatever the answer was. (Figma frame 11 shows an Active
      * card under REQUESTS; that is a confirmed mistake in the frame.)
      */
-    fun List<Rental>.toSections(uid: String): Pair<List<RentalRow>, List<RentalRow>> {
+    fun List<Rental>.toSections(
+        uid: String,
+        now: Instant,
+    ): Pair<List<RentalRow>, List<RentalRow>> {
       val (requests, current) = partition { it.status == RentalStatus.REQUESTED }
       // sortedBy is stable, so each status stays newest first.
       val byAttention = current.sortedBy { ATTENTION_ORDER.indexOf(it.status) }
-      return requests.map { it.toRow(uid) } to byAttention.map { it.toRow(uid) }
+      return requests.map { it.toRow(uid, now) } to byAttention.map { it.toRow(uid, now) }
     }
 
-    fun Rental.toRow(uid: String) =
+    fun Rental.toRow(uid: String, now: Instant) =
         RentalRow(
             rentalId = id,
             itemTitle = listingTitle,
@@ -224,6 +243,7 @@ class MyRentalsViewModel(
             listingPhotoUrl = listingPhotoUrl,
             offer = offer,
             isOfferMine = offer?.authorId == uid,
+            isOfferExpired = offer?.let { isOfferExpired(it.expiresAt, now) } ?: false,
         )
   }
 }

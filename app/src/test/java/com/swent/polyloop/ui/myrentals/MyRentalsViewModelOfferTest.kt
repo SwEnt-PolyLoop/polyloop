@@ -28,7 +28,14 @@ import org.junit.Test
 class MyRentalsViewModelOfferTest {
 
   private val now = Instant.parse("2026-11-04T10:00:00Z")
-  private val offer = DepositOffer(180, "owner", false, null, Instant.parse("2026-11-11T10:00:00Z"))
+  private val expiresAt = Instant.parse("2026-11-11T10:00:00Z")
+  private val offer = DepositOffer(180, "owner", false, null, expiresAt)
+
+  private val dispatcher = UnconfinedTestDispatcher()
+
+  // The phone's time: [clockStart], moved on by the test's virtual time.
+  private var clockStart = now
+  private val clock = { clockStart.plusMillis(dispatcher.scheduler.currentTime) }
 
   private val request =
       Rental(
@@ -51,7 +58,7 @@ class MyRentalsViewModelOfferTest {
 
   @Before
   fun setUp() {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
+    Dispatchers.setMain(dispatcher)
   }
 
   @After
@@ -65,7 +72,29 @@ class MyRentalsViewModelOfferTest {
           FakeAuthRepository(
               signedInUser = AuthUser(uid = uid, email = "$uid@epfl.ch", name = uid)
           ),
+          clock,
       )
+
+  @Test
+  fun anOfferIsShownAsExpiredRightAtItsExpiry() {
+    clockStart = expiresAt.minusMillis(1)
+    val vm = viewModel("borrower", request.copy(offer = offer))
+    assertFalse(vm.uiState.value.borrowingRequests.single().isOfferExpired)
+
+    dispatcher.scheduler.advanceTimeBy(1)
+    dispatcher.scheduler.runCurrent()
+
+    val row = vm.uiState.value.borrowingRequests.single()
+    assertTrue(row.isOfferExpired)
+    assertEquals(offer, row.offer)
+  }
+
+  @Test
+  fun aRequestWithoutAnOfferIsNeverExpired() {
+    clockStart = expiresAt.plusSeconds(60)
+
+    assertFalse(viewModel("owner", request).uiState.value.lendingRequests.single().isOfferExpired)
+  }
 
   @Test
   fun aRequestWithoutAnOfferHasNone() {

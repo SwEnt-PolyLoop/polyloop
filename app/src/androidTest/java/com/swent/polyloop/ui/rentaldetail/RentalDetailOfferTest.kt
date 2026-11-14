@@ -80,6 +80,13 @@ class RentalDetailOfferTest {
   }
 
   @Test
+  fun anExpiredOfferSaysItHasExpired() {
+    setContent(requested.copy(offer = first, isOfferExpired = true))
+
+    assertCard(R.string.offer_expired, "Deposit offer: 180 PP. This offer has expired.")
+  }
+
+  @Test
   fun anOfferSentWaitsForTheAnswer() {
     setContent(requested.copy(offer = first, isOfferMine = true))
 
