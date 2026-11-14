@@ -398,8 +398,14 @@ private fun PolyLoopScaffold(
               }
             },
             // Back to the form when the chat was opened from it, so no stale form stays behind.
+            // Single top otherwise: a fast double tap opens the form once, not twice.
             onReviewRequestClick = {
-              navController.navigateOrGoBack(Screen.ReviewRequest.createRoute(rentalId))
+              val form = Screen.ReviewRequest.createRoute(rentalId)
+              if (navController.previousRoute() == form) {
+                navController.popBackStack()
+              } else {
+                navController.navigate(form) { launchSingleTop = true }
+              }
             },
         )
       }

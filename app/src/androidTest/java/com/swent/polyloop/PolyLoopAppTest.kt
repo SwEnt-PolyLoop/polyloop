@@ -536,6 +536,7 @@ class PolyLoopAppTest {
             clock = { Instant.parse("2026-10-01T10:00:00Z") },
         )
     useRentals(rentals)
+    seedConversation(rentals.rentals.single())
     setAppSignedIn()
     openFromMenu(Screen.MyRentals)
     waitForTag(C.Tag.my_rentals_tab_lending)
@@ -571,17 +572,8 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.review_request_send).performClick()
   }
 
-  /** Signs in [me] as the lender of a request with no offer, then opens [route] for it. */
-  private fun openAsLender(route: String) {
-    val request =
-        rental.copy(ownerId = me.uid, borrowerId = "user-1", status = RentalStatus.REQUESTED)
-    useRentals(
-        FakeRentalRepository(
-            rentals = listOf(request),
-            // Before the rental's first day, or the offer is refused.
-            clock = { Instant.parse("2026-10-01T10:00:00Z") },
-        )
-    )
+  /** Gives [request] its conversation, so that its chat loads. */
+  private fun seedConversation(request: Rental) {
     chatRepository.conversations =
         listOf(
             Conversation(
@@ -598,6 +590,20 @@ class PolyLoopAppTest {
                 request.endDate,
             )
         )
+  }
+
+  /** Signs in [me] as the lender of a request with no offer, then opens [route] for it. */
+  private fun openAsLender(route: String) {
+    val request =
+        rental.copy(ownerId = me.uid, borrowerId = "user-1", status = RentalStatus.REQUESTED)
+    useRentals(
+        FakeRentalRepository(
+            rentals = listOf(request),
+            // Before the rental's first day, or the offer is refused.
+            clock = { Instant.parse("2026-10-01T10:00:00Z") },
+        )
+    )
+    seedConversation(request)
     setAppSignedIn()
     composeTestRule.runOnUiThread { NavigationActions(navController).navigateTo(route) }
     composeTestRule.waitForIdle()
@@ -617,6 +623,17 @@ class PolyLoopAppTest {
     assertCurrentScreen(Screen.Chat)
     // The same chat, not a second copy on top of the form.
     assertEquals(chatEntry, currentEntryId())
+  }
+
+  @Test
+  fun aDoubleTapOnTheChatsBarOpensOneForm() {
+    openAsLender(Screen.Chat.createRoute(rental.id))
+
+    doubleTap(C.Tag.chat_review_request_button)
+
+    assertCurrentScreen(Screen.ReviewRequest)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.Chat)
   }
 
   @Test
