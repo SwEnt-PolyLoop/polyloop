@@ -128,11 +128,31 @@ class HandoverScreenTest {
   }
 
   @Test
-  fun theFooterShowsTheDeposit() {
+  fun theBorrowerSeesTheirDepositHeldInTheFooter() {
     setContent(pickup.copy(deposit = 80))
 
-    composeTestRule.onNodeWithTag(C.Tag.handover_deposit_label).assertTextEquals("Deposit")
+    composeTestRule
+        .onNodeWithTag(C.Tag.handover_deposit_label)
+        .assertTextEquals("Your deposit, held")
     composeTestRule.onNodeWithTag(C.Tag.handover_deposit).assertTextEquals("80 PP")
+  }
+
+  @Test
+  fun theLenderSeesTheDepositHeldInTheFooter() {
+    setContent(pickup.copy(isLender = true, deposit = 80))
+
+    composeTestRule.onNodeWithTag(C.Tag.handover_deposit_label).assertTextEquals("Deposit held")
+    composeTestRule.onNodeWithTag(C.Tag.handover_deposit).assertTextEquals("80 PP")
+  }
+
+  @Test
+  fun anUnknownDepositShowsADashInTheFooter() {
+    setContent(pickup.copy(deposit = 0))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.handover_deposit_label)
+        .assertTextEquals("Your deposit, held")
+    composeTestRule.onNodeWithTag(C.Tag.handover_deposit).assertTextEquals("—")
   }
 
   @Test

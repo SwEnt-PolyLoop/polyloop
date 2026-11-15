@@ -463,11 +463,11 @@ private fun offerBody(offer: DepositOffer, isMine: Boolean, zone: ZoneId, locale
 }
 
 /**
- * The dates, the return day, the reserved rental price, and the accepted deposit, the offer or the
- * suggested deposit. The deposit is held from acceptance, but this screen does not show the "Held"
- * state of an accepted deposit yet. A disputed rental shows the dates without the return day, the
- * price as paid, the deposit as held and the late fees, even when they are 0 (Figma frame 13.09).
- * The dates are written in [locale].
+ * The dates, the return day, the reserved rental price, and the deposit held since acceptance
+ * (Figma frame 13.01), the offer or the suggested deposit; a held deposit of 0 is unknown and shows
+ * "—". A disputed rental shows the dates without the return day, the price as paid, the deposit as
+ * held and the late fees, even when they are 0 (Figma frame 13.09). The dates are written in
+ * [locale].
  */
 @Composable
 private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: Locale) {
@@ -509,21 +509,20 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: 
               ),
           valueTag = C.Tag.rental_detail_price,
       )
-      // 0 means the deposit is unknown, since an accepted one is at least 1: "0 PP" would be wrong.
-      if (uiState.status == RentalStatus.ACCEPTED && uiState.deposit > 0) {
+      if (uiState.status == RentalStatus.ACCEPTED || isDisputed) {
+        // An accepted deposit is at least 1, so 0 means it is unknown: "—", not "0 PP · held".
         InfoRow(
             label = stringResource(R.string.rental_detail_accepted_deposit_label),
-            value = stringResource(R.string.listing_card_price, uiState.deposit),
+            value =
+                if (uiState.deposit > 0) {
+                  stringResource(R.string.rental_detail_deposit_held, uiState.deposit)
+                } else {
+                  stringResource(R.string.rental_detail_deposit_unknown)
+                },
             valueTag = C.Tag.rental_detail_accepted_deposit,
         )
       }
       if (isDisputed) {
-        // Shown even at 0, unlike Accepted: the dispute is about the deposit, so the row stays.
-        InfoRow(
-            label = stringResource(R.string.rental_detail_accepted_deposit_label),
-            value = stringResource(R.string.rental_detail_deposit_held, uiState.deposit),
-            valueTag = C.Tag.rental_detail_accepted_deposit,
-        )
         InfoRow(
             label = stringResource(R.string.rental_detail_late_fees_label),
             value = stringResource(R.string.rental_detail_late_fees, uiState.lateFees),
