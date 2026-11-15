@@ -750,13 +750,24 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.chat_header_name).assertIsDisplayed()
   }
 
+  /**
+   * Uses [rental] starting on 1 Oct 2026, with the server's clock at noon in Zurich that day: the
+   * chat's Start pickup shows from the server's day, not the phone's.
+   */
+  private fun useRentalOnItsPickupDay() {
+    val pickupDay = LocalDate.of(2026, 10, 1)
+    useRentals(
+        FakeRentalRepository(
+                rentals =
+                    listOf(rental.copy(startDate = pickupDay, endDate = pickupDay.plusDays(2)))
+            )
+            .also { it.serverNow = Instant.parse("2026-10-01T10:00:00Z") }
+    )
+  }
+
   @Test
   fun startPickupInTheChatOnThePickupDayOpensTheHandover() {
-    val today = LocalDate.now()
-    RepositoryProvider.rentalRepository =
-        FakeRentalRepository(
-            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
-        )
+    useRentalOnItsPickupDay()
     openAsBorrower(Screen.Chat.createRoute(rental.id))
 
     waitForTag(C.Tag.chat_start_pickup_button)
@@ -802,11 +813,7 @@ class PolyLoopAppTest {
 
   @Test
   fun aDoubleTapOnStartPickupInTheChatOpensOneHandover() {
-    val today = LocalDate.now()
-    RepositoryProvider.rentalRepository =
-        FakeRentalRepository(
-            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
-        )
+    useRentalOnItsPickupDay()
     openAsBorrower(Screen.Chat.createRoute(rental.id))
 
     doubleTap(C.Tag.chat_start_pickup_button)

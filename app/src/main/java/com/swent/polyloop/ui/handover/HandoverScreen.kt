@@ -177,7 +177,10 @@ fun HandoverContent(
                   verticalArrangement = Arrangement.spacedBy(16.dp),
               ) {
                 HandoverHeader(uiState)
-                if (!uiState.isPickupDay) NotPickupDayNote(uiState.pickupDate)
+                // Nothing while the server's day is read: asking to connect would be wrong online.
+                if (!uiState.isPickupDay && !uiState.isReadingServerToday) {
+                  NotPickupDayNote(uiState.pickupDate, uiState.serverToday)
+                }
                 PhotosCard(
                     uiState,
                     zone,
@@ -405,15 +408,25 @@ private fun PhotosStatus(photosNeeded: Int) {
   }
 }
 
-/** "Pickup is on 15 Oct": photos can only be taken on that day. */
+/**
+ * "Pickup is on 15 Oct": photos can only be taken on that day, by the server's clock. When that
+ * day, [serverToday], is unknown, asks to connect instead of falling back on the phone's date.
+ */
 @Composable
-private fun NotPickupDayNote(pickupDate: LocalDate?) {
+private fun NotPickupDayNote(pickupDate: LocalDate?, serverToday: LocalDate?) {
+  val (text, tag) =
+      if (serverToday == null) {
+        stringResource(R.string.handover_pickup_needs_connection) to
+            C.Tag.handover_pickup_needs_connection
+      } else {
+        stringResource(R.string.handover_not_pickup_day, pickupDate?.let { formatDay(it) } ?: "") to
+            C.Tag.handover_not_pickup_day
+      }
   Text(
-      text =
-          stringResource(R.string.handover_not_pickup_day, pickupDate?.let { formatDay(it) } ?: ""),
+      text = text,
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.testTag(C.Tag.handover_not_pickup_day),
+      modifier = Modifier.testTag(tag),
   )
 }
 
@@ -607,7 +620,8 @@ private fun HandoverPreview() {
                 itemTitle = "Camping tent, 2 people",
                 otherPersonName = "Mara",
                 phase = HandoverPhase.PICKUP,
-                isPickupDay = true,
+                pickupDate = LocalDate.of(2026, 10, 6),
+                serverToday = LocalDate.of(2026, 10, 6),
                 photos = photos,
             ),
         onRetry = {},
