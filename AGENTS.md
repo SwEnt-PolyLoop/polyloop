@@ -63,7 +63,7 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 - One **bounded, reviewable** change per PR, tied to one GitHub issue. Read the issue first (`gh issue view <N>`) and put `Closes #<N>` in the PR description. If the change sprawls across unrelated files, split it.
 - Branch names: `<type>/<issue>-<short-description>`, e.g. `chore/26-cleanup-template-leftovers`.
 - Commits follow Conventional Commits: `feat:`, `fix:`, `test:`, `chore:`, `build:`, `style:`, `docs:`, then an imperative subject of at most 72 characters. Add a body when the subject is not enough.
-- **No AI signature**: no `Co-authored-by` or "generated with" lines in commits or PR descriptions.
+- **AI use in PRs**: every PR description ends with one short line saying it was generated with Claude, e.g. `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. Commits carry no `Co-authored-by` or "generated with" lines.
 - Stage only the files you changed; never `git add .` or `git add -A` (it can pull in local config like `local.properties`).
 - Read failing tests and CI logs carefully and iterate until everything passes.
 
