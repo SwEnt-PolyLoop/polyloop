@@ -88,7 +88,8 @@ data class HandoverUiState(
  * Shows the handover of the rental [rentalId], read once, and uploads the photos taken. When the
  * rental takes pickup photos, it reads today from [serverClock], so that photos cannot be taken
  * early by changing the phone's date; an unknown day is read again when the phone comes back
- * online. [deletePhoto] deletes a photo file once it is uploaded or refused.
+ * online, and online with [retryServerToday]. [deletePhoto] deletes a photo file once it is
+ * uploaded or refused.
  */
 class HandoverViewModel(
     private val rentalId: String,
@@ -111,15 +112,7 @@ class HandoverViewModel(
       connectivityRepository.isOnline.collect { online ->
         _uiState.update { it.copy(isOffline = !online) }
         // The note asks to connect when the day is unknown, so connecting reads it again.
-        val state = _uiState.value
-        if (
-            online &&
-                wasOnline == false &&
-                state.phase == HandoverPhase.PICKUP &&
-                state.serverToday == null
-        ) {
-          readServerToday()
-        }
+        if (online && wasOnline == false) retryServerToday()
         wasOnline = online
       }
     }
@@ -133,6 +126,18 @@ class HandoverViewModel(
     serverTodayRead = viewModelScope.launch {
       val today = serverClock.today()
       _uiState.update { it.copy(serverToday = today, isReadingServerToday = false) }
+    }
+  }
+
+  /**
+   * Reads the server's day again when it is unknown and the rental takes pickup photos, e.g. after
+   * the server failed to answer while the phone was online: when the screen comes back to the
+   * front, and from "Retry" on the note. Ignored offline: coming back online reads it.
+   */
+  fun retryServerToday() {
+    val state = _uiState.value
+    if (state.phase == HandoverPhase.PICKUP && state.serverToday == null && !state.isOffline) {
+      readServerToday()
     }
   }
 

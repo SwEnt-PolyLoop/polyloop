@@ -47,14 +47,14 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Edit profile | EditProfileViewModel | Profile (loads the profile, uploads the new photo, saves the name and the photo's URL) |
 | Wallet | WalletViewModel | Wallet |
 | Chat list | ChatListViewModel | Chat (the item and the other person are copied on each rental, see "Firestore schema") |
-| Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute, the offer card and its answers); Profile (the other person); Listing (the item); `ServerClock` (today by the server's clock, for Start pickup, read only for an accepted rental, and again when the phone comes back online if it was unknown) |
+| Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute, the offer card and its answers); Profile (the other person); Listing (the item); `ServerClock` (today by the server's clock, for Start pickup, read only for an accepted rental, and again when the phone comes back online or the chat comes back on screen if it was unknown) |
 | Browse | BrowseViewModel | Listing; Location (distance and map position) |
 | Listing detail | ListingDetailViewModel | Listing (the item and its booked days); Rental (sending the request); Profile (the owner's name, photo and rating); Auth (the borrower sending the request); Wallet (the available balance the date picker compares the price to) |
 | Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active); Auth (the owner publishing the listing) |
 | My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
 | Review request | ReviewRequestViewModel | Rental (the request, sending the offer, declining, the lender's other requests whose dates overlap); Listing (the item value, shown as the suggested deposit); Profile (the borrower's rating) |
 | Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt); `ServerClock` (today by the server's clock, for Start Pickup, read only for an accepted rental, and again when the phone comes back online if it was unknown) |
-| Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage"); `ServerClock` (today by the server's clock, for the pickup photos, read only for an accepted rental, and again when the phone comes back online if it was unknown) |
+| Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage"); `ServerClock` (today by the server's clock, for the pickup photos, read only for an accepted rental, and again when the phone comes back online, Handover comes back on screen or the user taps "Retry", if it was unknown) |
 | Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos, not used yet); Rental (the item, the other person and the user's role, the deposit) |
 | Admin court ruling | AdminCourtRulingViewModel | Dispute; Handover (the photos); Rental (the deposit); Listing (the item); Profile (both parties) |
 | Navigation drawer (every screen) | DrawerViewModel | Profile (the signed-in user's name, photo and rating in the header) |

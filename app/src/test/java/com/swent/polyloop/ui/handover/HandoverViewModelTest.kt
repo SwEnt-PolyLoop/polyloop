@@ -235,11 +235,45 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun aDayTheServerFailedToGiveOnlineIsReadAgainOnRetry() {
+    var reachable = false
+    val vm = viewModel(repository = unreachableServer { reachable })
+    assertFalse(vm.uiState.value.isOffline)
+    assertNull(vm.uiState.value.serverToday)
+
+    reachable = true
+    vm.retryServerToday()
+
+    assertEquals(pickupDay, vm.uiState.value.serverToday)
+    assertTrue(vm.uiState.value.canAddPhoto)
+  }
+
+  @Test
+  fun aRetryReadsNothingWhenTheDayIsKnownOrThePhoneIsOffline() {
+    viewModel().retryServerToday()
+    assertEquals(1, rentalRepository.serverNowCalls)
+
+    connectivity.setOnline(false)
+    var reads = 0
+    val vm =
+        viewModel(
+            repository =
+                unreachableServer {
+                  reads++
+                  false
+                }
+        )
+    vm.retryServerToday()
+    assertEquals(1, reads)
+  }
+
+  @Test
   fun aRentalThatIsNotAcceptedTakesNoPhotosAndDoesNotReadTheServersDay() {
     rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
     connectivity.setOnline(false)
     val vm = viewModel()
     connectivity.setOnline(true)
+    vm.retryServerToday()
 
     assertNull(vm.uiState.value.phase)
     assertNull(vm.uiState.value.serverToday)

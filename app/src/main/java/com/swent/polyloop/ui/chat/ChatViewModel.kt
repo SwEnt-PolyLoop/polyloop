@@ -147,7 +147,7 @@ data class ChatUiState(
  * @param rentalRepository gives the offer and sends the answers.
  * @param connectivityRepository tells whether the phone is online.
  * @param serverClock gives today by the server's clock, for Start pickup; an unknown day is read
- *   again when the phone comes back online.
+ *   again when the phone comes back online, and online when the screen comes back to the front.
  */
 class ChatViewModel(
     private val rentalId: String,
@@ -177,11 +177,8 @@ class ChatViewModel(
       connectivityRepository.isOnline.collect { online ->
         _uiState.update { it.copy(isOffline = !online) }
         if (online) markAsRead() // what was shown offline is saved once the connection is back
-        // Only an accepted rental has a pickup date; its unknown day may be known once online.
-        val state = _uiState.value
-        if (online && wasOnline == false && state.pickupDate != null && state.serverToday == null) {
-          readServerToday()
-        }
+        // An unknown day may be known once online.
+        if (online && wasOnline == false) readServerTodayIfUnknown()
         wasOnline = online
       }
     }
@@ -197,10 +194,23 @@ class ChatViewModel(
     }
   }
 
-  /** The screen is visible again (opened, or back from another screen or the background). */
+  /**
+   * Reads the server's day again when it is unknown for an accepted rental (only it has a pickup
+   * date). Ignored offline: coming back online reads it.
+   */
+  private fun readServerTodayIfUnknown() {
+    val state = _uiState.value
+    if (state.pickupDate != null && state.serverToday == null && !state.isOffline) readServerToday()
+  }
+
+  /**
+   * The screen is visible again (opened, or back from another screen or the background). An unknown
+   * server day is read again, in case the server failed to answer while the phone was online.
+   */
   fun onStarted() {
     isStarted = true
     markAsRead()
+    readServerTodayIfUnknown()
   }
 
   /** The screen is hidden: another screen is on top of it, or the app is in the background. */

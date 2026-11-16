@@ -270,7 +270,7 @@ class ChatViewModelOfferTest {
     for (status in RentalStatus.entries - RentalStatus.ACCEPTED) {
       rentals = rentalsWith(request.copy(status = status))
 
-      val state = viewModel().uiState.value
+      val state = viewModel().apply { onStarted() }.uiState.value
       assertNull(status.name, state.pickupDate)
       assertNull(status.name, state.serverToday)
       assertEquals(status.name, 0, rentals.serverNowCalls)
@@ -335,6 +335,43 @@ class ChatViewModelOfferTest {
     connectivity.setOnline(true)
 
     assertEquals(1, rentals.serverNowCalls)
+  }
+
+  @Test
+  fun aDayTheServerFailedToGiveOnlineIsReadAgainWhenTheChatComesBackToTheFront() {
+    rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
+    var reachable = false
+    val vm = viewModel(repository = unreachableServer { reachable })
+    vm.onStarted()
+    assertFalse(vm.uiState.value.isOffline)
+    assertNull(vm.uiState.value.serverToday)
+
+    reachable = true
+    vm.onStopped()
+    vm.onStarted()
+
+    assertEquals(request.startDate, vm.uiState.value.serverToday)
+    assertTrue(vm.uiState.value.isPickupDay)
+  }
+
+  @Test
+  fun comingBackToTheChatReadsNothingWhenTheDayIsKnownOrThePhoneIsOffline() {
+    rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
+    viewModel().onStarted()
+    assertEquals(1, rentals.serverNowCalls)
+
+    connectivity.setOnline(false)
+    var reads = 0
+    val vm =
+        viewModel(
+            repository =
+                unreachableServer {
+                  reads++
+                  false
+                }
+        )
+    vm.onStarted()
+    assertEquals(1, reads)
   }
 
   @Test
