@@ -10,15 +10,20 @@ import com.swent.polyloop.model.chat.FakeChatRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -68,9 +73,12 @@ class ChatViewModelOfferTest {
   private lateinit var connectivity: FakeConnectivityRepository
   private lateinit var rentals: FakeRentalRepository
 
+  // Also runs the server clock's reads, so they finish before each assertion.
+  private val testDispatcher = UnconfinedTestDispatcher()
+
   @Before
   fun setUp() {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
+    Dispatchers.setMain(testDispatcher)
     chat = FakeChatRepository(currentUid = "borrower")
     chat.conversations =
         listOf(
@@ -97,8 +105,11 @@ class ChatViewModelOfferTest {
     Dispatchers.resetMain()
   }
 
+  /** The rentals [stored], on a server whose day is the pickup day of [request]. */
   private fun rentalsWith(vararg stored: Rental) =
-      FakeRentalRepository(rentals = stored.toList(), clock = { now })
+      FakeRentalRepository(rentals = stored.toList(), clock = { now }).apply {
+        serverNow = request.startDate.atTime(12, 0).atZone(ZoneId.of("Europe/Zurich")).toInstant()
+      }
 
   private fun viewModel(
       user: AuthUser = borrower,
@@ -110,7 +121,24 @@ class ChatViewModelOfferTest {
           FakeAuthRepository(signedInUser = user),
           repository,
           connectivity,
+          serverClock(repository),
       )
+
+  private fun serverClock(repository: RentalRepository) =
+      ServerClock(
+          repository,
+          InMemoryServerClockStore(),
+          elapsedRealtime = { 0L },
+          bootCount = { 0 },
+          ioDispatcher = testDispatcher,
+      )
+
+  /** [rentals] with a server that cannot be reached until [reachable] returns true. */
+  private fun unreachableServer(reachable: () -> Boolean = { false }) =
+      object : RentalRepository by rentals {
+        override suspend fun serverNow(): Result<Instant> =
+            if (reachable()) rentals.serverNow() else Result.failure(IOException("offline"))
+      }
 
   private suspend fun stored(id: String = "r1"): Rental = rentals.getRental(id).getOrThrow()!!
 
@@ -238,22 +266,141 @@ class ChatViewModelOfferTest {
   }
 
   @Test
-  fun everyOtherStatusHasNoPickupDate() {
+  fun everyOtherStatusHasNoPickupDateAndDoesNotReadTheServersDay() {
     for (status in RentalStatus.entries - RentalStatus.ACCEPTED) {
       rentals = rentalsWith(request.copy(status = status))
 
-      assertNull(status.name, viewModel().uiState.value.pickupDate)
+      val state = viewModel().apply { onStarted() }.uiState.value
+      assertNull(status.name, state.pickupDate)
+      assertNull(status.name, state.serverToday)
+      assertEquals(status.name, 0, rentals.serverNowCalls)
     }
+  }
+
+  @Test
+  fun anAcceptedRentalReadsTheServersDayAndIsOnItsPickupDay() {
+    rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
+
+    val state = viewModel().uiState.value
+
+    assertEquals(request.startDate, state.serverToday)
+    assertTrue(state.isPickupDay)
+  }
+
+  @Test
+  fun anotherServerDayIsNotThePickupDay() {
+    rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
+    rentals.serverNow = Instant.parse("2026-12-09T12:00:00Z")
+
+    val state = viewModel().uiState.value
+
+    assertEquals(LocalDate.of(2026, 12, 9), state.serverToday)
+    assertFalse(state.isPickupDay)
+  }
+
+  @Test
+  fun anUnknownServerDayIsNotThePickupDayAndShowsNoError() {
+    rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
+
+    val state = viewModel(repository = unreachableServer()).uiState.value
+
+    assertEquals(request.startDate, state.pickupDate)
+    assertNull(state.serverToday)
+    assertFalse(state.isPickupDay)
+    assertNull(state.errorMsg)
+    assertFalse(state.isLoading)
+  }
+
+  @Test
+  fun anUnknownServerDayIsReadAgainWhenThePhoneComesBackOnline() {
+    rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
+    connectivity = FakeConnectivityRepository(online = false)
+    var reachable = false
+    val vm = viewModel(repository = unreachableServer { reachable })
+    assertNull(vm.uiState.value.serverToday)
+
+    reachable = true
+    connectivity.setOnline(true)
+
+    assertEquals(request.startDate, vm.uiState.value.serverToday)
+    assertTrue(vm.uiState.value.isPickupDay)
+  }
+
+  @Test
+  fun aKnownServerDayIsNotReadAgainWhenThePhoneComesBackOnline() {
+    rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
+    viewModel()
+
+    connectivity.setOnline(false)
+    connectivity.setOnline(true)
+
+    assertEquals(1, rentals.serverNowCalls)
+  }
+
+  @Test
+  fun aDayTheServerFailedToGiveOnlineIsReadAgainWhenTheChatComesBackToTheFront() {
+    rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
+    var reachable = false
+    val vm = viewModel(repository = unreachableServer { reachable })
+    vm.onStarted()
+    assertFalse(vm.uiState.value.isOffline)
+    assertNull(vm.uiState.value.serverToday)
+
+    reachable = true
+    vm.onStopped()
+    vm.onStarted()
+
+    assertEquals(request.startDate, vm.uiState.value.serverToday)
+    assertTrue(vm.uiState.value.isPickupDay)
+  }
+
+  @Test
+  fun comingBackToTheChatReadsNothingWhenTheDayIsKnownOrThePhoneIsOffline() {
+    rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
+    viewModel().onStarted()
+    assertEquals(1, rentals.serverNowCalls)
+
+    connectivity.setOnline(false)
+    var reads = 0
+    val vm =
+        viewModel(
+            repository =
+                unreachableServer {
+                  reads++
+                  false
+                }
+        )
+    vm.onStarted()
+    assertEquals(1, reads)
   }
 
   @Test
   fun thePickupDateAppearsOnceTheOfferIsAcceptedWhileTheChatIsOpen() = runTest {
     val vm = viewModel()
     assertNull(vm.uiState.value.pickupDate)
+    assertNull(vm.uiState.value.serverToday)
 
     vm.acceptOffer()
 
     assertEquals(request.startDate, vm.uiState.value.pickupDate)
+    assertEquals(request.startDate, vm.uiState.value.serverToday)
+  }
+
+  @Test
+  fun aRentalAcceptedWhileTheChatIsOpenReadsTheServersDayOnce() {
+    // The live rental is driven by hand, so it can change again once accepted.
+    val live = MutableStateFlow<Rental?>(request)
+    val repository =
+        object : RentalRepository by rentals {
+          override fun observeRental(id: String): Flow<Rental?> = live
+        }
+    val vm = viewModel(repository = repository)
+
+    live.value = request.copy(status = RentalStatus.ACCEPTED)
+    live.value = request.copy(status = RentalStatus.ACCEPTED, deposit = 70)
+
+    assertEquals(request.startDate, vm.uiState.value.serverToday)
+    assertEquals(1, rentals.serverNowCalls)
   }
 
   @Test
@@ -457,6 +604,7 @@ class ChatViewModelOfferTest {
           FakeAuthRepository(signedInUser = borrower),
           rentals,
           connectivity,
+          serverClock(rentals),
       )
 
   @Test

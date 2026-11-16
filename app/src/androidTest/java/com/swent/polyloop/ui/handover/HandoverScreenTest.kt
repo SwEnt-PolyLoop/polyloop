@@ -10,6 +10,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -33,19 +35,23 @@ class HandoverScreenTest {
 
   @get:Rule val composeTestRule = createComposeRule()
 
+  private val pickupDay = LocalDate.of(2026, 10, 6)
+
+  // On the pickup day by the server's clock.
   private val pickup =
       HandoverUiState(
           isLoading = false,
           itemTitle = "Camping tent",
           otherPersonName = "Mara",
           phase = HandoverPhase.PICKUP,
-          pickupDate = LocalDate.of(2026, 10, 6),
-          isPickupDay = true,
+          pickupDate = pickupDay,
+          serverToday = pickupDay,
       )
 
   private var retries = 0
   private var cameraOpenings = 0
   private var uploadRetries = 0
+  private var serverTodayRetries = 0
 
   // The state shown; a test can change it after setContent and the screen follows.
   private var uiState by mutableStateOf(pickup)
@@ -58,6 +64,7 @@ class HandoverScreenTest {
           onRetry = { retries++ },
           onAddPhoto = { cameraOpenings++ },
           onRetryUpload = { uploadRetries++ },
+          onRetryServerToday = { serverTodayRetries++ },
           zone = ZoneOffset.UTC,
       )
     }
@@ -178,13 +185,55 @@ class HandoverScreenTest {
 
   @Test
   fun outsideThePickupDayPhotosStayButNoneCanBeAdded() {
-    setContent(pickup.copy(isPickupDay = false, photos = photos(1)))
+    setContent(pickup.copy(serverToday = pickupDay.plusDays(1), photos = photos(1)))
 
     composeTestRule
         .onNodeWithTag(C.Tag.handover_not_pickup_day)
         .assertTextEquals("Pickup is on 6 Oct")
+    assertAbsent(C.Tag.handover_pickup_needs_connection)
+    assertAbsent(C.Tag.handover_pickup_day_retry)
     assertTiles(photos = 1, empty = 0)
     assertAbsent(C.Tag.handover_photos_status)
+  }
+
+  @Test
+  fun anUnknownServerDayAsksToConnectAndTakesNoPhoto() {
+    setContent(pickup.copy(serverToday = null, photos = photos(1)))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.handover_pickup_needs_connection)
+        .assertTextEquals("Connect to the internet to check the pickup day.")
+    assertAbsent(C.Tag.handover_not_pickup_day)
+    assertTiles(photos = 1, empty = 0)
+    assertAbsent(C.Tag.handover_photos_status)
+  }
+
+  @Test
+  fun anUnknownServerDayCanBeReadAgainWithRetryWhileOnline() {
+    setContent(pickup.copy(serverToday = null))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.handover_pickup_day_retry)
+        .assertTextEquals("Retry")
+        .assertIsEnabled()
+        .performClick()
+    assertEquals(1, serverTodayRetries)
+
+    uiState = pickup.copy(serverToday = null, isOffline = true)
+    composeTestRule.onNodeWithTag(C.Tag.handover_pickup_day_retry).assertIsNotEnabled()
+  }
+
+  @Test
+  fun whileTheServerDayIsReadNoNoteShowsAndNoPhotoCanBeTaken() {
+    setContent(pickup.copy(serverToday = null, isReadingServerToday = true))
+
+    assertAbsent(C.Tag.handover_pickup_needs_connection)
+    assertAbsent(C.Tag.handover_pickup_day_retry)
+    assertAbsent(C.Tag.handover_not_pickup_day)
+    assertTiles(photos = 0, empty = 0)
+
+    uiState = pickup
+    assertTiles(photos = 0, empty = 3)
   }
 
   @Test
