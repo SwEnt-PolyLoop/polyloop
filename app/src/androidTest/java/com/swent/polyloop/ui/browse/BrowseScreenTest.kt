@@ -2,11 +2,13 @@
 
 package com.swent.polyloop.ui.browse
 
+import android.Manifest
 import android.net.Uri
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -18,6 +20,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.GrantPermissionRule
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
@@ -44,6 +47,10 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class BrowseScreenTest {
+
+  // Browse asks for the coarse location when it is not granted; granted here, no dialog opens.
+  @get:Rule(order = 0)
+  val locationPermissionRule = GrantPermissionRule.grant(Manifest.permission.ACCESS_COARSE_LOCATION)
 
   @get:Rule val composeTestRule = createComposeRule()
 
@@ -427,6 +434,51 @@ class BrowseScreenTest {
         }
 
     assertEquals(heights[0], heights[1])
+  }
+
+  // ---------- distances ----------
+
+  private fun locationOf(id: String) =
+      composeTestRule.onNode(
+          hasTestTag(C.Tag.listing_card_location) and
+              hasAnyAncestor(hasTestTag(C.Tag.listing_card_ + id)),
+          useUnmergedTree = true,
+      )
+
+  @Test
+  fun listCardShowsItsDistanceAndACardWithoutOneShowsOnlyItsArea() {
+    setContent(
+        uiState =
+            BrowseUiState(
+                listings = listings,
+                distanceTexts = mapOf(listings[0].id to "350 m"),
+            )
+    )
+
+    locationOf(listings[0].id).assertTextEquals("350 m · Ecublens")
+    composeTestRule
+        .onNodeWithTag(C.Tag.browse_list)
+        .performScrollToNode(hasTestTag(C.Tag.listing_card_ + listings[1].id))
+    locationOf(listings[1].id).assertTextEquals("Ecublens")
+  }
+
+  @Test
+  fun cardsUnderTheMapShowTheirDistance() {
+    setContent(
+        uiState =
+            BrowseUiState(
+                listings = listingsOnTheMap,
+                view = BrowseView.MAP,
+                selectedPoint = ecublens,
+                distanceTexts = mapOf("tent" to "1.2 km"),
+            )
+    )
+
+    locationOf("tent").assertTextEquals("1.2 km · Ecublens")
+    composeTestRule
+        .onNodeWithTag(C.Tag.browse_pin_listings)
+        .performScrollToNode(hasTestTag(C.Tag.listing_card_ + "projector"))
+    locationOf("projector").assertTextEquals("Ecublens")
   }
 
   @Test

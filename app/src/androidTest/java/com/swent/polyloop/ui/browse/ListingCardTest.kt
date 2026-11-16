@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.browse
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -89,6 +90,60 @@ class ListingCardTest {
     composeTestRule
         .onNodeWithTag(C.Tag.listing_card_location, useUnmergedTree = true)
         .assertTextEquals("0.6 km")
+  }
+
+  @Test
+  fun distanceIsShownBeforeThePickupArea() {
+    composeTestRule.setContent { ListingCard(listing = listing, distanceText = "350 m") }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_card_location, useUnmergedTree = true)
+        .assertTextEquals("350 m · Ecublens")
+  }
+
+  @Test
+  fun withoutADistanceTheLocationShowsOnlyThePickupArea() {
+    composeTestRule.setContent { ListingCard(listing = listing, distanceText = null) }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_card_location, useUnmergedTree = true)
+        .assertTextEquals("Ecublens")
+  }
+
+  @Test
+  fun withoutADistanceAndAreaNoLocationLineShows() {
+    composeTestRule.setContent {
+      ListingCard(listing = listing.copy(pickupArea = ""), distanceText = null)
+    }
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_card_location, useUnmergedTree = true)
+        .assertDoesNotExist()
+  }
+
+  @Test
+  fun singleLineCardKeepsItsHeightWithoutADistanceAndArea() {
+    // Cards under the map must all have the same height, or the map jumps while swiping.
+    composeTestRule.setContent {
+      Column {
+        ListingCard(
+            listing = listing.copy(id = "full"),
+            distanceText = "350 m",
+            singleLineText = true,
+        )
+        ListingCard(
+            listing = listing.copy(id = "empty", pickupArea = ""),
+            distanceText = null,
+            singleLineText = true,
+        )
+      }
+    }
+
+    val heights =
+        listOf("full", "empty").map {
+          composeTestRule.onNodeWithTag(C.Tag.listing_card_ + it).fetchSemanticsNode().size.height
+        }
+    assertEquals(heights[0], heights[1])
   }
 
   @Test

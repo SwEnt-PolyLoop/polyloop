@@ -26,13 +26,15 @@ import com.swent.polyloop.ui.components.PriceText
 
 /**
  * One listing in the Browse list: its first photo, the title, the price per day and the distance
- * with the pickup area. With [singleLineText], the title and the location are cut to one line with
- * "…", so every card has the same height, as in the row of cards under the Browse map.
+ * with the pickup area. Without a [distanceText] (the position or the pickup point is unknown), the
+ * line shows only the pickup area, or nothing when that is blank too. With [singleLineText], the
+ * title and the location are cut to one line with "…", so every card has the same height, as in the
+ * row of cards under the Browse map; the line is then kept even when empty.
  */
 @Composable
 fun ListingCard(
     listing: Listing,
-    distanceText: String,
+    distanceText: String?,
     modifier: Modifier = Modifier,
     singleLineText: Boolean = false,
     onClick: () -> Unit = {},
@@ -68,21 +70,24 @@ fun ListingCard(
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.testTag(C.Tag.listing_card_price),
         )
-        Text(
-            text =
-                if (listing.pickupArea.isBlank()) distanceText
-                else
-                    stringResource(
-                        R.string.listing_card_location,
-                        distanceText,
-                        listing.pickupArea,
-                    ),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = maxLines,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.testTag(C.Tag.listing_card_location),
-        )
+        val location =
+            when {
+              distanceText == null -> listing.pickupArea
+              listing.pickupArea.isBlank() -> distanceText
+              else ->
+                  stringResource(R.string.listing_card_location, distanceText, listing.pickupArea)
+            }
+        // Cards under the map keep their (empty) line, so they all have the same height.
+        if (location.isNotBlank() || singleLineText) {
+          Text(
+              text = location,
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = maxLines,
+              overflow = TextOverflow.Ellipsis,
+              modifier = Modifier.testTag(C.Tag.listing_card_location),
+          )
+        }
       }
     }
   }
