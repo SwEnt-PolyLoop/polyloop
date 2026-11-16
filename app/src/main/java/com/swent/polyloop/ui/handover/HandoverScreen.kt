@@ -57,6 +57,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.swent.polyloop.R
@@ -90,11 +91,17 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
         cameraPermissionGranted = granted
         if (granted) isCameraOpen = true
       }
+  // Back on screen, an unknown server day is read again, in case the server failed to answer.
+  LifecycleStartEffect(viewModel) {
+    viewModel.retryServerToday()
+    onStopOrDispose {}
+  }
   HandoverContent(
       uiState = uiState,
       onRetry = viewModel::retry,
       onAddPhoto = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
       onRetryUpload = viewModel::retryUpload,
+      onRetryServerToday = viewModel::retryServerToday,
       isCameraOpen = isCameraOpen,
       cameraPermissionGranted = cameraPermissionGranted,
       onPhotoTaken = { uri ->
@@ -109,7 +116,8 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
 /**
  * The Handover screen drawn from [uiState]: a spinner while loading, an error with Retry, a missing
  * rental, a rental that takes no photos, or the pickup itself. [onAddPhoto] is called when an empty
- * photo tile is tapped, [onRetryUpload] when the photo that failed to upload is; photo times are
+ * photo tile is tapped, [onRetryUpload] when the photo that failed to upload is, and
+ * [onRetryServerToday] when "Retry" is tapped under the note asking to connect; photo times are
  * shown in [zone]. While [isCameraOpen], the in-app camera fills the screen for one photo, given to
  * [onPhotoTaken], or to [onCaptureFailed] if the shot fails; [cameraPermissionGranted] false shows
  * how to allow the camera.
@@ -121,6 +129,7 @@ fun HandoverContent(
     onAddPhoto: () -> Unit,
     onRetryUpload: () -> Unit,
     modifier: Modifier = Modifier,
+    onRetryServerToday: () -> Unit = {},
     isCameraOpen: Boolean = false,
     cameraPermissionGranted: Boolean? = null,
     onPhotoTaken: (uri: String) -> Unit = {},
@@ -177,7 +186,10 @@ fun HandoverContent(
                   verticalArrangement = Arrangement.spacedBy(16.dp),
               ) {
                 HandoverHeader(uiState)
-                if (!uiState.isPickupDay) NotPickupDayNote(uiState.pickupDate)
+                // Nothing while the server's day is read: asking to connect would be wrong online.
+                if (!uiState.isPickupDay && !uiState.isReadingServerToday) {
+                  NotPickupDayNote(uiState, onRetryServerToday)
+                }
                 PhotosCard(
                     uiState,
                     zone,
@@ -405,16 +417,39 @@ private fun PhotosStatus(photosNeeded: Int) {
   }
 }
 
-/** "Pickup is on 15 Oct": photos can only be taken on that day. */
+/**
+ * "Pickup is on 15 Oct": photos can only be taken on that day, by the server's clock. When the
+ * server's day is unknown, asks to connect instead of falling back on the phone's date, with
+ * "Retry" ([onRetryServerToday]) in case the server failed to answer while online; it is disabled
+ * offline, where coming back online reads the day.
+ */
 @Composable
-private fun NotPickupDayNote(pickupDate: LocalDate?) {
+private fun NotPickupDayNote(uiState: HandoverUiState, onRetryServerToday: () -> Unit) {
+  val pickupDate = uiState.pickupDate
+  val serverToday = uiState.serverToday
+  val (text, tag) =
+      if (serverToday == null) {
+        stringResource(R.string.handover_pickup_needs_connection) to
+            C.Tag.handover_pickup_needs_connection
+      } else {
+        stringResource(R.string.handover_not_pickup_day, pickupDate?.let { formatDay(it) } ?: "") to
+            C.Tag.handover_not_pickup_day
+      }
   Text(
-      text =
-          stringResource(R.string.handover_not_pickup_day, pickupDate?.let { formatDay(it) } ?: ""),
+      text = text,
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.testTag(C.Tag.handover_not_pickup_day),
+      modifier = Modifier.testTag(tag),
   )
+  if (serverToday == null) {
+    OutlinedButton(
+        onClick = onRetryServerToday,
+        enabled = !uiState.isOffline,
+        modifier = Modifier.testTag(C.Tag.handover_pickup_day_retry),
+    ) {
+      Text(stringResource(R.string.handover_retry))
+    }
+  }
 }
 
 /** The tile of the photo being uploaded: a spinner in a dashed tile. */
@@ -615,7 +650,8 @@ private fun HandoverPreview() {
                 itemTitle = "Camping tent, 2 people",
                 otherPersonName = "Mara",
                 phase = HandoverPhase.PICKUP,
-                isPickupDay = true,
+                pickupDate = LocalDate.of(2026, 10, 6),
+                serverToday = LocalDate.of(2026, 10, 6),
                 photos = photos,
             ),
         onRetry = {},

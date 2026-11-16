@@ -394,7 +394,6 @@
     <string name="rental_detail_late_fees_label">Late fees</string>
     <!-- The late fees taken from the deposit, e.g. "0 PP" -->
     <string name="rental_detail_late_fees">%1$d PP</string>
-    <string name="rental_detail_chat_paused">Chat is paused while the dispute is open.</string>
     <string name="rental_detail_start_pickup">Start Pickup</string>
     <!-- Under the disabled Start Pickup button, e.g. "Pickup will be available on 1 Oct" -->
     <string name="rental_detail_pickup_available_on">Pickup will be available on %1$s</string>
@@ -497,6 +496,8 @@
     <string name="handover_upload_failed">Photo not uploaded. Tap to try again.</string>
     <!-- Shown on Handover outside the pickup day, e.g. "Pickup is on 15 Oct" -->
     <string name="handover_not_pickup_day">Pickup is on %1$s</string>
+    <!-- Shown on Handover instead when the server's date is unknown -->
+    <string name="handover_pickup_needs_connection">Connect to the internet to check the pickup day.</string>
     <!-- Under a pickup photo shown full screen, e.g. "Pickup · 14:02" -->
     <string name="handover_photo_label">Pickup · %1$s</string>
     <string name="handover_close_photo">Close the photo</string>
