@@ -74,7 +74,7 @@ Each rental has exactly one 1:1 conversation between its lender and borrower. Vi
 - Messages with timestamps, newest at the bottom, and a text field with a send button.
 - A push notification for each new message.
 - Offline: the chat list and the most recent messages stay readable from cache; the send button is disabled.
-- No chat during a dispute: sending is disabled while a dispute is open.
+- The chat stays open during a dispute, so both people can keep talking while they settle it.
 - Messages typed by users are text only.
 
 ## Browse
@@ -145,7 +145,7 @@ Review request is where the lender answers a request that has no offer yet (Figm
 
 Rental detail is the hub for one rental: what it is, where it stands, and the next action. ViewModel: RentalDetailViewModel, using RentalRepository, ListingRepository and ProfileRepository.
 
-So far only the Requested, Accepted and Disputed states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Navigate”, cancelling or deposit state yet. A full-width button at the bottom gives the main action, for both roles: “Start Pickup” on Accepted, enabled from the pickup day (before it, disabled with “Pickup will be available on [day]”), and “View Dispute” on Disputed, always enabled; Requested has none. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added.
+So far only the Requested, Accepted and Disputed states are built (other statuses show the item's title and a short “not available yet” text). Accepted has no “Navigate”, cancelling or deposit state yet. A full-width button at the bottom gives the main action, for both roles: “Start Pickup” on Accepted, enabled from the pickup day (before it, disabled with “Pickup will be available on [day]”), and “View Dispute” on Disputed, always enabled; Requested has none. The pickup area of a request uses the same small map as Listing detail, or the same placeholder until the address is geocoded, while offline, or when the listing cannot be read; the meeting point of an accepted rental has a grey placeholder until its map is added. A disputed rental shows neither, as the item is already back; its “Chat” button stays enabled.
 
 Start Pickup opens from the server's date, not the phone's, so changing the phone's date cannot open it early. Offline, the date is worked out from the last server time and the time since the phone booted; if the server was not reached since the phone booted, the button stays grey with “Connect to the internet to check the pickup day.”
 
@@ -194,7 +194,7 @@ The Dispute screen walks both parties through the three settlement stages until 
 - **What the other person does** shows while the screen is open: a new offer (with the new split while the user edits their own, whose draft is kept), until the user opens the split editor or sends something, or the dispute leaves direct settlement; their acceptance of the user's proposal, until the screen is opened again; an escalation, by them or by itself, until the dispute moves on again. Nothing is shown for the user's own actions.
 - Accepting accepts only the split the user saw: if the offer changed just before, nothing is accepted and the card asks to check the new one.
 - **Errors.** Each part says when it failed, with “Try again”: a dispute that cannot be loaded fills the screen with Retry; a dispute that cannot be loaded again keeps the last version shown, with a note and Retry under the header; a proposal or an acceptance that fails shows its error in the proposal card; a failed proposal keeps the split being edited, so it can be sent again, and its error goes away if the user cancels the editor (Cancel is disabled while something is being sent); a failed escalation shows its error under “Escalate now”. An error goes away once the dispute moves on or settles, since its action no longer applies. Offline, the banner shows and every action that sends something is disabled.
-- The rental chat is disabled while the dispute is open.
+- The rental chat stays open during the dispute. An agreement adds a centred system message to it with each person's share, and an escalation, by hand or by itself, one saying the dispute waits for the LLM proposal; a proposal adds none.
 - For now, the evidence card has no photos, the LLM proposal and court stages show “Coming soon”, and an agreed split moves no PolyPoints: the deposit stays held, since nothing releases or splits it yet, so the amounts shown are only what was agreed.
 
 ## Admin court ruling
