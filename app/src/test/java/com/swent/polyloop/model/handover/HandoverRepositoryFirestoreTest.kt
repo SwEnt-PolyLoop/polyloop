@@ -95,4 +95,17 @@ class HandoverRepositoryFirestoreTest {
     assertTrue(uploadCancelled)
     verify(exactly = 0) { photoRef.downloadUrl }
   }
+
+  @Test
+  fun theCodesAreNotAvailableYet() = runTest {
+    val phase = HandoverPhase.PICKUP
+    for (result in
+        listOf(
+            repository.getCodeToShow("r1", phase),
+            repository.getCodeFingerprint("r1", phase),
+            repository.confirmScan("r1", phase, "code"),
+        )) {
+      assertTrue(result.exceptionOrNull() is UnsupportedOperationException)
+    }
+  }
 }

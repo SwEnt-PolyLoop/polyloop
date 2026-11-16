@@ -102,10 +102,26 @@ class HandoverRepositoryFirestore(
     }
   }
 
+  // Not available until the Cloud Function that creates and checks the codes exists (#435).
+  override suspend fun getCodeToShow(rentalId: String, phase: HandoverPhase): Result<String?> =
+      Result.failure(UnsupportedOperationException(CODES_NOT_AVAILABLE))
+
+  override suspend fun getCodeFingerprint(
+      rentalId: String,
+      phase: HandoverPhase,
+  ): Result<String?> = Result.failure(UnsupportedOperationException(CODES_NOT_AVAILABLE))
+
+  override suspend fun confirmScan(
+      rentalId: String,
+      phase: HandoverPhase,
+      code: String,
+  ): Result<Unit> = Result.failure(UnsupportedOperationException(CODES_NOT_AVAILABLE))
+
   private fun photos(rentalId: String) =
       db.collection(HandoverFields.RENTALS).document(rentalId).collection(HandoverFields.PHOTOS)
 
   private companion object {
     const val UPLOAD_TIMEOUT_MS = 30_000L
+    const val CODES_NOT_AVAILABLE = "Handover codes are not available yet"
   }
 }
