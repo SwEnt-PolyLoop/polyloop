@@ -30,6 +30,7 @@ import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.location.FakeLocationRepository
 import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.resources.C
 import java.time.LocalDate
@@ -110,7 +111,13 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository, authRepository, FakeConnectivityRepository())
+    val viewModel =
+        BrowseViewModel(
+            repository,
+            authRepository,
+            FakeConnectivityRepository(),
+            FakeLocationRepository(),
+        )
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = onListingClick)
     }
@@ -235,7 +242,8 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository, authRepository, connectivity)
+    val viewModel =
+        BrowseViewModel(repository, authRepository, connectivity, FakeLocationRepository())
     composeTestRule.setContent { BrowseScreen(viewModel = viewModel) }
     waitForTag(C.Tag.browse_list)
 
@@ -275,7 +283,8 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository, authRepository, connectivity)
+    val viewModel =
+        BrowseViewModel(repository, authRepository, connectivity, FakeLocationRepository())
     composeTestRule.setContent { BrowseScreen(viewModel = viewModel) }
     waitForTag(C.Tag.browse_list)
     connectivity.setOnline(false)
@@ -467,7 +476,13 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository, authRepository, FakeConnectivityRepository())
+    val viewModel =
+        BrowseViewModel(
+            repository,
+            authRepository,
+            FakeConnectivityRepository(),
+            FakeLocationRepository(),
+        )
     var clickedId: String? = null
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = { clickedId = it })

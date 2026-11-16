@@ -13,7 +13,10 @@ import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.search
+import com.swent.polyloop.model.location.LocationRepository
 import com.swent.polyloop.model.location.MapPoint
+import com.swent.polyloop.model.location.distanceMeters
+import com.swent.polyloop.model.location.formatDistance
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,7 +47,9 @@ data class BrowsePin(val point: MapPoint, val listings: List<Listing>)
  * offline state instead; the listings already loaded are kept for when the connection comes back.
  * [view] is whether the listings show as a list or on a map; both follow the same [filter].
  * [selectedPoint] is the point of the pin the user tapped on the map, or null when none is;
- * [BrowseViewModel] only keeps it while a pin is at that point.
+ * [BrowseViewModel] only keeps it while a pin is at that point. [listings] are sorted by distance
+ * from the phone, those without a distance last; [distanceTexts] maps the id of each listing that
+ * has a distance to its text ("350 m", "1.2 km"), and is empty while the position is unknown.
  */
 data class BrowseUiState(
     val isLoading: Boolean = false,
@@ -54,6 +59,7 @@ data class BrowseUiState(
     val isOffline: Boolean = false,
     val view: BrowseView = BrowseView.LIST,
     val selectedPoint: MapPoint? = null,
+    val distanceTexts: Map<String, String> = emptyMap(),
 ) {
   // The values below are computed from the fields above, once per state: being declared in the
   // body, they are not part of equals or copy, and each copy computes its own on first use.
@@ -84,6 +90,11 @@ data class BrowseUiState(
  * Loads the published listings shown on the Browse screen and keeps the user's filter. The
  * signed-in user's own listings are left out.
  *
+ * The listings are sorted by the straight-line distance from the phone to their pickup point (a
+ * point rounded to about 1 km, so the distance is approximate). Without a position, or for a
+ * listing without a point, there is no distance and the listing keeps its place (last, when others
+ * have one).
+ *
  * Browsing needs a connection: the listings are loaded each time the phone is online, at start and
  * again whenever the connection comes back, and nothing is loaded while it is offline.
  */
@@ -91,6 +102,7 @@ class BrowseViewModel(
     private val listingRepository: ListingRepository,
     private val authRepository: AuthRepository,
     private val connectivityRepository: ConnectivityRepository,
+    private val locationRepository: LocationRepository,
 ) : ViewModel() {
 
   // Loading until the first network status arrives, so the empty state never flashes at start.
@@ -100,7 +112,16 @@ class BrowseViewModel(
   // The load in progress, cancelled when a new one starts or the phone goes offline.
   private var loadJob: Job? = null
 
+  // The published listings of the last load, in the repository's order, and the phone's position
+  // (null without permission or fix); the state's listings are these sorted by distance.
+  private var loaded: List<Listing> = emptyList()
+  private var position: MapPoint? = null
+
+  // The position read in progress, cancelled when a newer one starts so the latest read wins.
+  private var locationJob: Job? = null
+
   init {
+    refreshLocation()
     viewModelScope.launch {
       connectivityRepository.isOnline.collect { online ->
         if (online) {
@@ -116,6 +137,18 @@ class BrowseViewModel(
 
   /** Loads the listings again, e.g. after an error. The filter is kept. */
   fun refresh() = load()
+
+  /**
+   * Reads the phone's position again and sorts the listings by it, e.g. after the user answered the
+   * location permission. A position that cannot be read (null) means no distances.
+   */
+  fun refreshLocation() {
+    locationJob?.cancel()
+    locationJob = viewModelScope.launch {
+      position = locationRepository.currentPosition()
+      _uiState.update { it.withLoadedListings() }
+    }
+  }
 
   /** Shows only the listings matching [query]. */
   fun setQuery(query: String) = updateFilter { it.copy(query = query) }
@@ -164,6 +197,32 @@ class BrowseViewModel(
   private fun BrowseUiState.withoutStaleSelection() =
       if (selectedPin == null) copy(selectedPoint = null) else this
 
+  /**
+   * This state with the [loaded] listings sorted by distance from the [position], and their
+   * distance texts. The sort is stable and the listings without a distance come last, so ties keep
+   * the repository's order; `search` is stable too, so equal matches keep the distance order.
+   */
+  private fun BrowseUiState.withLoadedListings(): BrowseUiState {
+    val here = position
+    val sorted =
+        loaded
+            .map { listing ->
+              listing to
+                  here?.let { from -> listing.pickupPoint?.let { to -> distanceMeters(from, to) } }
+            }
+            .sortedWith(compareBy(nullsLast<Double>()) { it.second })
+    return copy(
+            listings = sorted.map { it.first },
+            distanceTexts =
+                sorted
+                    .mapNotNull { (listing, meters) ->
+                      meters?.let { formatDistance(it) }?.let { listing.id to it }
+                    }
+                    .toMap(),
+        )
+        .withoutStaleSelection()
+  }
+
   private fun load() {
     loadJob?.cancel()
     _uiState.update { it.copy(isLoading = true, errorMsg = null) }
@@ -172,12 +231,10 @@ class BrowseViewModel(
           .getAllListings()
           .onSuccess { listings ->
             val uid = authRepository.getCurrentUser()?.uid
-            val visible = listings.filter {
-              it.status == ListingStatus.PUBLISHED && it.ownerId != uid
-            }
-            _uiState.update {
-              it.copy(isLoading = false, listings = visible).withoutStaleSelection()
-            }
+            loaded = listings.filter { it.status == ListingStatus.PUBLISHED && it.ownerId != uid }
+            _uiState.update { it.copy(isLoading = false).withLoadedListings() }
+            // Published first with the position known so far; sorted again once it is read.
+            refreshLocation()
           }
           .onFailure { e ->
             _uiState.update { it.copy(isLoading = false, errorMsg = e.message ?: "") }
@@ -190,13 +247,20 @@ class BrowseViewModel(
       private val listingRepository: ListingRepository,
       private val authRepository: AuthRepository,
       private val connectivityRepository: ConnectivityRepository,
+      private val locationRepository: LocationRepository,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass.isAssignableFrom(BrowseViewModel::class.java)) {
         "Unknown ViewModel class: ${modelClass.name}"
       }
       @Suppress("UNCHECKED_CAST")
-      return BrowseViewModel(listingRepository, authRepository, connectivityRepository) as T
+      return BrowseViewModel(
+          listingRepository,
+          authRepository,
+          connectivityRepository,
+          locationRepository,
+      )
+          as T
     }
   }
 }
