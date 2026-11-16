@@ -19,6 +19,8 @@ import com.swent.polyloop.model.handover.HandoverRepository
 import com.swent.polyloop.model.handover.HandoverRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
+import com.swent.polyloop.model.location.LocationRepository
+import com.swent.polyloop.model.location.LocationRepositoryAndroid
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.RentalRepository
@@ -49,6 +51,7 @@ object RepositoryProvider {
   private var profile: ProfileRepository? = null
   private var rental: RentalRepository? = null
   private var connectivity: ConnectivityRepository? = null
+  private var location: LocationRepository? = null
   private var handover: HandoverRepository? = null
   private var wallet: WalletRepository? = null
   private var dispute: DisputeRepository? = null
@@ -104,6 +107,17 @@ object RepositoryProvider {
                 .also { connectivity = it }
     set(value) {
       connectivity = value
+    }
+
+  var locationRepository: LocationRepository
+    get() =
+        location
+            ?: LocationRepositoryAndroid(
+                    checkNotNull(appContext) { "RepositoryProvider.init was not called" }
+                )
+                .also { location = it }
+    set(value) {
+      location = value
     }
 
   /**
@@ -171,6 +185,7 @@ object RepositoryProvider {
     profile = null
     rental = null
     connectivity = null
+    location = null
     handover = null
     wallet = null
     dispute = null
