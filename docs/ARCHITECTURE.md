@@ -57,11 +57,11 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage"); `ServerClock` (today by the server's clock, for the pickup photos, read only for an accepted rental, and again when the phone comes back online, Handover comes back on screen or the user taps "Retry", if it was unknown) |
 | Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos, not used yet); Rental (the item, the other person and the user's role, the deposit) |
 | Admin court ruling | AdminCourtRulingViewModel | Dispute; Handover (the photos); Rental (the deposit); Listing (the item); Profile (both parties) |
-| Navigation drawer (every screen) | DrawerViewModel | Profile (the signed-in user's name, photo and rating in the header) |
+| Navigation drawer (every screen) | DrawerViewModel | Profile (the signed-in user's name, photo and rating in the header); Auth (the admin claim, for Court rulings) |
 
 If a ViewModel needs a repository that is not listed here, add it to this table in the same pull request.
 
-DrawerViewModel is the one ViewModel not tied to a screen: the navigation drawer opens from the top bar of every screen, so `PolyLoopApp` creates it once for the whole app and refreshes it on each navigation, which follows sign-ins and sign-outs. Whether the drawer lists Court rulings comes from the navigation (`isAdmin`), not from this ViewModel, until the admin claim is read.
+DrawerViewModel is the one ViewModel not tied to a screen: the navigation drawer opens from the top bar of every screen, so `PolyLoopApp` creates it once for the whole app and refreshes it on each navigation, which follows sign-ins and sign-outs. When the signed-in user changes, it also reads whether they are an admin (`AuthRepository.isAdmin()`, see "Accounts"), and the drawer lists Court rulings only then. The read is not repeated for the same user, so an admin whose read failed (offline, for example) sees Court rulings once they sign in again or the app restarts.
 
 ## Core rule: the app expresses intent, Cloud Functions decide
 
@@ -85,7 +85,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 - Only @epfl.ch emails, checked with a regex, plus Firebase email verification. Name asked at sign-up; photo added later in Profile.
 - Sign-up passwords need at least 8 characters (at most 4096, refused as too long), an uppercase letter, a lowercase letter, a number from 0 to 9 and a special character from a fixed list (see SCREENS.md); the app checks them before calling Firebase, whose password policy (enforced on the project) accepts every password that follows them. Logging in does not check them, so existing accounts keep working.
 - An account must verify its email within 5 minutes of signing up, or it is deleted, so nobody can block an address by signing up with it (someone else's, or a typo). The Cloud Function `deleteExpiredSignUpsEvery5Minutes` checks every 5 minutes, so an expired account is gone 5 to 10 minutes after sign-up. Unverified accounts cannot write to Firestore or Storage, so only the Auth account is deleted.
-- Admins are identified by a Firebase custom claim.
+- Admins are identified by the Firebase custom claim `admin` set to true. It is set outside the app with the Admin SDK, for example from a one-off Node script: `getAuth().setCustomUserClaims(uid, {admin: true})`, and `{admin: false}` removes it (this call replaces all of the user's custom claims). The app reads it from a fresh ID token (`getIdToken(true)`), so a change shows at the next read without signing out; nobody is an admin when nobody is signed in, offline, or when the read fails.
 
 **Money (PolyPoints)**
 - In-app currency: PolyPoints (PP), 1 CHF = 1 PP. Recharge on the Wallet screen with a whole CHF amount from 1 to 99,999 (the same cap as a listing price); a recharge that would overflow the balance is refused. Payments are simulated. No withdrawals.
@@ -156,7 +156,7 @@ Cloud Functions live in `functions/`, a separate TypeScript project (Node 22, `f
 | LLM | Gemini API, called only from Cloud Functions (dispute proposals, court-ruling reading) |
 | Scheduled jobs | Every 5 minutes: deleting accounts not verified in time (`deleteExpiredSignUpsEvery5Minutes`). Hourly: expiring deposit offers (`expireOffers`) and escalating disputes after 30 days in direct settlement (`escalateDisputes`). Hourly Cloud Function: deadline reminders, late fees, lost items, auto-cancelling rentals blocked by a late return |
 | Notifications | FCM |
-| Admins | Firebase custom claim |
+| Admins | Firebase custom claim `admin` set to true, set with the Admin SDK, read from a fresh ID token |
 
 ## Firestore schema
 

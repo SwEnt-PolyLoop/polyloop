@@ -156,6 +156,9 @@ class PolyLoopAppTest {
   /** The signed-in user PolyLoopApp reads on start; null means nobody is signed in. */
   private var currentUser: AuthUser? = null
 
+  /** Whether [currentUser] has the admin claim. */
+  private var currentUserIsAdmin = false
+
   private val me = AuthUser("me", "me@epfl.ch", "Me")
 
   /** What logging in on the Sign-up / login screen returns. */
@@ -173,6 +176,8 @@ class PolyLoopAppTest {
             AuthResult.Success(Unit)
 
         override fun getCurrentUser(): AuthUser? = currentUser
+
+        override suspend fun isAdmin(): Boolean = currentUser != null && currentUserIsAdmin
 
         override fun signOut() {
           currentUser = null
@@ -265,12 +270,12 @@ class PolyLoopAppTest {
   }
 
   // isSignedIn is left to its default, so the app reads the user from RepositoryProvider.
-  private fun setApp(isAdmin: Boolean = false) {
+  private fun setApp() {
     composeTestRule.setContent {
       backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
       appView = LocalView.current
       navController = rememberNavController()
-      PolyLoopApp(navController = navController, isAdmin = isAdmin)
+      PolyLoopApp(navController = navController)
     }
   }
 
@@ -280,10 +285,11 @@ class PolyLoopAppTest {
     }
   }
 
-  /** Starts the app with [me] already signed in, so it opens on Browse. */
+  /** Starts the app with [me] already signed in, with the admin claim if [isAdmin], on Browse. */
   private fun setAppSignedIn(isAdmin: Boolean = false) {
     currentUser = me
-    setApp(isAdmin)
+    currentUserIsAdmin = isAdmin
+    setApp()
   }
 
   /** Fills the log-in form of the Sign-up / login screen and presses "Log in". */
@@ -938,6 +944,24 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
 
     composeTestRule.onNodeWithTag(C.Tag.drawer_name).assertTextEquals("Me")
+  }
+
+  @Test
+  fun drawerListsCourtRulingsForAnAdminWhoSignsIn() {
+    signInResult = AuthResult.Success(me)
+    setApp()
+    // Started signed out; Firebase knows the admin once they log in.
+    currentUser = me
+    currentUserIsAdmin = true
+
+    logIn()
+    waitForTag(C.Tag.browse_screen)
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.drawerItem(Screen.AdminCourtRuling.route))
+        .performScrollTo()
+        .assertIsDisplayed()
   }
 
   @Test

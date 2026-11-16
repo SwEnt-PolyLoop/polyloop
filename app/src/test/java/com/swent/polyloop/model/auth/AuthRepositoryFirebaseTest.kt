@@ -1,3 +1,5 @@
+// Edited with Claude.
+
 package com.swent.polyloop.model.auth
 
 import com.google.android.gms.tasks.Tasks
@@ -11,6 +13,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.GetTokenResult
 import com.google.firebase.auth.UserProfileChangeRequest
 import io.mockk.every
 import io.mockk.mockk
@@ -18,7 +21,9 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -371,6 +376,70 @@ class AuthRepositoryFirebaseTest {
     every { auth.currentUser } returns user
 
     assertNull(repository.getCurrentUser())
+  }
+
+  // ---------- isAdmin ----------
+
+  /** Signs [user] in, verified, with an ID token carrying [claims]. */
+  private fun signInWithClaims(claims: Map<String, Any>) {
+    val token = mockk<GetTokenResult>()
+    every { token.claims } returns claims
+    every { user.isEmailVerified } returns true
+    every { user.getIdToken(true) } returns Tasks.forResult(token)
+    every { auth.currentUser } returns user
+  }
+
+  @Test
+  fun isAdminWhenTheClaimIsTrueReturnsTrueFromAFreshToken() = runTest {
+    signInWithClaims(mapOf("admin" to true))
+
+    assertTrue(repository.isAdmin())
+    verify { user.getIdToken(true) }
+  }
+
+  @Test
+  fun isAdminWhenTheClaimIsFalseReturnsFalse() = runTest {
+    signInWithClaims(mapOf("admin" to false))
+
+    assertFalse(repository.isAdmin())
+  }
+
+  @Test
+  fun isAdminWhenTheClaimIsMissingReturnsFalse() = runTest {
+    signInWithClaims(mapOf("email_verified" to true))
+
+    assertFalse(repository.isAdmin())
+  }
+
+  @Test
+  fun isAdminWhenTheClaimIsNotTheBooleanTrueReturnsFalse() = runTest {
+    signInWithClaims(mapOf("admin" to "true"))
+
+    assertFalse(repository.isAdmin())
+  }
+
+  @Test
+  fun isAdminWhenTheTokenCannotBeReadReturnsFalse() = runTest {
+    signInWithClaims(mapOf("admin" to true))
+    every { user.getIdToken(true) } returns Tasks.forException(FirebaseNetworkException("offline"))
+
+    assertFalse(repository.isAdmin())
+  }
+
+  @Test
+  fun isAdminWhenNobodySignedInReturnsFalse() = runTest {
+    every { auth.currentUser } returns null
+
+    assertFalse(repository.isAdmin())
+  }
+
+  @Test
+  fun isAdminWhenUnverifiedReturnsFalseWithoutReadingTheToken() = runTest {
+    signInWithClaims(mapOf("admin" to true))
+    every { user.isEmailVerified } returns false
+
+    assertFalse(repository.isAdmin())
+    verify(exactly = 0) { user.getIdToken(any()) }
   }
 
   // ---------- signOut ----------
