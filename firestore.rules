@@ -33,6 +33,14 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // A profile photo is "" or the download URL of the user's own users/{uid}/profile.jpg in this
+    // project's bucket. Firestore rules cannot read the bucket name, so it is written in.
+    function isOwnPhotoUrl(uid, url) {
+      return url == '' || url.matches(
+          'https://firebasestorage\\.googleapis\\.com/v0/b/polyloop-97543\\.firebasestorage\\.app'
+          + '/o/users%2F' + uid + '%2Fprofile\\.jpg\\?alt=media&token=[0-9a-fA-F-]+');
+    }
+
     function isNonBlankString(value) {
       return value is string && value.trim().size() > 0;
     }
@@ -71,12 +79,16 @@ service cloud.firestore {
           && request.resource.data.name is string
           && request.resource.data.email is string
           && request.resource.data.email.lower() == request.auth.token.email.lower()
-          && request.resource.data.get('photoUrl', '') is string;
+          && request.resource.data.get('photoUrl', '') is string
+          && isOwnPhotoUrl(uid, request.resource.data.get('photoUrl', ''));
 
       allow update: if isUser(uid)
           && changedKeys().hasOnly(['name', 'photoUrl'])
           && request.resource.data.name is string
-          && request.resource.data.get('photoUrl', '') is string;
+          && request.resource.data.get('photoUrl', '') is string
+          // Checked only when it changes, so an old stored value does not block a name change.
+          && (!('photoUrl' in changedKeys())
+              || isOwnPhotoUrl(uid, request.resource.data.get('photoUrl', '')));
     }
 
     // ---------- listings ----------

@@ -138,6 +138,15 @@ class FirestoreRulesTest {
           "type" to type,
       )
 
+  /** The download URL of [uid]'s profile photo in this project's bucket, as Storage gives it. */
+  private fun ownPhotoUrl(
+      uid: String,
+      bucket: String = "polyloop-97543.firebasestorage.app",
+      host: String = "https://firebasestorage.googleapis.com",
+  ) =
+      "$host/v0/b/$bucket/o/users%2F$uid%2Fprofile.jpg" +
+          "?alt=media&token=0a1b2c3d-4e5f-6789-abcd-ef0123456789"
+
   /** Runs [block] and fails unless the rules refuse it. */
   private suspend fun assertDenied(block: suspend () -> Unit) {
     try {
@@ -203,15 +212,85 @@ class FirestoreRulesTest {
         )
         val profile = db.collection("users").document(me.uid)
 
-        profile
-            .update(mapOf("name" to "Benji", "photoUrl" to "https://example.com/ben.jpg"))
-            .await()
+        profile.update(mapOf("name" to "Benji", "photoUrl" to ownPhotoUrl(me.uid))).await()
         assertDenied { profile.update("averageRating", 5.0).await() }
         assertDenied { profile.update("reviewCount", 3).await() }
         assertDenied { profile.update("email", "someone@epfl.ch").await() }
 
         newAccount() // someone else
         assertDenied { profile.update("name", "Hacked").await() }
+      }
+
+  @Test
+  fun userCreatesProfileWithEmptyOrOwnPhotoUrl() =
+      runBlocking<Unit> {
+        val me = newAccount()
+        val profile = db.collection("users").document(me.uid)
+
+        profile.set(mapOf("name" to "Ben", "email" to me.email, "photoUrl" to "")).await()
+        profile
+            .set(mapOf("name" to "Ben", "email" to me.email, "photoUrl" to ownPhotoUrl(me.uid)))
+            .await()
+      }
+
+  @Test
+  fun userCannotCreateProfileWithAnotherPhotoUrl() =
+      runBlocking<Unit> {
+        val other = newAccount()
+        val me = newAccount()
+        val profile = db.collection("users").document(me.uid)
+
+        listOf(
+                ownPhotoUrl(other.uid),
+                ownPhotoUrl(me.uid, bucket = "another-project.firebasestorage.app"),
+                ownPhotoUrl(me.uid, host = "http://10.0.2.2:9199"),
+                "https://example.com/ben.jpg",
+            )
+            .forEach { url ->
+              assertDenied {
+                profile.set(mapOf("name" to "Ben", "email" to me.email, "photoUrl" to url)).await()
+              }
+            }
+      }
+
+  @Test
+  fun userCannotUpdateTheirPhotoUrlToAnotherUrl() =
+      runBlocking<Unit> {
+        val other = newAccount()
+        val me = newAccount()
+        FirebaseEmulator.createDocumentAsAdmin(
+            "users/${me.uid}",
+            mapOf("name" to "Ben", "email" to me.email),
+        )
+        val profile = db.collection("users").document(me.uid)
+
+        listOf(
+                ownPhotoUrl(other.uid),
+                ownPhotoUrl(me.uid, bucket = "another-project.firebasestorage.app"),
+                ownPhotoUrl(me.uid, host = "http://10.0.2.2:9199"),
+                "https://example.com/ben.jpg",
+            )
+            .forEach { url -> assertDenied { profile.update("photoUrl", url).await() } }
+        profile.update("photoUrl", ownPhotoUrl(me.uid)).await()
+        profile.update("photoUrl", "").await()
+      }
+
+  @Test
+  fun userWithAnOldPhotoUrlCanStillChangeTheirName() =
+      runBlocking<Unit> {
+        val me = newAccount()
+        FirebaseEmulator.createDocumentAsAdmin(
+            "users/${me.uid}",
+            mapOf(
+                "name" to "Ben",
+                "email" to me.email,
+                "photoUrl" to "https://example.com/old.jpg",
+            ),
+        )
+        val profile = db.collection("users").document(me.uid)
+
+        profile.update("name", "Benji").await()
+        assertDenied { profile.update("photoUrl", "https://example.com/new.jpg").await() }
       }
 
   // ---------- listings ----------
