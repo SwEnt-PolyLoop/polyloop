@@ -1,0 +1,32 @@
+<!-- Made with Claude. -->
+# PolyLoop
+
+The language of PolyLoop, a peer-to-peer rental app for EPFL students. `docs/ARCHITECTURE.md` and `docs/SCREENS.md` hold the rules; this file only fixes the words.
+
+## Language
+
+### Disputes
+
+**Dispute**:
+A disagreement between the lender and the borrower about how to split a rental's deposit, opened when the lender flags damage after the return. At most one per rental.
+_Avoid_: Claim, conflict, case
+
+**Split**:
+How a deposit is shared between the lender and the borrower, as the lender's whole percentage; the borrower gets the rest.
+_Avoid_: Ratio, division
+
+**Split proposal**:
+A split offered by one party to the other during direct settlement, which the other can accept or counter.
+_Avoid_: Offer (that is the deposit negotiation before acceptance), bid
+
+**Direct settlement**:
+The first stage of a dispute, where the two parties exchange split proposals.
+_Avoid_: Negotiation (that is the deposit negotiation before acceptance), stage 1
+
+**LLM proposal**:
+The split, with its reasoning, that the LLM gives from the condition photos once a dispute leaves direct settlement; both parties accept or reject it. Also the name of that stage.
+_Avoid_: Gemini proposal, AI proposal, recommendation, verdict
+
+**Court**:
+The last stage of a dispute, reached when a party rejects the LLM proposal, where a court ruling is uploaded and reviewed by an admin.
+_Avoid_: Arbitration, stage 3

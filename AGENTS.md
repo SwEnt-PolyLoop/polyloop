@@ -76,3 +76,17 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 ## Your role (for the human)
 
 You provide the goal, the context, the acceptance criteria and the permissions. The agent plans, acts and observes. **You review the diff, and you own every line you submit.** "The agent wrote it" is not a defence.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `SwEnt-PolyLoop/polyloop`, used through the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root, created when needed, alongside `docs/ARCHITECTURE.md` and `docs/SCREENS.md`. See `docs/agents/domain.md`.
