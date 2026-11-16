@@ -47,7 +47,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Edit profile | EditProfileViewModel | Profile (loads the profile, uploads the new photo, saves the name and the photo's URL) |
 | Wallet | WalletViewModel | Wallet |
 | Chat list | ChatListViewModel | Chat (the item and the other person are copied on each rental, see "Firestore schema") |
-| Chat | ChatViewModel | Chat; Rental (link to Rental detail, sending disabled during a dispute, the offer card and its answers); Profile (the other person); Listing (the item); `ServerClock` (today by the server's clock, for Start pickup, read only for an accepted rental, and again when the phone comes back online or the chat comes back on screen if it was unknown) |
+| Chat | ChatViewModel | Chat; Rental (link to Rental detail, the offer card and its answers); Profile (the other person); Listing (the item); `ServerClock` (today by the server's clock, for Start pickup, read only for an accepted rental, and again when the phone comes back online or the chat comes back on screen if it was unknown) |
 | Browse | BrowseViewModel | Listing; Location (distance and map position) |
 | Listing detail | ListingDetailViewModel | Listing (the item and its booked days); Rental (sending the request); Profile (the owner's name, photo and rating); Auth (the borrower sending the request); Wallet (the available balance the date picker compares the price to) |
 | Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active); Auth (the owner publishing the listing) |
@@ -126,7 +126,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 2. LLM proposal: a Cloud Function sends pickup and return photos to Gemini and gets a split + reasoning. Both parties accept or reject.
 3. Court: once the dispute reaches court, because either party rejected the LLM proposal, the deposit is frozen. Either party uploads the court ruling PDF; Gemini pre-fills the split; an admin reviews it on the Admin court ruling screen and applies or rejects it.
 - A split is applied in whole PolyPoints: the borrower's share is rounded down and the lender gets the rest, so the shares always add up to the deposit (50% of 33 PP gives 16 PP to the borrower, 17 PP to the lender). The Cloud Functions that apply a split must round the same way as the app.
-- Chat is disabled while a dispute is open. Reviews (1–5 stars, no text for now) are prompted when a rental closes, however it closed.
+- The chat stays open during a dispute. Reviews (1–5 stars, no text for now) are prompted when a rental closes, however it closed.
 - For now an agreement only settles the dispute and closes the rental, and no money is released or split: the deposit is held when an offer is accepted, but nothing releases or splits a held deposit yet, so it stays held after an agreement.
 - For now nothing produces the LLM proposal: an escalated dispute stays in `LLM_PROPOSAL`, with no way forward, until the Gemini Cloud Function exists.
 

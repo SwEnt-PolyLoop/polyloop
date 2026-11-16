@@ -19,7 +19,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -160,22 +159,17 @@ fun RentalDetailContent(
           StageStrip(status = uiState.status)
           StatusCard(uiState = uiState, today = today, zone = zone, locale = locale)
           DetailsCard(uiState = uiState, today = today, locale = locale)
-          val isDisputed = uiState.status == RentalStatus.DISPUTED
           uiState.otherPerson?.let { person ->
             PersonCard(
                 person = person,
                 onClick = { onPersonClick(person.uid) },
                 onChatClick = onChatClick,
-                // Chat is paused while the dispute is open; the card itself stays tappable, so the
-                // other person's profile can still be opened.
-                chatEnabled = !isDisputed,
             )
           }
-          if (isDisputed) {
-            ChatPausedNote()
-          } else if (uiState.status == RentalStatus.ACCEPTED) {
+          // A disputed rental shows no meeting point: the item is already back.
+          if (uiState.status == RentalStatus.ACCEPTED) {
             PickupPoint(uiState = uiState)
-          } else {
+          } else if (uiState.status != RentalStatus.DISPUTED) {
             PickupArea(
                 area = uiState.pickupArea,
                 point = uiState.pickupPoint,
@@ -556,16 +550,10 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: 
 /**
  * The other person, built like the Profile header: their initial, their name and their rating. The
  * card opens their profile; the Chat button opens the chat and, being its own clickable, does not
- * also open the profile. When [chatEnabled] is false the Chat button is shown disabled, while the
- * card still opens the profile.
+ * also open the profile.
  */
 @Composable
-internal fun PersonCard(
-    person: OtherPerson,
-    onClick: () -> Unit,
-    onChatClick: () -> Unit,
-    chatEnabled: Boolean = true,
-) {
+internal fun PersonCard(person: OtherPerson, onClick: () -> Unit, onChatClick: () -> Unit) {
   OutlinedCard(
       onClick = onClick,
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.rental_detail_person_card),
@@ -607,7 +595,6 @@ internal fun PersonCard(
       }
       OutlinedButton(
           onClick = onChatClick,
-          enabled = chatEnabled,
           modifier = Modifier.testTag(C.Tag.rental_detail_chat_button),
       ) {
         Icon(
@@ -619,27 +606,6 @@ internal fun PersonCard(
         Text(stringResource(R.string.rental_detail_chat))
       }
     }
-  }
-}
-
-@Composable
-private fun ChatPausedNote() {
-  Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-  ) {
-    Icon(
-        Icons.Outlined.Lock,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.size(16.dp),
-    )
-    Text(
-        text = stringResource(R.string.rental_detail_chat_paused),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.testTag(C.Tag.rental_detail_chat_paused),
-    )
   }
 }
 
