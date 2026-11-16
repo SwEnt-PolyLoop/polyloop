@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.e2e
 
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Firebase
@@ -21,6 +22,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -273,6 +275,68 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     assertRoute(Screen.RentalDetail)
   }
 
+  @Test
+  fun navigateGivesTheDirectionsToThePickupAndTriesAgainAfterAFailure() {
+    seedProfile(lenderId, LENDER_NAME)
+    val listing = seedListing()
+    val uid = signInWithoutTheUi()
+    val rentalId =
+        seedRental(
+            listing,
+            uid,
+            USER_NAME,
+            LENDER_NAME,
+            firstDay,
+            firstDay.plusDays(1),
+            RentalStatus.ACCEPTED,
+            // Copied onto the rental on acceptance, as the Function that accepts it does.
+            extra =
+                mapOf(
+                    RentalFields.PICKUP_ADDRESS to PICKUP_ADDRESS,
+                    RentalFields.RETURN_ADDRESS to RETURN_ADDRESS,
+                ),
+        )
+    // The first link fails, as on a phone where no app can open it; the next one opens.
+    var failures = 1
+    val opened = mutableListOf<String>()
+    setApp(
+        object : UriHandler {
+          override fun openUri(uri: String) {
+            if (failures > 0) {
+              failures--
+              throw IllegalArgumentException("Can't open $uri.")
+            }
+            opened += uri
+          }
+        }
+    )
+
+    // My rentals: the accepted rental opens its Rental detail, with the exact pickup address.
+    openFromMenu(Screen.MyRentals)
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_tab_borrowing).performClick()
+    val row = C.Tag.my_rentals_row_ + rentalId
+    waitForTag(row)
+    composeTestRule.onNodeWithTag(row).performClick()
+    waitForText(C.Tag.rental_detail_pickup_address, PICKUP_ADDRESS)
+    assertRoute(Screen.RentalDetail)
+
+    // The first tap fails and says so; the second opens the directions and clears the error.
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate).performScrollTo().performClick()
+    waitForText(
+        C.Tag.rental_detail_navigate_error,
+        context.getString(R.string.rental_detail_navigate_failed),
+    )
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate_error).assertDoesNotExist()
+    assertEquals(
+        listOf(
+            "https://www.google.com/maps/dir/?api=1&destination=" +
+                "Rue%20du%20Lac%2012%2C%20Ecublens"
+        ),
+        opened,
+    )
+  }
+
   /** Searches [listing] on Browse, opens it and opens the date picker of its Request button. */
   private fun openRequestPicker(listing: Listing) {
     val card = C.Tag.listing_card_ + listing.id
@@ -306,6 +370,9 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
 
   private companion object {
     const val OFFER = 80
+
+    const val PICKUP_ADDRESS = "Rue du Lac 12, Ecublens"
+    const val RETURN_ADDRESS = "Avenue de la Gare 45, Renens"
 
     // Far more than the requests cost (a few days at PRICE_PER_DAY).
     const val BALANCE = 100
