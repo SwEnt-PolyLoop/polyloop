@@ -8,6 +8,7 @@ import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository.StoredPhoto
+import com.swent.polyloop.model.handover.HandoverCode
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.rental.FakeRentalRepository
@@ -336,6 +337,155 @@ class HandoverViewModelTest {
           authRepository,
           connectivity,
       )
+
+  // ---------- the QR code ----------
+
+  /** Signs in the lender, who shows the code at pickup. */
+  private fun signInLender() {
+    authRepository.signedInUser = AuthUser(uid = "owner", email = "mara@epfl.ch", name = "Mara")
+    handoverRepository.currentUid = "owner"
+  }
+
+  @Test
+  fun theLenderShowsTheCodeOnceTheyHaveThreePhotos() {
+    signInLender()
+    handoverRepository.photos = photos(2, takenBy = "owner")
+    val vm = viewModel()
+    val state = vm.uiState.value
+    assertTrue(state.showsCode)
+    assertEquals("secret-code", state.code)
+    assertNull(state.codeFingerprint)
+    assertFalse(state.canShowCode) // 2 photos only
+    assertFalse(state.canScan)
+
+    handoverRepository.photos = photos(3, takenBy = "owner")
+    assertTrue(vm.uiState.value.canShowCode)
+    assertFalse(vm.uiState.value.canScan) // the lender never scans at pickup
+  }
+
+  @Test
+  fun theBorrowerScansOnceTheyHaveThreePhotos() {
+    handoverRepository.photos = photos(2)
+    val vm = viewModel()
+    val state = vm.uiState.value
+    assertFalse(state.showsCode)
+    assertNull(state.code) // the borrower never gets the code itself
+    assertEquals(HandoverCode.fingerprint("secret-code"), state.codeFingerprint)
+    assertFalse(state.canScan)
+
+    handoverRepository.photos = photos(3)
+    assertTrue(vm.uiState.value.canScan)
+    assertFalse(vm.uiState.value.canShowCode)
+  }
+
+  @Test
+  fun theLendersPhotosDoNotCountForTheBorrower() {
+    handoverRepository.photos = photos(3, takenBy = "owner")
+    assertFalse(viewModel().uiState.value.canScan)
+  }
+
+  @Test
+  fun neitherTheCodeNorTheScanAreAvailableOffThePickupDay() {
+    handoverRepository.photos = photos(3) + photos(3, takenBy = "owner")
+    for (day in listOf(pickupDay.minusDays(1), pickupDay.plusDays(1))) {
+      today = day
+      assertFalse(viewModel().uiState.value.canScan)
+      signInLender()
+      assertFalse(viewModel().uiState.value.canShowCode)
+      authRepository.signedInUser = borrower
+      handoverRepository.currentUid = "borrower"
+    }
+  }
+
+  @Test
+  fun offlineTheCodeStaysShownButTheScanIsDisabled() {
+    handoverRepository.photos = photos(3) + photos(3, takenBy = "owner")
+    val borrowerVm = viewModel()
+    signInLender()
+    val lenderVm = viewModel()
+
+    connectivity.setOnline(false)
+    assertFalse(borrowerVm.uiState.value.canScan)
+    assertTrue(lenderVm.uiState.value.canShowCode)
+
+    connectivity.setOnline(true)
+    assertTrue(borrowerVm.uiState.value.canScan)
+  }
+
+  @Test
+  fun withoutACodeNothingIsShownOrScanned() {
+    handoverRepository.code = null
+    handoverRepository.photos = photos(3) + photos(3, takenBy = "owner")
+    val borrowerState = viewModel().uiState.value
+    assertNull(borrowerState.codeFingerprint)
+    assertFalse(borrowerState.codeFailed)
+    assertFalse(borrowerState.canScan)
+
+    signInLender()
+    val lenderState = viewModel().uiState.value
+    assertNull(lenderState.code)
+    assertFalse(lenderState.canShowCode)
+  }
+
+  @Test
+  fun aCodeThatCannotBeReadIsReportedAndCanBeRetried() {
+    handoverRepository.codeFailure = RuntimeException("down")
+    handoverRepository.photos = photos(3)
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.codeFailed)
+    assertFalse(vm.uiState.value.canScan)
+
+    handoverRepository.codeFailure = null
+    vm.retry()
+    assertFalse(vm.uiState.value.codeFailed)
+    assertTrue(vm.uiState.value.canScan)
+  }
+
+  @Test
+  fun retryReadsAgainBothThePhotosAndTheCodeWhenBothFailed() {
+    handoverRepository.failure = RuntimeException("photos down")
+    handoverRepository.codeFailure = RuntimeException("code down")
+    handoverRepository.photos = photos(3)
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.photosFailed)
+    assertTrue(vm.uiState.value.codeFailed)
+
+    handoverRepository.failure = null
+    handoverRepository.codeFailure = null
+    vm.retry()
+    assertFalse(vm.uiState.value.photosFailed)
+    assertFalse(vm.uiState.value.codeFailed)
+    assertTrue(vm.uiState.value.canScan)
+  }
+
+  @Test
+  fun aLoadedCodeIsNotReadAgainOnRetry() {
+    handoverRepository.failure = RuntimeException("photos down")
+    val vm = viewModel()
+    handoverRepository.codeFailure = RuntimeException("would be reported if read again")
+    vm.retry()
+    assertFalse(vm.uiState.value.codeFailed)
+  }
+
+  @Test
+  fun noCodeIsReadWhenTheRentalTakesNone() {
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
+    handoverRepository.codeFailure = RuntimeException("would be reported if read")
+    val state = viewModel().uiState.value
+
+    assertFalse(state.codeFailed)
+    assertFalse(state.showsCode)
+    assertFalse(state.canScan)
+  }
+
+  @Test
+  fun theRolesSwapAtReturn() {
+    val pickup = HandoverUiState(phase = HandoverPhase.PICKUP, isLender = true)
+    val atReturn = pickup.copy(phase = HandoverPhase.RETURN)
+    assertTrue(pickup.showsCode)
+    assertFalse(atReturn.showsCode)
+    assertTrue(atReturn.copy(isLender = false).showsCode)
+  }
 
   @Test
   fun factoryCreatesTheViewModelForTheRental() {

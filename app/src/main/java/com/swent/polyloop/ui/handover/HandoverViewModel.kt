@@ -33,6 +33,11 @@ import kotlinx.coroutines.launch
  * @property photosFailed true when the photos could not be loaded.
  * @property failedPhotoUri the photo whose upload failed, kept to try again; null when none did.
  * @property isOffline true while the phone has no connection; no photo can be uploaded then.
+ * @property code the secret code the user shows as a QR code, when they show it (see [showsCode]);
+ *   null until read, or if there is none.
+ * @property codeFingerprint the fingerprint of the code the user scans, when they scan; null until
+ *   read, or if there is none.
+ * @property codeFailed true when the code or its fingerprint could not be read.
  */
 data class HandoverUiState(
     val isLoading: Boolean = true,
@@ -50,6 +55,9 @@ data class HandoverUiState(
     val isUploading: Boolean = false,
     val failedPhotoUri: String? = null,
     val isOffline: Boolean = false,
+    val code: String? = null,
+    val codeFingerprint: String? = null,
+    val codeFailed: Boolean = false,
 ) {
   /** How many more photos are needed before the handover can go on; 0 once there are enough. */
   val photosNeeded: Int
@@ -67,6 +75,30 @@ data class HandoverUiState(
   /** True when a new photo can be taken: one can be uploaded, and none is waiting for a retry. */
   val canAddPhoto: Boolean
     get() = canUpload && failedPhotoUri == null
+
+  /**
+   * True when the user shows the QR code in [phase]: the person giving the item, so the lender at
+   * pickup and the borrower at return. The other person scans it.
+   */
+  val showsCode: Boolean
+    get() = phase != null && isLender == (phase == HandoverPhase.PICKUP)
+
+  /** True when the QR code is shown: on the pickup day, once the user has 3 photos and the code. */
+  val canShowCode: Boolean
+    get() = showsCode && isPickupDay && photosNeeded == 0 && code != null
+
+  /**
+   * True when "Scan QR code" can be pressed: on the pickup day, once the user has 3 photos and the
+   * fingerprint, and online until scans can wait in the upload queue.
+   */
+  val canScan: Boolean
+    get() =
+        phase != null &&
+            !showsCode &&
+            isPickupDay &&
+            photosNeeded == 0 &&
+            codeFingerprint != null &&
+            !isOffline
 }
 
 /**
@@ -96,15 +128,15 @@ class HandoverViewModel(
   }
 
   /**
-   * Loads the rental again after it failed to load, or follows the photos again after they failed
-   * to load. Ignored otherwise.
+   * Loads the rental again after it failed to load; otherwise follows the photos again and reads
+   * the code again, each only if it failed to load.
    */
   fun retry() {
     val state = _uiState.value
-    when {
-      state.loadFailed -> load()
-      state.photosFailed -> state.phase?.let(::observePhotos)
-    }
+    if (state.loadFailed) return load()
+    val phase = state.phase ?: return
+    if (state.photosFailed) observePhotos(phase)
+    if (state.codeFailed) loadCode(phase, state.showsCode)
   }
 
   /**
@@ -166,7 +198,30 @@ class HandoverViewModel(
               deposit = rental.deposit,
           )
       )
-      if (phase != null) observePhotos(phase)
+      if (phase != null) {
+        observePhotos(phase)
+        loadCode(phase, _uiState.value.showsCode)
+      }
+    }
+  }
+
+  /**
+   * Reads the code to show if the user [shows] it, otherwise the fingerprint of the one to scan.
+   */
+  private fun loadCode(phase: HandoverPhase, shows: Boolean) {
+    _uiState.update { it.copy(codeFailed = false) }
+    viewModelScope.launch {
+      val result =
+          if (shows) handoverRepository.getCodeToShow(rentalId, phase)
+          else handoverRepository.getCodeFingerprint(rentalId, phase)
+      result.fold(
+          onSuccess = { value ->
+            _uiState.update {
+              if (shows) it.copy(code = value) else it.copy(codeFingerprint = value)
+            }
+          },
+          onFailure = { _uiState.update { it.copy(codeFailed = true) } },
+      )
     }
   }
 
