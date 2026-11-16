@@ -691,6 +691,9 @@ class FirestoreRulesTest {
 
   // ---------- handover photos ----------
 
+  /** The id of a condition photo: the slot [n] of [uid] in [phase]. */
+  private fun slot(uid: String, n: Int, phase: String = "PICKUP") = "${uid}_${phase}_$n"
+
   private fun photo(takenBy: String, phase: String = "PICKUP") =
       mapOf(
           "takenBy" to takenBy,
@@ -706,24 +709,74 @@ class FirestoreRulesTest {
         val borrower = newAccount()
         val photos = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
 
-        val mine = photos.document()
+        val mine = photos.document(slot(borrower.uid, 0))
         mine.set(photo(borrower.uid)).await()
-        assertDenied { photos.document().set(photo(owner.uid)).await() } // someone else's
+        // Someone else's.
+        assertDenied { photos.document(slot(owner.uid, 0)).set(photo(owner.uid)).await() }
         assertDenied {
-          photos.document().set(photo(borrower.uid) + ("takenAt" to Timestamp(5_000, 0))).await()
+          photos
+              .document(slot(borrower.uid, 1))
+              .set(photo(borrower.uid) + ("takenAt" to Timestamp(5_000, 0)))
+              .await()
         }
-        assertDenied { photos.document().set(photo(borrower.uid) + ("url" to 5)).await() }
-        assertDenied { photos.document().set(photo(borrower.uid) + ("extra" to 1)).await() }
+        assertDenied {
+          photos.document(slot(borrower.uid, 1)).set(photo(borrower.uid) + ("url" to 5)).await()
+        }
+        assertDenied {
+          photos.document(slot(borrower.uid, 1)).set(photo(borrower.uid) + ("extra" to 1)).await()
+        }
         assertDenied { mine.update("url", "https://example.com/other.jpg").await() }
         assertDenied { mine.delete().await() }
 
         signInAs(owner)
-        photos.document().set(photo(owner.uid)).await()
+        photos.document(slot(owner.uid, 0)).set(photo(owner.uid)).await()
         assertEquals(2, photos.get(Source.SERVER).await().size())
 
         val stranger = newAccount()
         assertDenied { photos.get(Source.SERVER).await() }
-        assertDenied { photos.document().set(photo(stranger.uid)).await() }
+        assertDenied { photos.document(slot(stranger.uid, 0)).set(photo(stranger.uid)).await() }
+      }
+
+  @Test
+  fun aPersonAddsAtMost20PickupPhotosOneInEachSlot() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val photos = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
+
+        repeat(20) { photos.document(slot(borrower.uid, it)).set(photo(borrower.uid)).await() }
+
+        // The 21st has no slot.
+        assertDenied { photos.document(slot(borrower.uid, 20)).set(photo(borrower.uid)).await() }
+        assertEquals(20, photos.get(Source.SERVER).await().size())
+        // A slot is written once: a photo is never replaced.
+        assertDenied { photos.document(slot(borrower.uid, 19)).set(photo(borrower.uid)).await() }
+      }
+
+  @Test
+  fun pickupPhotoIdsMustBeTheUsersOwnSlot() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val photos = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
+
+        listOf(
+                "random-${UUID.randomUUID()}",
+                slot(owner.uid, 0), // another user's uid, even though the other participant
+                slot(borrower.uid, 0, phase = "RETURN"), // not the photo's phase
+                slot(borrower.uid, 10) + "0", // 10 is a slot, 100 is not
+                "${borrower.uid}_PICKUP_01",
+                "${borrower.uid}_PICKUP_-1",
+                "${borrower.uid}_PICKUP_",
+                "x${slot(borrower.uid, 0)}",
+            )
+            .forEach { id -> assertDenied { photos.document(id).set(photo(borrower.uid)).await() } }
+        // A RETURN photo in a PICKUP slot, and the other way round.
+        assertDenied {
+          photos.document(slot(borrower.uid, 0)).set(photo(borrower.uid, "RETURN")).await()
+        }
+        photos.document(slot(borrower.uid, 0)).set(photo(borrower.uid)).await()
+        photos.document(slot(borrower.uid, 10)).set(photo(borrower.uid)).await()
       }
 
   @Test
@@ -735,9 +788,15 @@ class FirestoreRulesTest {
         val active = seedRental(owner.uid, borrower.uid, status = "ACTIVE").collection("photos")
         val requested = seedRental(owner.uid, borrower.uid).collection("photos")
 
-        assertDenied { accepted.document().set(photo(borrower.uid, phase = "RETURN")).await() }
-        assertDenied { active.document().set(photo(borrower.uid)).await() } // pickup is over
-        assertDenied { requested.document().set(photo(borrower.uid)).await() }
+        assertDenied {
+          accepted
+              .document(slot(borrower.uid, 0, phase = "RETURN"))
+              .set(photo(borrower.uid, phase = "RETURN"))
+              .await()
+        }
+        // Pickup is over.
+        assertDenied { active.document(slot(borrower.uid, 0)).set(photo(borrower.uid)).await() }
+        assertDenied { requested.document(slot(borrower.uid, 0)).set(photo(borrower.uid)).await() }
       }
 
   // ---------- wallets ----------

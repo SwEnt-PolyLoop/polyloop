@@ -273,7 +273,9 @@ service cloud.firestore {
       }
 
       // Condition photos (#231). Each participant adds only their own pickup photos, while the
-      // rental is Accepted. They are evidence: never changed.
+      // rental is Accepted. They are evidence: never changed. Rules cannot count documents, so the
+      // cap of 20 photos per person and phase (#428) is the id: a fixed slot, {uid}_{phase}_{0..19},
+      // written once because photos are never replaced.
       match /photos/{photoId} {
         allow read: if isVerifiedEpfl()
             && request.auth.uid in get(rentalPath(rentalId)).data.participants;
@@ -286,6 +288,7 @@ service cloud.firestore {
             && request.resource.data.takenAt == request.time
             && request.resource.data.url is string
             && request.resource.data.phase == 'PICKUP'
+            && photoId.matches(request.auth.uid + '_PICKUP_([0-9]|1[0-9])')
             && get(rentalPath(rentalId)).data.status == 'ACCEPTED';
       }
     }
