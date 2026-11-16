@@ -63,8 +63,28 @@ class FakeHandoverRepository(
       return Result.failure(it)
     }
     val uid = currentUid ?: return Result.failure(IllegalStateException("Nobody is signed in"))
+    // As the real repository: the id is the lowest free slot of the user, and nothing is added
+    // when all are used. A photo with another id, such as a random one, uses no slot.
+    val slot =
+        lowestFreeSlot(
+            uid,
+            phase,
+            stored.value
+                .filter { it.rentalId == rentalId && it.takenBy == uid && it.photo.phase == phase }
+                .map { it.photo.id },
+        )
+            ?: return Result.failure(
+                IllegalStateException(
+                    "All ${HandoverPhoto.MAX_PHOTOS} ${phase.name} photos are already taken"
+                )
+            )
     stored.update { all ->
-      all + StoredPhoto(rentalId, uid, HandoverPhoto("p${all.size + 1}", phase, now, photoUri))
+      all +
+          StoredPhoto(
+              rentalId,
+              uid,
+              HandoverPhoto(photoSlotId(uid, phase, slot), phase, now, photoUri),
+          )
     }
     return Result.success(Unit)
   }
