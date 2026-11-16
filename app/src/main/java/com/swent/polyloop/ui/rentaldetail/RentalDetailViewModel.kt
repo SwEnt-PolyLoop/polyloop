@@ -148,7 +148,15 @@ class RentalDetailViewModel(
     }
   }
 
-  /** Reads the listing again after a failed read, unless a re-read is already running. */
+  /**
+   * Reads the listing again after a failed read, unless a re-read is already running or the last
+   * read succeeded. On success it fills the same fields as [load] (the suggested deposit and the
+   * map point, and the pickup area only when it is still blank, so the area copied on the rental is
+   * never overwritten). A missing listing (a successful read with no listing) counts as read and is
+   * not tried again; it clears the suggested deposit and the map point. A failure changes nothing
+   * and is retried at the next reconnection. [load] and [retry] cancel a running re-read, so an old
+   * result cannot land after a reload.
+   */
   private fun readListingAgain() {
     val listingId = failedListingId ?: return
     if (listingReread?.isActive == true) return
@@ -258,6 +266,11 @@ class RentalDetailViewModel(
   /**
    * Reads today for Start Pickup when the rental is already [accepted], then follows the rental
    * live until the collection ends or fails.
+   *
+   * A failure of the live updates hides the offer rather than leaving it out of date.
+   *
+   * @param uid the signed-in user, used to tell whether the live offer is theirs.
+   * @param accepted true when the rental is already accepted, so today is read for Start Pickup.
    */
   private suspend fun followRental(uid: String, accepted: Boolean) {
     // Read after the state is shown, not awaited with the listing and profile: only the bottom
