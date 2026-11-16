@@ -200,7 +200,7 @@ fun HandoverContent(
                 )
                 CameraPermissionMessage(cameraPermissionGranted)
               }
-              DepositFooter(uiState.deposit)
+              DepositFooter(uiState.deposit, uiState.isLender)
             }
       }
     }
@@ -600,11 +600,13 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
 }
 
 /**
- * "Deposit" and its amount, pinned under the scrolling content. The deposit is held from
- * acceptance, but this screen does not show the "Held" state yet, as on Rental detail.
+ * The deposit held since acceptance, pinned under the scrolling content, then its amount (Figma
+ * frames 14 to 17). [isLender] picks the label: true for the lender ("Deposit held"), false for the
+ * borrower ("Your deposit, held"). A [deposit] of 0 shows "—": an accepted deposit is at least 1,
+ * so 0 means it is not known.
  */
 @Composable
-private fun DepositFooter(deposit: Int) {
+private fun DepositFooter(deposit: Int, isLender: Boolean) {
   Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -612,13 +614,19 @@ private fun DepositFooter(deposit: Int) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(
-          text = stringResource(R.string.handover_deposit),
+          text =
+              stringResource(
+                  if (isLender) R.string.handover_deposit_held_lender
+                  else R.string.handover_deposit_held_borrower
+              ),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.weight(1f).testTag(C.Tag.handover_deposit_label),
       )
       Text(
-          text = stringResource(R.string.handover_deposit_amount, deposit),
+          text =
+              if (deposit > 0) stringResource(R.string.handover_deposit_amount, deposit)
+              else stringResource(R.string.handover_deposit_unknown),
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
           modifier = Modifier.testTag(C.Tag.handover_deposit),
