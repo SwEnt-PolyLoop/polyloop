@@ -565,9 +565,10 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
 }
 
 /**
- * The deposit held since acceptance, pinned under the scrolling content: "Deposit held" for the
- * lender, "Your deposit, held" for the borrower (Figma frames 14 to 17), then its amount. A
- * [deposit] of 0 shows "—": an accepted deposit is at least 1, so 0 means it is not known.
+ * The deposit held since acceptance, pinned under the scrolling content, then its amount (Figma
+ * frames 14 to 17). [isLender] picks the label: true for the lender ("Deposit held"), false for the
+ * borrower ("Your deposit, held"). A [deposit] of 0 shows "—": an accepted deposit is at least 1,
+ * so 0 means it is not known.
  */
 @Composable
 private fun DepositFooter(deposit: Int, isLender: Boolean) {
