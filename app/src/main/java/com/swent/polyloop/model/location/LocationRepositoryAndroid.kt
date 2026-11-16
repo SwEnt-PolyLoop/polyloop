@@ -67,13 +67,18 @@ class LocationRepositoryAndroid(
     return suspendCancellableCoroutine { continuation ->
       val signal = CancellationSignal()
       continuation.invokeOnCancellation { signal.cancel() }
-      LocationManagerCompat.getCurrentLocation(
-          manager,
-          provider,
-          signal,
-          ContextCompat.getMainExecutor(context),
-      ) {
-        continuation.resume(it)
+      try {
+        LocationManagerCompat.getCurrentLocation(
+            manager,
+            provider,
+            signal,
+            ContextCompat.getMainExecutor(context),
+        ) {
+          continuation.resume(it)
+        }
+      } catch (_: SecurityException) {
+        // The permission was revoked meanwhile: no fix.
+        continuation.resume(null)
       }
     }
   }
@@ -81,7 +86,14 @@ class LocationRepositoryAndroid(
   /** The newest last known location. The passive provider is only useful here, never for a fix. */
   private fun lastKnown(manager: LocationManager): Location? =
       (freshProviders(manager) + LocationManager.PASSIVE_PROVIDER)
-          .mapNotNull { manager.getLastKnownLocation(it) }
+          .mapNotNull { provider ->
+            try {
+              manager.getLastKnownLocation(provider)
+            } catch (_: SecurityException) {
+              // The permission was revoked meanwhile: no known location.
+              null
+            }
+          }
           .maxByOrNull { it.time }
 
   companion object {
