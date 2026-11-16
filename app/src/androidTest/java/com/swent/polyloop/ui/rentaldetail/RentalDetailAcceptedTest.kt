@@ -2,6 +2,9 @@
 
 package com.swent.polyloop.ui.rentaldetail
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -51,24 +54,35 @@ class RentalDetailAcceptedTest {
 
   private var startPickupClicks = 0
 
+  /** The links the Navigate button opened, instead of opening Google Maps. */
+  private val openedLinks = mutableListOf<String>()
+
   private fun setContent(
       state: RentalDetailUiState = accepted,
       today: LocalDate = LocalDate.of(2026, 9, 28),
       // English is fixed so the expected dates pass on an emulator in any language.
       locale: Locale = Locale.ENGLISH,
   ) {
+    val uriHandler =
+        object : UriHandler {
+          override fun openUri(uri: String) {
+            openedLinks += uri
+          }
+        }
     composeTestRule.setContent {
-      RentalDetailContent(
-          uiState = state,
-          onRetry = {},
-          onChatClick = {},
-          onPersonClick = {},
-          onStartPickupClick = { startPickupClicks++ },
-          onViewDisputeClick = {},
-          today = today,
-          zone = ZoneOffset.UTC,
-          locale = locale,
-      )
+      CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+        RentalDetailContent(
+            uiState = state,
+            onRetry = {},
+            onChatClick = {},
+            onPersonClick = {},
+            onStartPickupClick = { startPickupClicks++ },
+            onViewDisputeClick = {},
+            today = today,
+            zone = ZoneOffset.UTC,
+            locale = locale,
+        )
+      }
     }
   }
 
@@ -164,6 +178,19 @@ class RentalDetailAcceptedTest {
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_note).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.pickup_map).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.pickup_map_placeholder).assertDoesNotExist()
+  }
+
+  @Test
+  fun navigateOpensTheDirectionsToThePickupAddressEvenOffline() {
+    setContent(accepted.copy(isOffline = true))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_navigate)
+        .performScrollTo()
+        .assertIsEnabled()
+        .performClick()
+
+    assertEquals(listOf(directionsUrl("Route Cantonale 1, Ecublens")), openedLinks)
   }
 
   @Test
