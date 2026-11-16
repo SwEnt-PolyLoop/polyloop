@@ -7,9 +7,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
+import com.swent.polyloop.model.handover.HandoverCode
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.HandoverRepository
+import com.swent.polyloop.model.handover.RentalChangedException
+import com.swent.polyloop.model.handover.WrongCodeException
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.ui.createlisting.deletePhotoFile
 import java.time.LocalDate
@@ -19,6 +22,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/** Why a scanned code was not confirmed. */
+enum class ScanError {
+  /** The code is not the one of this rental and phase. */
+  WRONG_CODE,
+  /** The scan could not be sent (e.g. the connection dropped); scanning again sends it again. */
+  NOT_SENT,
+  /** The rental can no longer take the scan, e.g. it was cancelled meanwhile. */
+  RENTAL_CHANGED,
+}
 
 /**
  * State of the Handover screen for one rental, as seen by the signed-in user.
@@ -38,6 +51,9 @@ import kotlinx.coroutines.launch
  * @property codeFingerprint the fingerprint of the code the user scans, when they scan; null until
  *   read, or if there is none.
  * @property codeFailed true when the code or its fingerprint could not be read.
+ * @property isSendingScan true while a scanned code is being sent to the server.
+ * @property scanConfirmed true once the server confirmed the scan.
+ * @property scanError why the last scan was not confirmed, or null.
  */
 data class HandoverUiState(
     val isLoading: Boolean = true,
@@ -58,6 +74,9 @@ data class HandoverUiState(
     val code: String? = null,
     val codeFingerprint: String? = null,
     val codeFailed: Boolean = false,
+    val isSendingScan: Boolean = false,
+    val scanConfirmed: Boolean = false,
+    val scanError: ScanError? = null,
 ) {
   /** How many more photos are needed before the handover can go on; 0 once there are enough. */
   val photosNeeded: Int
@@ -89,7 +108,8 @@ data class HandoverUiState(
 
   /**
    * True when "Scan QR code" can be pressed: on the pickup day, once the user has 3 photos and the
-   * fingerprint, and online until scans can wait in the upload queue.
+   * fingerprint, online until scans can wait in the upload queue, and not while a scan is being
+   * sent or once one is confirmed.
    */
   val canScan: Boolean
     get() =
@@ -98,7 +118,9 @@ data class HandoverUiState(
             isPickupDay &&
             photosNeeded == 0 &&
             codeFingerprint != null &&
-            !isOffline
+            !isOffline &&
+            !isSendingScan &&
+            !scanConfirmed
 }
 
 /**
@@ -151,6 +173,36 @@ class HandoverViewModel(
   fun retryUpload() {
     val uri = _uiState.value.failedPhotoUri ?: return
     if (_uiState.value.canUpload) upload(uri)
+  }
+
+  /**
+   * Checks the [code] the user scanned against its fingerprint, then sends it to the server. A
+   * wrong code is refused on the phone and not sent. Ignored when Scan cannot be pressed (see
+   * [HandoverUiState.canScan]).
+   */
+  fun onCodeScanned(code: String) {
+    val state = _uiState.value
+    val phase = state.phase ?: return
+    val fingerprint = state.codeFingerprint ?: return
+    if (!state.canScan) return
+    if (!HandoverCode.matches(code, fingerprint)) {
+      _uiState.update { it.copy(scanError = ScanError.WRONG_CODE) }
+      return
+    }
+    _uiState.update { it.copy(isSendingScan = true, scanError = null) }
+    viewModelScope.launch {
+      val failure = handoverRepository.confirmScan(rentalId, phase, code).exceptionOrNull()
+      val error =
+          when (failure) {
+            null -> null
+            is WrongCodeException -> ScanError.WRONG_CODE
+            is RentalChangedException -> ScanError.RENTAL_CHANGED
+            else -> ScanError.NOT_SENT
+          }
+      _uiState.update {
+        it.copy(isSendingScan = false, scanConfirmed = failure == null, scanError = error)
+      }
+    }
   }
 
   /** Deletes the file the camera prepared for a shot that failed; it was never a photo. */

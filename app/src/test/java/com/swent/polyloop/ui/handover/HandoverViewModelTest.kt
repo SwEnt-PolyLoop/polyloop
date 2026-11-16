@@ -11,6 +11,7 @@ import com.swent.polyloop.model.handover.FakeHandoverRepository.StoredPhoto
 import com.swent.polyloop.model.handover.HandoverCode
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
+import com.swent.polyloop.model.handover.RentalChangedException
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalStatus
@@ -485,6 +486,134 @@ class HandoverViewModelTest {
     assertTrue(pickup.showsCode)
     assertFalse(atReturn.showsCode)
     assertTrue(atReturn.copy(isLender = false).showsCode)
+  }
+
+  // ---------- scanning ----------
+
+  /** The borrower's ViewModel with 3 photos, ready to scan. */
+  private fun readyToScan(): HandoverViewModel {
+    handoverRepository.photos = photos(3)
+    return viewModel().also { assertTrue(it.uiState.value.canScan) }
+  }
+
+  @Test
+  fun theRightCodeIsSentAndConfirmed() {
+    val vm = readyToScan()
+    vm.onCodeScanned("secret-code")
+
+    val state = vm.uiState.value
+    assertEquals(listOf("secret-code"), handoverRepository.scannedCodes)
+    assertTrue(state.scanConfirmed)
+    assertNull(state.scanError)
+    assertFalse(state.isSendingScan)
+    assertFalse(state.canScan) // done: nothing more to scan
+  }
+
+  @Test
+  fun aWrongCodeIsRefusedOnThePhoneWithoutBeingSent() {
+    val vm = readyToScan()
+    vm.onCodeScanned("not-the-code")
+
+    assertEquals(ScanError.WRONG_CODE, vm.uiState.value.scanError)
+    assertTrue(handoverRepository.scannedCodes.isEmpty())
+    assertTrue(vm.uiState.value.canScan) // can try again
+  }
+
+  @Test
+  fun anEmptyScanIsAWrongCode() {
+    val vm = readyToScan()
+    vm.onCodeScanned("")
+
+    assertEquals(ScanError.WRONG_CODE, vm.uiState.value.scanError)
+    assertTrue(handoverRepository.scannedCodes.isEmpty())
+  }
+
+  @Test
+  fun whileSendingScanIsDisabledAndASecondScanIsIgnored() {
+    val gate = CompletableDeferred<Unit>()
+    handoverRepository.gate = gate
+    val vm = readyToScan()
+    vm.onCodeScanned("secret-code")
+    assertTrue(vm.uiState.value.isSendingScan)
+    assertFalse(vm.uiState.value.canScan)
+
+    vm.onCodeScanned("secret-code")
+    assertEquals(1, handoverRepository.scannedCodes.size)
+
+    gate.complete(Unit)
+    assertFalse(vm.uiState.value.isSendingScan)
+    assertTrue(vm.uiState.value.scanConfirmed)
+  }
+
+  @Test
+  fun aCodeTheServerRefusesIsAWrongCode() {
+    val vm = readyToScan()
+    // The phone's fingerprint is out of date: the server knows another code now.
+    handoverRepository.code = "new-code"
+    vm.onCodeScanned("secret-code")
+
+    assertEquals(ScanError.WRONG_CODE, vm.uiState.value.scanError)
+    assertFalse(vm.uiState.value.scanConfirmed)
+  }
+
+  @Test
+  fun aRentalThatChangedIsReported() {
+    handoverRepository.scanFailure = RentalChangedException()
+    val vm = readyToScan()
+    vm.onCodeScanned("secret-code")
+
+    assertEquals(ScanError.RENTAL_CHANGED, vm.uiState.value.scanError)
+    assertFalse(vm.uiState.value.scanConfirmed)
+  }
+
+  @Test
+  fun aScanThatCannotBeSentCanBeScannedAgain() {
+    handoverRepository.scanFailure = RuntimeException("connection dropped")
+    val vm = readyToScan()
+    vm.onCodeScanned("secret-code")
+    assertEquals(ScanError.NOT_SENT, vm.uiState.value.scanError)
+    assertTrue(vm.uiState.value.canScan)
+
+    handoverRepository.scanFailure = null
+    vm.onCodeScanned("secret-code")
+    assertNull(vm.uiState.value.scanError) // a new scan clears the old error
+    assertTrue(vm.uiState.value.scanConfirmed)
+  }
+
+  @Test
+  fun aScanIsIgnoredWhenScanCannotBePressed() {
+    handoverRepository.photos = photos(2)
+    viewModel().onCodeScanned("secret-code") // 2 photos only
+    signInLender()
+    handoverRepository.photos = photos(3, takenBy = "owner")
+    viewModel().onCodeScanned("secret-code") // the lender shows, never scans
+    authRepository.signedInUser = borrower
+    handoverRepository.currentUid = "borrower"
+    handoverRepository.photos = photos(3)
+    connectivity.setOnline(false)
+    viewModel().onCodeScanned("secret-code") // offline
+
+    assertTrue(handoverRepository.scannedCodes.isEmpty())
+  }
+
+  @Test
+  fun aScanIsIgnoredOnceConfirmed() {
+    val vm = readyToScan()
+    vm.onCodeScanned("secret-code")
+    vm.onCodeScanned("secret-code")
+
+    assertEquals(1, handoverRepository.scannedCodes.size)
+  }
+
+  @Test
+  fun aScanIsIgnoredWithoutAFingerprint() {
+    handoverRepository.code = null
+    handoverRepository.photos = photos(3)
+    val vm = viewModel()
+    vm.onCodeScanned("secret-code")
+
+    assertTrue(handoverRepository.scannedCodes.isEmpty())
+    assertNull(vm.uiState.value.scanError)
   }
 
   @Test
