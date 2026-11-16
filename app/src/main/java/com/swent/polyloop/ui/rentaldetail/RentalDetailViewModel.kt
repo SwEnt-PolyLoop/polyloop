@@ -154,11 +154,11 @@ class RentalDetailViewModel(
     if (listingReread?.isActive == true) return
     listingReread = viewModelScope.launch {
       // A failure changes nothing; the next reconnection tries again.
-      val listing =
-          listingRepository.getListing(listingId).getOrElse {
-            return@launch
-          }
+      val result = listingRepository.getListing(listingId)
+      if (result.isFailure) return@launch
       failedListingId = null
+      // Null when the listing does not exist: that is a successful read, and it clears the fields.
+      val listing = result.getOrNull()
       _uiState.update {
         it.copy(
             suggestedDeposit = listing?.itemValue,
@@ -251,48 +251,56 @@ class RentalDetailViewModel(
             isReadingServerToday = it.isReadingServerToday,
         )
       }
-      // Read after the state is shown, not awaited with the listing and profile: only the bottom
-      // button needs the date, and the Function can take seconds on a cold start. Only an accepted
-      // rental reads it, as only Start Pickup needs it.
-      var serverTodayAsked = rental.status == RentalStatus.ACCEPTED
-      if (serverTodayAsked) readServerToday()
-      // A read error here stops the updates: the rental read above stays on screen, but not its
-      // offer, which could be out of date. The chat hides its offer card in the same way.
-      rentalRepository
-          .observeRental(rentalId)
-          .catch { _uiState.update { it.copy(offer = null, isOfferMine = false) } }
-          .collect { live ->
-            when {
-              live == null -> Unit
-              live.status !in SUPPORTED_STATUSES ->
-                  _uiState.update {
-                    RentalDetailUiState(
-                        isSupported = false,
-                        itemTitle = live.listingTitle,
-                        isOffline = it.isOffline,
-                    )
-                  }
-              else ->
-                  _uiState.update {
-                    it.copy(
-                        status = live.status,
-                        offer = live.offer,
-                        isOfferMine = live.offer?.authorId == uid,
-                        deposit = live.deposit,
-                        pickupAddress = live.pickupAddress,
-                        returnAddress = live.returnAddress,
-                        lateFees = live.lateFees,
-                    )
-                  }
-            }
-            // A request accepted while the screen is open now needs the date for Start Pickup.
-            // Asked once, so an unknown date is not asked again at every change of the rental.
-            if (live?.status == RentalStatus.ACCEPTED && !serverTodayAsked) {
-              serverTodayAsked = true
-              readServerToday()
-            }
-          }
+      followRental(uid, accepted = rental.status == RentalStatus.ACCEPTED)
     }
+  }
+
+  /**
+   * Reads today for Start Pickup when the rental is already [accepted], then follows the rental
+   * live until the collection ends or fails.
+   */
+  private suspend fun followRental(uid: String, accepted: Boolean) {
+    // Read after the state is shown, not awaited with the listing and profile: only the bottom
+    // button needs the date, and the Function can take seconds on a cold start. Only an accepted
+    // rental reads it, as only Start Pickup needs it.
+    var serverTodayAsked = accepted
+    if (serverTodayAsked) readServerToday()
+    // A read error here stops the updates: the rental read above stays on screen, but not its
+    // offer, which could be out of date. The chat hides its offer card in the same way.
+    rentalRepository
+        .observeRental(rentalId)
+        .catch { _uiState.update { it.copy(offer = null, isOfferMine = false) } }
+        .collect { live ->
+          when {
+            live == null -> Unit
+            live.status !in SUPPORTED_STATUSES ->
+                _uiState.update {
+                  RentalDetailUiState(
+                      isSupported = false,
+                      itemTitle = live.listingTitle,
+                      isOffline = it.isOffline,
+                  )
+                }
+            else ->
+                _uiState.update {
+                  it.copy(
+                      status = live.status,
+                      offer = live.offer,
+                      isOfferMine = live.offer?.authorId == uid,
+                      deposit = live.deposit,
+                      pickupAddress = live.pickupAddress,
+                      returnAddress = live.returnAddress,
+                      lateFees = live.lateFees,
+                  )
+                }
+          }
+          // A request accepted while the screen is open now needs the date for Start Pickup.
+          // Asked once, so an unknown date is not asked again at every change of the rental.
+          if (live?.status == RentalStatus.ACCEPTED && !serverTodayAsked) {
+            serverTodayAsked = true
+            readServerToday()
+          }
+        }
   }
 
   private companion object {
