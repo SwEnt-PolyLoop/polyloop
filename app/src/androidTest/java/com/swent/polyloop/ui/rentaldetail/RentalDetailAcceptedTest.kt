@@ -185,7 +185,7 @@ class RentalDetailAcceptedTest {
     setContent(accepted.copy(isOffline = true))
 
     composeTestRule
-        .onNodeWithTag(C.Tag.rental_detail_navigate)
+        .onNodeWithTag(C.Tag.rental_detail_pickup_navigate)
         .performScrollTo()
         .assertIsEnabled()
         .performClick()

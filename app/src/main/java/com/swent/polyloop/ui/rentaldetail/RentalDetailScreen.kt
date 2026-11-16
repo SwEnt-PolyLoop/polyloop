@@ -670,6 +670,8 @@ private fun PickupPoint(uiState: RentalDetailUiState) {
     NavigableAddress(
         address = uiState.pickupAddress,
         addressTag = C.Tag.rental_detail_pickup_address,
+        navigateTag = C.Tag.rental_detail_pickup_navigate,
+        errorTag = C.Tag.rental_detail_pickup_navigate_error,
     )
     Text(
         text =

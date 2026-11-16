@@ -33,14 +33,22 @@ class NavigableAddressTest {
 
   private val tag = C.Tag.rental_detail_pickup_address
 
-  /** Records the links it opens; its first [failures] calls fail as when no app can open one. */
-  private class FakeUriHandler(private var failures: Int = 0) : UriHandler {
+  /**
+   * Records the links it opens; its first [failures] calls throw [failure], by default what the
+   * platform's handler throws when no app can open the link.
+   */
+  private class FakeUriHandler(
+      private var failures: Int = 0,
+      private val failure: (String) -> RuntimeException = {
+        IllegalArgumentException("Can't open $it.")
+      },
+  ) : UriHandler {
     val opened = mutableListOf<String>()
 
     override fun openUri(uri: String) {
       if (failures > 0) {
         failures--
-        throw IllegalArgumentException("Can't open $uri.")
+        throw failure(uri)
       }
       opened += uri
     }
@@ -52,7 +60,12 @@ class NavigableAddressTest {
     address = initialAddress
     composeTestRule.setContent {
       CompositionLocalProvider(LocalUriHandler provides uriHandler) {
-        NavigableAddress(address = address, addressTag = tag)
+        NavigableAddress(
+            address = address,
+            addressTag = tag,
+            navigateTag = C.Tag.rental_detail_pickup_navigate,
+            errorTag = C.Tag.rental_detail_pickup_navigate_error,
+        )
       }
     }
   }
@@ -63,10 +76,10 @@ class NavigableAddressTest {
 
     composeTestRule.onNodeWithTag(tag).assertTextEquals("Route Cantonale 1, Ecublens")
     composeTestRule
-        .onNodeWithTag(C.Tag.rental_detail_navigate)
+        .onNodeWithTag(C.Tag.rental_detail_pickup_navigate)
         .assertIsDisplayed()
         .assertIsEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate_error).assertDoesNotExist()
   }
 
   @Test
@@ -76,17 +89,7 @@ class NavigableAddressTest {
     composeTestRule
         .onNodeWithTag(tag)
         .assertTextEquals(context.getString(R.string.rental_detail_address_placeholder))
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate).assertDoesNotExist()
-  }
-
-  @Test
-  fun aTapOpensTheDirectionsToTheEncodedAddress() {
-    val uriHandler = FakeUriHandler()
-    setContent("Chemin du Léman 1, Ecublens", uriHandler)
-
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate).performClick()
-
-    assertEquals(listOf(directionsUrl("Chemin du Léman 1, Ecublens")), uriHandler.opened)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate).assertDoesNotExist()
   }
 
   @Test
@@ -94,24 +97,38 @@ class NavigableAddressTest {
     val uriHandler = FakeUriHandler(failures = 1)
     setContent("Route Cantonale 1, Ecublens", uriHandler)
 
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate).performClick()
     composeTestRule
-        .onNodeWithTag(C.Tag.rental_detail_navigate_error)
+        .onNodeWithTag(C.Tag.rental_detail_pickup_navigate_error)
         .assertTextEquals(context.getString(R.string.rental_detail_navigate_failed))
 
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate_error).assertDoesNotExist()
     assertEquals(listOf(directionsUrl("Route Cantonale 1, Ecublens")), uriHandler.opened)
+  }
+
+  @Test
+  fun anAppThatRefusesToOpenTheLinkShowsTheError() {
+    setContent(
+        "Route Cantonale 1, Ecublens",
+        FakeUriHandler(failures = 1) { SecurityException("Not exported: $it") },
+    )
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate).performClick()
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_pickup_navigate_error)
+        .assertTextEquals(context.getString(R.string.rental_detail_navigate_failed))
   }
 
   @Test
   fun anotherAddressClearsTheErrorAboutTheOldOne() {
     setContent("Route Cantonale 1, Ecublens", FakeUriHandler(failures = 1))
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate_error).assertIsDisplayed()
 
     address = "Rue de Lausanne 10, Renens"
 
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate_error).assertDoesNotExist()
   }
 }

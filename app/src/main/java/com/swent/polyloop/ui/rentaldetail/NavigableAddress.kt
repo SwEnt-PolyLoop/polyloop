@@ -28,7 +28,6 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.swent.polyloop.R
-import com.swent.polyloop.resources.C
 import java.net.URLEncoder
 
 /**
@@ -45,11 +44,18 @@ internal fun directionsUrl(address: String): String =
  * An exact meeting point: a pin, [address] on the left (tagged [addressTag], wrapping when long),
  * and a "Navigate" button on the right that opens the directions to it ([directionsUrl]). A blank
  * [address] shows "Address not known yet" and no button. The button stays enabled offline: the
- * navigation app may have the map downloaded. If no app on the phone can open the link, an error
- * shows under the row until the next tap or another [address].
+ * navigation app may have the map downloaded. If no app on the phone can open the link, or the app
+ * chosen for it refuses to be opened, an error shows under the row until the next tap or another
+ * [address]. The button is tagged [navigateTag] and the error [errorTag], so that a screen can show
+ * several meeting points.
  */
 @Composable
-internal fun NavigableAddress(address: String, addressTag: String) {
+internal fun NavigableAddress(
+    address: String,
+    addressTag: String,
+    navigateTag: String,
+    errorTag: String,
+) {
   val uriHandler = LocalUriHandler.current
   // Keyed on the address, so an error about the old address goes away when it changes.
   var openFailed by remember(address) { mutableStateOf(false) }
@@ -70,6 +76,7 @@ internal fun NavigableAddress(address: String, addressTag: String) {
       if (address.isNotBlank()) {
         Spacer(Modifier.width(dimensionResource(R.dimen.navigable_address_spacing)))
         NavigateButton(
+            tag = navigateTag,
             onClick = {
               openFailed = false
               try {
@@ -77,8 +84,11 @@ internal fun NavigableAddress(address: String, addressTag: String) {
               } catch (e: IllegalArgumentException) {
                 // What the platform's handler throws when no app can open the link.
                 openFailed = true
+              } catch (e: SecurityException) {
+                // The app chosen for the link does not let other apps open it.
+                openFailed = true
               }
-            }
+            },
         )
       }
     }
@@ -87,15 +97,15 @@ internal fun NavigableAddress(address: String, addressTag: String) {
           text = stringResource(R.string.rental_detail_navigate_failed),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.error,
-          modifier = Modifier.testTag(C.Tag.rental_detail_navigate_error),
+          modifier = Modifier.testTag(errorTag),
       )
     }
   }
 }
 
-/** The small "Navigate" button, with the directions icon before its text. */
+/** The small "Navigate" button, tagged [tag], with the directions icon before its text. */
 @Composable
-private fun NavigateButton(onClick: () -> Unit) {
+private fun NavigateButton(tag: String, onClick: () -> Unit) {
   OutlinedButton(
       onClick = onClick,
       contentPadding =
@@ -103,7 +113,7 @@ private fun NavigateButton(onClick: () -> Unit) {
               horizontal = dimensionResource(R.dimen.navigate_button_padding_horizontal),
               vertical = dimensionResource(R.dimen.navigate_button_padding_vertical),
           ),
-      modifier = Modifier.testTag(C.Tag.rental_detail_navigate),
+      modifier = Modifier.testTag(tag),
   ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,

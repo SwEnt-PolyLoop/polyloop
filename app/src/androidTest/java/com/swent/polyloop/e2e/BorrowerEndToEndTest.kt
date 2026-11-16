@@ -321,13 +321,16 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     assertRoute(Screen.RentalDetail)
 
     // The first tap fails and says so; the second opens the directions and clears the error.
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate).performScrollTo().performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_pickup_navigate)
+        .performScrollTo()
+        .performClick()
     waitForText(
-        C.Tag.rental_detail_navigate_error,
+        C.Tag.rental_detail_pickup_navigate_error,
         context.getString(R.string.rental_detail_navigate_failed),
     )
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate).performClick()
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_navigate_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate_error).assertDoesNotExist()
     assertEquals(
         listOf(
             "https://www.google.com/maps/dir/?api=1&destination=" +
