@@ -645,7 +645,8 @@ private fun ChatPausedNote() {
 
 /**
  * The exact meeting point once the rental is accepted (Figma frame 13.01): a map box, the pickup
- * address, and the drop-off address. A missing address reads as "not known yet".
+ * address with its "Navigate" button ([NavigableAddress]), and the drop-off address. A missing
+ * address reads as "not known yet".
  */
 @Composable
 private fun PickupPoint(uiState: RentalDetailUiState) {
@@ -666,20 +667,10 @@ private fun PickupPoint(uiState: RentalDetailUiState) {
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .testTag(C.Tag.rental_detail_map)
     )
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Icon(Icons.Outlined.Place, contentDescription = null, modifier = Modifier.size(20.dp))
-      Text(
-          text =
-              uiState.pickupAddress.ifBlank {
-                stringResource(R.string.rental_detail_address_placeholder)
-              },
-          style = MaterialTheme.typography.bodyMedium,
-          modifier = Modifier.testTag(C.Tag.rental_detail_pickup_address),
-      )
-    }
+    NavigableAddress(
+        address = uiState.pickupAddress,
+        addressTag = C.Tag.rental_detail_pickup_address,
+    )
     Text(
         text =
             stringResource(
