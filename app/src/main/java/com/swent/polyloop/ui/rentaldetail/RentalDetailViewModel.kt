@@ -95,7 +95,9 @@ data class OtherPerson(
  * reload. It follows the network status from [connectivityRepository], so the screen knows when to
  * replace the map. For an accepted rental, it reads today from [serverClock], so that Start Pickup
  * does not open from the phone's date, which the user can change. The screen shows without waiting
- * for that date, and an unknown date is read again when the phone comes back online.
+ * for that date, and an unknown date is read again when the phone comes back online. A requested
+ * rental whose listing could not be read (e.g. opened offline, listing not cached) reads it again
+ * when the phone comes back online, to fill the suggested deposit and the map point.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
@@ -112,6 +114,10 @@ class RentalDetailViewModel(
 
   private var loading: Job? = null
   private var serverTodayRead: Job? = null
+  private var listingReread: Job? = null
+  // The listing whose read failed, so it is read again on reconnection; null once read (a missing
+  // listing counts as read).
+  private var failedListingId: String? = null
 
   init {
     load()
@@ -122,14 +128,11 @@ class RentalDetailViewModel(
         // Under the grey button, an unknown date asks the user to connect, so connecting reads it
         // again.
         val state = _uiState.value
-        if (
-            online &&
-                wasOnline == false &&
-                state.status == RentalStatus.ACCEPTED &&
-                state.serverToday == null
-        ) {
+        val reconnected = online && wasOnline == false
+        if (reconnected && state.status == RentalStatus.ACCEPTED && state.serverToday == null) {
           readServerToday()
         }
+        if (reconnected && state.status == RentalStatus.REQUESTED) readListingAgain()
         wasOnline = online
       }
     }
@@ -145,6 +148,28 @@ class RentalDetailViewModel(
     }
   }
 
+  /** Reads the listing again after a failed read, unless a re-read is already running. */
+  private fun readListingAgain() {
+    val listingId = failedListingId ?: return
+    if (listingReread?.isActive == true) return
+    listingReread = viewModelScope.launch {
+      // A failure changes nothing; the next reconnection tries again.
+      val listing =
+          listingRepository.getListing(listingId).getOrElse {
+            return@launch
+          }
+      failedListingId = null
+      _uiState.update {
+        it.copy(
+            suggestedDeposit = listing?.itemValue,
+            pickupPoint = listing?.pickupPoint,
+            // Never overwrites the area copied on the rental.
+            pickupArea = it.pickupArea.ifBlank { listing?.pickupArea.orEmpty() },
+        )
+      }
+    }
+  }
+
   /** Loads the rental again, e.g. after an error. */
   fun retry() = load()
 
@@ -152,6 +177,9 @@ class RentalDetailViewModel(
     // A retry while an earlier load is still running would otherwise let the older, slower result
     // overwrite the newer one.
     loading?.cancel()
+    // A re-read still running would otherwise land its result after the reload.
+    listingReread?.cancel()
+    failedListingId = null
     _uiState.update { it.copy(isLoading = true, errorMsg = null, notFound = false) }
     loading = viewModelScope.launch {
       val rental =
@@ -184,9 +212,11 @@ class RentalDetailViewModel(
       // deposit, the name copied on the rental) instead of failing the screen. The two reads need
       // nothing from each other, so they run at the same time; both are awaited before isLoading
       // turns false, so the screen does not flash a half-filled card.
-      val listingRead = async { listingRepository.getListing(rental.listingId).getOrNull() }
+      val listingRead = async { listingRepository.getListing(rental.listingId) }
       val profileRead = async { profileRepository.getProfile(otherUid).getOrNull() }
-      val listing = listingRead.await()
+      val listingResult = listingRead.await()
+      val listing = listingResult.getOrNull()
+      failedListingId = if (listingResult.isFailure) rental.listingId else null
       val profile = profileRead.await()
       val otherPerson =
           OtherPerson(
