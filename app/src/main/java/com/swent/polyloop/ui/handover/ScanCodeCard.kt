@@ -49,7 +49,8 @@ internal fun ScanCodeCard(uiState: HandoverUiState, onScan: () -> Unit, onRetry:
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.handover_scan_card),
   ) {
     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      if (uiState.scanConfirmed) {
+      // Also when the phone learns it from the server, e.g. after the screen was opened again.
+      if (uiState.scanConfirmed || uiState.isPickedUp) {
         Confirmed()
         return@Column
       }

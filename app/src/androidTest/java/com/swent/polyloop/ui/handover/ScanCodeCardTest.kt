@@ -187,4 +187,14 @@ class ScanCodeCardTest {
     setContent(ready.copy(isPickupDay = false))
     node(C.Tag.handover_scan_card).assertDoesNotExist()
   }
+
+  @Test
+  fun aPickupSeenFromTheServerAlsoShowsPickedUp() {
+    // No scan from this phone (scanConfirmed is false): the rental became ACTIVE on the server.
+    setContent(ready.copy(isPickedUp = true))
+    node(C.Tag.handover_scan_confirmed)
+        .performScrollTo()
+        .assertTextEquals("Picked up · the rental has started")
+    node(C.Tag.handover_scan_button).assertDoesNotExist()
+  }
 }
