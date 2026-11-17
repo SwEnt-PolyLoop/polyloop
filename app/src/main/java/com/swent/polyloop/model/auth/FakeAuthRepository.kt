@@ -21,6 +21,8 @@ class FakeAuthRepository(
     var exception: Exception? = null,
     // The user returned by getCurrentUser; null means nobody is signed in.
     var signedInUser: AuthUser? = null,
+    // What isAdmin returns while someone is signed in.
+    var admin: Boolean = false,
 ) : AuthRepository {
 
   // The calls received, e.g. "signIn(john@epfl.ch, secret)", in order.
@@ -48,6 +50,11 @@ class FakeAuthRepository(
   }
 
   override fun getCurrentUser(): AuthUser? = signedInUser
+
+  override suspend fun isAdmin(): Boolean {
+    gate?.await()
+    return signedInUser != null && admin
+  }
 
   override fun signOut() {
     calls += "signOut()"
