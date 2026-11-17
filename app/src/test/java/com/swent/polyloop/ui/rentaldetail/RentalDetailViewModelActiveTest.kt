@@ -93,18 +93,23 @@ class RentalDetailViewModelActiveTest {
   // A week after the phone's date, so a day read from the phone would not match.
   private val serverDay = LocalDate.now().plusWeeks(1)
 
+  /** Noon on [day] in Zurich, as the server's time. */
+  private fun noonOn(day: LocalDate): Instant =
+      day.atTime(12, 0).atZone(ZoneId.of("Europe/Zurich")).toInstant()
+
   /**
-   * The ViewModel for [rental] as [uid], with [wrap] around the fake repository to change one of
-   * its calls.
+   * The ViewModel for [rental] as [uid], with the server's day at [serverDayAt] and [wrap] around
+   * the fake repository to change one of its calls.
    */
   private fun viewModel(
       rental: Rental,
       uid: String = "borrower",
       connectivity: FakeConnectivityRepository = FakeConnectivityRepository(),
+      serverDayAt: LocalDate = serverDay,
       wrap: (FakeRentalRepository) -> RentalRepository = { it },
   ): RentalDetailViewModel {
     rentals = FakeRentalRepository(rentals = listOf(rental), clock = { now })
-    rentals.serverNow = serverDay.atTime(12, 0).atZone(ZoneId.of("Europe/Zurich")).toInstant()
+    rentals.serverNow = noonOn(serverDayAt)
     val repository = wrap(rentals)
     return RentalDetailViewModel(
         rental.id,
@@ -272,5 +277,104 @@ class RentalDetailViewModelActiveTest {
 
     assertEquals(serverDay, vm.uiState.value.serverToday)
     assertFalse(vm.uiState.value.isReadingServerToday)
+  }
+
+  private val pickupDay = LocalDate.of(2026, 10, 1)
+  private val returnDay = LocalDate.of(2026, 10, 8)
+
+  @Test
+  fun anActiveRentalGetsTheNewDayWhenTheScreenComesBack() {
+    val vm = viewModel(active, serverDayAt = pickupDay)
+    assertEquals(pickupDay, vm.uiState.value.serverToday)
+    // The screen waited in memory until the return day.
+    rentals.serverNow = noonOn(returnDay)
+
+    vm.onScreenResumed()
+
+    assertEquals(returnDay, vm.uiState.value.serverToday)
+    assertFalse(vm.uiState.value.isReadingServerToday)
+    assertEquals(2, rentals.serverNowCalls)
+  }
+
+  @Test
+  fun readingTheDayAgainKeepsTheKnownDayWithoutTheReadingState() {
+    val vm = viewModel(active, serverDayAt = pickupDay)
+    rentals.serverNow = noonOn(returnDay)
+    val gate = CompletableDeferred<Unit>()
+    rentals.gate = gate
+
+    vm.onScreenResumed()
+
+    val reading = vm.uiState.value
+    assertFalse(reading.isReadingServerToday)
+    assertEquals(pickupDay, reading.serverToday)
+
+    gate.complete(Unit)
+
+    assertEquals(returnDay, vm.uiState.value.serverToday)
+    assertFalse(vm.uiState.value.isReadingServerToday)
+  }
+
+  @Test
+  fun comingBackWhileTheRentalIsLoadingReadsNothing() {
+    val gate = CompletableDeferred<Unit>()
+    val vm =
+        viewModel(active) { fake ->
+          object : RentalRepository by fake {
+            override suspend fun getRental(id: String): Result<Rental?> {
+              gate.await()
+              return fake.getRental(id)
+            }
+          }
+        }
+    assertTrue(vm.uiState.value.isLoading)
+
+    vm.onScreenResumed()
+
+    assertEquals(0, rentals.serverNowCalls)
+    gate.complete(Unit)
+    assertEquals(1, rentals.serverNowCalls)
+  }
+
+  @Test
+  fun comingBackToARequestReadsNothing() {
+    val vm = viewModel(request)
+
+    vm.onScreenResumed()
+
+    assertEquals(0, rentals.serverNowCalls)
+    assertNull(vm.uiState.value.serverToday)
+  }
+
+  @Test
+  fun comingBackToADisputedRentalReadsNothing() {
+    val vm = viewModel(active.copy(status = RentalStatus.DISPUTED))
+
+    vm.onScreenResumed()
+
+    assertEquals(0, rentals.serverNowCalls)
+    assertNull(vm.uiState.value.serverToday)
+  }
+
+  @Test
+  fun aPickupThenComingBackOnTheReturnDayGivesTheReturnDay() {
+    val live = MutableStateFlow<Rental?>(accepted)
+    val vm =
+        viewModel(accepted, serverDayAt = pickupDay) { fake ->
+          object : RentalRepository by fake {
+            override fun observeRental(id: String): Flow<Rental?> = live
+          }
+        }
+    assertEquals(pickupDay, vm.uiState.value.serverToday)
+    live.value = active
+    // Back from Handover a week later, on the return day.
+    rentals.serverNow = noonOn(returnDay)
+
+    vm.onScreenResumed()
+
+    val state = vm.uiState.value
+    assertEquals(RentalStatus.ACTIVE, state.status)
+    assertEquals(returnDay, state.serverToday)
+    assertEquals(2, rentals.serverNowCalls)
   }
 }

@@ -44,9 +44,11 @@ import kotlinx.coroutines.launch
  * [returnAddress] are the exact addresses, set once the rental is accepted. [lateFees] is the total
  * taken from the deposit for a late return, in PolyPoints, and 0 when the return was never late.
  * [serverToday] is today by the server's clock, which Start Pickup and Start Return open from: read
- * only for an accepted or active rental, and null until it is read or when it is unknown (the
+ * only for an accepted or active rental, again each time the screen comes back (so a screen left
+ * open across days does not keep an old day), and null until it is read or when it is unknown (the
  * server was not reached since the phone booted). [isReadingServerToday] is true while it is being
- * read, so the screen can tell a read still running from an unknown date.
+ * read with no day known yet, so the screen can tell a read still running from an unknown date; a
+ * re-read of a known day leaves it false.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -95,8 +97,9 @@ data class OtherPerson(
  * without a reload. It follows the network status from [connectivityRepository], so the screen
  * knows when to replace the map. For an accepted or active rental, it reads today from
  * [serverClock], so that Start Pickup and Start Return do not open from the phone's date, which the
- * user can change. The screen shows without waiting for that date, and an unknown date is read
- * again when the phone comes back online. A requested rental whose listing could not be read (e.g.
+ * user can change. The screen shows without waiting for that date. The date is read again each time
+ * the screen comes back ([onScreenResumed]), and an unknown date when the phone comes back online.
+ * A requested rental whose listing could not be read (e.g.
  * opened offline, listing not cached) reads it again when the phone comes back online, to fill the
  * suggested deposit and the map point.
  */
@@ -140,12 +143,30 @@ class RentalDetailViewModel(
   }
 
   /**
-   * Reads today from [serverClock] for Start Pickup or Start Return, unless a read is already
-   * running.
+   * Reads today from [serverClock] again when the screen comes back, for an accepted or active
+   * rental, even when a day is already known: the ViewModel can stay in memory across days (behind
+   * Handover, or with the app in the background), so a day read earlier would keep Start Pickup or
+   * Start Return grey on the very day they should open. [ServerClock] works offline from its saved
+   * time, so this needs no connection. It does nothing while the rental is loading (no status yet),
+   * for a status with no button that opens from the server's day, or while a read is running.
    */
-  private fun readServerToday() {
+  fun onScreenResumed() {
+    val state = _uiState.value
+    if (!needsServerToday(state.status)) return
+    readServerToday(showReading = state.serverToday == null)
+  }
+
+  /**
+   * Reads today from [serverClock] for Start Pickup or Start Return, unless a read is already
+   * running. Whatever it returns replaces the day, null included (unknown, e.g. after a reboot).
+   *
+   * @param showReading whether [RentalDetailUiState.isReadingServerToday] turns true during the
+   *   read. False when a day is already known, so the bottom button keeps its look until the new
+   *   day arrives instead of flickering to the reading state and back.
+   */
+  private fun readServerToday(showReading: Boolean = true) {
     if (serverTodayRead?.isActive == true) return
-    _uiState.update { it.copy(isReadingServerToday = true) }
+    if (showReading) _uiState.update { it.copy(isReadingServerToday = true) }
     serverTodayRead = viewModelScope.launch {
       val today = serverClock.today()
       _uiState.update { it.copy(serverToday = today, isReadingServerToday = false) }
