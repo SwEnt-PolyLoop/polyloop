@@ -230,10 +230,11 @@ class HandoverViewModel(
     _uiState.update { it.copy(isUploading = true, failedPhotoUri = null) }
     viewModelScope.launch {
       val uploaded = handoverRepository.addPhoto(rentalId, phase, photoUri).isSuccess
-      if (uploaded) deletePhoto(photoUri) // the copy in Storage is the one shown now
-      _uiState.update {
-        it.copy(isUploading = false, failedPhotoUri = photoUri.takeUnless { uploaded })
-      }
+      // A failed photo is kept to try again, unless the pickup was confirmed meanwhile: it can no
+      // longer be sent. Otherwise its file goes (once uploaded, the copy in Storage is shown).
+      val keep = !uploaded && !_uiState.value.isPickedUp
+      if (!keep) deletePhoto(photoUri)
+      _uiState.update { it.copy(isUploading = false, failedPhotoUri = photoUri.takeIf { keep }) }
     }
   }
 
@@ -286,8 +287,23 @@ class HandoverViewModel(
           .observeRental(rentalId)
           // The rental is already shown; if following it fails, the screen keeps it as it is.
           .catch {}
-          .collect { rental -> _uiState.update { it.withRental(rental) } }
+          .collect { rental ->
+            _uiState.update { it.withRental(rental) }
+            dropFailedPhotoOncePickedUp()
+          }
     }
+  }
+
+  /**
+   * Once the rental is picked up, a pickup photo that failed to upload can no longer be sent (the
+   * rules refuse it): its file is deleted and its retry tile goes away.
+   */
+  private fun dropFailedPhotoOncePickedUp() {
+    val state = _uiState.value
+    val failed = state.failedPhotoUri ?: return
+    if (!state.isPickedUp) return
+    deletePhoto(failed)
+    _uiState.update { it.copy(failedPhotoUri = null) }
   }
 
   /** [this] after the rental changed to [rental] on the server. */
