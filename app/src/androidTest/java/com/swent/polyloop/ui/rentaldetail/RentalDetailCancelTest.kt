@@ -33,8 +33,8 @@ import org.junit.runner.RunWith
 
 /**
  * The cancel row of Rental detail and its confirm sheet. A request can be cancelled at any time,
- * with no date shown; an accepted rental's window goes by [RentalDetailUiState.serverToday], and the
- * phone's date ([phoneToday]) only decides whether the year is written.
+ * with no date shown; an accepted rental's window goes by [RentalDetailUiState.serverToday], and
+ * the phone's date ([phoneToday]) only decides whether the year is written.
  */
 @RunWith(AndroidJUnit4::class)
 class RentalDetailCancelTest {
@@ -125,9 +125,7 @@ class RentalDetailCancelTest {
   // ---------- Requested ----------
 
   private fun assertNoNeedsConnection() {
-    composeTestRule
-        .onNodeWithTag(C.Tag.rental_detail_cancel_needs_connection)
-        .assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_needs_connection).assertDoesNotExist()
   }
 
   // A request has no deadline, so it shows only its button, with no date, at any date.

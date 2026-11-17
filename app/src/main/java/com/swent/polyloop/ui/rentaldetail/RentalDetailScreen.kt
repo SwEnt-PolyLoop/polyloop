@@ -120,9 +120,9 @@ fun RentalDetailScreen(
  * their expected texts do not depend on the day they run. [today] is the phone's date, so it is
  * only used to write dates: Start Pickup, Start Return and the cancel window of an accepted rental
  * go by [RentalDetailUiState.serverToday] instead, and stay grey while
- * [RentalDetailUiState.isReadingServerToday]. A request has no cancel window. [locale] decides the language of the month and
- * weekday names; tests pass a fixed one so their expected dates do not depend on the device's
- * language.
+ * [RentalDetailUiState.isReadingServerToday]. A request has no cancel window. [locale] decides the
+ * language of the month and weekday names; tests pass a fixed one so their expected dates do not
+ * depend on the device's language.
  */
 @Composable
 fun RentalDetailContent(
@@ -885,8 +885,7 @@ private fun CancelRow(
                 text = stringResource(R.string.rental_detail_cancel_needs_connection),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier =
-                    Modifier.weight(1f).testTag(C.Tag.rental_detail_cancel_needs_connection),
+                modifier = Modifier.weight(1f).testTag(C.Tag.rental_detail_cancel_needs_connection),
             )
         // Keeps the button on the right when no text is written.
         else -> Spacer(Modifier.weight(1f))
