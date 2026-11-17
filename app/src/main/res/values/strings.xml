@@ -501,6 +501,21 @@
     <string name="handover_deposit">Deposit</string>
     <!-- The deposit on Handover, in PolyPoints, e.g. "80 PP" -->
     <string name="handover_deposit_amount">%1$d PP</string>
+    <!-- The card where the person giving the item shows the QR code, e.g. "Show this code to Mara" -->
+    <string name="handover_show_code_title">Show this code to %1$s</string>
+    <string name="handover_show_code_title_borrower">Show this code to the borrower</string>
+    <string name="handover_show_code_title_lender">Show this code to the lender</string>
+    <string name="handover_show_code_hint">They scan it to confirm they received the item.</string>
+    <plurals name="handover_show_code_photos_missing">
+        <item quantity="one">Take %1$d more photo to show your code.</item>
+        <item quantity="other">Take %1$d more photos to show your code.</item>
+    </plurals>
+    <string name="handover_code_description">Your handover QR code</string>
+    <string name="handover_code_no_copy">Connect to the internet once to prepare the pickup.</string>
+    <string name="handover_code_error">Couldn\'t load your code.</string>
+    <!-- Under the QR code while offline, e.g. "Once Mara has scanned, you're done. …" -->
+    <string name="handover_code_offline_note">Once %1$s has scanned, you\'re done. This updates when you\'re back online.</string>
+    <string name="handover_code_offline_note_no_name">Once they have scanned, you\'re done. This updates when you\'re back online.</string>
 
     <!-- Review request: the lender's answer to a request. -->
     <string name="review_request_title">Review request</string>

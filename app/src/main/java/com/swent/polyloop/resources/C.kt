@@ -304,6 +304,12 @@ object C {
     const val handover_photo_viewer_label = "handover_photo_viewer_label"
     const val handover_deposit_label = "handover_deposit_label"
     const val handover_deposit = "handover_deposit"
+    const val handover_code_card = "handover_code_card"
+    const val handover_code_title = "handover_code_title"
+    const val handover_qr_code = "handover_qr_code"
+    const val handover_code_loading = "handover_code_loading"
+    const val handover_code_message = "handover_code_message"
+    const val handover_code_retry_button = "handover_code_retry_button"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
