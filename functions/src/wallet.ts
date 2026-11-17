@@ -68,22 +68,25 @@ export async function hasTransaction(
 
 /**
  * Sets the balances of [uid], creating the wallet if it does not exist, and adds [row] to the
- * history, dated with the server's time. Runs inside the caller's transaction, after its reads.
+ * history, dated with the server's time; with no [row], the history is left as it is (a move
+ * between held amounts that does not change `available`). Runs inside the caller's transaction,
+ * after its reads.
  *
  * @param tx the transaction to write in.
  * @param db the Firestore database.
  * @param uid the owner of the wallet.
  * @param wallet the new balances.
- * @param row the history row that explains the change.
+ * @param row the history row that explains the change, if any.
  */
 export function writeWallet(
   tx: Transaction,
   db: Firestore,
   uid: string,
   wallet: Wallet,
-  row: WalletRow,
+  row?: WalletRow,
 ): void {
   tx.set(walletRef(db, uid), wallet, { merge: true });
+  if (!row) return;
   tx.set(transactionRef(db, uid, row.id), {
     type: row.type,
     amount: row.amount,
