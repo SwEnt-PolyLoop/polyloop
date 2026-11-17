@@ -22,6 +22,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.formatDay
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -47,6 +48,12 @@ class HandoverScreenTest {
           pickupDate = pickupDay,
           serverToday = pickupDay,
       )
+
+  private val returnDay = LocalDate.of(2026, 10, 8)
+
+  // On the return day by the server's clock.
+  private val returning =
+      pickup.copy(phase = HandoverPhase.RETURN, returnDate = returnDay, serverToday = returnDay)
 
   private var retries = 0
   private var cameraOpenings = 0
@@ -80,6 +87,20 @@ class HandoverScreenTest {
             "https://example.com/p$it.jpg",
         )
       }
+
+  /** [count] return photos taken one minute apart from 16:31 UTC. */
+  private fun returnPhotos(count: Int) =
+      List(count) {
+        HandoverPhoto(
+            "r$it",
+            HandoverPhase.RETURN,
+            Instant.parse("2026-10-08T16:31:00Z").plusSeconds(60L * it),
+            "https://example.com/r$it.jpg",
+        )
+      }
+
+  private fun text(tag: String, expected: String) =
+      composeTestRule.onNodeWithTag(tag).assertTextEquals(expected)
 
   private fun assertTiles(photos: Int, empty: Int) {
     composeTestRule.onAllNodesWithTag(C.Tag.handover_photo).assertCountEquals(photos)
@@ -280,7 +301,7 @@ class HandoverScreenTest {
 
   @Test
   fun aPhotoThatFailedToUploadIsRetriedWhenTappedAndNoNewOneCanBeTaken() {
-    setContent(pickup.copy(failedPhotoUri = "file:///photo.jpg"))
+    setContent(pickup.copy(failedPhoto = FailedPhoto("file:///photo.jpg", HandoverPhase.PICKUP)))
 
     composeTestRule
         .onNodeWithContentDescription("Photo not uploaded. Tap to try again.")
@@ -370,5 +391,65 @@ class HandoverScreenTest {
     uiState = pickup
     composeTestRule.onAllNodesWithTag(C.Tag.handover_add_photo)[2].performClick()
     assertEquals(1, cameraOpenings)
+  }
+
+  // ---------- the return ----------
+
+  @Test
+  fun theBorrowerReturnsTheItemToTheLender() {
+    setContent(returning.copy(photos = returnPhotos(3)))
+
+    text(C.Tag.handover_title, "Return")
+    text(C.Tag.handover_other_person, "to Mara")
+    text(C.Tag.handover_photos_status, "Return photos done")
+    composeTestRule.onNodeWithContentDescription("Return photo, 16:31").assertIsDisplayed()
+  }
+
+  @Test
+  fun theLenderGetsTheItemBackFromTheBorrower() {
+    setContent(returning.copy(isLender = true, otherPersonName = "Loca"))
+
+    text(C.Tag.handover_other_person, "from Loca")
+    assertTiles(photos = 0, empty = 3)
+  }
+
+  @Test
+  fun blankNamesAtReturnShowTheOtherPersonsRole() {
+    setContent(returning.copy(otherPersonName = ""))
+    text(C.Tag.handover_other_person, "to the lender")
+
+    uiState = returning.copy(otherPersonName = "", isLender = true)
+    text(C.Tag.handover_other_person, "from the borrower")
+  }
+
+  @Test
+  fun beforeTheReturnDayTheDayIsShownAndNoPhotoCanBeAdded() {
+    setContent(returning.copy(serverToday = returnDay.minusDays(1)))
+
+    text(C.Tag.handover_not_return_day, "Return is on ${formatDay(returnDay)}")
+    assertTiles(photos = 0, empty = 0)
+  }
+
+  @Test
+  fun anUnknownServerDayAtReturnAsksToConnectToCheckTheReturnDay() {
+    setContent(returning.copy(serverToday = null))
+
+    text(C.Tag.handover_return_needs_connection, "Connect to the internet to check the return day.")
+    assertTiles(photos = 0, empty = 0)
+  }
+
+  @Test
+  fun aReturnPhotoShownFullScreenSaysReturn() {
+    setContent(returning.copy(photos = returnPhotos(1)))
+
+    composeTestRule.onNodeWithTag(C.Tag.handover_photo).performClick()
+    text(C.Tag.handover_photo_viewer_label, "Return · 16:31")
+  }
+
+  @Test
+  fun aLateReturnShowsTheDepositLeftAfterTheLateFees() {
+    setContent(returning.copy(deposit = 80, lateFees = 17))
+
+    text(C.Tag.handover_deposit, "63 PP")
   }
 }
