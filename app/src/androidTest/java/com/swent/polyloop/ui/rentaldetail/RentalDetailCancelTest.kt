@@ -355,14 +355,15 @@ class RentalDetailCancelTest {
   // ---------- Errors ----------
 
   @Test
-  fun aFailedCancelShowsItsMessage() {
-    setContent(requested.copy(cancelError = "The pickup day has come"))
+  fun aFailedCancelShowsTheFallbackEvenWithAMessage() {
+    // A raw server message is never shown.
+    setContent(requested.copy(cancelError = "FAILED_PRECONDITION: Rental r1 is ACTIVE"))
 
     composeTestRule
         .onNodeWithTag(C.Tag.rental_detail_cancel_error)
         .performScrollTo()
         .assertIsDisplayed()
-        .assertTextEquals("The pickup day has come")
+        .assertTextEquals(context.getString(R.string.rental_detail_cancel_error_fallback))
   }
 
   @Test

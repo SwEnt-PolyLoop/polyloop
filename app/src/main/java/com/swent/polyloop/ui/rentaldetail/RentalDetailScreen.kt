@@ -846,7 +846,7 @@ private fun PickupArea(area: String, point: MapPoint?, showMap: Boolean) {
  * with the year when it is not [today]'s, while [serverToday] is known and not after [cancelUntil];
  * "Connect to the internet to check the cancel day." while [serverToday] is unknown and not being
  * read; nothing while it is being read. [today] is the phone's date and only decides the year.
- * Under the row, [cancelError] when the last cancel failed, or a generic text when it is blank.
+ * Under the row, a generic error when the last cancel failed ([cancelError] not null).
  */
 @Composable
 private fun CancelRow(
@@ -910,9 +910,10 @@ private fun CancelRow(
       }
     }
     if (cancelError != null) {
+      // Always the generic text, never cancelError's message: it is a raw Firebase text the user
+      // cannot act on, and retrying is the only thing to do.
       Text(
-          text =
-              cancelError.ifBlank { stringResource(R.string.rental_detail_cancel_error_fallback) },
+          text = stringResource(R.string.rental_detail_cancel_error_fallback),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.error,
           modifier = Modifier.testTag(C.Tag.rental_detail_cancel_error),
