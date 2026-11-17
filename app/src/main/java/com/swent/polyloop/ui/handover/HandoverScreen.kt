@@ -190,7 +190,7 @@ fun HandoverContent(
                 if (uiState.isPickupDay) {
                   // The person giving the item shows the code; the one receiving it scans.
                   if (uiState.showsCode) ShowCodeCard(uiState, onRetry)
-                  else ScanCodeCard(uiState, onScan)
+                  else ScanCodeCard(uiState, onScan, onRetry)
                 }
                 CameraPermissionMessage(cameraPermissionGranted)
               }

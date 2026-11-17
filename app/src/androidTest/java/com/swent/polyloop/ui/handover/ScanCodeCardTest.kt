@@ -48,12 +48,13 @@ class ScanCodeCardTest {
       )
 
   private var scans = 0
+  private var retries = 0
 
   private fun setContent(uiState: HandoverUiState) {
     composeTestRule.setContent {
       HandoverContent(
           uiState = uiState,
-          onRetry = {},
+          onRetry = { retries++ },
           onAddPhoto = {},
           onRetryUpload = {},
           onScan = { scans++ },
@@ -65,12 +66,16 @@ class ScanCodeCardTest {
 
   private fun button() = node(C.Tag.handover_scan_button).performScrollTo()
 
+  private fun assertMessage(text: String) =
+      node(C.Tag.handover_scan_message).performScrollTo().assertTextEquals(text)
+
   @Test
   fun theBorrowerCanScanTheLendersCode() {
     setContent(ready)
     node(C.Tag.handover_scan_title).assertTextEquals("Scan Loca's code")
     button().assertIsEnabled().performClick()
     assertEquals(1, scans)
+    node(C.Tag.handover_scan_message).assertDoesNotExist()
   }
 
   @Test
@@ -90,6 +95,52 @@ class ScanCodeCardTest {
   fun theScanWaitsForThreePhotos() {
     setContent(ready.copy(photos = photos(1)))
     button().assertIsNotEnabled()
+    assertMessage("Take 2 more photos first.")
+  }
+
+  @Test
+  fun oneMissingPhotoIsSingular() {
+    setContent(ready.copy(photos = photos(2)))
+    assertMessage("Take 1 more photo first.")
+  }
+
+  @Test
+  fun whileSendingTheButtonShowsSendingAndIsOff() {
+    setContent(ready.copy(isSendingScan = true))
+    button().assertIsNotEnabled()
+    composeTestRule.onNodeWithText("Sending…", useUnmergedTree = true).assertIsDisplayed()
+  }
+
+  @Test
+  fun offlineWithoutACopyAsksToConnectOnce() {
+    setContent(ready.copy(isOffline = true, codeFingerprint = null, codeFailed = true))
+    button().assertIsNotEnabled()
+    assertMessage("Connect to the internet once to prepare the pickup.")
+  }
+
+  @Test
+  fun aFingerprintThatFailedOnlineCanBeRetried() {
+    setContent(ready.copy(codeFingerprint = null, codeFailed = true))
+    button().assertIsNotEnabled()
+    assertMessage("Couldn't prepare the scan.")
+    node(C.Tag.handover_scan_retry_button).performScrollTo().performClick()
+    assertEquals(1, retries)
+  }
+
+  @Test
+  fun missingPhotosComeFirst() {
+    setContent(ready.copy(photos = emptyList(), codeFingerprint = null, codeFailed = true))
+    assertMessage("Take 3 more photos first.")
+  }
+
+  @Test
+  fun onceConfirmedOnlyPickedUpShows() {
+    setContent(ready.copy(scanConfirmed = true))
+    node(C.Tag.handover_scan_confirmed)
+        .performScrollTo()
+        .assertTextEquals("Picked up · the rental has started")
+    node(C.Tag.handover_scan_button).assertDoesNotExist()
+    node(C.Tag.handover_scan_title).assertDoesNotExist()
   }
 
   @Test
@@ -102,22 +153,5 @@ class ScanCodeCardTest {
   fun noScanCardOutsideThePickupDay() {
     setContent(ready.copy(isPickupDay = false))
     node(C.Tag.handover_scan_card).assertDoesNotExist()
-  }
-
-  @Test
-  fun whileSendingTheButtonShowsSendingAndIsOff() {
-    setContent(ready.copy(isSendingScan = true))
-    button().assertIsNotEnabled()
-    composeTestRule.onNodeWithText("Sending…", useUnmergedTree = true).assertIsDisplayed()
-  }
-
-  @Test
-  fun onceConfirmedOnlyPickedUpShows() {
-    setContent(ready.copy(scanConfirmed = true))
-    node(C.Tag.handover_scan_confirmed)
-        .performScrollTo()
-        .assertTextEquals("Picked up · the rental has started")
-    node(C.Tag.handover_scan_button).assertDoesNotExist()
-    node(C.Tag.handover_scan_title).assertDoesNotExist()
   }
 }

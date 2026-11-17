@@ -523,6 +523,11 @@
     <string name="handover_scan_hint">Scanning confirms you received the item and starts the rental.</string>
     <string name="handover_scan_button">Scan QR code</string>
     <string name="handover_scan_sending">Sending…</string>
+    <plurals name="handover_scan_photos_missing">
+        <item quantity="one">Take %1$d more photo first.</item>
+        <item quantity="other">Take %1$d more photos first.</item>
+    </plurals>
+    <string name="handover_scan_error">Couldn\'t prepare the scan.</string>
     <string name="handover_scan_confirmed">Picked up · the rental has started</string>
 
     <!-- Review request: the lender's answer to a request. -->
