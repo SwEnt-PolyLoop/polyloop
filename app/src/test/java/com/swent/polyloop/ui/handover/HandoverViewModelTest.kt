@@ -414,18 +414,34 @@ class HandoverViewModelTest {
   }
 
   @Test
-  fun withoutACodeNothingIsShownOrScanned() {
+  fun aCodeNotMadeYetIsReportedLikeAFailure() {
     handoverRepository.code = null
     handoverRepository.photos = photos(3) + photos(3, takenBy = "owner")
     val borrowerState = viewModel().uiState.value
     assertNull(borrowerState.codeFingerprint)
-    assertFalse(borrowerState.codeFailed)
+    assertTrue(borrowerState.codeFailed)
     assertFalse(borrowerState.canScan)
 
     signInLender()
     val lenderState = viewModel().uiState.value
     assertNull(lenderState.code)
+    assertTrue(lenderState.codeFailed)
     assertFalse(lenderState.canShowCode)
+  }
+
+  @Test
+  fun retryReadsACodeMadeSince() {
+    handoverRepository.code = null
+    handoverRepository.photos = photos(3, takenBy = "owner")
+    signInLender()
+    val vm = viewModel()
+
+    handoverRepository.code = "made-since"
+    vm.retry()
+
+    assertEquals("made-since", vm.uiState.value.code)
+    assertFalse(vm.uiState.value.codeFailed)
+    assertTrue(vm.uiState.value.canShowCode)
   }
 
   @Test

@@ -47,10 +47,11 @@ enum class ScanError {
  * @property failedPhotoUri the photo whose upload failed, kept to try again; null when none did.
  * @property isOffline true while the phone has no connection; no photo can be uploaded then.
  * @property code the secret code the user shows as a QR code, when they show it (see [showsCode]);
- *   null until read, or if there is none.
+ *   null until read.
  * @property codeFingerprint the fingerprint of the code the user scans, when they scan; null until
- *   read, or if there is none.
- * @property codeFailed true when the code or its fingerprint could not be read.
+ *   read.
+ * @property codeFailed true when the code or its fingerprint could not be read, or does not exist
+ *   yet; [HandoverViewModel.retry] reads it again.
  * @property isSendingScan true while a scanned code is being sent to the server.
  * @property scanConfirmed true once the server confirmed the scan.
  * @property scanError why the last scan was not confirmed, or null.
@@ -266,14 +267,15 @@ class HandoverViewModel(
       val result =
           if (shows) handoverRepository.getCodeToShow(rentalId, phase)
           else handoverRepository.getCodeFingerprint(rentalId, phase)
-      result.fold(
-          onSuccess = { value ->
-            _uiState.update {
-              if (shows) it.copy(code = value) else it.copy(codeFingerprint = value)
-            }
-          },
-          onFailure = { _uiState.update { it.copy(codeFailed = true) } },
-      )
+      // A code not made yet cannot be used either, so it is reported the same way, with Retry.
+      val value = result.getOrNull()
+      _uiState.update {
+        when {
+          value == null -> it.copy(codeFailed = true)
+          shows -> it.copy(code = value)
+          else -> it.copy(codeFingerprint = value)
+        }
+      }
     }
   }
 
