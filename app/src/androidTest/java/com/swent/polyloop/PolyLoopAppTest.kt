@@ -742,22 +742,20 @@ class PolyLoopAppTest {
   }
 
   /**
-   * Opens Rental detail on a request borrowed by "uid", a week before its pickup day by the
-   * server's date, taps "Cancel request" once it is enabled, and returns the fake holding the
-   * request, with the confirm sheet open.
+   * Opens Rental detail on a request borrowed by "uid", taps "Cancel request" once it shows, and
+   * returns the fake holding the request, with the confirm sheet open. A request has no deadline,
+   * so the server's date does not matter.
    */
   private fun openTheCancelSheetOfARequest(): FakeRentalRepository {
     val rentals =
-        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED))).also {
-          it.serverNow = Instant.parse("2026-10-01T10:00:00Z")
-        }
+        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED)))
     useRentals(rentals)
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {
       NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
     }
-    // The button stays grey until the server's date is read.
+    // The button shows once the rental is loaded.
     composeTestRule.waitUntil(timeoutMillis = 5_000) {
       composeTestRule
           .onAllNodes(hasTestTag(C.Tag.rental_detail_cancel_button) and isEnabled())

@@ -230,8 +230,7 @@ class RentalDetailViewModelActiveTest {
             override fun observeRental(id: String): Flow<Rental?> = live
           }
         }
-    // A request already reads the day, for its cancel row; the pickup does not read it again.
-    assertEquals(1, rentals.serverNowCalls)
+    assertEquals(0, rentals.serverNowCalls)
 
     live.value = active
     live.value = active.copy(deposit = 70)
@@ -335,6 +334,16 @@ class RentalDetailViewModelActiveTest {
     assertEquals(0, rentals.serverNowCalls)
     gate.complete(Unit)
     assertEquals(1, rentals.serverNowCalls)
+  }
+
+  @Test
+  fun comingBackToARequestReadsNothing() {
+    val vm = viewModel(request)
+
+    vm.onScreenResumed()
+
+    assertEquals(0, rentals.serverNowCalls)
+    assertNull(vm.uiState.value.serverToday)
   }
 
   @Test

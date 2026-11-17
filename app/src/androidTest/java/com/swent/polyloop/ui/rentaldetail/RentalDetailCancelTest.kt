@@ -32,9 +32,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * The cancel row of Rental detail and its confirm sheet. The window goes by
- * [RentalDetailUiState.serverToday]; the phone's date ([phoneToday]) only decides whether the year
- * is written.
+ * The cancel row of Rental detail and its confirm sheet. A request can be cancelled at any time,
+ * with no date shown; an accepted rental's window goes by [RentalDetailUiState.serverToday], and the
+ * phone's date ([phoneToday]) only decides whether the year is written.
  */
 @RunWith(AndroidJUnit4::class)
 class RentalDetailCancelTest {
@@ -124,43 +124,36 @@ class RentalDetailCancelTest {
 
   // ---------- Requested ----------
 
+  private fun assertNoNeedsConnection() {
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_cancel_needs_connection)
+        .assertDoesNotExist()
+  }
+
+  // A request has no deadline, so it shows only its button, with no date, at any date.
+
   @Test
-  fun theBorrowerCanCancelARequestUntilTheDayBeforePickup() {
+  fun theBorrowerCanCancelARequestWithNoDateShown() {
     setContent(requested)
 
-    assertCancelUntil("Wed 30 Sep")
     cancelButton()
         .assertTextEquals(context.getString(R.string.rental_detail_cancel_request))
         .assertIsEnabled()
+    assertNoCancelUntil()
   }
 
   @Test
   fun theLenderCanCancelARequestToo() {
     setContent(requested.copy(isLender = true))
 
-    assertCancelUntil("Wed 30 Sep")
     cancelButton()
         .assertTextEquals(context.getString(R.string.rental_detail_cancel_request))
         .assertIsEnabled()
+    assertNoCancelUntil()
   }
 
   @Test
-  fun theLastCancelDayShowsItsYearWhenNotThisYear() {
-    val start = LocalDate.of(2027, 1, 6)
-    setContent(
-        requested.copy(
-            startDate = start,
-            endDate = start.plusDays(2),
-            serverToday = LocalDate.of(2026, 12, 1),
-        ),
-        today = LocalDate.of(2026, 12, 1),
-    )
-
-    assertCancelUntil("Tue 5 Jan 2027")
-  }
-
-  @Test
-  fun aRequestKeepsOnlyItsEnabledButtonOnThePickupDay() {
+  fun aRequestKeepsItsEnabledButtonWithNoDateOnThePickupDay() {
     setContent(requested.copy(serverToday = pickupDay))
 
     cancelButton().assertIsDisplayed().assertIsEnabled()
@@ -168,11 +161,20 @@ class RentalDetailCancelTest {
   }
 
   @Test
-  fun aRequestKeepsOnlyItsEnabledButtonAfterThePickupDay() {
+  fun aRequestKeepsItsEnabledButtonWithNoDateAfterThePickupDay() {
     setContent(requested.copy(serverToday = pickupDay.plusDays(3)))
 
     cancelButton().assertIsDisplayed().assertIsEnabled()
     assertNoCancelUntil()
+  }
+
+  @Test
+  fun aRequestCanBeCancelledWhenTheServerDayIsUnknownOrBeingRead() {
+    setContent(requested.copy(serverToday = null, isReadingServerToday = true))
+
+    cancelButton().assertIsEnabled()
+    assertNoCancelUntil()
+    assertNoNeedsConnection()
   }
 
   // ---------- Accepted ----------
@@ -199,6 +201,21 @@ class RentalDetailCancelTest {
   }
 
   @Test
+  fun theLastCancelDayShowsItsYearWhenNotThisYear() {
+    val start = LocalDate.of(2027, 1, 6)
+    setContent(
+        accepted.copy(
+            startDate = start,
+            endDate = start.plusDays(2),
+            serverToday = LocalDate.of(2026, 12, 1),
+        ),
+        today = LocalDate.of(2026, 12, 1),
+    )
+
+    assertCancelUntil("Tue 5 Jan 2027")
+  }
+
+  @Test
   fun anAcceptedRentalHasNoCancelRowOnItsPickupDay() {
     // The phone says it is still days before pickup; only the server's date counts.
     setContent(accepted.copy(serverToday = pickupDay), today = phoneToday)
@@ -216,24 +233,37 @@ class RentalDetailCancelTest {
   // ---------- Disabled ----------
 
   @Test
-  fun anUnknownServerDayDisablesTheButtonAndWritesNoDate() {
+  fun anUnknownServerDayDisablesTheButtonAndAsksToConnect() {
     setContent(accepted.copy(serverToday = null))
 
     cancelButton().assertIsDisplayed().assertIsNotEnabled()
     assertNoCancelUntil()
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_cancel_needs_connection)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assertTextEquals(context.getString(R.string.rental_detail_cancel_needs_connection))
   }
 
   @Test
-  fun readingTheServerDayDisablesTheButtonAndWritesNoDate() {
-    setContent(requested.copy(serverToday = null, isReadingServerToday = true))
+  fun readingTheServerDayDisablesTheButtonAndWritesNothing() {
+    setContent(accepted.copy(serverToday = null, isReadingServerToday = true))
 
     cancelButton().assertIsDisplayed().assertIsNotEnabled()
     assertNoCancelUntil()
+    assertNoNeedsConnection()
   }
 
   @Test
   fun theButtonIsDisabledOffline() {
     setContent(requested.copy(isOffline = true))
+
+    cancelButton().assertIsNotEnabled()
+  }
+
+  @Test
+  fun theButtonOfAnAcceptedRentalIsDisabledOfflineAndKeepsItsDate() {
+    setContent(accepted.copy(isOffline = true))
 
     cancelButton().assertIsNotEnabled()
     assertCancelUntil("Wed 30 Sep")

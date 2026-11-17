@@ -166,6 +166,14 @@ class RentalDetailViewModelAcceptedTest {
   }
 
   @Test
+  fun aRequestDoesNotReadTheServersDay() {
+    val state = viewModel(request).uiState.value
+
+    assertNull(state.serverToday)
+    assertEquals(0, rentals.serverNowCalls)
+  }
+
+  @Test
   fun aRequestAcceptedWhileTheScreenIsOpenReadsTheServersDayOnce() {
     // The live rental is driven by hand, so it can change again once accepted.
     val live = MutableStateFlow<Rental?>(request)

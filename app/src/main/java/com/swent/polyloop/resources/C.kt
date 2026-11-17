@@ -245,6 +245,7 @@ object C {
     const val rental_detail_pickup_area = "rental_detail_pickup_area"
     const val rental_detail_pickup_note = "rental_detail_pickup_note"
     const val rental_detail_cancel_until = "rental_detail_cancel_until"
+    const val rental_detail_cancel_needs_connection = "rental_detail_cancel_needs_connection"
     const val rental_detail_cancel_button = "rental_detail_cancel_button"
     const val rental_detail_cancel_error = "rental_detail_cancel_error"
     const val rental_detail_cancel_sheet = "rental_detail_cancel_sheet"

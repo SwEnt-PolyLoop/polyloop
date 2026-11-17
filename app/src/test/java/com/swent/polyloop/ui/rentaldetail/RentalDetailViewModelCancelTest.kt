@@ -34,8 +34,8 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Cancelling from Rental detail: the cancel window by the server's day, when the button is enabled,
- * and [RentalDetailViewModel.cancel].
+ * Cancelling from Rental detail: a request at any time, an accepted rental until the day before
+ * pickup by the server's day, when the button is enabled, and [RentalDetailViewModel.cancel].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RentalDetailViewModelCancelTest {
@@ -140,15 +140,24 @@ class RentalDetailViewModelCancelTest {
   // ---------- The server's day ----------
 
   @Test
-  fun aRequestReadsTheServersDay() {
-    val state = viewModel(request).uiState.value
+  fun aRequestDoesNotReadTheServersDay() {
+    val vm = viewModel(request)
 
-    assertEquals(lastCancelDay, state.serverToday)
-    assertEquals(1, rentals.serverNowCalls)
+    assertNull(vm.uiState.value.serverToday)
+    assertEquals(0, rentals.serverNowCalls)
   }
 
   @Test
-  fun aRequestAcceptedWhileTheScreenIsOpenReadsTheDayOnlyOnce() {
+  fun comingBackToARequestReadsNothing() {
+    val vm = viewModel(request)
+
+    vm.onScreenResumed()
+
+    assertEquals(0, rentals.serverNowCalls)
+  }
+
+  @Test
+  fun aRequestAcceptedWhileTheScreenIsOpenReadsTheDayOnce() {
     val live = MutableStateFlow<Rental?>(request)
     val vm = viewModel(request, live = live)
 
@@ -159,27 +168,16 @@ class RentalDetailViewModelCancelTest {
     assertEquals(1, rentals.serverNowCalls)
   }
 
-  @Test
-  fun comingBackToARequestReadsTheDayAgain() {
-    val vm = viewModel(request)
-    rentals.serverNow = noonOn(pickupDay)
-
-    vm.onScreenResumed()
-
-    assertEquals(pickupDay, vm.uiState.value.serverToday)
-    assertEquals(2, rentals.serverNowCalls)
-  }
-
   // ---------- cancelUntil ----------
 
   @Test
-  fun cancelUntilIsTheDayBeforePickupForARequestAndAnAcceptedRental() {
-    assertEquals(lastCancelDay, viewModel(request).uiState.value.cancelUntil)
+  fun cancelUntilIsTheDayBeforePickupForAnAcceptedRental() {
     assertEquals(lastCancelDay, viewModel(accepted).uiState.value.cancelUntil)
   }
 
   @Test
-  fun cancelUntilIsNullForOtherStatuses() {
+  fun cancelUntilIsNullForARequestAndOtherStatuses() {
+    assertNull(viewModel(request).uiState.value.cancelUntil)
     for (status in listOf(RentalStatus.ACTIVE, RentalStatus.DISPUTED, RentalStatus.CANCELLED)) {
       assertNull(RentalDetailUiState(status = status, startDate = pickupDay).cancelUntil)
     }
@@ -210,9 +208,28 @@ class RentalDetailViewModelCancelTest {
   }
 
   @Test
-  fun aRequestCanStillBeCancelledOnAndAfterItsPickupDay() {
-    assertTrue(viewModel(request, serverDay = pickupDay).uiState.value.canCancel)
-    assertTrue(viewModel(request, serverDay = pickupDay.plusDays(5)).uiState.value.canCancel)
+  fun aRequestCanStillBeCancelledAfterItsPickupDay() {
+    // Both its dates are past by the phone's date, and the screen state holds a later server day.
+    val start = LocalDate.now().minusWeeks(1)
+    val past = request.copy(startDate = start, endDate = start.plusDays(2))
+
+    assertTrue(viewModel(past).uiState.value.canCancel)
+    assertTrue(
+        RentalDetailUiState(
+                status = RentalStatus.REQUESTED,
+                startDate = pickupDay,
+                serverToday = pickupDay.plusDays(5),
+            )
+            .canCancel
+    )
+  }
+
+  @Test
+  fun aRequestCanBeCancelledWhenTheServersDayIsUnknown() {
+    val state = viewModel(request, serverDay = null).uiState.value
+
+    assertNull(state.serverToday)
+    assertTrue(state.canCancel)
   }
 
   @Test
@@ -228,8 +245,8 @@ class RentalDetailViewModelCancelTest {
   }
 
   @Test
-  fun cannotCancelWhenTheServersDayIsUnknown() {
-    val state = viewModel(request, serverDay = null).uiState.value
+  fun anAcceptedRentalCannotBeCancelledWhenTheServersDayIsUnknown() {
+    val state = viewModel(accepted, serverDay = null).uiState.value
 
     assertNull(state.serverToday)
     assertFalse(state.canCancel)
@@ -237,10 +254,11 @@ class RentalDetailViewModelCancelTest {
 
   @Test
   fun cannotCancelOffline() {
-    val vm = viewModel(request, connectivity = FakeConnectivityRepository(online = false))
+    for (rental in listOf(request, accepted)) {
+      val vm = viewModel(rental, connectivity = FakeConnectivityRepository(online = false))
 
-    assertEquals(lastCancelDay, vm.uiState.value.serverToday)
-    assertFalse(vm.uiState.value.canCancel)
+      assertFalse(vm.uiState.value.canCancel)
+    }
   }
 
   @Test
@@ -336,7 +354,7 @@ class RentalDetailViewModelCancelTest {
   fun cancelDoesNothingWhenTheRentalCannotBeCancelled() {
     viewModel(accepted, serverDay = pickupDay).cancel()
     viewModel(request, connectivity = FakeConnectivityRepository(online = false)).cancel()
-    viewModel(request, serverDay = null).cancel()
+    viewModel(accepted, serverDay = null).cancel()
 
     assertEquals(0, cancelCalls)
   }

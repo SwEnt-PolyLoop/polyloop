@@ -118,9 +118,9 @@ fun RentalDetailScreen(
  * [CancelRow]) whose button opens a confirm sheet; "Yes" there calls [onCancelClick]. [today] and
  * [zone] decide how dates are written (e.g. whether the year is shown); tests pass fixed values so
  * their expected texts do not depend on the day they run. [today] is the phone's date, so it is
- * only used to write dates: Start Pickup, Start Return and the cancel window go by
- * [RentalDetailUiState.serverToday] instead, and stay grey while
- * [RentalDetailUiState.isReadingServerToday]. [locale] decides the language of the month and
+ * only used to write dates: Start Pickup, Start Return and the cancel window of an accepted rental
+ * go by [RentalDetailUiState.serverToday] instead, and stay grey while
+ * [RentalDetailUiState.isReadingServerToday]. A request has no cancel window. [locale] decides the language of the month and
  * weekday names; tests pass a fixed one so their expected dates do not depend on the device's
  * language.
  */
@@ -222,19 +222,23 @@ fun RentalDetailContent(
                     showMap = !uiState.isOffline,
                 )
           }
-          val cancelUntil = uiState.cancelUntil
-          // An accepted rental is locked from its pickup day, so its row goes; a request that was
-          // never accepted can always be withdrawn, so it keeps the button. While the server's day
-          // is unknown or being read, the row shows with the button disabled.
-          if (
-              cancelUntil != null &&
-                  (uiState.status == RentalStatus.REQUESTED ||
-                      uiState.serverToday?.isAfter(cancelUntil) != true)
-          ) {
+          // A request keeps its button at any date: a request without an offer never expires, so
+          // without it the request would stay in My rentals forever. An accepted rental is locked
+          // from its pickup day, so its row goes; while the server's day is unknown or being read,
+          // the row shows with the button disabled.
+          val showsCancelRow =
+              when (uiState.status) {
+                RentalStatus.REQUESTED -> true
+                RentalStatus.ACCEPTED ->
+                    uiState.cancelUntil?.let { uiState.serverToday?.isAfter(it) != true } ?: false
+                else -> false
+              }
+          if (showsCancelRow) {
             CancelRow(
                 status = uiState.status,
-                cancelUntil = cancelUntil,
+                cancelUntil = uiState.cancelUntil,
                 serverToday = uiState.serverToday,
+                isReadingServerToday = uiState.isReadingServerToday,
                 canCancel = uiState.canCancel,
                 cancelError = uiState.cancelError,
                 onClick = { isCancelSheetOpen = true },
@@ -837,18 +841,19 @@ private fun PickupArea(area: String, point: MapPoint?, showMap: Boolean) {
 
 /**
  * The cancel button, on the right: "Cancel request" on a Requested rental, "Cancel rental" on an
- * Accepted one, enabled only when [canCancel], calling [onClick]. On its left, "You can cancel
- * until" [cancelUntil], written in [locale] ("Wed 30 Sep" in English), with the year when it is not
- * [today]'s. [today] is the phone's date and only decides that; whether the text shows depends on
- * [serverToday], the server's: only while it is known and not after [cancelUntil], so nothing is
- * written while that day is unknown or being read, and only the button is left after the last day.
+ * Accepted one, enabled only when [canCancel], calling [onClick]. On its left, for an accepted
+ * rental only: "You can cancel until" [cancelUntil], written in [locale] ("Wed 30 Sep" in English),
+ * with the year when it is not [today]'s, while [serverToday] is known and not after [cancelUntil];
+ * "Connect to the internet to check the cancel day." while [serverToday] is unknown and not being
+ * read; nothing while it is being read. [today] is the phone's date and only decides the year.
  * Under the row, [cancelError] when the last cancel failed, or a generic text when it is blank.
  */
 @Composable
 private fun CancelRow(
     status: RentalStatus?,
-    cancelUntil: LocalDate,
+    cancelUntil: LocalDate?,
     serverToday: LocalDate?,
+    isReadingServerToday: Boolean,
     canCancel: Boolean,
     cancelError: String?,
     onClick: () -> Unit,
@@ -857,21 +862,34 @@ private fun CancelRow(
 ) {
   Column(modifier = Modifier.fillMaxWidth()) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-      if (serverToday != null && !serverToday.isAfter(cancelUntil)) {
-        val pattern = if (cancelUntil.year != today.year) "EEE d MMM yyyy" else "EEE d MMM"
-        Text(
-            text =
-                stringResource(
-                    R.string.rental_detail_cancel_until,
-                    cancelUntil.format(DateTimeFormatter.ofPattern(pattern, locale)),
-                ),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f).testTag(C.Tag.rental_detail_cancel_until),
-        )
-      } else {
-        // Keeps the button on the right when the text is left out.
-        Spacer(Modifier.weight(1f))
+      // A request has no deadline, so no date is written for it: one would read as a deadline.
+      val lastDay = cancelUntil?.takeIf { status == RentalStatus.ACCEPTED }
+      when {
+        lastDay != null && serverToday != null && !serverToday.isAfter(lastDay) -> {
+          val pattern = if (lastDay.year != today.year) "EEE d MMM yyyy" else "EEE d MMM"
+          Text(
+              text =
+                  stringResource(
+                      R.string.rental_detail_cancel_until,
+                      lastDay.format(DateTimeFormatter.ofPattern(pattern, locale)),
+                  ),
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.weight(1f).testTag(C.Tag.rental_detail_cancel_until),
+          )
+        }
+        // Like Start Pickup: nothing while the day is being read, as asking to connect would be
+        // wrong online.
+        lastDay != null && serverToday == null && !isReadingServerToday ->
+            Text(
+                text = stringResource(R.string.rental_detail_cancel_needs_connection),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier =
+                    Modifier.weight(1f).testTag(C.Tag.rental_detail_cancel_needs_connection),
+            )
+        // Keeps the button on the right when no text is written.
+        else -> Spacer(Modifier.weight(1f))
       }
       TextButton(
           onClick = onClick,
@@ -1054,7 +1072,6 @@ private fun RentalDetailContentPreview() {
                   pickupArea = "Ecublens",
                   otherPerson =
                       OtherPerson(uid = "lea", name = "Léa", averageRating = 4.6, reviewCount = 5),
-                  serverToday = LocalDate.of(2026, 9, 28),
               ),
           onRetry = {},
           onChatClick = {},
