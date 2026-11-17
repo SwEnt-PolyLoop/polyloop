@@ -6,11 +6,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,13 +32,14 @@ import androidx.compose.ui.unit.dp
 import com.swent.polyloop.R
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.Border
+import com.swent.polyloop.ui.theme.PositiveGreen
 
 private val QR_SIZE = 160.dp
 
 /**
  * The card of the person giving the item (Figma 14, 14.10 to 14.13): the QR code once they have 3
- * photos and the code, with a note while offline; otherwise what is missing. [onRetry] reads the
- * code again after it failed.
+ * photos and the code, with a note while offline; otherwise what is missing. Once the other person
+ * has scanned it, only "Picked up". [onRetry] reads the code again after it failed.
  */
 @Composable
 internal fun ShowCodeCard(uiState: HandoverUiState, onRetry: () -> Unit) {
@@ -48,6 +53,10 @@ internal fun ShowCodeCard(uiState: HandoverUiState, onRetry: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+      if (uiState.isPickedUp) {
+        PickedUp(uiState.otherPersonName)
+        return@Column
+      }
       Text(
           text = showCodeTitle(uiState.isLender, uiState.otherPersonName),
           style = MaterialTheme.typography.titleMedium,
@@ -110,6 +119,33 @@ internal fun ShowCodeCard(uiState: HandoverUiState, onRetry: () -> Unit) {
             )
       }
     }
+  }
+}
+
+/**
+ * A green check with "Picked up by Mara · the rental has started", seen once the scan went through.
+ */
+@Composable
+private fun PickedUp(name: String) {
+  Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    Icon(
+        imageVector = Icons.Default.CheckCircle,
+        contentDescription = null,
+        tint = PositiveGreen,
+        modifier = Modifier.size(20.dp),
+    )
+    Text(
+        text =
+            if (name.isBlank()) stringResource(R.string.handover_code_picked_up_no_name)
+            else stringResource(R.string.handover_code_picked_up, name),
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.Medium,
+        color = PositiveGreen,
+        modifier = Modifier.testTag(C.Tag.handover_code_picked_up),
+    )
   }
 }
 

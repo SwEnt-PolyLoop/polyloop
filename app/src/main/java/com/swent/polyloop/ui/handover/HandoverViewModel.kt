@@ -13,9 +13,12 @@ import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.HandoverRepository
 import com.swent.polyloop.model.handover.RentalChangedException
 import com.swent.polyloop.model.handover.WrongCodeException
+import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
+import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.ui.createlisting.deletePhotoFile
 import java.time.LocalDate
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,6 +58,8 @@ enum class ScanError {
  * @property isSendingScan true while a scanned code is being sent to the server.
  * @property scanConfirmed true once the server confirmed the scan.
  * @property scanError why the last scan was not confirmed, or null.
+ * @property isPickedUp true once the rental is picked up (ACTIVE or later), seen live on both
+ *   phones while the screen is open: no more photos, no QR and no scan.
  */
 data class HandoverUiState(
     val isLoading: Boolean = true,
@@ -78,6 +83,7 @@ data class HandoverUiState(
     val isSendingScan: Boolean = false,
     val scanConfirmed: Boolean = false,
     val scanError: ScanError? = null,
+    val isPickedUp: Boolean = false,
 ) {
   /** How many more photos are needed before the handover can go on; 0 once there are enough. */
   val photosNeeded: Int
@@ -88,6 +94,7 @@ data class HandoverUiState(
     get() =
         phase == HandoverPhase.PICKUP &&
             isPickupDay &&
+            !isPickedUp &&
             !isOffline &&
             photos.size < HandoverPhoto.MAX_PHOTOS &&
             !isUploading
@@ -105,12 +112,13 @@ data class HandoverUiState(
 
   /** True when the QR code is shown: on the pickup day, once the user has 3 photos and the code. */
   val canShowCode: Boolean
-    get() = showsCode && isPickupDay && photosNeeded == 0 && code != null
+    get() = showsCode && isPickupDay && !isPickedUp && photosNeeded == 0 && code != null
 
   /**
    * True when "Scan QR code" can be pressed: on the pickup day, once the user has 3 photos and the
    * fingerprint, online until scans can wait in the upload queue, and not while a scan is being
-   * sent, once one is confirmed, or once the server said the rental changed.
+   * sent, once one is confirmed or the rental is picked up, or once the server said the rental
+   * changed.
    */
   val canScan: Boolean
     get() =
@@ -122,12 +130,14 @@ data class HandoverUiState(
             !isOffline &&
             !isSendingScan &&
             !scanConfirmed &&
-            scanError != ScanError.RENTAL_CHANGED
+            scanError != ScanError.RENTAL_CHANGED &&
+            !isPickedUp
 }
 
 /**
- * Shows the handover of the rental [rentalId], read once, and uploads the photos taken. [today] is
- * the current date; [deletePhoto] deletes a photo file once it is uploaded or refused.
+ * Shows the handover of the rental [rentalId], then follows it live: uploads the photos taken,
+ * reads the code to show or the fingerprint of the one to scan, and sends the scanned code. [today]
+ * is the current date; [deletePhoto] deletes a photo file once it is uploaded or refused.
  */
 class HandoverViewModel(
     private val rentalId: String,
@@ -140,6 +150,7 @@ class HandoverViewModel(
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(HandoverUiState())
+  private var followJob: Job? = null
   val uiState: StateFlow<HandoverUiState> = _uiState.asStateFlow()
 
   init {
@@ -260,8 +271,34 @@ class HandoverViewModel(
         observePhotos(phase)
         loadCode(phase, _uiState.value.showsCode)
       }
+      followRental()
     }
   }
+
+  /**
+   * Follows the rental once it is shown, so that both phones see the pickup confirmed by the server
+   * (or the rental cancelled) without leaving the screen.
+   */
+  private fun followRental() {
+    followJob?.cancel()
+    followJob = viewModelScope.launch {
+      rentalRepository
+          .observeRental(rentalId)
+          // The rental is already shown; if following it fails, the screen keeps it as it is.
+          .catch {}
+          .collect { rental -> _uiState.update { it.withRental(rental) } }
+    }
+  }
+
+  /** [this] after the rental changed to [rental] on the server. */
+  private fun HandoverUiState.withRental(rental: Rental?): HandoverUiState =
+      when {
+        rental == null -> copy(notFound = true)
+        phase == HandoverPhase.PICKUP && rental.status in PICKED_UP -> copy(isPickedUp = true)
+        // E.g. cancelled: nothing left to hand over.
+        !isPickedUp && HandoverPhase.fromStatus(rental.status) == null -> copy(phase = null)
+        else -> this
+      }
 
   /**
    * Reads the code to show if the user [shows] it, otherwise the fingerprint of the one to scan.
@@ -297,6 +334,20 @@ class HandoverViewModel(
           .catch { _uiState.update { it.copy(photosFailed = true) } }
           .collect { photos -> _uiState.update { it.copy(photos = photos) } }
     }
+  }
+
+  private companion object {
+    /** The statuses of a rental whose item has been picked up. */
+    val PICKED_UP =
+        setOf(
+            RentalStatus.ACTIVE,
+            RentalStatus.RETURNED,
+            RentalStatus.OVERDUE,
+            RentalStatus.DISPUTED,
+            RentalStatus.FROZEN,
+            RentalStatus.LOST,
+            RentalStatus.CLOSED,
+        )
   }
 
   /** Builds the ViewModel with its dependencies (manual constructor injection). */

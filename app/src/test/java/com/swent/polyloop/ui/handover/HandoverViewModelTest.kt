@@ -156,6 +156,76 @@ class HandoverViewModelTest {
     assertFalse(vm.uiState.value.isLoading)
   }
 
+  // ---------- following the rental ----------
+
+  @Test
+  fun theBorrowerSeesThePickupOnceTheServerConfirmsIt() {
+    handoverRepository.photos = photos(3)
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.canScan)
+    assertTrue(vm.uiState.value.canAddPhoto)
+
+    rentalRepository.setStatus(rental.id, RentalStatus.ACTIVE)
+
+    val state = vm.uiState.value
+    assertTrue(state.isPickedUp)
+    assertEquals(HandoverPhase.PICKUP, state.phase) // the screen stays on the pickup
+    assertFalse(state.canScan)
+    assertFalse(state.canAddPhoto) // the rules would refuse a pickup photo now
+  }
+
+  @Test
+  fun theLenderSeesThePickupWithoutLeavingTheScreen() {
+    handoverRepository.photos = photos(3, takenBy = "owner")
+    signInLender()
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.canShowCode)
+
+    rentalRepository.setStatus(rental.id, RentalStatus.ACTIVE)
+
+    assertTrue(vm.uiState.value.isPickedUp)
+    assertFalse(vm.uiState.value.canShowCode)
+  }
+
+  @Test
+  fun aLaterStatusKeepsThePickupDone() {
+    val vm = viewModel()
+    rentalRepository.setStatus(rental.id, RentalStatus.ACTIVE)
+    rentalRepository.setStatus(rental.id, RentalStatus.DISPUTED)
+
+    assertTrue(vm.uiState.value.isPickedUp)
+    assertEquals(HandoverPhase.PICKUP, vm.uiState.value.phase)
+  }
+
+  @Test
+  fun aRentalCancelledWhileOpenHasNothingLeftToHandOver() {
+    val vm = viewModel()
+    rentalRepository.setStatus(rental.id, RentalStatus.CANCELLED)
+
+    assertNull(vm.uiState.value.phase)
+    assertFalse(vm.uiState.value.isPickedUp)
+  }
+
+  @Test
+  fun aRentalDeletedWhileOpenIsNotFound() {
+    val vm = viewModel()
+    rentalRepository.remove(rental.id)
+
+    assertTrue(vm.uiState.value.notFound)
+  }
+
+  @Test
+  fun aFailureWhileFollowingKeepsTheRentalShown() {
+    val vm = viewModel()
+    rentalRepository.failure = RuntimeException("listener lost")
+    rentalRepository.setStatus(rental.id, RentalStatus.ACTIVE)
+
+    val state = vm.uiState.value
+    assertFalse(state.loadFailed)
+    assertFalse(state.isPickedUp)
+    assertEquals("Camping tent", state.itemTitle)
+  }
+
   // ---------- photos ----------
 
   /** [count] pickup photos of the rental by [takenBy], one second apart. */
