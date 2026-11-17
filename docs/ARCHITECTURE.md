@@ -53,7 +53,7 @@ Each screen has its own ViewModel, which holds that screen's state and calls the
 | Create / edit listing | CreateListingViewModel | Listing; Rental (editing locked while a rental is accepted or active); Auth (the owner publishing the listing) |
 | My rentals | MyRentalsViewModel | Rental (the item, the other person and the areas are copied on each rental, see "Firestore schema") |
 | Review request | ReviewRequestViewModel | Rental (the request, sending the offer, declining, the lender's other requests whose dates overlap); Listing (the item value, shown as the suggested deposit); Profile (the borrower's rating) |
-| Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt); `ServerClock` (today by the server's clock, for Start Pickup and Start Return, read only for an accepted or active rental, again each time the screen comes back, and when the phone comes back online if it was unknown) |
+| Rental detail | RentalDetailViewModel | Rental (status, actions, deposit, meeting point, mid-rental photos); Listing (the item); Profile (the other person, the review prompt); `ServerClock` (today by the server's clock, for Start Pickup, Start Return and the cancel window of an accepted rental, read only for an accepted or active rental, again each time the screen comes back, and when the phone comes back online if it was unknown) |
 | Handover | HandoverViewModel | Handover; Rental (phase, role, deposit held); Dispute ("Flag damage"); `ServerClock` (today by the server's clock, for the pickup photos, read only for an accepted rental, and again when the phone comes back online, Handover comes back on screen or the user taps "Retry", if it was unknown) |
 | Dispute | DisputeViewModel | Dispute; Handover (pickup and return photos, not used yet); Rental (the item, the other person and the user's role, the deposit) |
 | Admin court ruling | AdminCourtRulingViewModel | Dispute; Handover (the photos); Rental (the deposit); Listing (the item); Profile (both parties) |
@@ -110,6 +110,7 @@ Requested → Accepted → Active → Returned → Closed, plus Declined, Cancel
 
 **Cancelling**
 - Either party can cancel until the day before pickup. On the pickup day the rental is locked.
+- A request that was never accepted can be withdrawn at any time, even on or after its pickup day.
 - If the item is still not back from the previous rental on the pickup day, the rental is auto-cancelled and the borrower gets the reserved price and deposit back.
 
 **Handover**
@@ -221,7 +222,7 @@ Listing photos uploaded by the app go to Cloud Storage under `listings/{listingI
 ## Not decided yet — ask before implementing
 
 - Security rules for collections not listed in the schema above
-- Cloud Function names and signatures, apart from `geocodeListingAddresses` (see "Firestore schema") and the negotiation's: `makeOffer({rentalId, deposit, pickupAddress, returnAddress})`, `respondToOffer({rentalId, action, deposit})` (`action` is `ACCEPT`, `DECLINE` or `COUNTER`; `deposit` only for `COUNTER`), `declineRequest({rentalId})`, `serverToday()` (returns `{today: "YYYY-MM-DD", now: epoch ms}`, `today` in Europe/Zurich), the scheduled `expireOffers`, the dispute's: `proposeSplit({rentalId, lenderPercent})`, `acceptSplit({rentalId, lenderPercent})`, `escalateDispute({rentalId})` and the scheduled `escalateDisputes`, and the wallet's: `reserveDeposit({rentalId})`, `payLender({rentalId})` and `createWalletOnProfile` (triggered when `users/{uid}` is created)
+- Cloud Function names and signatures, apart from `geocodeListingAddresses` (see "Firestore schema") and the negotiation's: `makeOffer({rentalId, deposit, pickupAddress, returnAddress})`, `respondToOffer({rentalId, action, deposit})` (`action` is `ACCEPT`, `DECLINE` or `COUNTER`; `deposit` only for `COUNTER`), `declineRequest({rentalId})`, `cancelRental({rentalId})`, `serverToday()` (returns `{today: "YYYY-MM-DD", now: epoch ms}`, `today` in Europe/Zurich), the scheduled `expireOffers`, the dispute's: `proposeSplit({rentalId, lenderPercent})`, `acceptSplit({rentalId, lenderPercent})`, `escalateDispute({rentalId})` and the scheduled `escalateDisputes`, and the wallet's: `reserveDeposit({rentalId})`, `payLender({rentalId})` and `createWalletOnProfile` (triggered when `users/{uid}` is created)
 - Whether the auto-cancel waits until a set time on the pickup day (e.g. noon) so offline return scans can sync first
 - What happens when nobody shows up on the pickup day: condition photos are refused from the next day and cancelling closed the day before, so the rental stays Accepted with the price and the deposit held
 - The exact list of push notifications

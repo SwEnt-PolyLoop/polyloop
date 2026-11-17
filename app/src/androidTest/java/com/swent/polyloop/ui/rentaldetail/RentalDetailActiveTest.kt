@@ -69,6 +69,7 @@ class RentalDetailActiveTest {
           onStartPickupClick = { startPickupClicks++ },
           onStartReturnClick = { startReturnClicks++ },
           onViewDisputeClick = {},
+          onCancelClick = {},
           today = today,
           zone = ZoneOffset.UTC,
           // English is fixed so the expected dates pass on an emulator in any language.
