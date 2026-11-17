@@ -528,7 +528,7 @@
         <item quantity="other">Take %1$d more photos first.</item>
     </plurals>
     <string name="handover_scan_error">Couldn\'t prepare the scan.</string>
-    <!-- Until scans can wait in the upload queue (#468) -->
+    <!-- Until scans can wait in the upload queue (#467) -->
     <string name="handover_scan_offline">Scanning offline is coming soon.</string>
     <string name="handover_scan_wrong_code">This isn\'t the right code. Scan %1$s\'s code on their Handover screen.</string>
     <string name="handover_scan_wrong_code_no_name">This isn\'t the right code. Scan the code on their Handover screen.</string>
