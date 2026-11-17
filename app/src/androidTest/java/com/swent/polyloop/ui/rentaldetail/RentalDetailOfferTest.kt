@@ -51,7 +51,9 @@ class RentalDetailOfferTest {
           onChatClick = {},
           onPersonClick = {},
           onStartPickupClick = {},
+          onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCancelClick = {},
           today = LocalDate.of(2026, 10, 1),
           zone = ZoneOffset.UTC,
           // English is fixed so the expected dates pass on an emulator in any language.

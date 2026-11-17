@@ -32,6 +32,9 @@ import kotlinx.coroutines.flow.update
  * - it has no listings, so it does not check that the dates are still free (neither when an offer
  *   is made nor when it is accepted) and does not refuse a listing that is gone.
  *
+ * [cancelRental] checks only the status: the day rule (an Accepted rental is locked from its pickup
+ * day) belongs to the Cloud Function.
+ *
  * A refusal is an [IllegalStateException].
  */
 class FakeRentalRepository(
@@ -200,6 +203,12 @@ class FakeRentalRepository(
         rental.copy(status = RentalStatus.DECLINED)
       }
 
+  override suspend fun cancelRental(rentalId: String): Result<Unit> =
+      update(rentalId, allowed = CANCELLABLE) { rental ->
+        offeredAddresses.remove(rentalId)
+        rental.copy(status = RentalStatus.CANCELLED, offer = null)
+      }
+
   override suspend fun serverNow(): Result<Instant> {
     serverNowCalls++
     gate?.await()
@@ -210,14 +219,26 @@ class FakeRentalRepository(
    * Runs one step of the negotiation on the REQUESTED rental [rentalId] and stores what [step]
    * returns. A failed `check` in [step] is reported as a failure, and nothing is stored.
    */
-  private suspend fun negotiate(rentalId: String, step: (Rental) -> Rental): Result<Unit> {
+  private suspend fun negotiate(rentalId: String, step: (Rental) -> Rental): Result<Unit> =
+      update(rentalId, allowed = setOf(RentalStatus.REQUESTED), step)
+
+  /**
+   * Applies [step] to the rental [rentalId] if its status is in [allowed], and stores the result.
+   * Waits for [gate] and returns [failure] first, like every call. A failed `check` in [step] is
+   * reported as a failure, and nothing is stored.
+   */
+  private suspend fun update(
+      rentalId: String,
+      allowed: Set<RentalStatus>,
+      step: (Rental) -> Rental,
+  ): Result<Unit> {
     gate?.await()
     failure?.let {
       return Result.failure(it)
     }
     return runCatching {
       val rental = checkNotNull(stored.value.find { it.id == rentalId }) { "No rental $rentalId" }
-      check(rental.status == RentalStatus.REQUESTED) { "Rental $rentalId is ${rental.status}" }
+      check(rental.status in allowed) { "Rental $rentalId is ${rental.status}" }
       val updated = step(rental)
       stored.update { rentals -> rentals.map { if (it.id == rentalId) updated else it } }
     }
@@ -271,5 +292,7 @@ class FakeRentalRepository(
 
   private companion object {
     val OFFER_LIFETIME: Duration = Duration.ofDays(7)
+
+    val CANCELLABLE: Set<RentalStatus> = setOf(RentalStatus.REQUESTED, RentalStatus.ACCEPTED)
   }
 }
