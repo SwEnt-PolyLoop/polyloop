@@ -32,9 +32,9 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * The negotiation and cancel calls of [RentalRepositoryFirestore]: each calls the right Cloud Function with
- * the right data and reports a refusal as a failure. Also reading the server's time from
- * `serverToday`. The Functions themselves are tested in functions/src, on the emulator.
+ * The negotiation and cancel calls of [RentalRepositoryFirestore]: each calls the right Cloud
+ * Function with the right data and reports a refusal as a failure. Also reading the server's time
+ * from `serverToday`. The Functions themselves are tested in functions/src, on the emulator.
  */
 class RentalRepositoryOffersTest {
 

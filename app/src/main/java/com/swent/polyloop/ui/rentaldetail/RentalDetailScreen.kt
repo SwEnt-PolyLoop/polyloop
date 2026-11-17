@@ -877,7 +877,8 @@ private fun CancelRow(
           onClick = onClick,
           enabled = canCancel,
           // Through the button's colours rather than on the Text, so the disabled state is grey.
-          colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+          colors =
+              ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
           modifier = Modifier.testTag(C.Tag.rental_detail_cancel_button),
       ) {
         Text(
@@ -892,7 +893,8 @@ private fun CancelRow(
     }
     if (cancelError != null) {
       Text(
-          text = cancelError.ifBlank { stringResource(R.string.rental_detail_cancel_error_fallback) },
+          text =
+              cancelError.ifBlank { stringResource(R.string.rental_detail_cancel_error_fallback) },
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.error,
           modifier = Modifier.testTag(C.Tag.rental_detail_cancel_error),

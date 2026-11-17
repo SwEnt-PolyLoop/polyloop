@@ -132,10 +132,10 @@ data class OtherPerson(
  * knows when to replace the map. For a requested, accepted or active rental, it reads today from
  * [serverClock], so that Start Pickup, Start Return and the cancel window do not go by the phone's
  * date, which the user can change. The screen shows without waiting for that date. [cancel] asks
- * the server to cancel a requested or accepted rental. The date is read again each time
- * the screen comes back ([onScreenResumed]), and an unknown date when the phone comes back online.
- * A requested rental whose listing could not be read (e.g. opened offline, listing not cached)
- * reads it again when the phone comes back online, to fill the suggested deposit and the map point.
+ * the server to cancel a requested or accepted rental. The date is read again each time the screen
+ * comes back ([onScreenResumed]), and an unknown date when the phone comes back online. A requested
+ * rental whose listing could not be read (e.g. opened offline, listing not cached) reads it again
+ * when the phone comes back online, to fill the suggested deposit and the map point.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
@@ -181,9 +181,9 @@ class RentalDetailViewModel(
    * active rental, even when a day is already known: the ViewModel can stay in memory across days
    * (behind Handover, or with the app in the background), so a day read earlier would keep Start
    * Pickup or Start Return grey on the very day they should open, or leave cancelling open after
-   * its last day. [ServerClock] works offline from its saved
-   * time, so this needs no connection. It does nothing while the rental is loading (no status yet),
-   * for a status with no button that opens from the server's day, or while a read is running.
+   * its last day. [ServerClock] works offline from its saved time, so this needs no connection. It
+   * does nothing while the rental is loading (no status yet), for a status with no button that
+   * opens from the server's day, or while a read is running.
    */
   fun onScreenResumed() {
     val state = _uiState.value
@@ -210,7 +210,8 @@ class RentalDetailViewModel(
 
   /**
    * Reads today from [serverClock] for Start Pickup, Start Return or the cancel window, unless a
-   * read is already running. Whatever it returns replaces the day, null included (unknown, e.g. after a reboot).
+   * read is already running. Whatever it returns replaces the day, null included (unknown, e.g.
+   * after a reboot).
    *
    * @param showReading whether [RentalDetailUiState.isReadingServerToday] turns true during the
    *   read. False when a day is already known, so the bottom button keeps its look until the new

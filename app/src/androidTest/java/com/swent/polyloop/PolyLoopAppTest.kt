@@ -764,7 +764,10 @@ class PolyLoopAppTest {
           .fetchSemanticsNodes()
           .isNotEmpty()
     }
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).performScrollTo().performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
+        .performScrollTo()
+        .performClick()
     waitForTag(C.Tag.rental_detail_cancel_sheet)
     return rentals
   }
