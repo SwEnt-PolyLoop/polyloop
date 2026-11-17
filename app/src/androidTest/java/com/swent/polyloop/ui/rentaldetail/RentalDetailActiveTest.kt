@@ -154,10 +154,10 @@ class RentalDetailActiveTest {
   }
 
   @Test
-  fun anUnknownDepositLeavesOutTheRow() {
+  fun anUnknownDepositShowsADash() {
     setContent(active.copy(deposit = 0))
 
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_accepted_deposit).assertDoesNotExist()
+    assertShown(C.Tag.rental_detail_accepted_deposit, "—")
   }
 
   @Test
@@ -171,7 +171,6 @@ class RentalDetailActiveTest {
         .performClick()
 
     assertEquals(1, chatClicks)
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_paused).assertDoesNotExist()
   }
 
   @Test

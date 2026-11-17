@@ -96,7 +96,9 @@ data class OtherPerson(
  * knows when to replace the map. For an accepted or active rental, it reads today from
  * [serverClock], so that Start Pickup and Start Return do not open from the phone's date, which the
  * user can change. The screen shows without waiting for that date, and an unknown date is read
- * again when the phone comes back online.
+ * again when the phone comes back online. A requested rental whose listing could not be read (e.g.
+ * opened offline, listing not cached) reads it again when the phone comes back online, to fill the
+ * suggested deposit and the map point.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
@@ -113,6 +115,10 @@ class RentalDetailViewModel(
 
   private var loading: Job? = null
   private var serverTodayRead: Job? = null
+  private var listingReread: Job? = null
+  // The listing whose read failed, so it is read again on reconnection; null once read (a missing
+  // listing counts as read).
+  private var failedListingId: String? = null
 
   init {
     load()
@@ -123,14 +129,11 @@ class RentalDetailViewModel(
         // Under the grey button, an unknown date asks the user to connect, so connecting reads it
         // again.
         val state = _uiState.value
-        if (
-            online &&
-                wasOnline == false &&
-                needsServerToday(state.status) &&
-                state.serverToday == null
-        ) {
+        val reconnected = online && wasOnline == false
+        if (reconnected && needsServerToday(state.status) && state.serverToday == null) {
           readServerToday()
         }
+        if (reconnected && state.status == RentalStatus.REQUESTED) readListingAgain()
         wasOnline = online
       }
     }
@@ -149,6 +152,36 @@ class RentalDetailViewModel(
     }
   }
 
+  /**
+   * Reads the listing again after a failed read, unless a re-read is already running or the last
+   * read succeeded. On success it fills the same fields as [load] (the suggested deposit and the
+   * map point, and the pickup area only when it is still blank, so the area copied on the rental is
+   * never overwritten). A missing listing (a successful read with no listing) counts as read and is
+   * not tried again; it clears the suggested deposit and the map point. A failure changes nothing
+   * and is retried at the next reconnection. [load] and [retry] cancel a running re-read, so an old
+   * result cannot land after a reload.
+   */
+  private fun readListingAgain() {
+    val listingId = failedListingId ?: return
+    if (listingReread?.isActive == true) return
+    listingReread = viewModelScope.launch {
+      // A failure changes nothing; the next reconnection tries again.
+      val result = listingRepository.getListing(listingId)
+      if (result.isFailure) return@launch
+      failedListingId = null
+      // Null when the listing does not exist: that is a successful read, and it clears the fields.
+      val listing = result.getOrNull()
+      _uiState.update {
+        it.copy(
+            suggestedDeposit = listing?.itemValue,
+            pickupPoint = listing?.pickupPoint,
+            // Never overwrites the area copied on the rental.
+            pickupArea = it.pickupArea.ifBlank { listing?.pickupArea.orEmpty() },
+        )
+      }
+    }
+  }
+
   /** Loads the rental again, e.g. after an error. */
   fun retry() = load()
 
@@ -156,6 +189,9 @@ class RentalDetailViewModel(
     // A retry while an earlier load is still running would otherwise let the older, slower result
     // overwrite the newer one.
     loading?.cancel()
+    // A re-read still running would otherwise land its result after the reload.
+    listingReread?.cancel()
+    failedListingId = null
     _uiState.update { it.copy(isLoading = true, errorMsg = null, notFound = false) }
     loading = viewModelScope.launch {
       val rental =
@@ -188,9 +224,11 @@ class RentalDetailViewModel(
       // deposit, the name copied on the rental) instead of failing the screen. The two reads need
       // nothing from each other, so they run at the same time; both are awaited before isLoading
       // turns false, so the screen does not flash a half-filled card.
-      val listingRead = async { listingRepository.getListing(rental.listingId).getOrNull() }
+      val listingRead = async { listingRepository.getListing(rental.listingId) }
       val profileRead = async { profileRepository.getProfile(otherUid).getOrNull() }
-      val listing = listingRead.await()
+      val listingResult = listingRead.await()
+      val listing = listingResult.getOrNull()
+      failedListingId = if (listingResult.isFailure) rental.listingId else null
       val profile = profileRead.await()
       val otherPerson =
           OtherPerson(
@@ -225,51 +263,65 @@ class RentalDetailViewModel(
             isReadingServerToday = it.isReadingServerToday,
         )
       }
-      // Read after the state is shown, not awaited with the listing and profile: only the bottom
-      // button needs the date, and the Function can take seconds on a cold start. Only an accepted
-      // or active rental reads it: Start Return on an active rental opens from the server's day,
-      // like Start Pickup on an accepted one.
-      var serverTodayAsked = needsServerToday(rental.status)
-      if (serverTodayAsked) readServerToday()
-      // A read error here stops the updates: the rental read above stays on screen, but not its
-      // offer, which could be out of date. The chat hides its offer card in the same way.
-      rentalRepository
-          .observeRental(rentalId)
-          .catch { _uiState.update { it.copy(offer = null, isOfferMine = false) } }
-          .collect { live ->
-            when {
-              live == null -> Unit
-              live.status !in SUPPORTED_STATUSES ->
-                  _uiState.update {
-                    RentalDetailUiState(
-                        isSupported = false,
-                        itemTitle = live.listingTitle,
-                        isOffline = it.isOffline,
-                    )
-                  }
-              else ->
-                  _uiState.update {
-                    it.copy(
-                        status = live.status,
-                        offer = live.offer,
-                        isOfferMine = live.offer?.authorId == uid,
-                        deposit = live.deposit,
-                        pickupAddress = live.pickupAddress,
-                        returnAddress = live.returnAddress,
-                        lateFees = live.lateFees,
-                    )
-                  }
-            }
-            // A request accepted, or picked up, while the screen is open now needs the date for its
-            // button. Asked once, so an unknown date is not asked again at every change of the
-            // rental: from Accepted to Active, the day already read for Start Pickup serves Start
-            // Return too, and reconnecting still reads it if it is unknown.
-            if (live != null && needsServerToday(live.status) && !serverTodayAsked) {
-              serverTodayAsked = true
-              readServerToday()
-            }
-          }
+      followRental(uid, readsServerToday = needsServerToday(rental.status))
     }
+  }
+
+  /**
+   * Reads today for Start Pickup or Start Return when [readsServerToday], then follows the rental
+   * live until the collection ends or fails.
+   *
+   * A failure of the live updates hides the offer rather than leaving it out of date.
+   *
+   * @param uid the signed-in user, used to tell whether the live offer is theirs.
+   * @param readsServerToday true when the rental is accepted or active, so today is read for Start
+   *   Pickup or Start Return.
+   */
+  private suspend fun followRental(uid: String, readsServerToday: Boolean) {
+    // Read after the state is shown, not awaited with the listing and profile: only the bottom
+    // button needs the date, and the Function can take seconds on a cold start. Only an accepted
+    // or active rental reads it: Start Return on an active rental opens from the server's day,
+    // like Start Pickup on an accepted one.
+    var serverTodayAsked = readsServerToday
+    if (serverTodayAsked) readServerToday()
+    // A read error here stops the updates: the rental read above stays on screen, but not its
+    // offer, which could be out of date. The chat hides its offer card in the same way.
+    rentalRepository
+        .observeRental(rentalId)
+        .catch { _uiState.update { it.copy(offer = null, isOfferMine = false) } }
+        .collect { live ->
+          when {
+            live == null -> Unit
+            live.status !in SUPPORTED_STATUSES ->
+                _uiState.update {
+                  RentalDetailUiState(
+                      isSupported = false,
+                      itemTitle = live.listingTitle,
+                      isOffline = it.isOffline,
+                  )
+                }
+            else ->
+                _uiState.update {
+                  it.copy(
+                      status = live.status,
+                      offer = live.offer,
+                      isOfferMine = live.offer?.authorId == uid,
+                      deposit = live.deposit,
+                      pickupAddress = live.pickupAddress,
+                      returnAddress = live.returnAddress,
+                      lateFees = live.lateFees,
+                  )
+                }
+          }
+          // A request accepted, or picked up, while the screen is open now needs the date for its
+          // button. Asked once, so an unknown date is not asked again at every change of the
+          // rental: from Accepted to Active, the day already read for Start Pickup serves Start
+          // Return too, and reconnecting still reads it if it is unknown.
+          if (live != null && needsServerToday(live.status) && !serverTodayAsked) {
+            serverTodayAsked = true
+            readServerToday()
+          }
+        }
   }
 
   private companion object {

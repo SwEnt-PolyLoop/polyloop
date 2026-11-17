@@ -6,7 +6,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -132,13 +131,10 @@ class RentalDetailDisputedTest {
   }
 
   @Test
-  fun aDepositOfZeroIsStillShownAsHeld() {
+  fun anUnknownDepositKeepsTheRowWithADash() {
     setContent(disputed.copy(deposit = 0))
 
-    assertShown(
-        C.Tag.rental_detail_accepted_deposit,
-        context.getString(R.string.rental_detail_deposit_held, 0),
-    )
+    assertShown(C.Tag.rental_detail_accepted_deposit, "—")
   }
 
   @Test
@@ -152,26 +148,16 @@ class RentalDetailDisputedTest {
   }
 
   @Test
-  fun chatIsDisabledAndTappingItDoesNotOpenTheChat() {
+  fun chatStaysEnabledAndOpensTheChat() {
     setContent()
 
     composeTestRule
         .onNodeWithTag(C.Tag.rental_detail_chat_button)
         .performScrollTo()
-        .assertIsNotEnabled()
+        .assertIsEnabled()
         .performClick()
 
-    assertEquals(0, chatClicks)
-  }
-
-  @Test
-  fun theChatPausedNoteIsShown() {
-    setContent()
-
-    assertShown(
-        C.Tag.rental_detail_chat_paused,
-        context.getString(R.string.rental_detail_chat_paused),
-    )
+    assertEquals(1, chatClicks)
   }
 
   @Test

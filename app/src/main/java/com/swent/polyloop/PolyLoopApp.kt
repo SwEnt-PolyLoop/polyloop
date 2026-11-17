@@ -378,6 +378,7 @@ private fun PolyLoopScaffold(
                         authRepository = RepositoryProvider.authRepository,
                         rentalRepository = RepositoryProvider.rentalRepository,
                         connectivityRepository = RepositoryProvider.connectivityRepository,
+                        serverClock = RepositoryProvider.serverClock,
                     )
             )
         ChatScreen(
@@ -403,6 +404,7 @@ private fun PolyLoopScaffold(
                         handoverRepository = RepositoryProvider.handoverRepository,
                         authRepository = RepositoryProvider.authRepository,
                         connectivityRepository = RepositoryProvider.connectivityRepository,
+                        serverClock = RepositoryProvider.serverClock,
                     )
             )
         HandoverScreen(viewModel = handoverViewModel)
