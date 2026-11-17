@@ -11,7 +11,6 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.FirebaseFunctions
-import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.model.RepositoryProvider
@@ -19,6 +18,7 @@ import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
 import com.swent.polyloop.model.firestore.callCloudFunction
 import com.swent.polyloop.model.firestore.confirmWrite
 import com.swent.polyloop.model.firestore.isValidDocumentId
+import com.swent.polyloop.model.firestore.refusalReason
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
 import java.util.concurrent.TimeoutException
@@ -157,15 +157,12 @@ class HandoverRepositoryFirestore(
   }
 
   /** The exception the app expects when [error] is a refusal with a known reason, or null. */
-  private fun scanRefusal(error: Throwable): Exception? {
-    val refusal = error as? FirebaseFunctionsException ?: return null
-    if (refusal.code != FirebaseFunctionsException.Code.FAILED_PRECONDITION) return null
-    return when ((refusal.details as? Map<*, *>)?.get(REASON)) {
-      WRONG_CODE -> WrongCodeException()
-      RENTAL_CHANGED -> RentalChangedException()
-      else -> null
-    }
-  }
+  private fun scanRefusal(error: Throwable): Exception? =
+      when (refusalReason(error)) {
+        WRONG_CODE -> WrongCodeException()
+        RENTAL_CHANGED -> RentalChangedException()
+        else -> null
+      }
 
   private fun rental(rentalId: String) = db.collection(HandoverFields.RENTALS).document(rentalId)
 
@@ -176,8 +173,7 @@ class HandoverRepositoryFirestore(
     const val UPLOAD_TIMEOUT_MS = 30_000L
     const val CONFIRM_HANDOVER = "confirmHandover"
 
-    /** The key and values of a refusal's `details`, set by `confirmHandover`. */
-    const val REASON = "reason"
+    /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */
     const val WRONG_CODE = "WRONG_CODE"
     const val RENTAL_CHANGED = "RENTAL_CHANGED"
   }
