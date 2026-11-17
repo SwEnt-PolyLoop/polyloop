@@ -702,8 +702,8 @@ class PolyLoopAppTest {
     composeTestRule.runOnUiThread {
       NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(shown.id))
     }
-    // The screen shows before the server's date is read, so Start Pickup can still be grey at
-    // first; View Dispute is always enabled.
+    // The screen shows before the server's date is read, so Start Pickup or Start Return can still
+    // be grey at first; View Dispute is always enabled.
     composeTestRule.waitUntil(timeoutMillis = 5_000) {
       composeTestRule
           .onAllNodes(hasTestTag(C.Tag.rental_detail_action_button) and isEnabled())
@@ -720,6 +720,22 @@ class PolyLoopAppTest {
     tapActionButtonOnRentalDetail(
         rental.copy(startDate = pickupDay, endDate = pickupDay.plusDays(2)),
         serverNow = Instant.parse("2026-10-01T10:00:00Z"),
+    )
+
+    assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
+  }
+
+  @Test
+  fun startReturnOnItsReturnDayOpensTheHandover() {
+    val returnDay = LocalDate.of(2026, 10, 8)
+    // Noon in Zurich on the return day: Start Return opens from the server's day.
+    tapActionButtonOnRentalDetail(
+        rental.copy(
+            status = RentalStatus.ACTIVE,
+            startDate = returnDay.minusDays(2),
+            endDate = returnDay,
+        ),
+        serverNow = Instant.parse("2026-10-08T10:00:00Z"),
     )
 
     assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
