@@ -1,6 +1,6 @@
 // Made with Claude.
 
-import { DocumentData, Firestore, getFirestore } from "firebase-admin/firestore";
+import { DocumentData, Firestore, Transaction, getFirestore } from "firebase-admin/firestore";
 import { onCall } from "firebase-functions/v2/https";
 import { toCallableError } from "./callable";
 import {
@@ -10,7 +10,7 @@ import {
   requirePerson,
   requireVerifiedEpfl,
 } from "./rentalRules";
-import { hasTransaction, readWallet, writeWallet } from "./wallet";
+import { Wallet, hasTransaction, readWallet, writeWallet } from "./wallet";
 
 /**
  * The statuses from which the lender can be paid: the item has been picked up. A payment missed
@@ -62,38 +62,103 @@ export async function payRentalLender(
     if (callerId !== rental.ownerId && callerId !== rental.borrowerId) {
       throw new RequestError("permission-denied", "Only the two participants can do this.");
     }
-    const borrowerId = requirePerson(rental.borrowerId, "borrower");
-    const lenderId = requirePerson(rental.ownerId, "lender");
-    if (borrowerId === lenderId) {
-      throw new RequestError("internal", "The rental has the same borrower and lender.");
-    }
-    const rowId = `rental_payment_${rentalId}`;
-    if (await hasTransaction(tx, db, borrowerId, rowId)) return;
+    const parties = requireParties(rental);
+    if (await isLenderPaid(tx, db, parties, rentalId)) return;
     if (!PAID_STATUSES.includes(rental.status)) {
       throw new RequestError("failed-precondition", "Only a picked-up rental can be paid.");
     }
-    const price = requirePrice(rental);
-    const borrower = await readWallet(tx, db, borrowerId);
-    if (borrower.available < price) {
-      throw new RequestError("failed-precondition", "Insufficient funds to pay the rental.");
-    }
-    const lender = await readWallet(tx, db, lenderId);
-    const itemTitle = listingTitleOf(rental);
-    writeWallet(
-      tx,
-      db,
-      borrowerId,
-      { ...borrower, available: borrower.available - price },
-      { id: rowId, type: RENTAL_PAYMENT, amount: -price, itemTitle },
-    );
-    writeWallet(
-      tx,
-      db,
-      lenderId,
-      { ...lender, available: lender.available + price },
-      { id: rowId, type: RENTAL_PAYMENT, amount: price, itemTitle },
-    );
+    const payment = await readLenderPayment(tx, db, rental, parties);
+    writeLenderPayment(tx, db, rentalId, payment);
   });
+}
+
+/** The borrower and the lender of a rental. */
+export interface Parties {
+  borrowerId: string;
+  lenderId: string;
+}
+
+/** What a payment moves, read inside the caller's transaction (see [readLenderPayment]). */
+export interface LenderPayment extends Parties {
+  price: number;
+  itemTitle: string;
+  borrower: Wallet;
+  lender: Wallet;
+}
+
+/**
+ * The rental's borrower and lender, two different valid users, or an `internal` refusal: the
+ * rental's data is broken then.
+ */
+export function requireParties(rental: DocumentData): Parties {
+  const borrowerId = requirePerson(rental.borrowerId, "borrower");
+  const lenderId = requirePerson(rental.ownerId, "lender");
+  if (borrowerId === lenderId) {
+    throw new RequestError("internal", "The rental has the same borrower and lender.");
+  }
+  return { borrowerId, lenderId };
+}
+
+/**
+ * True when the lender of [rentalId] has already been paid: the borrower's row exists. Read inside
+ * the caller's transaction, so two payments sent together never both pay.
+ */
+export function isLenderPaid(
+  tx: Transaction,
+  db: Firestore,
+  parties: Parties,
+  rentalId: string,
+): Promise<boolean> {
+  return hasTransaction(tx, db, parties.borrowerId, paymentRowId(rentalId));
+}
+
+/**
+ * Read step of a payment, inside the caller's transaction before its writes: the price, the title
+ * and both wallets. Fails with `internal` for a missing or invalid price, and with
+ * `failed-precondition` when the borrower's available balance is below the price.
+ */
+export async function readLenderPayment(
+  tx: Transaction,
+  db: Firestore,
+  rental: DocumentData,
+  parties: Parties,
+): Promise<LenderPayment> {
+  const price = requirePrice(rental);
+  const borrower = await readWallet(tx, db, parties.borrowerId);
+  if (borrower.available < price) {
+    throw new RequestError("failed-precondition", "Insufficient funds to pay the rental.");
+  }
+  const lender = await readWallet(tx, db, parties.lenderId);
+  return { ...parties, price, itemTitle: listingTitleOf(rental), borrower, lender };
+}
+
+/** Write step of a payment, inside the caller's transaction after its reads. */
+export function writeLenderPayment(
+  tx: Transaction,
+  db: Firestore,
+  rentalId: string,
+  payment: LenderPayment,
+): void {
+  const { price, itemTitle, borrower, lender } = payment;
+  const id = paymentRowId(rentalId);
+  writeWallet(
+    tx,
+    db,
+    payment.borrowerId,
+    { ...borrower, available: borrower.available - price },
+    { id, type: RENTAL_PAYMENT, amount: -price, itemTitle },
+  );
+  writeWallet(
+    tx,
+    db,
+    payment.lenderId,
+    { ...lender, available: lender.available + price },
+    { id, type: RENTAL_PAYMENT, amount: price, itemTitle },
+  );
+}
+
+function paymentRowId(rentalId: string): string {
+  return `rental_payment_${rentalId}`;
 }
 
 /**
