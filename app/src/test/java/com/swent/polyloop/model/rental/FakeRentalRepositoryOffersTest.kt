@@ -16,7 +16,10 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The deposit negotiation of [FakeRentalRepository], which follows the Cloud Functions' rules. */
+/**
+ * The deposit negotiation and cancelling of [FakeRentalRepository], which follow the Cloud
+ * Functions' rules.
+ */
 class FakeRentalRepositoryOffersTest {
 
   private var now = Instant.parse("2026-11-04T10:00:00Z")
@@ -198,6 +201,52 @@ class FakeRentalRepositoryOffersTest {
 
     assertTrue(repository.makeOffer("r1", 10, "A", "B").isFailure)
     assertTrue(repository.declineRequest("r1").isFailure)
+  }
+
+  @Test
+  fun cancelRentalCancelsARequestAndRemovesItsOffer() = runTest {
+    val repository = repository(rental()).offered()
+
+    repository.cancelRental("r1").getOrThrow()
+
+    assertEquals(RentalStatus.CANCELLED, repository.stored().status)
+    assertNull(repository.stored().offer)
+  }
+
+  @Test
+  fun cancelRentalCancelsAnAcceptedRental() = runTest {
+    val repository = repository(rental(status = RentalStatus.ACCEPTED))
+
+    repository.cancelRental("r1").getOrThrow()
+
+    assertEquals(RentalStatus.CANCELLED, repository.stored().status)
+    assertNull(repository.stored().offer)
+  }
+
+  @Test
+  fun cancelRentalRefusesOtherStatusesAndLeavesThemUnchanged() = runTest {
+    for (status in listOf(RentalStatus.DECLINED, RentalStatus.ACTIVE, RentalStatus.DISPUTED)) {
+      val repository = repository(rental(status = status))
+
+      assertTrue(repository.cancelRental("r1").isFailure)
+      assertEquals(status, repository.stored().status)
+    }
+  }
+
+  @Test
+  fun cancelRentalFailsForAMissingRental() = runTest {
+    assertTrue(repository(rental()).cancelRental("missing").isFailure)
+  }
+
+  @Test
+  fun cancelRentalReturnsTheFailureAndStoresNothing() = runTest {
+    val error = IllegalStateException("down")
+    val repository = repository(rental()).apply { failure = error }
+
+    assertSame(error, repository.cancelRental("r1").exceptionOrNull())
+
+    repository.failure = null
+    assertEquals(RentalStatus.REQUESTED, repository.stored().status)
   }
 
   @Test

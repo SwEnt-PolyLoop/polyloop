@@ -13,6 +13,17 @@ internal object HandoverFields {
   const val PHASE = "phase"
   const val TAKEN_AT = "takenAt"
   const val URL = "url"
+
+  /** The secret codes: `rentals/{rentalId}/handoverCodes/{PICKUP or RETURN}`, field [CODE]. */
+  const val CODES = "handoverCodes"
+  const val CODE = "code"
+
+  /** The field of the rental holding the fingerprint of the code scanned in [phase]. */
+  fun fingerprintField(phase: HandoverPhase): String =
+      when (phase) {
+        HandoverPhase.PICKUP -> "pickupCodeHash"
+        HandoverPhase.RETURN -> "returnCodeHash"
+      }
 }
 
 /** Builds a [HandoverPhoto] from a Firestore document, or returns null if a field is wrong. */

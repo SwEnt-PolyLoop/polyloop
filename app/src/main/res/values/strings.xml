@@ -382,7 +382,15 @@
     <string name="rental_detail_pickup_note">Only the area is shown for now. The exact address appears once the request is accepted.</string>
     <!-- The last day the rental can be cancelled, e.g. "You can cancel until Wed 30 Sep" -->
     <string name="rental_detail_cancel_until">You can cancel until %1$s</string>
+    <!-- Shown instead of the last cancel day of an accepted rental when the server's date is unknown -->
+    <string name="rental_detail_cancel_needs_connection">Connect to the internet to check the cancel day.</string>
     <string name="rental_detail_cancel_request">Cancel request</string>
+    <string name="rental_detail_cancel_rental">Cancel rental</string>
+    <string name="rental_detail_cancel_confirm_title">Are you sure you want to cancel this rental?</string>
+    <string name="rental_detail_cancel_no">No</string>
+    <string name="rental_detail_cancel_yes">Yes</string>
+    <!-- Shown under the cancel button whenever cancelling failed -->
+    <string name="rental_detail_cancel_error_fallback">Could not cancel the rental.</string>
     <string name="rental_detail_disputed_headline">Damage flagged</string>
     <string name="rental_detail_disputed_body">The deposit stays held until a split is decided.</string>
     <!-- The total rental price of an active or disputed rental, e.g. "120 PP · paid" -->
