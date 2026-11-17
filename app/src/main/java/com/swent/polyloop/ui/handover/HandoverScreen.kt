@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -78,11 +79,13 @@ import java.time.format.DateTimeFormatter
 
 /**
  * The Handover screen of one rental, backed by [viewModel]. An empty tile asks for the camera
- * permission, then opens the in-app camera for one photo, which [viewModel] uploads.
+ * permission, then opens the in-app camera for one photo, which [viewModel] uploads. "Scan QR code"
+ * opens Google's scanner and gives the code read to [viewModel].
  */
 @Composable
 fun HandoverScreen(viewModel: HandoverViewModel) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val context = LocalContext.current
   var isCameraOpen by rememberSaveable { mutableStateOf(false) }
   var cameraPermissionGranted by rememberSaveable { mutableStateOf<Boolean?>(null) }
   val cameraPermissionLauncher =
@@ -103,6 +106,7 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
       },
       onCloseCamera = { isCameraOpen = false },
       onCaptureFailed = viewModel::onCaptureFailed,
+      onScan = { scanQrCode(context, viewModel::onCodeScanned) },
   )
 }
 
