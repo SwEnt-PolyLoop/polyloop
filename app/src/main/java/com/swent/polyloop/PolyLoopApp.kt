@@ -71,14 +71,12 @@ import kotlinx.coroutines.launch
  * Screens that are not built yet show [DummyScreen]; replace each one with the real screen as it is
  * built.
  *
- * @param isAdmin whether the drawer lists Admin court ruling.
  * @param isSignedIn whether a user is already signed in; decides the start destination. Read once,
  *   on first composition. Tests can pass it directly instead of signing in.
  */
 @Composable
 fun PolyLoopApp(
     navController: NavHostController = rememberNavController(),
-    isAdmin: Boolean = false,
     isSignedIn: Boolean = RepositoryProvider.authRepository.getCurrentUser() != null,
 ) {
   val navigationActions = remember(navController) { NavigationActions(navController) }
@@ -98,7 +96,7 @@ fun PolyLoopApp(
               )
       )
   val drawerUiState by drawerViewModel.uiState.collectAsStateWithLifecycle()
-  // Every sign-in and sign-out changes the route, so the header follows the signed-in user.
+  // Every sign-in and sign-out changes the route, so the drawer follows the signed-in user.
   LaunchedEffect(currentRoute) { drawerViewModel.refresh() }
   val drawerState = rememberDrawerState(DrawerValue.Closed)
   val scope = rememberCoroutineScope()
@@ -115,7 +113,7 @@ fun PolyLoopApp(
       drawerContent = {
         PolyLoopDrawerContent(
             profile = drawerUiState.profile,
-            destinations = Screen.topLevelDestinations(isAdmin),
+            destinations = Screen.topLevelDestinations(drawerUiState.isAdmin),
             currentRoute = currentRoute,
             onDestinationClick = { screen ->
               scope.launch { drawerState.close() }
