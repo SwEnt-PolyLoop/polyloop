@@ -37,9 +37,9 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PositiveGreen
 
 /**
- * The card of the person receiving the item (Figma 15, 15.10, 15.11 and 15.15): "Scan QR code",
- * which calls [onScan], and why it is off; once the scan is confirmed, only "Picked up". [onRetry]
- * reads the code's fingerprint again after it failed.
+ * The card of the person receiving the item (Figma 15, 15.10 to 15.15): "Scan QR code", which calls
+ * [onScan], and why it is off or what the last scan gave; once the scan is confirmed, only "Picked
+ * up". [onRetry] reads the code's fingerprint again after it failed.
  */
 @Composable
 internal fun ScanCodeCard(uiState: HandoverUiState, onScan: () -> Unit, onRetry: () -> Unit) {
@@ -100,8 +100,8 @@ private fun ScanButton(enabled: Boolean, isSending: Boolean, onClick: () -> Unit
 }
 
 /**
- * Under the button: what is missing first, then a problem with the code. Nothing when the button
- * can simply be pressed.
+ * Under the button: what is missing first, then a problem with the code, then the last scan's
+ * error. Nothing when the button can simply be pressed.
  */
 @Composable
 private fun ColumnScope.ScanMessage(uiState: HandoverUiState, onRetry: () -> Unit) {
@@ -130,6 +130,13 @@ private fun ColumnScope.ScanMessage(uiState: HandoverUiState, onRetry: () -> Uni
         Text(stringResource(R.string.handover_retry), fontWeight = FontWeight.Bold)
       }
     }
+    uiState.scanError == ScanError.RENTAL_CHANGED ->
+        Message(stringResource(R.string.handover_scan_rental_changed), red)
+    uiState.isOffline -> Message(stringResource(R.string.handover_scan_offline), grey)
+    uiState.scanError == ScanError.WRONG_CODE ->
+        Message(wrongCodeMessage(uiState.otherPersonName), red)
+    uiState.scanError == ScanError.NOT_SENT ->
+        Message(stringResource(R.string.handover_scan_not_sent), red)
   }
 }
 
@@ -176,3 +183,8 @@ private fun scanTitle(isLender: Boolean, name: String): String =
       isLender -> stringResource(R.string.handover_scan_title_borrower)
       else -> stringResource(R.string.handover_scan_title_lender)
     }
+
+@Composable
+private fun wrongCodeMessage(name: String): String =
+    if (name.isBlank()) stringResource(R.string.handover_scan_wrong_code_no_name)
+    else stringResource(R.string.handover_scan_wrong_code, name)

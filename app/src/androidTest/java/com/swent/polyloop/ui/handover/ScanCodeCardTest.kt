@@ -22,10 +22,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * The card where the borrower scans the lender's QR code at pickup (Figma 15, 15.10, 15.11 and
- * 15.15).
- */
+/** The card where the borrower scans the lender's QR code at pickup (Figma 15, 15.10 to 15.15). */
 @RunWith(AndroidJUnit4::class)
 class ScanCodeCardTest {
 
@@ -112,6 +109,42 @@ class ScanCodeCardTest {
   }
 
   @Test
+  fun aWrongCodeNamesTheLenderAndTheButtonStaysOn() {
+    setContent(ready.copy(scanError = ScanError.WRONG_CODE))
+    assertMessage("This isn't the right code. Scan Loca's code on their Handover screen.")
+    button().assertIsEnabled()
+  }
+
+  @Test
+  fun aWrongCodeWithoutAName() {
+    setContent(ready.copy(scanError = ScanError.WRONG_CODE, otherPersonName = ""))
+    assertMessage("This isn't the right code. Scan the code on their Handover screen.")
+  }
+
+  @Test
+  fun aScanNotSentCanBeScannedAgain() {
+    setContent(ready.copy(scanError = ScanError.NOT_SENT))
+    assertMessage("The scan couldn't be sent. Try again in a moment.")
+    button().assertIsEnabled()
+  }
+
+  @Test
+  fun aRentalThatChangedTurnsTheScanOff() {
+    setContent(ready.copy(scanError = ScanError.RENTAL_CHANGED))
+    assertMessage(
+        "This rental changed and can't be picked up any more. Open the rental to see where it stands."
+    )
+    button().assertIsNotEnabled()
+  }
+
+  @Test
+  fun offlineTheScanWaitsForTheConnection() {
+    setContent(ready.copy(isOffline = true))
+    button().assertIsNotEnabled()
+    assertMessage("Scanning offline is coming soon.")
+  }
+
+  @Test
   fun offlineWithoutACopyAsksToConnectOnce() {
     setContent(ready.copy(isOffline = true, codeFingerprint = null, codeFailed = true))
     button().assertIsNotEnabled()
@@ -129,7 +162,7 @@ class ScanCodeCardTest {
 
   @Test
   fun missingPhotosComeFirst() {
-    setContent(ready.copy(photos = emptyList(), codeFingerprint = null, codeFailed = true))
+    setContent(ready.copy(photos = emptyList(), isOffline = true, scanError = ScanError.NOT_SENT))
     assertMessage("Take 3 more photos first.")
   }
 
