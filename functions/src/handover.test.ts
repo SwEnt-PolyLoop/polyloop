@@ -2,7 +2,7 @@
 
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
-import { confirmPickup } from "./handover";
+import { RENTAL_CHANGED, WRONG_CODE, confirmPickup } from "./handover";
 import { hasSeenLastMessage } from "./testing/readTimes";
 import { People, people, rental as newRental } from "./testing/walletFixtures";
 
@@ -47,6 +47,13 @@ const codeExists = async (id: string) =>
   (await db.doc(`rentals/${id}/handoverCodes/PICKUP`).get()).exists;
 const messages = async (id: string) =>
   (await db.collection(`rentals/${id}/messages`).get()).docs.map((doc) => doc.data());
+
+/** Expects [id] untouched: still ACCEPTED, with its code, and no message. */
+async function expectUnchanged(id: string): Promise<void> {
+  expect((await rentalData(id))?.status).toBe("ACCEPTED");
+  expect(await codeExists(id)).toBe(true);
+  expect(await messages(id)).toEqual([]);
+}
 
 describe("confirming the pickup", () => {
   it("makes the rental active, says so in the chat and uses the code up", async () => {
@@ -94,5 +101,75 @@ describe("confirming the pickup", () => {
       expect((await rentalData(id))?.status).toBe(status);
       expect(await messages(id)).toEqual([]);
     }
+  });
+});
+
+describe("refusing a pickup", () => {
+  it("refuses a wrong code with WRONG_CODE, changing nothing", async () => {
+    const who = people();
+    const id = await accepted(who);
+
+    for (const code of ["", "wrong", CODE.slice(1), `${CODE} `, CODE.toLowerCase()]) {
+      await expect(confirmPickup(db, who.borrower, scan(id, code), NOW)).rejects.toMatchObject({
+        code: "failed-precondition",
+        details: { reason: WRONG_CODE },
+      });
+    }
+    await expectUnchanged(id);
+  });
+
+  it("refuses any code when the rental has none", async () => {
+    const who = people();
+    const id = await accepted(who);
+    await db.doc(`rentals/${id}/handoverCodes/PICKUP`).delete();
+
+    await expect(confirmPickup(db, who.borrower, scan(id), NOW)).rejects.toMatchObject({
+      details: { reason: WRONG_CODE },
+    });
+    expect((await rentalData(id))?.status).toBe("ACCEPTED");
+  });
+
+  it("refuses a rental that is no longer accepted with RENTAL_CHANGED", async () => {
+    const who = people();
+    for (const status of ["REQUESTED", "DECLINED", "CANCELLED"]) {
+      const id = await accepted(who, { status });
+
+      await expect(confirmPickup(db, who.borrower, scan(id), NOW)).rejects.toMatchObject({
+        code: "failed-precondition",
+        details: { reason: RENTAL_CHANGED },
+      });
+      expect((await rentalData(id))?.status).toBe(status);
+      expect(await codeExists(id)).toBe(true);
+    }
+  });
+
+  it("refuses a scan outside the pickup day, with no reason", async () => {
+    const who = people();
+    const id = await accepted(who);
+
+    for (const day of ["2026-11-30T12:00:00Z", "2026-12-02T12:00:00Z"]) {
+      const error = await confirmPickup(db, who.borrower, scan(id), new Date(day)).catch((e) => e);
+      expect(error).toMatchObject({ code: "failed-precondition" });
+      expect(error.details).toBeUndefined();
+    }
+    await expectUnchanged(id);
+  });
+
+  it("lets only the borrower confirm, not the lender or a stranger", async () => {
+    const who = people();
+    const id = await accepted(who);
+
+    for (const caller of [who.lender, "stranger-uid"]) {
+      await expect(confirmPickup(db, caller, scan(id), NOW)).rejects.toMatchObject({
+        code: "permission-denied",
+      });
+    }
+    await expectUnchanged(id);
+  });
+
+  it("refuses a rental that does not exist", async () => {
+    await expect(
+      confirmPickup(db, "borrower-uid", scan("no-such-rental"), NOW),
+    ).rejects.toMatchObject({ code: "not-found" });
   });
 });
