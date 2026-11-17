@@ -124,8 +124,9 @@ data class HandoverUiState(
 }
 
 /**
- * Shows the handover of the rental [rentalId], read once, and uploads the photos taken. [today] is
- * the current date; [deletePhoto] deletes a photo file once it is uploaded or refused.
+ * Shows the handover of the rental [rentalId], read once: uploads the photos taken, reads the code
+ * to show or the fingerprint of the one to scan, and sends the scanned code. [today] is the current
+ * date; [deletePhoto] deletes a photo file once it is uploaded or refused.
  */
 class HandoverViewModel(
     private val rentalId: String,
