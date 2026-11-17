@@ -99,9 +99,8 @@ data class OtherPerson(
  * [serverClock], so that Start Pickup and Start Return do not open from the phone's date, which the
  * user can change. The screen shows without waiting for that date. The date is read again each time
  * the screen comes back ([onScreenResumed]), and an unknown date when the phone comes back online.
- * A requested rental whose listing could not be read (e.g.
- * opened offline, listing not cached) reads it again when the phone comes back online, to fill the
- * suggested deposit and the map point.
+ * A requested rental whose listing could not be read (e.g. opened offline, listing not cached)
+ * reads it again when the phone comes back online, to fill the suggested deposit and the map point.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
