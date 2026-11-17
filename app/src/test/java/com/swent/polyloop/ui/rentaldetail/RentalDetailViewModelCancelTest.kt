@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -90,8 +91,8 @@ class RentalDetailViewModelCancelTest {
   /**
    * The ViewModel for [rental] as seen by [user], with the server on [serverDay] (unknown when
    * null). [cancelOutcome], when set, replaces the fake's cancel; [serverGate] holds the server
-   * read; [live], when set, drives the followed rental by hand. Cancels are counted in
-   * [cancelCalls].
+   * read; [live], when set, drives the followed rental by hand; [liveFails] makes the live updates
+   * fail as soon as they start. Cancels are counted in [cancelCalls].
    */
   private fun viewModel(
       rental: Rental,
@@ -101,6 +102,7 @@ class RentalDetailViewModelCancelTest {
       cancelOutcome: (suspend () -> Result<Unit>)? = null,
       serverGate: CompletableDeferred<Unit>? = null,
       live: MutableStateFlow<Rental?>? = null,
+      liveFails: Boolean = false,
   ): RentalDetailViewModel {
     rentals = FakeRentalRepository(rentals = listOf(rental), clock = { now })
     serverDay?.let { rentals.serverNow = noonOn(it) }
@@ -118,7 +120,9 @@ class RentalDetailViewModelCancelTest {
             return cancelOutcome?.invoke() ?: fake.cancelRental(rentalId)
           }
 
-          override fun observeRental(id: String): Flow<Rental?> = live ?: fake.observeRental(id)
+          override fun observeRental(id: String): Flow<Rental?> =
+              if (liveFails) flow<Rental?> { throw IOException("live updates down") }
+              else live ?: fake.observeRental(id)
         }
     return RentalDetailViewModel(
         rental.id,
@@ -286,6 +290,21 @@ class RentalDetailViewModelCancelTest {
     assertEquals(1, cancelCalls)
 
     gate.complete(Unit)
+
+    val state = vm.uiState.value
+    assertEquals(RentalStatus.CANCELLED, rentals.rentals.single().status)
+    assertFalse(state.isSupported)
+    assertFalse(state.isCancelling)
+    assertNull(state.cancelError)
+  }
+
+  @Test
+  fun aSuccessfulCancelShowsThePlaceholderEvenWhenTheLiveUpdatesHadStopped() {
+    val vm = viewModel(request, liveFails = true)
+    // The rental read once stays on screen after the live updates fail.
+    assertEquals(RentalStatus.REQUESTED, vm.uiState.value.status)
+
+    vm.cancel()
 
     val state = vm.uiState.value
     assertEquals(RentalStatus.CANCELLED, rentals.rentals.single().status)

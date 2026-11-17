@@ -200,8 +200,9 @@ class RentalDetailViewModel(
   /**
    * Cancels the rental, if [RentalDetailUiState.canCancel]; otherwise does nothing. It does not set
    * the status itself: the rental is followed live, so it turns Cancelled once the Cloud Function
-   * has run, and a call that failed never shows as Cancelled. A failure sets
-   * [RentalDetailUiState.cancelError], which the next attempt clears.
+   * has run, and a call that failed never shows as Cancelled. After a success it also loads the
+   * rental again (see below). A failure sets [RentalDetailUiState.cancelError], which the next
+   * attempt clears.
    */
   fun cancel() {
     if (!_uiState.value.canCancel) return
@@ -211,6 +212,10 @@ class RentalDetailViewModel(
       _uiState.update {
         it.copy(isCancelling = false, cancelError = error?.let { e -> e.message ?: "" })
       }
+      // If the live updates had already failed, nothing would show the Cancelled rental, and the
+      // screen would stay on Requested or Accepted with no sign that it worked. Reading the rental
+      // again shows it as it is now (the placeholder) and restarts the live updates.
+      if (error == null) load()
     }
   }
 
