@@ -910,7 +910,10 @@ private fun CancelRow(
     }
     if (cancelError != null) {
       // Always the generic text, never cancelError's message: it is a raw Firebase text the user
-      // cannot act on, and retrying is the only thing to do.
+      // cannot act on. It does not say "Try again" either, as some refusals are final (e.g. an
+      // accepted rental whose pickup day has come by the server's clock). Once #429 sends a
+      // details.reason, the repository should read it and the screen show a matching message, as
+      // DisputeRepositoryFirestore does; not yet, as #429 does not define the reasons.
       Text(
           text = stringResource(R.string.rental_detail_cancel_error_fallback),
           style = MaterialTheme.typography.bodySmall,

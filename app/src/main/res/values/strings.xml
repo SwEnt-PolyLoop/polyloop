@@ -389,8 +389,8 @@
     <string name="rental_detail_cancel_confirm_title">Are you sure you want to cancel this rental?</string>
     <string name="rental_detail_cancel_no">No</string>
     <string name="rental_detail_cancel_yes">Yes</string>
-    <!-- Shown under the cancel button when cancelling failed without a message -->
-    <string name="rental_detail_cancel_error_fallback">Could not cancel the rental. Try again.</string>
+    <!-- Shown under the cancel button whenever cancelling failed -->
+    <string name="rental_detail_cancel_error_fallback">Could not cancel the rental.</string>
     <string name="rental_detail_disputed_headline">Damage flagged</string>
     <string name="rental_detail_disputed_body">The deposit stays held until a split is decided.</string>
     <!-- The total rental price of an active or disputed rental, e.g. "120 PP · paid" -->
