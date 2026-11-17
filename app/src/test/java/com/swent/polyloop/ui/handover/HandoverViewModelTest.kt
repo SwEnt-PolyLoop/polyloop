@@ -573,13 +573,17 @@ class HandoverViewModelTest {
   }
 
   @Test
-  fun aRentalThatChangedIsReported() {
+  fun aRentalThatChangedIsReportedAndTurnsTheScanOff() {
     handoverRepository.scanFailure = RentalChangedException()
     val vm = readyToScan()
     vm.onCodeScanned("secret-code")
 
     assertEquals(ScanError.RENTAL_CHANGED, vm.uiState.value.scanError)
     assertFalse(vm.uiState.value.scanConfirmed)
+    assertFalse(vm.uiState.value.canScan)
+    // Scanning again sends nothing: the server would refuse it the same way.
+    vm.onCodeScanned("secret-code")
+    assertEquals(1, handoverRepository.scannedCodes.size)
   }
 
   @Test

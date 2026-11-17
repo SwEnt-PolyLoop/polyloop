@@ -110,7 +110,7 @@ data class HandoverUiState(
   /**
    * True when "Scan QR code" can be pressed: on the pickup day, once the user has 3 photos and the
    * fingerprint, online until scans can wait in the upload queue, and not while a scan is being
-   * sent or once one is confirmed.
+   * sent, once one is confirmed, or once the server said the rental changed.
    */
   val canScan: Boolean
     get() =
@@ -121,7 +121,8 @@ data class HandoverUiState(
             codeFingerprint != null &&
             !isOffline &&
             !isSendingScan &&
-            !scanConfirmed
+            !scanConfirmed &&
+            scanError != ScanError.RENTAL_CHANGED
 }
 
 /**
