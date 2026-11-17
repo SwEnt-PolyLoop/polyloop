@@ -146,6 +146,10 @@ class HandoverViewModel(
     viewModelScope.launch {
       connectivityRepository.isOnline.collect { online ->
         _uiState.update { it.copy(isOffline = !online) }
+        // Back online: a code that could not be read (e.g. no copy on the phone) is read again,
+        // so nobody has to press Retry.
+        val state = _uiState.value
+        if (online && state.codeFailed) state.phase?.let { loadCode(it, state.showsCode) }
       }
     }
     load()

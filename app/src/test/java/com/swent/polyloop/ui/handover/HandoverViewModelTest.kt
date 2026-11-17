@@ -445,6 +445,64 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun aCodeThatFailedIsReadAgainWhenBackOnline() {
+    // Offline with no copy on the phone: the read fails.
+    connectivity.setOnline(false)
+    handoverRepository.codeFailure = RuntimeException("no copy offline")
+    handoverRepository.photos = photos(3)
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.codeFailed)
+
+    handoverRepository.codeFailure = null
+    connectivity.setOnline(true)
+
+    assertFalse(vm.uiState.value.codeFailed)
+    assertEquals(HandoverCode.fingerprint("secret-code"), vm.uiState.value.codeFingerprint)
+    assertTrue(vm.uiState.value.canScan)
+  }
+
+  @Test
+  fun theLendersCodeIsReadAgainWhenBackOnline() {
+    connectivity.setOnline(false)
+    handoverRepository.codeFailure = RuntimeException("no copy offline")
+    handoverRepository.photos = photos(3, takenBy = "owner")
+    signInLender()
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.codeFailed)
+
+    handoverRepository.codeFailure = null
+    connectivity.setOnline(true)
+
+    assertEquals("secret-code", vm.uiState.value.code)
+    assertTrue(vm.uiState.value.canShowCode)
+  }
+
+  @Test
+  fun aCodeAlreadyReadIsNotReadAgainWhenBackOnline() {
+    handoverRepository.photos = photos(3, takenBy = "owner")
+    signInLender()
+    val vm = viewModel()
+    handoverRepository.code = "changed-since"
+
+    connectivity.setOnline(false)
+    connectivity.setOnline(true)
+
+    assertEquals("secret-code", vm.uiState.value.code)
+  }
+
+  @Test
+  fun goingOfflineDoesNotReadTheCodeAgain() {
+    handoverRepository.codeFailure = RuntimeException("down")
+    handoverRepository.photos = photos(3)
+    val vm = viewModel()
+    handoverRepository.codeFailure = null
+
+    connectivity.setOnline(false)
+
+    assertTrue(vm.uiState.value.codeFailed)
+  }
+
+  @Test
   fun aCodeThatCannotBeReadIsReportedAndCanBeRetried() {
     handoverRepository.codeFailure = RuntimeException("down")
     handoverRepository.photos = photos(3)
