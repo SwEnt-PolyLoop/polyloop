@@ -12,10 +12,13 @@ import {
   makeOffer,
   respondToOffer,
 } from "./negotiation";
+import { ExpirySweeps, runExpirySweeps } from "./expireOffers";
 import { hasSeenLastMessage } from "./testing/readTimes";
 import { fund, people, wallet } from "./testing/walletFixtures";
 
 jest.mock("firebase-functions/logger");
+// Firebase loads this ES module to verify tokens, which Jest cannot load; expireOffers.ts needs it.
+jest.mock("jose", () => ({}));
 
 let db: Firestore;
 
@@ -256,13 +259,23 @@ describe("expireUnansweredRequests", () => {
     expect(messages.docs.map((doc) => doc.get("type"))).toEqual(["SYSTEM"]);
   });
 
-  it("declines it from the very start of its first day", async () => {
+  it("declines it from the very start of its first day, midnight in Zurich", async () => {
     const ref = await requestStarting(TODAY);
 
-    const midnight = new Date(`${TODAY}T00:00:00Z`);
+    // Summer time: midnight in Zurich is 22:00 UTC the day before.
+    const midnight = new Date("2001-06-14T22:00:00Z");
     expect(await expireUnansweredRequests(db, midnight)).toEqual({ expired: 1, failed: 0 });
 
     expect((await ref.get()).get("status")).toBe("DECLINED");
+  });
+
+  it("leaves it alone until midnight in Zurich", async () => {
+    const ref = await requestStarting(TODAY);
+
+    const justBefore = new Date("2001-06-14T21:59:59Z");
+    expect(await expireUnansweredRequests(db, justBefore)).toEqual({ expired: 0, failed: 0 });
+
+    expect((await ref.get()).get("status")).toBe("REQUESTED");
   });
 
   it("declines a request whose first day has passed", async () => {
@@ -386,5 +399,45 @@ describe("an offer racing the request's expiry", () => {
       expect(sweep).toMatchObject({ status: "fulfilled", value: true });
     }
     await listingRef.delete();
+  });
+});
+
+describe("runExpirySweeps", () => {
+  const done = { expired: 0, failed: 0 };
+
+  it("runs both sweeps", async () => {
+    const sweeps: ExpirySweeps = {
+      offers: jest.fn().mockResolvedValue(done),
+      requests: jest.fn().mockResolvedValue(done),
+    };
+
+    await runExpirySweeps(db, NOW, sweeps);
+
+    expect(sweeps.offers).toHaveBeenCalledWith(db, NOW);
+    expect(sweeps.requests).toHaveBeenCalledWith(db, NOW);
+  });
+
+  it("still runs the requests when the offers' query fails, then fails the run", async () => {
+    const failure = new Error("deadline exceeded");
+    const sweeps: ExpirySweeps = {
+      offers: jest.fn().mockRejectedValue(failure),
+      requests: jest.fn().mockResolvedValue({ expired: 2, failed: 0 }),
+    };
+
+    await expect(runExpirySweeps(db, NOW, sweeps)).rejects.toBe(failure);
+
+    expect(sweeps.requests).toHaveBeenCalledWith(db, NOW);
+  });
+
+  it("still runs the offers when the requests' query fails, then fails the run", async () => {
+    const failure = new Error("unavailable");
+    const sweeps: ExpirySweeps = {
+      offers: jest.fn().mockResolvedValue({ expired: 1, failed: 1 }),
+      requests: jest.fn().mockRejectedValue(failure),
+    };
+
+    await expect(runExpirySweeps(db, NOW, sweeps)).rejects.toBe(failure);
+
+    expect(sweeps.offers).toHaveBeenCalledWith(db, NOW);
   });
 });
