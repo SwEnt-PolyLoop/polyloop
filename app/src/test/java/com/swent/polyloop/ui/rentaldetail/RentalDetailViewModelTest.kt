@@ -528,4 +528,135 @@ class RentalDetailViewModelTest {
 
     override fun observeRentalsAsLender(uid: String): Flow<List<Rental>> = error("Not used")
   }
+
+  // Opens the screen offline with a listing read that fails, then leaves the phone offline.
+  private fun viewModelWithFailedListingRead(
+      rentalToOpen: Rental = rental,
+      listingToRead: Listing = listing,
+  ): RentalDetailViewModel {
+    rentalRepository = FakeRentalRepository(listOf(rentalToOpen))
+    listingRepository.listings = listOf(listingToRead)
+    listingRepository.failure = IllegalStateException("offline")
+    connectivityRepository.setOnline(false)
+    return viewModel(rentalToOpen.id)
+  }
+
+  private fun reconnect() {
+    connectivityRepository.setOnline(false)
+    connectivityRepository.setOnline(true)
+  }
+
+  @Test
+  fun failedListingReadIsRepeatedWhenBackOnline() {
+    val point = MapPoint(latitude = 46.52, longitude = 6.57)
+    val vm = viewModelWithFailedListingRead(listingToRead = listing.copy(pickupPoint = point))
+    assertNull(vm.uiState.value.pickupPoint)
+    assertNull(vm.uiState.value.suggestedDeposit)
+
+    listingRepository.failure = null
+    connectivityRepository.setOnline(true)
+
+    assertEquals(point, vm.uiState.value.pickupPoint)
+    assertEquals(180, vm.uiState.value.suggestedDeposit)
+  }
+
+  @Test
+  fun blankPickupAreaIsFilledFromTheListingOnReread() {
+    val vm =
+        viewModelWithFailedListingRead(
+            rentalToOpen = rental.copy(pickupArea = ""),
+            listingToRead = listing.copy(pickupArea = "Renens"),
+        )
+    assertEquals("", vm.uiState.value.pickupArea)
+
+    listingRepository.failure = null
+    connectivityRepository.setOnline(true)
+
+    assertEquals("Renens", vm.uiState.value.pickupArea)
+  }
+
+  @Test
+  fun nonBlankPickupAreaIsKeptOnReread() {
+    val vm = viewModelWithFailedListingRead(listingToRead = listing.copy(pickupArea = "Renens"))
+
+    listingRepository.failure = null
+    connectivityRepository.setOnline(true)
+
+    assertEquals("Ecublens", vm.uiState.value.pickupArea)
+  }
+
+  @Test
+  fun rereadThatFailsAgainIsRetriedAtNextReconnection() {
+    val vm = viewModelWithFailedListingRead()
+
+    connectivityRepository.setOnline(true)
+    assertEquals(2, listingRepository.getListingCalls)
+    assertNull(vm.uiState.value.suggestedDeposit)
+
+    listingRepository.failure = null
+    reconnect()
+
+    assertEquals(3, listingRepository.getListingCalls)
+    assertEquals(180, vm.uiState.value.suggestedDeposit)
+  }
+
+  @Test
+  fun successfulReadIsNotRepeatedWhenBackOnline() {
+    val vm = viewModel()
+
+    reconnect()
+
+    assertEquals(1, listingRepository.getListingCalls)
+    assertEquals(180, vm.uiState.value.suggestedDeposit)
+  }
+
+  @Test
+  fun missingListingIsNotReread() {
+    listingRepository.listings = emptyList()
+    viewModel()
+
+    reconnect()
+
+    assertEquals(1, listingRepository.getListingCalls)
+  }
+
+  @Test
+  fun laterReconnectionsDoNotReadAgainAfterASuccessfulReread() {
+    viewModelWithFailedListingRead()
+    listingRepository.failure = null
+    connectivityRepository.setOnline(true)
+    assertEquals(2, listingRepository.getListingCalls)
+
+    reconnect()
+    reconnect()
+
+    assertEquals(2, listingRepository.getListingCalls)
+  }
+
+  @Test
+  fun acceptedRentalDoesNotRereadTheListing() {
+    viewModelWithFailedListingRead(rentalToOpen = rental.copy(status = RentalStatus.ACCEPTED))
+    listingRepository.failure = null
+
+    connectivityRepository.setOnline(true)
+
+    assertEquals(1, listingRepository.getListingCalls)
+  }
+
+  @Test
+  fun retryResetsTheFailureMarkerAndDoesNotLetARereadRunTwice() {
+    val vm = viewModelWithFailedListingRead()
+    listingRepository.failure = null
+    val gate = CompletableDeferred<Unit>()
+    listingRepository.gate = gate
+    connectivityRepository.setOnline(true) // the re-read starts and waits on the gate
+    vm.retry() // cancels it and loads again
+
+    gate.complete(Unit)
+    assertEquals(180, vm.uiState.value.suggestedDeposit)
+    assertEquals(3, listingRepository.getListingCalls)
+
+    reconnect() // the retry read the listing, so nothing is read again
+    assertEquals(3, listingRepository.getListingCalls)
+  }
 }

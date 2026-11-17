@@ -11,10 +11,15 @@ import com.swent.polyloop.model.handover.FakeHandoverRepository.StoredPhoto
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
+import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -60,13 +65,20 @@ class HandoverViewModelTest {
   private lateinit var handoverRepository: FakeHandoverRepository
   private lateinit var authRepository: FakeAuthRepository
   private lateinit var connectivity: FakeConnectivityRepository
-  private var today = pickupDay
   private val deleted = mutableListOf<String>()
+
+  // Also runs the server clock's reads, so they finish before each assertion.
+  private val testDispatcher = UnconfinedTestDispatcher()
+
+  /** Noon on [day] in Zurich, as the server's clock gives it. */
+  private fun noonOn(day: LocalDate): Instant =
+      day.atTime(12, 0).atZone(ZoneId.of("Europe/Zurich")).toInstant()
 
   @Before
   fun setUp() {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
+    Dispatchers.setMain(testDispatcher)
     rentalRepository = FakeRentalRepository(rentals = listOf(rental))
+    rentalRepository.serverNow = noonOn(pickupDay)
     handoverRepository = FakeHandoverRepository(currentUid = "borrower")
     authRepository = FakeAuthRepository(signedInUser = borrower)
     connectivity = FakeConnectivityRepository()
@@ -77,16 +89,36 @@ class HandoverViewModelTest {
     Dispatchers.resetMain()
   }
 
-  private fun viewModel(id: String = rental.id) =
+  private fun viewModel(
+      id: String = rental.id,
+      repository: RentalRepository = rentalRepository,
+  ) =
       HandoverViewModel(
           id,
-          rentalRepository,
+          repository,
           handoverRepository,
           authRepository,
           connectivity,
-          today = { today },
+          serverClock(repository),
           deletePhoto = { deleted += it },
       )
+
+  private fun serverClock(repository: RentalRepository) =
+      ServerClock(
+          repository,
+          InMemoryServerClockStore(),
+          elapsedRealtime = { 0L },
+          bootCount = { 0 },
+          ioDispatcher = testDispatcher,
+      )
+
+  /** [rentalRepository] with a server that cannot be reached until [reachable] returns true. */
+  private fun unreachableServer(reachable: () -> Boolean = { false }) =
+      object : RentalRepository by rentalRepository {
+        override suspend fun serverNow(): Result<Instant> =
+            if (reachable()) rentalRepository.serverNow()
+            else Result.failure(IOException("offline"))
+      }
 
   @Test
   fun theBorrowerSeesTheItemTheLenderAndThePickupPhaseOnceLoaded() {
@@ -118,17 +150,147 @@ class HandoverViewModelTest {
 
   @Test
   fun itIsThePickupDayOnlyOnTheRentalsFirstDay() {
-    today = pickupDay.minusDays(1)
+    rentalRepository.serverNow = noonOn(pickupDay.minusDays(1))
     assertFalse(viewModel().uiState.value.isPickupDay)
-    today = pickupDay.plusDays(1)
+    rentalRepository.serverNow = noonOn(pickupDay.plusDays(1))
     assertFalse(viewModel().uiState.value.isPickupDay)
   }
 
   @Test
-  fun aRentalThatIsNotAcceptedTakesNoPhotos() {
-    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
+  fun thePickupDayComesFromTheServersClockNotThePhones() {
+    // The rental starts today by the phone's date, but the server's day is the day before.
+    val phoneToday = LocalDate.now()
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(startDate = phoneToday)))
+    rentalRepository.serverNow = noonOn(phoneToday.minusDays(1))
 
-    assertNull(viewModel().uiState.value.phase)
+    val state = viewModel().uiState.value
+
+    assertEquals(phoneToday.minusDays(1), state.serverToday)
+    assertFalse(state.isPickupDay)
+    assertFalse(state.canAddPhoto)
+  }
+
+  @Test
+  fun theRentalShowsWhileTheServersDayIsRead() {
+    val gate = CompletableDeferred<Unit>()
+    val gated =
+        object : RentalRepository by rentalRepository {
+          override suspend fun serverNow(): Result<Instant> {
+            gate.await()
+            return rentalRepository.serverNow()
+          }
+        }
+    val vm = viewModel(repository = gated)
+    val reading = vm.uiState.value
+    assertFalse(reading.isLoading)
+    assertEquals(HandoverPhase.PICKUP, reading.phase)
+    assertTrue(reading.isReadingServerToday)
+    assertNull(reading.serverToday)
+    assertFalse(reading.canAddPhoto)
+
+    gate.complete(Unit)
+
+    val read = vm.uiState.value
+    assertFalse(read.isReadingServerToday)
+    assertEquals(pickupDay, read.serverToday)
+    assertTrue(read.canAddPhoto)
+  }
+
+  @Test
+  fun anUnknownServerDayTakesNoPhotoAndShowsNoError() {
+    val vm = viewModel(repository = unreachableServer())
+
+    val state = vm.uiState.value
+    assertFalse(state.loadFailed)
+    assertFalse(state.isReadingServerToday)
+    assertNull(state.serverToday)
+    assertFalse(state.isPickupDay)
+    vm.addPhoto("file1")
+    assertEquals(listOf("file1"), deleted)
+    assertEquals(0, handoverRepository.addPhotoCalls)
+  }
+
+  @Test
+  fun anUnknownServerDayIsReadAgainWhenThePhoneComesBackOnline() {
+    connectivity.setOnline(false)
+    var reachable = false
+    val vm = viewModel(repository = unreachableServer { reachable })
+    assertNull(vm.uiState.value.serverToday)
+
+    reachable = true
+    connectivity.setOnline(true)
+
+    assertEquals(pickupDay, vm.uiState.value.serverToday)
+    assertTrue(vm.uiState.value.canAddPhoto)
+  }
+
+  @Test
+  fun aKnownServerDayIsNotReadAgainWhenThePhoneComesBackOnline() {
+    viewModel()
+
+    connectivity.setOnline(false)
+    connectivity.setOnline(true)
+
+    assertEquals(1, rentalRepository.serverNowCalls)
+  }
+
+  @Test
+  fun aDayTheServerFailedToGiveOnlineIsReadAgainOnRetry() {
+    var reachable = false
+    val vm = viewModel(repository = unreachableServer { reachable })
+    assertFalse(vm.uiState.value.isOffline)
+    assertNull(vm.uiState.value.serverToday)
+
+    reachable = true
+    vm.retryServerToday()
+
+    assertEquals(pickupDay, vm.uiState.value.serverToday)
+    assertTrue(vm.uiState.value.canAddPhoto)
+  }
+
+  @Test
+  fun aRetryReadsNothingWhenTheDayIsKnownOrThePhoneIsOffline() {
+    viewModel().retryServerToday()
+    assertEquals(1, rentalRepository.serverNowCalls)
+
+    connectivity.setOnline(false)
+    var reads = 0
+    val vm =
+        viewModel(
+            repository =
+                unreachableServer {
+                  reads++
+                  false
+                }
+        )
+    vm.retryServerToday()
+    assertEquals(1, reads)
+  }
+
+  @Test
+  fun aRentalThatIsNotAcceptedTakesNoPhotosAndDoesNotReadTheServersDay() {
+    rentalRepository = FakeRentalRepository(listOf(rental.copy(status = RentalStatus.ACTIVE)))
+    connectivity.setOnline(false)
+    val vm = viewModel()
+    connectivity.setOnline(true)
+    vm.retryServerToday()
+
+    assertNull(vm.uiState.value.phase)
+    assertNull(vm.uiState.value.serverToday)
+    assertEquals(0, rentalRepository.serverNowCalls)
+  }
+
+  @Test
+  fun aRetryAfterAFailedReadReadsTheServersDay() {
+    rentalRepository.failure = RuntimeException("offline")
+    val vm = viewModel()
+    assertNull(vm.uiState.value.serverToday)
+
+    rentalRepository.failure = null
+    vm.retry()
+
+    assertEquals(pickupDay, vm.uiState.value.serverToday)
+    assertTrue(vm.uiState.value.isPickupDay)
   }
 
   @Test
@@ -299,10 +461,10 @@ class HandoverViewModelTest {
 
   @Test
   fun photosAreRefusedAndDeletedOffThePickupDayAtTwentyOrWhileUploading() {
-    today = pickupDay.plusDays(1)
+    rentalRepository.serverNow = noonOn(pickupDay.plusDays(1))
     viewModel().addPhoto("late")
 
-    today = pickupDay
+    rentalRepository.serverNow = noonOn(pickupDay)
     handoverRepository.photos = photos(HandoverPhoto.MAX_PHOTOS)
     viewModel().addPhoto("full")
 
@@ -335,6 +497,7 @@ class HandoverViewModelTest {
           handoverRepository,
           authRepository,
           connectivity,
+          serverClock(rentalRepository),
       )
 
   @Test

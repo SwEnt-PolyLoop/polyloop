@@ -25,7 +25,7 @@ import org.junit.runner.RunWith
 class DisputeEndToEndTest : EndToEndTestBase() {
 
   @Test
-  fun anOpenDisputeShowsTheLendersProposalAndPausesTheChat() {
+  fun anOpenDisputeKeepsTheChatOpenAndShowsTheLendersProposal() {
     seedProfile(lenderId, LENDER_NAME)
     val listing = seedListing()
     val uid = signInWithoutTheUi()
@@ -52,14 +52,16 @@ class DisputeEndToEndTest : EndToEndTestBase() {
         .assertTextEquals(context.getString(R.string.rental_status_disputed))
     composeTestRule.onNodeWithTag(row).performClick()
 
-    // Rental detail: the chat is paused, and the main action opens the dispute.
+    // Rental detail: the chat stays open during the dispute; Back returns to the rental.
     waitForText(C.Tag.rental_detail_title, listing.title)
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).assertIsNotEnabled()
-    composeTestRule
-        .onNodeWithTag(C.Tag.rental_detail_chat_paused)
-        .performScrollTo()
-        .assertIsDisplayed()
-    // Pinned at the bottom of the screen, outside the scrolling content: no scroll first.
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
+    waitForText(C.Tag.chat_header_item, listing.title)
+    assertRoute(Screen.Chat)
+    pressBack()
+    assertRoute(Screen.RentalDetail)
+
+    // The main action opens the dispute. It is pinned at the bottom of the screen, outside the
+    // scrolling content: no scroll first.
     waitUntilEnabled(C.Tag.rental_detail_action_button)
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).performClick()
 
