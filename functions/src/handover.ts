@@ -10,7 +10,7 @@ import {
   requireParties,
   writeLenderPayment,
 } from "./payLender";
-import { RequestError } from "./rentalRules";
+import { RequestError, asFields, parseText } from "./rentalRules";
 import { zurichDay } from "./serverToday";
 
 /** The reasons of a refusal the app reads (`details.reason`), see docs/ARCHITECTURE.md. */
@@ -21,6 +21,30 @@ export const RENTAL_CHANGED = "RENTAL_CHANGED";
 export interface PickupScan {
   rentalId: string;
   code: string;
+}
+
+/** The longest code accepted: real codes have 43 characters (see handoverCode.ts). */
+const MAX_CODE_LENGTH = 200;
+
+/**
+ * The input of `confirmHandover`: `{rentalId, phase, code}`. Only the PICKUP phase exists for now
+ * (the return scan comes with the return). The code is kept exactly as scanned, not trimmed. Throws
+ * an `invalid-argument` error if a field is wrong.
+ */
+export function parseHandoverScan(data: unknown): PickupScan {
+  const fields = asFields(data);
+  const rentalId = parseText(fields.rentalId, "rentalId");
+  if (fields.phase === "RETURN") {
+    throw new RequestError("invalid-argument", "The return scan does not exist yet.");
+  }
+  if (fields.phase !== "PICKUP") {
+    throw new RequestError("invalid-argument", "The phase must be PICKUP or RETURN.");
+  }
+  const code = fields.code;
+  if (typeof code !== "string" || code === "" || code.length > MAX_CODE_LENGTH) {
+    throw new RequestError("invalid-argument", "code is required.");
+  }
+  return { rentalId, code };
 }
 
 /**
