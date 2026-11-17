@@ -2,6 +2,9 @@
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
+/** The subcollection of a rental holding its handover codes, one document per phase. */
+export const HANDOVER_CODES = "handoverCodes";
+
 /** How many random bytes a handover code holds: 256 bits, far too many to guess. */
 const CODE_BYTES = 32;
 
@@ -23,8 +26,8 @@ export function codeFingerprint(code: string): string {
 }
 
 /**
- * True when [scanned] is exactly [expected], a code that is not blank. The comparison takes the same
- * time wherever the two differ, so the time it takes says nothing about the code.
+ * True when [scanned] is exactly [expected], a code that is not blank. The comparison takes the
+ * same time wherever the two differ, so the time it takes says nothing about the code.
  */
 export function isSameCode(scanned: unknown, expected: unknown): boolean {
   if (typeof scanned !== "string" || typeof expected !== "string") return false;
