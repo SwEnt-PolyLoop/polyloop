@@ -112,7 +112,7 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
  * photo tile is tapped, [onRetryUpload] when the photo that failed to upload is; photo times are
  * shown in [zone]. While [isCameraOpen], the in-app camera fills the screen for one photo, given to
  * [onPhotoTaken], or to [onCaptureFailed] if the shot fails; [cameraPermissionGranted] false shows
- * how to allow the camera.
+ * how to allow the camera. [onScan] is called when "Scan QR code" is pressed.
  */
 @Composable
 fun HandoverContent(
@@ -126,6 +126,7 @@ fun HandoverContent(
     onPhotoTaken: (uri: String) -> Unit = {},
     onCloseCamera: () -> Unit = {},
     onCaptureFailed: (uri: String) -> Unit = {},
+    onScan: () -> Unit = {},
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
   // The photo shown full screen after a tap, by id; null when none is.
@@ -186,7 +187,11 @@ fun HandoverContent(
                     onPhotoClick = { enlargedId = it },
                     onRetryPhotos = onRetry,
                 )
-                if (uiState.showsCode && uiState.isPickupDay) ShowCodeCard(uiState, onRetry)
+                if (uiState.isPickupDay) {
+                  // The person giving the item shows the code; the one receiving it scans.
+                  if (uiState.showsCode) ShowCodeCard(uiState, onRetry)
+                  else ScanCodeCard(uiState, onScan)
+                }
                 CameraPermissionMessage(cameraPermissionGranted)
               }
               DepositFooter(uiState.deposit)

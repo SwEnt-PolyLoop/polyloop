@@ -516,6 +516,12 @@
     <!-- Under the QR code while offline, e.g. "Once Mara has scanned, you're done. …" -->
     <string name="handover_code_offline_note">Once %1$s has scanned, you\'re done. This updates when you\'re back online.</string>
     <string name="handover_code_offline_note_no_name">Once they have scanned, you\'re done. This updates when you\'re back online.</string>
+    <!-- The card where the person receiving the item scans the QR code, e.g. "Scan Loca's code" -->
+    <string name="handover_scan_title">Scan %1$s\'s code</string>
+    <string name="handover_scan_title_lender">Scan the lender\'s code</string>
+    <string name="handover_scan_title_borrower">Scan the borrower\'s code</string>
+    <string name="handover_scan_hint">Scanning confirms you received the item and starts the rental.</string>
+    <string name="handover_scan_button">Scan QR code</string>
 
     <!-- Review request: the lender's answer to a request. -->
     <string name="review_request_title">Review request</string>

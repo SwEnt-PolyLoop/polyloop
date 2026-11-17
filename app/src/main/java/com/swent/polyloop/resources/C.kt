@@ -310,6 +310,9 @@ object C {
     const val handover_code_loading = "handover_code_loading"
     const val handover_code_message = "handover_code_message"
     const val handover_code_retry_button = "handover_code_retry_button"
+    const val handover_scan_card = "handover_scan_card"
+    const val handover_scan_title = "handover_scan_title"
+    const val handover_scan_button = "handover_scan_button"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"
