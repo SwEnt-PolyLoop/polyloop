@@ -2,11 +2,13 @@
 
 package com.swent.polyloop.ui.handover
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -20,7 +22,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The card where the borrower scans the lender's QR code at pickup (Figma 15 and 15.10). */
+/**
+ * The card where the borrower scans the lender's QR code at pickup (Figma 15, 15.10, 15.11 and
+ * 15.15).
+ */
 @RunWith(AndroidJUnit4::class)
 class ScanCodeCardTest {
 
@@ -97,5 +102,22 @@ class ScanCodeCardTest {
   fun noScanCardOutsideThePickupDay() {
     setContent(ready.copy(isPickupDay = false))
     node(C.Tag.handover_scan_card).assertDoesNotExist()
+  }
+
+  @Test
+  fun whileSendingTheButtonShowsSendingAndIsOff() {
+    setContent(ready.copy(isSendingScan = true))
+    button().assertIsNotEnabled()
+    composeTestRule.onNodeWithText("Sending…", useUnmergedTree = true).assertIsDisplayed()
+  }
+
+  @Test
+  fun onceConfirmedOnlyPickedUpShows() {
+    setContent(ready.copy(scanConfirmed = true))
+    node(C.Tag.handover_scan_confirmed)
+        .performScrollTo()
+        .assertTextEquals("Picked up · the rental has started")
+    node(C.Tag.handover_scan_button).assertDoesNotExist()
+    node(C.Tag.handover_scan_title).assertDoesNotExist()
   }
 }

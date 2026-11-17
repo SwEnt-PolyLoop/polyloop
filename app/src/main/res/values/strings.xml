@@ -522,6 +522,8 @@
     <string name="handover_scan_title_borrower">Scan the borrower\'s code</string>
     <string name="handover_scan_hint">Scanning confirms you received the item and starts the rental.</string>
     <string name="handover_scan_button">Scan QR code</string>
+    <string name="handover_scan_sending">Sending…</string>
+    <string name="handover_scan_confirmed">Picked up · the rental has started</string>
 
     <!-- Review request: the lender's answer to a request. -->
     <string name="review_request_title">Review request</string>
