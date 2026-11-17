@@ -331,9 +331,8 @@ class RentalDetailViewModelCancelTest {
     val vm = viewModel(request)
     val loadingSeen = mutableListOf<Boolean>()
     // Unconfined, so it records every state the ViewModel sets, not only the last one.
-    val watching = CoroutineScope(testDispatcher).launch {
-      vm.uiState.collect { loadingSeen += it.isLoading }
-    }
+    val watching =
+        CoroutineScope(testDispatcher).launch { vm.uiState.collect { loadingSeen += it.isLoading } }
 
     vm.cancel()
     watching.cancel()
