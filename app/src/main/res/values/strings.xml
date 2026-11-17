@@ -516,6 +516,9 @@
     <!-- Under the QR code while offline, e.g. "Once Mara has scanned, you're done. …" -->
     <string name="handover_code_offline_note">Once %1$s has scanned, you\'re done. This updates when you\'re back online.</string>
     <string name="handover_code_offline_note_no_name">Once they have scanned, you\'re done. This updates when you\'re back online.</string>
+    <!-- Once the borrower has scanned, e.g. "Picked up by Mara · the rental has started" -->
+    <string name="handover_code_picked_up">Picked up by %1$s · the rental has started</string>
+    <string name="handover_code_picked_up_no_name">Picked up · the rental has started</string>
 
     <!-- Review request: the lender's answer to a request. -->
     <string name="review_request_title">Review request</string>

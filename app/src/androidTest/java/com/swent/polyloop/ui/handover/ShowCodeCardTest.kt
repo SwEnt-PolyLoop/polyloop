@@ -150,4 +150,20 @@ class ShowCodeCardTest {
     setContent(ready.copy(isPickupDay = false))
     node(C.Tag.handover_code_card).assertDoesNotExist()
   }
+
+  @Test
+  fun onceScannedTheLenderSeesPickedUpByTheBorrower() {
+    setContent(ready.copy(isPickedUp = true))
+    node(C.Tag.handover_code_picked_up)
+        .performScrollTo()
+        .assertTextEquals("Picked up by Mara · the rental has started")
+    node(C.Tag.handover_qr_code).assertDoesNotExist()
+    node(C.Tag.handover_code_title).assertDoesNotExist()
+  }
+
+  @Test
+  fun pickedUpWithoutAName() {
+    setContent(ready.copy(isPickedUp = true, otherPersonName = ""))
+    node(C.Tag.handover_code_picked_up).assertTextEquals("Picked up · the rental has started")
+  }
 }
