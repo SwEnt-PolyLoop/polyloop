@@ -162,6 +162,9 @@ class RentalDetailViewModel(
   // The listing whose read failed, so it is read again on reconnection; null once read (a missing
   // listing counts as read).
   private var failedListingId: String? = null
+  // True once the live updates of the rental failed and stopped, until the next load restarts them;
+  // [cancel] then reads the rental again to show its result.
+  private var liveUpdatesStopped = false
 
   init {
     load()
@@ -200,9 +203,9 @@ class RentalDetailViewModel(
   /**
    * Cancels the rental, if [RentalDetailUiState.canCancel]; otherwise does nothing. It does not set
    * the status itself: the rental is followed live, so it turns Cancelled once the Cloud Function
-   * has run, and a call that failed never shows as Cancelled. After a success it also loads the
-   * rental again (see below). A failure sets [RentalDetailUiState.cancelError], which the next
-   * attempt clears.
+   * has run, and a call that failed never shows as Cancelled. After a success it loads the rental
+   * again only when the live updates had stopped (see below). A failure sets
+   * [RentalDetailUiState.cancelError], which the next attempt clears.
    */
   fun cancel() {
     if (!_uiState.value.canCancel) return
@@ -212,10 +215,12 @@ class RentalDetailViewModel(
       _uiState.update {
         it.copy(isCancelling = false, cancelError = error?.let { e -> e.message ?: "" })
       }
-      // If the live updates had already failed, nothing would show the Cancelled rental, and the
-      // screen would stay on Requested or Accepted with no sign that it worked. Reading the rental
-      // again shows it as it is now (the placeholder) and restarts the live updates.
-      if (error == null) load()
+      // While the rental is still followed, the live update shows the result, so nothing is read
+      // again: no full-screen spinner, and no second read that could fail. Only when the live
+      // updates had stopped would nothing show the Cancelled rental, leaving the screen on
+      // Requested or Accepted with no sign that it worked; reading the rental again then shows it
+      // as it is now (the placeholder) and restarts the live updates.
+      if (error == null && liveUpdatesStopped) load()
     }
   }
 
@@ -277,6 +282,7 @@ class RentalDetailViewModel(
     // A re-read still running would otherwise land its result after the reload.
     listingReread?.cancel()
     failedListingId = null
+    liveUpdatesStopped = false
     _uiState.update { it.copy(isLoading = true, errorMsg = null, notFound = false) }
     loading = viewModelScope.launch {
       val rental =
@@ -373,7 +379,10 @@ class RentalDetailViewModel(
     // offer, which could be out of date. The chat hides its offer card in the same way.
     rentalRepository
         .observeRental(rentalId)
-        .catch { _uiState.update { it.copy(offer = null, isOfferMine = false) } }
+        .catch {
+          liveUpdatesStopped = true
+          _uiState.update { it.copy(offer = null, isOfferMine = false) }
+        }
         .collect { live ->
           when {
             live == null -> Unit

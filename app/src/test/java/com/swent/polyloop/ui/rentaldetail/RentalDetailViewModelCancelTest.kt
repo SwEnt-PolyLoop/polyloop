@@ -18,11 +18,13 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -71,6 +73,7 @@ class RentalDetailViewModelCancelTest {
 
   private lateinit var rentals: FakeRentalRepository
   private var cancelCalls = 0
+  private var getRentalCalls = 0
 
   // Also runs the server clock's reads, so they finish before each assertion.
   private val testDispatcher = UnconfinedTestDispatcher()
@@ -92,7 +95,8 @@ class RentalDetailViewModelCancelTest {
    * The ViewModel for [rental] as seen by [user], with the server on [serverDay] (unknown when
    * null). [cancelOutcome], when set, replaces the fake's cancel; [serverGate] holds the server
    * read; [live], when set, drives the followed rental by hand; [liveFails] makes the live updates
-   * fail as soon as they start. Cancels are counted in [cancelCalls].
+   * fail as soon as they start; [rereadFails] makes every read of the rental after the first one
+   * fail. Cancels are counted in [cancelCalls] and reads of the rental in [getRentalCalls].
    */
   private fun viewModel(
       rental: Rental,
@@ -103,6 +107,7 @@ class RentalDetailViewModelCancelTest {
       serverGate: CompletableDeferred<Unit>? = null,
       live: MutableStateFlow<Rental?>? = null,
       liveFails: Boolean = false,
+      rereadFails: Boolean = false,
   ): RentalDetailViewModel {
     rentals = FakeRentalRepository(rentals = listOf(rental), clock = { now })
     serverDay?.let { rentals.serverNow = noonOn(it) }
@@ -118,6 +123,12 @@ class RentalDetailViewModelCancelTest {
           override suspend fun cancelRental(rentalId: String): Result<Unit> {
             cancelCalls++
             return cancelOutcome?.invoke() ?: fake.cancelRental(rentalId)
+          }
+
+          override suspend fun getRental(id: String): Result<Rental?> {
+            getRentalCalls++
+            return if (rereadFails && getRentalCalls > 1) Result.failure(IOException("read failed"))
+            else fake.getRental(id)
           }
 
           override fun observeRental(id: String): Flow<Rental?> =
@@ -311,6 +322,37 @@ class RentalDetailViewModelCancelTest {
     assertFalse(state.isSupported)
     assertFalse(state.isCancelling)
     assertNull(state.cancelError)
+    // Read once on opening, and again after the cancel, as nothing followed it any more.
+    assertEquals(2, getRentalCalls)
+  }
+
+  @Test
+  fun aSuccessfulCancelWhileFollowedReadsTheRentalOnlyOnceAndShowsNoSpinner() {
+    val vm = viewModel(request)
+    val loadingSeen = mutableListOf<Boolean>()
+    // Unconfined, so it records every state the ViewModel sets, not only the last one.
+    val watching = CoroutineScope(testDispatcher).launch {
+      vm.uiState.collect { loadingSeen += it.isLoading }
+    }
+
+    vm.cancel()
+    watching.cancel()
+
+    assertFalse(vm.uiState.value.isSupported)
+    assertEquals(1, getRentalCalls)
+    assertFalse(true in loadingSeen)
+  }
+
+  @Test
+  fun aSuccessfulCancelWhileFollowedDoesNotShowALoadError() {
+    // A second read would fail, so it would show the full-screen error if it happened.
+    val vm = viewModel(request, rereadFails = true)
+
+    vm.cancel()
+
+    val state = vm.uiState.value
+    assertFalse(state.isSupported)
+    assertNull(state.errorMsg)
   }
 
   @Test
