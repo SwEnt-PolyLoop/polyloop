@@ -32,7 +32,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * The negotiation calls of [RentalRepositoryFirestore]: each calls the right Cloud Function with
+ * The negotiation and cancel calls of [RentalRepositoryFirestore]: each calls the right Cloud Function with
  * the right data and reports a refusal as a failure. Also reading the server's time from
  * `serverToday`. The Functions themselves are tested in functions/src, on the emulator.
  */
@@ -96,6 +96,20 @@ class RentalRepositoryOffersTest {
   fun declineRequestSendsTheRentalId() = runTest {
     assertTrue(repository.declineRequest("r1").isSuccess)
     assertCalled("declineRequest", mapOf("rentalId" to "r1"))
+  }
+
+  @Test
+  fun cancelRentalSendsTheRentalId() = runTest {
+    assertTrue(repository.cancelRental("r1").isSuccess)
+    assertCalled("cancelRental", mapOf("rentalId" to "r1"))
+  }
+
+  @Test
+  fun aRefusedCancelIsAFailure() = runTest {
+    val refusal = mockk<FirebaseFunctionsException>(relaxed = true)
+    every { callable.call(any()) } returns Tasks.forException(refusal)
+
+    assertSame(refusal, repository.cancelRental("r1").exceptionOrNull())
   }
 
   @Test
