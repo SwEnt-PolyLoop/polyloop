@@ -174,7 +174,8 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
 - **QR code.** The person receiving the item scans:
     - At pickup, the lender shows the code and the borrower scans it.
     - At return, the borrower shows the code and the lender scans it.
-- The scan button stays disabled until 3 photos are taken.
+- The scan button stays disabled until 3 photos are taken. Likewise, the QR code shows only once the person showing it has 3 photos. Both need the pickup day.
+- The QR holds a secret code for this rental and phase, not just the rental's id, so a scan proves the two people met. The scanning phone checks the code itself: a wrong code is refused on the spot and nothing is sent. Until the upload queue exists, scanning needs a connection; afterwards the check works offline too. The code to show is kept on the phone once Handover was opened online, so a lender who opens it for the first time with no connection has no QR; a background fetch will remove this limit later.
 - After the return scan, the lender sees the pickup and return photos side by side, with two buttons:
     - “Item is fine” releases the full deposit to the borrower.
     - “Flag damage” opens a dispute and keeps the deposit held.

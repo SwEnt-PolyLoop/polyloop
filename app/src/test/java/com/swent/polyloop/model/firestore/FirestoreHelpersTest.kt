@@ -13,6 +13,7 @@ import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.swent.polyloop.model.location.MapPoint
 import io.mockk.every
 import io.mockk.mockk
@@ -257,5 +258,36 @@ class FirestoreHelpersTest {
     documentListener.captured.onEvent(snapshot, null)
 
     assertEquals("u9", id.await())
+  }
+
+  /** A Cloud Function's refusal with [code] and [details]; its constructor is internal. */
+  private fun refusal(
+      details: Any?,
+      code: FirebaseFunctionsException.Code = FirebaseFunctionsException.Code.FAILED_PRECONDITION,
+  ): FirebaseFunctionsException =
+      mockk(relaxed = true) {
+        every { this@mockk.code } returns code
+        every { this@mockk.details } returns details
+      }
+
+  @Test
+  fun refusalReasonReadsTheReasonOfAFailedPrecondition() {
+    assertEquals("WRONG_CODE", refusalReason(refusal(mapOf("reason" to "WRONG_CODE"))))
+    assertEquals("ANYTHING", refusalReason(refusal(mapOf("reason" to "ANYTHING", "more" to 1))))
+  }
+
+  @Test
+  fun refusalReasonIsNullWithoutAReason() {
+    assertNull(refusalReason(refusal(details = null)))
+    assertNull(refusalReason(refusal(details = "WRONG_CODE")))
+    assertNull(refusalReason(refusal(mapOf("other" to "WRONG_CODE"))))
+  }
+
+  @Test
+  fun refusalReasonIsNullForOtherErrors() {
+    val denied =
+        refusal(mapOf("reason" to "WRONG_CODE"), FirebaseFunctionsException.Code.PERMISSION_DENIED)
+    assertNull(refusalReason(denied))
+    assertNull(refusalReason(IllegalStateException("not a Function's refusal")))
   }
 }

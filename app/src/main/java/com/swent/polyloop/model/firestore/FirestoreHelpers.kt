@@ -13,6 +13,7 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.swent.polyloop.model.location.MapPoint
 import java.time.Instant
 import java.time.LocalDate
@@ -92,6 +93,16 @@ internal suspend fun callCloudFunction(
 ): Result<Unit> = withFirebaseErrors {
   functions.getHttpsCallable(name).call(data).await()
   Result.success(Unit)
+}
+
+/**
+ * The `details.reason` of a Cloud Function's `failed-precondition` refusal, e.g. `WRONG_CODE`, or
+ * null for any other error. The app reads the reason, never the message.
+ */
+internal fun refusalReason(error: Throwable): Any? {
+  val refusal = error as? FirebaseFunctionsException ?: return null
+  if (refusal.code != FirebaseFunctionsException.Code.FAILED_PRECONDITION) return null
+  return (refusal.details as? Map<*, *>)?.get("reason")
 }
 
 /**

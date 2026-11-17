@@ -261,6 +261,21 @@ class FakeRentalRepository(
   private fun expiry(rental: Rental, now: Instant): Instant =
       minOf(now.plus(OFFER_LIFETIME), firstDay(rental))
 
+  /**
+   * Changes the status of [rentalId] as a Cloud Function would (e.g. ACTIVE after the pickup scan),
+   * so that whoever follows the rental sees it change. Does nothing for an unknown id.
+   */
+  fun setStatus(rentalId: String, status: RentalStatus) {
+    stored.update { rentals ->
+      rentals.map { if (it.id == rentalId) it.copy(status = status) else it }
+    }
+  }
+
+  /** Removes [rentalId], as if it was deleted; whoever follows it then sees null. */
+  fun remove(rentalId: String) {
+    stored.update { rentals -> rentals.filterNot { it.id == rentalId } }
+  }
+
   /** "rental-N" with the smallest N not used yet, so it never clashes with the initial rentals. */
   private fun newId(): String {
     val used = stored.value.map { it.id }.toSet()
