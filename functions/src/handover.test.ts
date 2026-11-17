@@ -4,7 +4,14 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { RENTAL_CHANGED, WRONG_CODE, confirmPickup } from "./handover";
 import { hasSeenLastMessage } from "./testing/readTimes";
-import { People, people, rental as newRental } from "./testing/walletFixtures";
+import {
+  People,
+  fund,
+  people,
+  rental as newRental,
+  rows,
+  wallet,
+} from "./testing/walletFixtures";
 
 // payLender.ts loads firebase-functions, which loads an ES module that Jest cannot load.
 jest.mock("jose", () => ({}));
@@ -28,8 +35,12 @@ const NOW = new Date("2026-12-01T09:00:00Z");
 const PICKUP_DAY = "2026-12-01";
 const CODE = "Zk3_q-9AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
 
-/** An ACCEPTED rental starting today, overridden by [fields], with its pickup code. */
+/**
+ * An ACCEPTED rental starting today, overridden by [fields], with its pickup code, whose 15 PP
+ * price the borrower's wallet holds since the request.
+ */
 async function accepted(who: People, fields: object = {}): Promise<string> {
+  await fund(who.borrower, { available: 100, heldForRentals: 15 });
   const id = await newRental(who, "ACCEPTED", {
     startDate: PICKUP_DAY,
     endDate: "2026-12-03",
@@ -104,7 +115,81 @@ describe("confirming the pickup", () => {
   });
 });
 
+describe("paying the lender at pickup", () => {
+  it("pays the held price to the lender in the same transaction", async () => {
+    const who = people();
+    const id = await accepted(who);
+
+    await confirmPickup(db, who.borrower, scan(id), NOW);
+
+    expect(await wallet(who.borrower)).toMatchObject({ available: 100, heldForRentals: 0 });
+    expect(await wallet(who.lender)).toMatchObject({ available: 15 });
+    expect(await rows(who.borrower)).toEqual([]);
+    expect(await rows(who.lender)).toEqual([
+      expect.objectContaining({ id: `rental_payment_${id}`, type: "RENTAL_PAYMENT", amount: 15 }),
+    ]);
+  });
+
+  it("does not pay a lender who was already paid, but still confirms the pickup", async () => {
+    const who = people();
+    const id = await accepted(who);
+    await db
+      .doc(`wallets/${who.lender}/transactions/rental_payment_${id}`)
+      .set({ type: "RENTAL_PAYMENT", amount: 15, itemTitle: "Camping tent" });
+
+    await confirmPickup(db, who.borrower, scan(id), NOW);
+
+    expect((await rentalData(id))?.status).toBe("ACTIVE");
+    expect(await wallet(who.borrower)).toMatchObject({ heldForRentals: 15 });
+    expect(await wallet(who.lender)).toBeUndefined();
+  });
+
+  it("pays once when the same scan is sent again", async () => {
+    const who = people();
+    const id = await accepted(who);
+    await fund(who.borrower, { heldForRentals: 30 }); // enough for a second payment
+
+    await confirmPickup(db, who.borrower, scan(id), NOW);
+    await confirmPickup(db, who.borrower, scan(id), NOW);
+
+    expect(await wallet(who.borrower)).toMatchObject({ heldForRentals: 15 });
+    expect(await wallet(who.lender)).toMatchObject({ available: 15 });
+    expect(await messages(id)).toHaveLength(1);
+  });
+
+  it("confirms and pays once when two scans arrive at the same time", async () => {
+    const who = people();
+    const id = await accepted(who);
+    await fund(who.borrower, { heldForRentals: 30 });
+
+    await Promise.all([
+      confirmPickup(db, who.borrower, scan(id), NOW),
+      confirmPickup(db, who.borrower, scan(id), NOW),
+    ]);
+
+    expect((await rentalData(id))?.status).toBe("ACTIVE");
+    expect(await wallet(who.borrower)).toMatchObject({ heldForRentals: 15 });
+    expect(await wallet(who.lender)).toMatchObject({ available: 15 });
+    expect(await rows(who.lender)).toHaveLength(1);
+    expect(await messages(id)).toHaveLength(1);
+  }, 15000);
+});
+
 describe("refusing a pickup", () => {
+  it("refuses a pickup whose price is not held, changing nothing", async () => {
+    const who = people();
+    const id = await accepted(who);
+    await fund(who.borrower, { available: 1000, heldForRentals: 0 });
+
+    const error = await confirmPickup(db, who.borrower, scan(id), NOW).catch((e) => e);
+
+    expect(error).toMatchObject({ code: "failed-precondition" });
+    expect(error.details).toBeUndefined();
+    await expectUnchanged(id);
+    expect(await wallet(who.borrower)).toEqual({ available: 1000, heldForRentals: 0 });
+    expect(await wallet(who.lender)).toBeUndefined();
+  });
+
   it("refuses a wrong code with WRONG_CODE, changing nothing", async () => {
     const who = people();
     const id = await accepted(who);

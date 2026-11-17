@@ -3,7 +3,13 @@
 import { FieldValue, Firestore } from "firebase-admin/firestore";
 import { HANDOVER_CODES, isSameCode } from "./handoverCode";
 import { writeWithSystemMessage } from "./negotiation";
-import { PAID_STATUSES } from "./payLender";
+import {
+  PAID_STATUSES,
+  isLenderPaid,
+  readLenderPayment,
+  requireParties,
+  writeLenderPayment,
+} from "./payLender";
 import { RequestError } from "./rentalRules";
 import { zurichDay } from "./serverToday";
 
@@ -19,16 +25,19 @@ export interface PickupScan {
 
 /**
  * Confirms the pickup of [scan.rentalId] scanned by [callerId], in one transaction: the rental
- * becomes ACTIVE with `pickedUpAt`, a SYSTEM message says it started, and the pickup code and its
- * fingerprint are deleted, as they are used up. The checks run in this order: the rental exists,
- * the caller is its borrower (the person receiving the item), then, if the rental was already
- * picked up, the call succeeds and changes nothing (a second scan, or one sent twice); otherwise
- * the rental is ACCEPTED, today in Zurich at [now] is its first day, and the code is the one the
- * lender's phone shows. The server trusts the app's order: the photos are not checked.
+ * becomes ACTIVE with `pickedUpAt`, the lender is paid the rental price held at request (see
+ * payLender.ts; not again if they already were), a SYSTEM message says it started, and the pickup
+ * code and its fingerprint are deleted, as they are used up. The checks run in this order: the
+ * rental exists, the caller is its borrower (the person receiving the item), then, if the rental
+ * was already picked up, the call succeeds and changes nothing (a second scan, or one sent twice);
+ * otherwise the rental is ACCEPTED, today in Zurich at [now] is its first day, the code is the one
+ * the lender's phone shows, and the price is held. The server trusts the app's order: the photos
+ * are not checked.
  *
  * @throws RequestError `not-found`; `permission-denied` (not the borrower); `failed-precondition`
  *   with the reason `RENTAL_CHANGED` (no longer ACCEPTED, e.g. cancelled) or `WRONG_CODE`, or with
- *   no reason outside the pickup day. Nothing is written then.
+ *   no reason outside the pickup day or when the rental price is not held; `internal` for a rental
+ *   with no valid borrower, lender or price. Nothing is written then.
  */
 export async function confirmPickup(
   db: Firestore,
@@ -61,6 +70,11 @@ export async function confirmPickup(
         reason: WRONG_CODE,
       });
     }
+    // The payment's reads, before any write of the transaction.
+    const parties = requireParties(rental);
+    const payment = (await isLenderPaid(tx, db, parties, scan.rentalId))
+      ? null
+      : await readLenderPayment(tx, db, rental, parties);
     tx.delete(codeRef);
     writeWithSystemMessage(
       tx,
@@ -73,5 +87,6 @@ export async function confirmPickup(
       },
       callerId,
     );
+    if (payment) writeLenderPayment(tx, db, scan.rentalId, payment);
   });
 }
