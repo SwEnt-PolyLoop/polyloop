@@ -198,6 +198,36 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun aFailedPhotoIsDroppedAndItsFileDeletedOncePickedUp() {
+    val vm = viewModel()
+    handoverRepository.failure = RuntimeException("offline")
+    vm.addPhoto("file1")
+    assertEquals("file1", vm.uiState.value.failedPhotoUri)
+
+    rentalRepository.setStatus(rental.id, RentalStatus.ACTIVE)
+
+    assertNull(vm.uiState.value.failedPhotoUri) // no retry tile left that would do nothing
+    assertEquals(listOf("file1"), deleted)
+  }
+
+  @Test
+  fun anUploadThatFailsAfterThePickupIsDroppedToo() {
+    // The scan is allowed while a 4th photo uploads; the pickup is confirmed before it ends.
+    val gate = CompletableDeferred<Unit>()
+    handoverRepository.gate = gate
+    val vm = viewModel()
+    vm.addPhoto("file1")
+    rentalRepository.setStatus(rental.id, RentalStatus.ACTIVE)
+
+    handoverRepository.failure = RuntimeException("refused: the rental is ACTIVE")
+    gate.complete(Unit)
+
+    assertFalse(vm.uiState.value.isUploading)
+    assertNull(vm.uiState.value.failedPhotoUri)
+    assertEquals(listOf("file1"), deleted)
+  }
+
+  @Test
   fun aRentalCancelledWhileOpenHasNothingLeftToHandOver() {
     val vm = viewModel()
     rentalRepository.setStatus(rental.id, RentalStatus.CANCELLED)
