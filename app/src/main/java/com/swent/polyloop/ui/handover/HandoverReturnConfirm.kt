@@ -90,3 +90,93 @@ private fun CheckCard(modifier: Modifier = Modifier, content: @Composable () -> 
   }
 }
 
+/**
+ * A green check with "Return scanned" and "The deposit stays held until you decide.". The time of
+ * the scan is not shown until rentals store it.
+ */
+@Composable
+private fun ReturnScannedCard() {
+  CheckCard {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement =
+            Arrangement.spacedBy(dimensionResource(R.dimen.handover_check_icon_spacing)),
+    ) {
+      Surface(
+          shape = CircleShape,
+          color = PositiveGreen.copy(alpha = 0.12f),
+          contentColor = PositiveGreen,
+          modifier = Modifier.size(dimensionResource(R.dimen.handover_check_icon_size)),
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          Icon(Icons.Default.Check, contentDescription = null)
+        }
+      }
+      Column {
+        Text(
+            text = stringResource(R.string.handover_return_scanned),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.testTag(C.Tag.handover_return_scanned),
+        )
+        Text(
+            text = stringResource(R.string.handover_deposit_stays_held),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+    }
+  }
+}
+
+/**
+ * "Before and after": the lender's pickup photos, then their return photos, 3 per row, or an error
+ * with Retry when they could not be loaded.
+ */
+@Composable
+private fun BeforeAfterCard(
+    uiState: HandoverUiState,
+    zone: ZoneId,
+    onPhotoClick: (id: String) -> Unit,
+    onRetryPhotos: () -> Unit,
+) {
+  CheckCard {
+    Text(
+        text = stringResource(R.string.handover_before_after),
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+    )
+    if (uiState.photosFailed) {
+      Text(
+          text = stringResource(R.string.handover_photos_error),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.error,
+          modifier = Modifier.testTag(C.Tag.handover_photos_error),
+      )
+      OutlinedButton(
+          onClick = onRetryPhotos,
+          modifier = Modifier.testTag(C.Tag.handover_photos_retry_button),
+      ) {
+        Text(stringResource(R.string.handover_retry))
+      }
+    } else {
+      PhotoSection(
+          R.string.handover_pickup_title,
+          uiState.pickupPhotos,
+          zone,
+          onPhotoClick,
+          C.Tag.handover_before_photo,
+          C.Tag.handover_no_before_photos,
+      )
+      PhotoSection(
+          R.string.handover_return_title,
+          uiState.photos,
+          zone,
+          onPhotoClick,
+          C.Tag.handover_after_photo,
+          C.Tag.handover_no_after_photos,
+      )
+    }
+  }
+}
+
