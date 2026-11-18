@@ -25,7 +25,6 @@ mockk = "1.14.11"
 coil = "3.6.3"
 camerax = "1.5.1"
 zxing = "3.5.4"
-codeScanner = "16.1.0"
 # 8.6 uses the same Compose BOM as the app; 9.x needs a newer one
 mapsCompose = "8.6.0"
 
@@ -73,7 +72,6 @@ camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.r
 camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "codeScanner" }
 
 maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
 

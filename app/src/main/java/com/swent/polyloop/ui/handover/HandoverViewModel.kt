@@ -373,6 +373,8 @@ class HandoverViewModel(
           if (shows) handoverRepository.getCodeToShow(rentalId, phase)
           else handoverRepository.getCodeFingerprint(rentalId, phase)
       // A code not made yet cannot be used either, so it is reported the same way, with Retry.
+      // Since #435 the server makes the code when the offer is accepted, so only a rental accepted
+      // before that has none.
       val value = result.getOrNull()
       _uiState.update {
         when {
