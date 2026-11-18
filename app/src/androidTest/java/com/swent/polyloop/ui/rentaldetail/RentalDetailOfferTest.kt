@@ -51,7 +51,9 @@ class RentalDetailOfferTest {
           onChatClick = {},
           onPersonClick = {},
           onStartPickupClick = {},
+          onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCancelClick = {},
           today = LocalDate.of(2026, 10, 1),
           zone = ZoneOffset.UTC,
           // English is fixed so the expected dates pass on an emulator in any language.
@@ -77,6 +79,13 @@ class RentalDetailOfferTest {
         R.string.rental_detail_status_offer_received,
         "Deposit offer: 180 PP. Expires 22 Oct. Answer in the chat.",
     )
+  }
+
+  @Test
+  fun anExpiredOfferSaysItHasExpired() {
+    setContent(requested.copy(offer = first, isOfferExpired = true))
+
+    assertCard(R.string.offer_expired, "Deposit offer: 180 PP. This offer has expired.")
   }
 
   @Test

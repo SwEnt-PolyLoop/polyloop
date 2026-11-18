@@ -102,7 +102,6 @@ fun ChatContent(
     onCancelCounter: () -> Unit = {},
     onCounterDraftChange: (String) -> Unit = {},
     onSendCounter: () -> Unit = {},
-    today: LocalDate = LocalDate.now(),
     onStartPickupClick: () -> Unit = {},
 ) {
   Column(
@@ -115,9 +114,9 @@ fun ChatContent(
       ChatHeaderBar(header = it, onRentalDetailsClick = onRentalDetailsClick)
       HorizontalDivider()
     }
-    // Only on the pickup day itself: Handover takes pickup photos on that day only. Like the offer
-    // card, only once the chat is loaded, not above its spinner or its error.
-    if (!uiState.isLoading && uiState.errorMsg == null && uiState.pickupDate == today) {
+    // Only on the pickup day itself, by the server's clock: Handover takes pickup photos on that
+    // day only. Like the offer card, only once the chat is loaded, not above its spinner or error.
+    if (!uiState.isLoading && uiState.errorMsg == null && uiState.isPickupDay) {
       PickupBar(onStartPickupClick = onStartPickupClick)
       HorizontalDivider()
     }
