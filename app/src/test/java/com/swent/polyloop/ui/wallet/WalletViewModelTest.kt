@@ -15,6 +15,8 @@ import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -58,12 +60,12 @@ class WalletViewModelTest {
   private fun viewModel() = WalletViewModel(wallets, auth, connectivity)
 
   @Test
-  fun initialStateIsLoadingWithAnEmptyWalletAndNoRecharge() {
+  fun initialStateIsLoadingWithAnUnknownWalletAndHistoryAndNoRecharge() {
     val state = WalletUiState()
 
     assertTrue(state.isLoading)
-    assertEquals(Wallet(), state.wallet)
-    assertTrue(state.history.isEmpty())
+    assertNull(state.wallet)
+    assertNull(state.history)
     assertNull(state.errorMsg)
     assertFalse(state.isOffline)
     assertEquals(RechargeStatus.IDLE, state.rechargeStatus)
@@ -88,7 +90,7 @@ class WalletViewModelTest {
 
   @Test
   fun balanceAndHeldAmountsAreShown() {
-    val wallet = viewModel().uiState.value.wallet
+    val wallet = viewModel().uiState.value.wallet!!
 
     assertEquals(50, wallet.available)
     assertEquals(20, wallet.heldAsDeposits)
@@ -146,7 +148,7 @@ class WalletViewModelTest {
     viewModel.retry()
 
     assertNull(viewModel.uiState.value.errorMsg)
-    assertEquals(50, viewModel.uiState.value.wallet.available)
+    assertEquals(50, viewModel.uiState.value.wallet?.available)
   }
 
   @Test
@@ -185,7 +187,7 @@ class WalletViewModelTest {
     assertEquals(RechargeStatus.DONE, state.rechargeStatus)
     assertEquals(30, state.rechargeAmount)
     assertEquals(80, state.rechargeNewBalance)
-    assertEquals(80, state.wallet.available)
+    assertEquals(80, state.wallet?.available)
   }
 
   @Test
@@ -194,7 +196,7 @@ class WalletViewModelTest {
 
     viewModel.recharge(30)
 
-    assertEquals(30, viewModel.uiState.value.history.first().amount)
+    assertEquals(30, viewModel.uiState.value.history!!.first().amount)
   }
 
   @Test
@@ -255,7 +257,7 @@ class WalletViewModelTest {
     assertEquals(30, state.rechargeAmount)
     assertNull(state.rechargeNewBalance)
     assertNull(state.errorMsg)
-    assertEquals(50, state.wallet.available)
+    assertEquals(50, state.wallet?.available)
     assertFalse(state.toString().contains("secret server detail"))
   }
 
@@ -373,7 +375,7 @@ class WalletViewModelTest {
     viewModel.retry()
 
     assertTrue(viewModel.uiState.value.isOffline)
-    assertEquals(50, viewModel.uiState.value.wallet.available)
+    assertEquals(50, viewModel.uiState.value.wallet?.available)
   }
 
   @Test
@@ -388,7 +390,7 @@ class WalletViewModelTest {
     assertEquals(30, state.rechargeAmount)
     assertNull(state.rechargeNewBalance)
     assertTrue(wallets.recharges.isEmpty())
-    assertEquals(50, state.wallet.available)
+    assertEquals(50, state.wallet?.available)
   }
 
   @Test
@@ -443,13 +445,119 @@ class WalletViewModelTest {
     val created =
         WalletViewModel.Factory(wallets, auth, connectivity).create(WalletViewModel::class.java)
 
-    assertEquals(50, created.uiState.value.wallet.available)
+    assertEquals(50, created.uiState.value.wallet?.available)
     assertTrue(created.uiState.value.isOffline)
   }
 
   @Test(expected = IllegalArgumentException::class)
   fun factoryRejectsOtherViewModels() {
     WalletViewModel.Factory(wallets, auth, connectivity).create(OtherViewModel::class.java)
+  }
+
+  // ---------- unknown, known and loading ----------
+
+  /** A repository whose wallet and history stay unconfirmed until the test emits them. */
+  private class ControlledWalletRepository(delegate: WalletRepository) :
+      WalletRepository by delegate {
+    val walletFlow = MutableSharedFlow<Wallet>()
+    val historyFlow = MutableSharedFlow<List<WalletTransaction>>()
+
+    override fun observeWallet(uid: String): Flow<Wallet> = walletFlow
+
+    override fun observeHistory(uid: String): Flow<List<WalletTransaction>> = historyFlow
+  }
+
+  private fun controlledViewModel(): Pair<WalletViewModel, ControlledWalletRepository> {
+    val controlled = ControlledWalletRepository(wallets)
+    return WalletViewModel(controlled, auth, connectivity) to controlled
+  }
+
+  @Test
+  fun nothingConfirmedYetLeavesTheWalletAndHistoryUnknownAndLoading() {
+    val (viewModel, _) = controlledViewModel()
+
+    val state = viewModel.uiState.value
+    assertNull(state.wallet)
+    assertNull(state.history)
+    assertTrue(state.isLoading)
+    assertNull(state.errorMsg)
+  }
+
+  @Test
+  fun offlineWithNothingConfirmedStaysUnknownInsteadOfBecomingZero() {
+    connectivity.setOnline(false)
+    val (viewModel, _) = controlledViewModel()
+
+    val state = viewModel.uiState.value
+    assertTrue(state.isOffline)
+    assertNull(state.wallet)
+    assertNull(state.history)
+    assertTrue(state.isLoading)
+  }
+
+  @Test
+  fun aKnownHistoryDoesNotMakeTheUnknownWalletKnown() = runTest {
+    val (viewModel, controlled) = controlledViewModel()
+
+    controlled.historyFlow.emit(listOf(tx("tx-1", noon)))
+
+    val state = viewModel.uiState.value
+    assertNull(state.wallet)
+    assertEquals(listOf(tx("tx-1", noon)), state.history)
+    assertTrue(state.isLoading)
+  }
+
+  @Test
+  fun theWalletAndHistoryBecomeKnownOnceTheyAreConfirmed() = runTest {
+    val (viewModel, controlled) = controlledViewModel()
+
+    controlled.walletFlow.emit(Wallet(available = 70))
+    controlled.historyFlow.emit(emptyList())
+
+    val state = viewModel.uiState.value
+    assertEquals(Wallet(available = 70), state.wallet)
+    assertEquals(emptyList<WalletTransaction>(), state.history)
+    assertFalse(state.isLoading)
+  }
+
+  @Test
+  fun aKnownEmptyHistoryStaysKnownWhenThePhoneGoesOffline() = runTest {
+    val (viewModel, controlled) = controlledViewModel()
+    controlled.walletFlow.emit(Wallet(available = 70))
+    controlled.historyFlow.emit(emptyList())
+
+    connectivity.setOnline(false)
+
+    val state = viewModel.uiState.value
+    assertTrue(state.isOffline)
+    assertEquals(Wallet(available = 70), state.wallet)
+    assertEquals(emptyList<WalletTransaction>(), state.history)
+  }
+
+  @Test
+  fun whatWasKnownIsKeptWhenTheWalletIsReadAgain() = runTest {
+    val (viewModel, controlled) = controlledViewModel()
+    controlled.walletFlow.emit(Wallet(available = 70))
+    controlled.historyFlow.emit(listOf(tx("tx-1", noon)))
+
+    viewModel.retry()
+
+    val state = viewModel.uiState.value
+    assertEquals(Wallet(available = 70), state.wallet)
+    assertEquals(listOf(tx("tx-1", noon)), state.history)
+    assertFalse(state.isLoading)
+  }
+
+  @Test
+  fun aRechargeDoesNotNeedTheWalletToBeKnown() {
+    val (viewModel, _) = controlledViewModel()
+
+    viewModel.recharge(10)
+
+    val state = viewModel.uiState.value
+    assertEquals(RechargeStatus.DONE, state.rechargeStatus)
+    assertEquals(60, state.rechargeNewBalance)
+    assertNull(state.wallet)
   }
 
   private class OtherViewModel : ViewModel()

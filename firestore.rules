@@ -111,7 +111,9 @@ service cloud.firestore {
             && listing.keys().hasOnly(required.concat(['pickupArea', 'dropOffArea', 'pickupPoint',
                 'dropOffPoint', 'bookedRanges']))
             && isNonBlankString(listing.title)
+            && listing.title.size() <= 80
             && isNonBlankString(listing.description)
+            && listing.description.size() <= 2000
             && listing.category in ['ELECTRONICS', 'SPORTS_OUTDOOR', 'BOOKS_COURSE_MATERIAL',
                 'TOOLS_DIY', 'KITCHEN_HOME', 'MUSIC', 'OTHER']
             && listing.photoUrls is list
@@ -275,6 +277,21 @@ service cloud.firestore {
             && request.resource.data.url is string
             && request.resource.data.phase == 'PICKUP'
             && get(rentalPath(rentalId)).data.status == 'ACCEPTED';
+      }
+
+      // The secret code of each handover's QR code (#434, #435), one document per phase (PICKUP,
+      // RETURN), written by Cloud Functions only. Only the person who shows it reads it: the lender
+      // at pickup, the borrower at return. The other one reads only its fingerprint, on the rental
+      // (pickupCodeHash, returnCodeHash), which the update rule above keeps clients from writing.
+      match /handoverCodes/{phase} {
+        allow read: if isVerifiedEpfl() && request.auth.uid == codeShower(phase);
+
+        function codeShower(phase) {
+          let rental = get(rentalPath(rentalId)).data;
+          return phase == 'PICKUP' ? rental.ownerId
+              : phase == 'RETURN' ? rental.borrowerId
+              : null;
+        }
       }
     }
 

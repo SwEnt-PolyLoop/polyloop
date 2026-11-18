@@ -30,6 +30,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -62,10 +64,14 @@ fun WalletScreen(viewModel: WalletViewModel, onRecharge: () -> Unit = {}) {
 
 /**
  * Stateless Wallet content. While offline it shows the offline banner and disables "Recharge", but
- * the wallet and the history stay readable. While loading with no history it shows a spinner; on an
- * error with no history, the error with a Retry button; otherwise the balance card, the history
- * (newest first, as [uiState] gives it) and the footer, with a progress bar or the error above them
- * while a reload or a failure is pending.
+ * the wallet and the history stay readable. While loading online with nothing known it shows a
+ * spinner; on an error with nothing known, the error with a Retry button; otherwise the balance
+ * card, the history (newest first, as [uiState] gives it) and the footer, with a progress bar or
+ * the error above them while a reload or a failure is pending.
+ *
+ * Unknown is never shown as 0: an unknown balance (and held amounts) shows "—", and offline it adds
+ * a line saying it is unavailable until the phone is back online; an unknown history shows the same
+ * kind of line instead of "No transactions yet.", which is only for a history known to be empty.
  *
  * @param uiState what to show.
  * @param onRetry called when the user taps "Retry" under an error.
@@ -92,12 +98,14 @@ fun WalletContent(
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(horizontal = 16.dp).testTag(C.Tag.wallet_title),
     )
+    val nothingKnown = uiState.wallet == null && uiState.history == null
     when {
-      uiState.isLoading && uiState.history.isEmpty() ->
+      // Offline, a spinner would never end: the layout shows what is unknown instead.
+      uiState.isLoading && !uiState.isOffline && nothingKnown ->
           Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(modifier = Modifier.testTag(C.Tag.wallet_loading))
           }
-      uiState.errorMsg != null && uiState.history.isEmpty() ->
+      uiState.errorMsg != null && nothingKnown ->
           WalletError(
               errorMsg = uiState.errorMsg,
               onRetry = onRetry,
@@ -108,7 +116,7 @@ fun WalletContent(
               modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
               verticalArrangement = Arrangement.spacedBy(16.dp),
           ) {
-            if (uiState.isLoading) {
+            if (uiState.isLoading && !uiState.isOffline) {
               LinearProgressIndicator(
                   modifier = Modifier.fillMaxWidth().testTag(C.Tag.wallet_loading)
               )
@@ -117,7 +125,17 @@ fun WalletContent(
               WalletError(errorMsg = it, onRetry = onRetry, modifier = Modifier.fillMaxWidth())
             }
             BalanceCard(uiState.wallet, enabled = !uiState.isOffline, onRecharge = onRecharge)
-            HistorySection(uiState.history, today)
+            if (uiState.wallet == null && uiState.isOffline) {
+              UnavailableLine(
+                  R.string.wallet_unavailable_offline,
+                  C.Tag.wallet_unavailable,
+                  Modifier.padding(horizontal = 16.dp),
+              )
+            }
+            // Online with no history yet, the progress bar above says it is coming.
+            if (uiState.history != null || uiState.isOffline) {
+              HistorySection(uiState.history, today)
+            }
             Text(
                 text = stringResource(R.string.wallet_footer),
                 style = MaterialTheme.typography.bodySmall,
@@ -135,12 +153,12 @@ fun WalletContent(
  * rentals when it is above 0, and the Recharge button, which is disabled unless [enabled].
  * Recharging does not exist yet, so "Not available yet" shows under the button.
  *
- * @param wallet the balance and the amounts held.
+ * @param wallet the balance and the amounts held, or null while unknown: the amounts then show "—".
  * @param enabled whether the Recharge button can be tapped; false while offline.
  * @param onRecharge called when the user taps "Recharge".
  */
 @Composable
-private fun BalanceCard(wallet: Wallet, enabled: Boolean, onRecharge: () -> Unit) {
+private fun BalanceCard(wallet: Wallet?, enabled: Boolean, onRecharge: () -> Unit) {
   OutlinedCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Text(
@@ -150,10 +168,10 @@ private fun BalanceCard(wallet: Wallet, enabled: Boolean, onRecharge: () -> Unit
       )
       Row(verticalAlignment = Alignment.Bottom) {
         Text(
-            text = wallet.available.toString(),
+            text = wallet?.available?.toString() ?: stringResource(R.string.wallet_amount_unknown),
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.testTag(C.Tag.wallet_available),
+            modifier = Modifier.testTag(C.Tag.wallet_available).unknownDescription(wallet == null),
         )
         Text(
             text = stringResource(R.string.wallet_polypoints),
@@ -162,8 +180,9 @@ private fun BalanceCard(wallet: Wallet, enabled: Boolean, onRecharge: () -> Unit
             modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
         )
       }
-      HeldRow(R.string.wallet_held_deposits, wallet.heldAsDeposits, C.Tag.wallet_held_deposits)
-      if (wallet.heldForRentals > 0) {
+      HeldRow(R.string.wallet_held_deposits, wallet?.heldAsDeposits, C.Tag.wallet_held_deposits)
+      // Hidden when it is 0, and also while the wallet is unknown: nothing to say about it yet.
+      if (wallet != null && wallet.heldForRentals > 0) {
         HeldRow(R.string.wallet_held_rentals, wallet.heldForRentals, C.Tag.wallet_held_rentals)
       }
       Button(
@@ -187,11 +206,11 @@ private fun BalanceCard(wallet: Wallet, enabled: Boolean, onRecharge: () -> Unit
  * A line of the balance card: [labelRes] on the left, [amount] in PP on the right.
  *
  * @param labelRes the label of the line.
- * @param amount the amount in whole PP.
+ * @param amount the amount in whole PP, or null while unknown ("—").
  * @param amountTag the test tag of the amount.
  */
 @Composable
-private fun HeldRow(@StringRes labelRes: Int, amount: Int, amountTag: String) {
+private fun HeldRow(@StringRes labelRes: Int, amount: Int?, amountTag: String) {
   Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
     Text(
         text = stringResource(labelRes),
@@ -199,22 +218,58 @@ private fun HeldRow(@StringRes labelRes: Int, amount: Int, amountTag: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Text(
-        text = stringResource(R.string.wallet_pp_amount, amount),
+        text =
+            if (amount == null) stringResource(R.string.wallet_amount_unknown)
+            else stringResource(R.string.wallet_pp_amount, amount),
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.testTag(amountTag),
+        modifier = Modifier.testTag(amountTag).unknownDescription(amount == null),
     )
   }
 }
 
 /**
- * The "HISTORY" title and one card with a row per transaction, or the empty text.
+ * When [unknown], says "Unknown" to screen readers instead of reading the "—" that stands for an
+ * amount, which they would announce as "em dash".
+ */
+@Composable
+private fun Modifier.unknownDescription(unknown: Boolean): Modifier {
+  if (!unknown) return this
+  val description = stringResource(R.string.wallet_amount_unknown_description)
+  return semantics { contentDescription = description }
+}
+
+/**
+ * A short grey line saying that something is unavailable until the phone is back online.
  *
- * @param history the transactions to show, in the order given.
+ * @param textRes the text of the line.
+ * @param tag the test tag of the line.
+ * @param modifier how the line is laid out, e.g. its padding.
+ */
+@Composable
+private fun UnavailableLine(
+    @StringRes textRes: Int,
+    tag: String,
+    modifier: Modifier = Modifier,
+) {
+  Text(
+      text = stringResource(textRes),
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = modifier.testTag(tag),
+  )
+}
+
+/**
+ * The "HISTORY" title and one card with a row per transaction, the empty text, or, when the history
+ * is unknown, the line saying it is unavailable until the phone is back online.
+ *
+ * @param history the transactions to show, in the order given; null while unknown, which is not the
+ *   same as empty.
  * @param today the current day, to leave the year out of this year's dates.
  */
 @Composable
-private fun HistorySection(history: List<WalletTransaction>, today: LocalDate) {
+private fun HistorySection(history: List<WalletTransaction>?, today: LocalDate) {
   Column(
       modifier = Modifier.padding(horizontal = 16.dp),
       verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -225,7 +280,13 @@ private fun HistorySection(history: List<WalletTransaction>, today: LocalDate) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-      if (history.isEmpty()) {
+      if (history == null) {
+        UnavailableLine(
+            R.string.wallet_history_unavailable_offline,
+            C.Tag.wallet_history_unavailable,
+            Modifier.padding(16.dp),
+        )
+      } else if (history.isEmpty()) {
         Text(
             text = stringResource(R.string.wallet_history_empty),
             style = MaterialTheme.typography.bodyMedium,

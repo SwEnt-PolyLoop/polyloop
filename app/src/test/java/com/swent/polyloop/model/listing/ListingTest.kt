@@ -60,6 +60,30 @@ class ListingTest {
       assertFalse(valid.copy(description = "").canPublish(addresses))
 
   @Test
+  fun titleAtTheCapCanBePublished() =
+      assertTrue(valid.copy(title = "a".repeat(Listing.MAX_TITLE_LENGTH)).canPublish(addresses))
+
+  @Test
+  fun titleOverTheCapCannotBePublished() =
+      assertFalse(
+          valid.copy(title = "a".repeat(Listing.MAX_TITLE_LENGTH + 1)).canPublish(addresses)
+      )
+
+  @Test
+  fun descriptionAtTheCapCanBePublished() =
+      assertTrue(
+          valid.copy(description = "a".repeat(Listing.MAX_DESCRIPTION_LENGTH)).canPublish(addresses)
+      )
+
+  @Test
+  fun descriptionOverTheCapCannotBePublished() =
+      assertFalse(
+          valid
+              .copy(description = "a".repeat(Listing.MAX_DESCRIPTION_LENGTH + 1))
+              .canPublish(addresses)
+      )
+
+  @Test
   fun zeroPriceCannotBePublished() = assertFalse(valid.copy(pricePerDay = 0).canPublish(addresses))
 
   @Test
