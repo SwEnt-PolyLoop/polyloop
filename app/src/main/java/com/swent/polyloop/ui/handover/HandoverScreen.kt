@@ -250,7 +250,7 @@ private fun CenteredMessage(@StringRes text: Int, tag: String, modifier: Modifie
 
 /** "Pickup" or "Return" with the role pill on the same row, then the item and the other person. */
 @Composable
-private fun HandoverHeader(uiState: HandoverUiState) {
+internal fun HandoverHeader(uiState: HandoverUiState) {
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -551,29 +551,37 @@ private fun FailedTile(uri: String, onRetry: () -> Unit) {
   }
 }
 
-/** [tiles] as square tiles, [TILES_PER_ROW] per row; a short last row keeps the same tile size. */
+/** [tiles] as square tiles, [perRow] per row; a short last row keeps the same tile size. */
 @Composable
-private fun TileGrid(tiles: List<@Composable () -> Unit>) {
+internal fun TileGrid(tiles: List<@Composable () -> Unit>, perRow: Int = TILES_PER_ROW) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    tiles.chunked(TILES_PER_ROW).forEach { row ->
+    tiles.chunked(perRow).forEach { row ->
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         row.forEach { tile -> Box(modifier = Modifier.weight(1f).aspectRatio(1f)) { tile() } }
-        repeat(TILES_PER_ROW - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+        repeat(perRow - row.size) { Spacer(modifier = Modifier.weight(1f)) }
       }
     }
   }
 }
 
-/** A photo, cropped to fill its tile, with the time it was taken; tapping it calls [onClick]. */
+/**
+ * A photo, cropped to fill its tile, with the time it was taken; tapping it calls [onClick]. [tag]
+ * is its test tag.
+ */
 @Composable
-private fun PhotoTile(photo: HandoverPhoto, zone: ZoneId, onClick: () -> Unit) {
+internal fun PhotoTile(
+    photo: HandoverPhoto,
+    zone: ZoneId,
+    onClick: () -> Unit,
+    tag: String = C.Tag.handover_photo,
+) {
   val time = PHOTO_TIME.format(photo.takenAt.atZone(zone))
   Box(
       modifier =
           Modifier.fillMaxSize()
               .clip(RoundedCornerShape(TILE_CORNER))
               .clickable(onClick = onClick)
-              .testTag(C.Tag.handover_photo)
+              .testTag(tag)
   ) {
     ListingPhoto(
         url = photo.url,
@@ -681,7 +689,7 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
  * known.
  */
 @Composable
-private fun DepositFooter(deposit: Int, held: Int, isLender: Boolean) {
+internal fun DepositFooter(deposit: Int, held: Int, isLender: Boolean) {
   Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
