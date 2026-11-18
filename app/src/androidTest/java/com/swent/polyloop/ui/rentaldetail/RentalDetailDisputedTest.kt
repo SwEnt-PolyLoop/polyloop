@@ -66,6 +66,7 @@ class RentalDetailDisputedTest {
           onStartPickupClick = {},
           onStartReturnClick = {},
           onViewDisputeClick = { viewDisputeClicks++ },
+          onCancelClick = {},
           today = LocalDate.of(2026, 10, 12),
           zone = ZoneOffset.UTC,
           // English is fixed so the expected dates pass on an emulator in any language.

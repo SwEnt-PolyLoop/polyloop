@@ -52,38 +52,37 @@ function rental(who: People, fields: object = {}): Promise<string> {
   return newRental(who, "ACTIVE", fields);
 }
 
+/** The borrower's wallet once the request has held the 15 PP price, with [fields] on top. */
+const held = (fields: object = {}) => ({ available: 100, heldForRentals: 15, ...fields });
+
+/** The lender's payment row of the rental [id], with [title]. */
+const paymentRow = (id: string, title = "Camping tent") =>
+  expect.objectContaining({
+    id: `rental_payment_${id}`,
+    type: "RENTAL_PAYMENT",
+    amount: 15,
+    itemTitle: title,
+  });
+
 describe("paying the lender", () => {
-  it("moves the price from the borrower to the lender and writes one row on each side", async () => {
+  it("moves the held price to the lender, with one row in the lender's history", async () => {
     const who = people();
     const id = await rental(who);
-    await fund(who.borrower, { available: 100, heldAsDeposits: 40, heldForRentals: 3 });
+    await fund(who.borrower, { available: 100, heldAsDeposits: 40, heldForRentals: 18 });
     await fund(who.lender, { available: 20, heldAsDeposits: 7 });
 
     const result = await payLender.run(asUser(who.borrower, { rentalId: id }));
 
     expect(result).toEqual({});
+    // available does not change: it went down when the price was held, at request time.
     expect(await wallet(who.borrower)).toEqual({
-      available: 85,
+      available: 100,
       heldAsDeposits: 40,
       heldForRentals: 3,
     });
     expect(await wallet(who.lender)).toMatchObject({ available: 35, heldAsDeposits: 7 });
-    expect(await rows(who.borrower)).toEqual([
-      expect.objectContaining({
-        id: `rental_payment_${id}`,
-        type: "RENTAL_PAYMENT",
-        amount: -15,
-        itemTitle: "Camping tent",
-      }),
-    ]);
-    expect(await rows(who.lender)).toEqual([
-      expect.objectContaining({
-        id: `rental_payment_${id}`,
-        type: "RENTAL_PAYMENT",
-        amount: 15,
-        itemTitle: "Camping tent",
-      }),
-    ]);
+    expect(await rows(who.borrower)).toEqual([]);
+    expect(await rows(who.lender)).toEqual([paymentRow(id)]);
     const saved = await db
       .collection("wallets")
       .doc(who.lender)
@@ -93,22 +92,22 @@ describe("paying the lender", () => {
     expect(saved.get("date").toMillis()).toBeGreaterThan(0);
   });
 
-  it("pays when available is exactly the price", async () => {
+  it("pays when exactly the price is held", async () => {
     const who = people();
     const id = await rental(who);
-    await fund(who.borrower, { available: 15 });
+    await fund(who.borrower, { heldForRentals: 15 });
     await fund(who.lender, { available: 0 });
 
     await payLender.run(asUser(who.borrower, { rentalId: id }));
 
-    expect(await wallet(who.borrower)).toMatchObject({ available: 0 });
+    expect(await wallet(who.borrower)).toMatchObject({ heldForRentals: 0 });
     expect(await wallet(who.lender)).toMatchObject({ available: 15 });
   });
 
   it("creates the lender's wallet when it does not exist", async () => {
     const who = people();
     const id = await rental(who);
-    await fund(who.borrower, { available: 100 });
+    await fund(who.borrower, held());
     expect(await wallet(who.lender)).toBeUndefined();
 
     await payLender.run(asUser(who.borrower, { rentalId: id }));
@@ -124,11 +123,11 @@ describe("paying the lender", () => {
   it("pays the same way when the lender calls", async () => {
     const who = people();
     const id = await rental(who);
-    await fund(who.borrower, { available: 100 });
+    await fund(who.borrower, held());
 
     await payLender.run(asUser(who.lender, { rentalId: id }));
 
-    expect(await wallet(who.borrower)).toMatchObject({ available: 85 });
+    expect(await wallet(who.borrower)).toMatchObject({ available: 100, heldForRentals: 0 });
     expect(await wallet(who.lender)).toMatchObject({ available: 15 });
   });
 
@@ -136,24 +135,23 @@ describe("paying the lender", () => {
     const who = people();
     const id = await rental(who);
     await db.collection("rentals").doc(id).update({ listingTitle: FieldValue.delete() });
-    await fund(who.borrower, { available: 100 });
+    await fund(who.borrower, held());
 
     await payLender.run(asUser(who.borrower, { rentalId: id }));
 
-    expect(await rows(who.borrower)).toEqual([expect.objectContaining({ amount: -15, itemTitle: "" })]);
-    expect(await rows(who.lender)).toEqual([expect.objectContaining({ amount: 15, itemTitle: "" })]);
+    expect(await rows(who.lender)).toEqual([paymentRow(id, "")]);
   });
 
   it.each(PAID_STATUSES)("pays a rental that is %s", async (status) => {
     const who = people();
     const id = await rental(who, { status });
-    await fund(who.borrower, { available: 100 });
+    await fund(who.borrower, held());
 
     await payLender.run(asUser(who.borrower, { rentalId: id }));
 
-    expect(await wallet(who.borrower)).toMatchObject({ available: 85 });
+    expect(await wallet(who.borrower)).toMatchObject({ available: 100, heldForRentals: 0 });
     expect(await wallet(who.lender)).toMatchObject({ available: 15 });
-    expect(await rows(who.borrower)).toHaveLength(1);
+    expect(await rows(who.borrower)).toEqual([]);
     expect(await rows(who.lender)).toHaveLength(1);
   });
 
@@ -164,21 +162,20 @@ describe("paying the lender", () => {
   it("succeeds twice and pays once when the borrower and then the lender call", async () => {
     const who = people();
     const id = await rental(who);
-    await fund(who.borrower, { available: 15 });
+    await fund(who.borrower, held());
 
     await payLender.run(asUser(who.borrower, { rentalId: id }));
     await payLender.run(asUser(who.lender, { rentalId: id }));
 
-    expect(await wallet(who.borrower)).toMatchObject({ available: 0 });
+    expect(await wallet(who.borrower)).toMatchObject({ heldForRentals: 0 });
     expect(await wallet(who.lender)).toMatchObject({ available: 15 });
-    expect(await rows(who.borrower)).toHaveLength(1);
     expect(await rows(who.lender)).toHaveLength(1);
   });
 
   it("succeeds again once the rental has moved on, paying nothing more", async () => {
     const who = people();
     const id = await rental(who);
-    await fund(who.borrower, { available: 100 });
+    await fund(who.borrower, held({ heldForRentals: 30 }));
     await payLender.run(asUser(who.borrower, { rentalId: id }));
 
     for (const status of ["RETURNED", "CLOSED", "DISPUTED"]) {
@@ -186,47 +183,93 @@ describe("paying the lender", () => {
       await payLender.run(asUser(who.borrower, { rentalId: id }));
     }
 
-    expect(await wallet(who.borrower)).toMatchObject({ available: 85 });
+    // 30 held: a second payment would have found enough to take another 15.
+    expect(await wallet(who.borrower)).toMatchObject({ heldForRentals: 15 });
     expect(await wallet(who.lender)).toMatchObject({ available: 15 });
-    expect(await rows(who.borrower)).toHaveLength(1);
     expect(await rows(who.lender)).toHaveLength(1);
+  });
+
+  it("counts a payment made before the price was held, whose rows are on both sides", async () => {
+    const who = people();
+    const id = await rental(who);
+    await fund(who.borrower, held());
+    await db
+      .collection("wallets")
+      .doc(who.lender)
+      .collection("transactions")
+      .doc(`rental_payment_${id}`)
+      .set({ type: "RENTAL_PAYMENT", amount: 15, itemTitle: "Camping tent" });
+
+    await payLender.run(asUser(who.borrower, { rentalId: id }));
+
+    expect(await wallet(who.borrower)).toEqual(held());
   });
 
   it("pays only once when two calls run at the same time", async () => {
     const who = people();
     const id = await rental(who);
-    await fund(who.borrower, { available: 100 });
+    await fund(who.borrower, held({ heldForRentals: 30 }));
 
     await Promise.all([
       payLender.run(asUser(who.borrower, { rentalId: id })),
       payLender.run(asUser(who.lender, { rentalId: id })),
     ]);
 
-    expect(await wallet(who.borrower)).toMatchObject({ available: 85 });
+    expect(await wallet(who.borrower)).toMatchObject({ heldForRentals: 15 });
     expect(await wallet(who.lender)).toMatchObject({ available: 15 });
-    expect(await rows(who.borrower)).toHaveLength(1);
     expect(await rows(who.lender)).toHaveLength(1);
   }, 15000);
 });
 
-describe("when it refuses", () => {
-  it("fails with insufficient funds and writes nothing when available is too low", async () => {
+describe("until the price is held at request (#357)", () => {
+  it("takes a price that is not held from available, with a row for each", async () => {
     const who = people();
     const id = await rental(who);
-    await fund(who.borrower, { available: 14 });
+    await fund(who.borrower, { available: 100, heldForRentals: 14 });
+
+    await payLender.run(asUser(who.lender, { rentalId: id }));
+
+    // The 14 PP held for another rental stay held.
+    expect(await wallet(who.borrower)).toMatchObject({ available: 85, heldForRentals: 14 });
+    expect(await wallet(who.lender)).toMatchObject({ available: 15 });
+    expect(await rows(who.borrower)).toEqual([
+      expect.objectContaining({ id: `rental_payment_${id}`, type: "RENTAL_PAYMENT", amount: -15 }),
+    ]);
+    expect(await rows(who.lender)).toEqual([paymentRow(id)]);
+  });
+
+  it("takes it only once when called twice", async () => {
+    const who = people();
+    const id = await rental(who);
+    await fund(who.borrower, { available: 100 });
+
+    await payLender.run(asUser(who.borrower, { rentalId: id }));
+    await payLender.run(asUser(who.lender, { rentalId: id }));
+
+    expect(await wallet(who.borrower)).toMatchObject({ available: 85 });
+    expect(await wallet(who.lender)).toMatchObject({ available: 15 });
+    expect(await rows(who.borrower)).toHaveLength(1);
+  });
+});
+
+describe("when it refuses", () => {
+  it("refuses when neither the held price nor available covers it, writing nothing", async () => {
+    const who = people();
+    const id = await rental(who);
+    await fund(who.borrower, { available: 14, heldForRentals: 14 });
 
     await expect(payLender.run(asUser(who.borrower, { rentalId: id }))).rejects.toMatchObject({
       code: "failed-precondition",
       message: expect.stringContaining("Insufficient funds"),
     });
 
-    expect(await wallet(who.borrower)).toEqual({ available: 14 });
+    expect(await wallet(who.borrower)).toEqual({ available: 14, heldForRentals: 14 });
     expect(await wallet(who.lender)).toBeUndefined();
     expect(await rows(who.borrower)).toEqual([]);
     expect(await rows(who.lender)).toEqual([]);
   });
 
-  it("fails with insufficient funds and creates no wallet when the borrower has none", async () => {
+  it("refuses and creates no wallet when the borrower has none", async () => {
     const who = people();
     const id = await rental(who);
 

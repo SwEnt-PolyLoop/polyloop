@@ -6,9 +6,12 @@ import android.Manifest
 import android.util.Log
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.semantics.AccessibilityAction
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -205,13 +208,18 @@ abstract class EndToEndTestBase {
     Firebase.auth.signOut()
   }
 
-  /** Shows [PolyLoopApp], the screens MainActivity shows inside its theme. */
-  protected fun setApp() {
+  /**
+   * Shows [PolyLoopApp], the screens MainActivity shows inside its theme. A [uriHandler] receives
+   * the links the app opens in other apps (e.g. Navigate), instead of the phone.
+   */
+  protected fun setApp(uriHandler: UriHandler? = null) {
     composeTestRule.setContent {
       if (showApp) {
         backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
         navController = rememberNavController()
-        PolyLoopApp(navController = navController)
+        CompositionLocalProvider(LocalUriHandler provides (uriHandler ?: LocalUriHandler.current)) {
+          PolyLoopApp(navController = navController)
+        }
       }
     }
     // On CI the activity is sometimes paused for a moment just after the emulator boots, and

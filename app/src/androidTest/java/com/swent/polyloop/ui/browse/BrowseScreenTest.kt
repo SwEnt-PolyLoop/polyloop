@@ -112,7 +112,7 @@ class BrowseScreenTest {
       hasLocationPermission: (Context) -> Boolean = ::hasCoarseLocationPermission,
       wrap: @Composable (@Composable () -> Unit) -> Unit = { it() },
       host: (@Composable () -> Unit) -> Unit = { composeTestRule.setContent(it) },
-  ) {
+  ): BrowseViewModel {
     val repository =
         object : ListingRepository {
           override suspend fun getListingsByOwner(
@@ -164,6 +164,7 @@ class BrowseScreenTest {
       requests += input as String
       @Suppress("UNCHECKED_CAST") dispatchResult(requestCode, granted as O)
     }
+    return viewModel
   }
 
   private fun withRegistry(
@@ -591,6 +592,31 @@ class BrowseScreenTest {
     listingsOnTheMap.forEach {
       composeTestRule.onNodeWithTag(C.Tag.listing_card_ + it.id).assertDoesNotExist()
     }
+  }
+
+  @Test
+  fun pinSelectedThroughTheViewModelShowsItsCardsUntilCleared() {
+    // Pins are drawn inside the Google map, so a Compose test cannot tap them: it calls the
+    // ViewModel functions the map is given instead.
+    val viewModel = setContentWithViewModel(listingsOnTheMap)
+    // selectPin drops a point with no pin, so the listings must be loaded first.
+    waitForTag(C.Tag.listing_card_ + "tent")
+    composeTestRule.onNodeWithTag(C.Tag.browse_map_toggle).performClick()
+
+    composeTestRule.runOnIdle { viewModel.selectPin(ecublens) }
+    composeTestRule.onNodeWithTag(C.Tag.browse_pin_listings).assertIsDisplayed()
+    listOf("tent", "projector").forEach { id ->
+      val cardTag = C.Tag.listing_card_ + id
+      composeTestRule
+          .onNodeWithTag(C.Tag.browse_pin_listings)
+          .performScrollToNode(hasTestTag(cardTag))
+      composeTestRule.onNodeWithTag(cardTag).assertIsDisplayed()
+    }
+    composeTestRule.onNodeWithTag(C.Tag.listing_card_ + "drill").assertDoesNotExist()
+
+    composeTestRule.runOnIdle { viewModel.clearSelection() }
+    composeTestRule.onNodeWithTag(C.Tag.browse_map).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.browse_pin_listings).assertDoesNotExist()
   }
 
   @Test

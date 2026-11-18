@@ -23,6 +23,12 @@ class FakeHandoverRepository(
     var gate: CompletableDeferred<Unit>? = null,
     // The time given to the next photo added.
     var now: Instant = Instant.parse("2026-10-13T15:00:00Z"),
+    // The secret code of every rental and phase: shown as it is, scanned against its fingerprint.
+    var code: String? = "secret-code",
+    // When set, getCodeToShow and getCodeFingerprint fail with this error.
+    var codeFailure: Throwable? = null,
+    // When set, confirmScan fails with this error once the code is right.
+    var scanFailure: Throwable? = null,
 ) : HandoverRepository {
 
   /** A photo of the rental [rentalId], taken by [takenBy]. */
@@ -63,9 +69,72 @@ class FakeHandoverRepository(
       return Result.failure(it)
     }
     val uid = currentUid ?: return Result.failure(IllegalStateException("Nobody is signed in"))
+    // As the real repository: the id is the lowest free slot of the user, and nothing is added
+    // when all are used. A photo with another id, such as a random one, uses no slot. The slot is
+    // picked inside update, which retries on a concurrent change, so two calls at once never get
+    // the same id. The lambda must stay free of side effects other than `full`, which each retry
+    // overwrites.
+    var full = false
     stored.update { all ->
-      all + StoredPhoto(rentalId, uid, HandoverPhoto("p${all.size + 1}", phase, now, photoUri))
+      val slot =
+          lowestFreeSlot(
+              uid,
+              phase,
+              all.filter { it.rentalId == rentalId && it.takenBy == uid && it.photo.phase == phase }
+                  .map { it.photo.id },
+          )
+      full = slot == null
+      if (slot == null) all
+      else
+          all +
+              StoredPhoto(
+                  rentalId,
+                  uid,
+                  HandoverPhoto(photoSlotId(uid, phase, slot), phase, now, photoUri),
+              )
+    }
+    if (full) {
+      return Result.failure(
+          IllegalStateException(
+              "All ${HandoverPhoto.MAX_PHOTOS} ${phase.name} photos are already taken"
+          )
+      )
     }
     return Result.success(Unit)
+  }
+
+  // The codes sent to confirmScan, in order, including the wrong ones.
+  val scannedCodes = mutableListOf<String>()
+
+  override suspend fun getCodeToShow(rentalId: String, phase: HandoverPhase): Result<String?> =
+      readCode {
+        code
+      }
+
+  override suspend fun getCodeFingerprint(
+      rentalId: String,
+      phase: HandoverPhase,
+  ): Result<String?> = readCode { code?.let(HandoverCode::fingerprint) }
+
+  override suspend fun confirmScan(
+      rentalId: String,
+      phase: HandoverPhase,
+      code: String,
+  ): Result<Unit> {
+    scannedCodes += code
+    gate?.await()
+    return when {
+      currentUid == null -> Result.failure(IllegalStateException("Nobody is signed in"))
+      code != this.code -> Result.failure(WrongCodeException())
+      else -> scanFailure?.let { Result.failure(it) } ?: Result.success(Unit)
+    }
+  }
+
+  private fun readCode(read: () -> String?): Result<String?> {
+    codeFailure?.let {
+      return Result.failure(it)
+    }
+    if (currentUid == null) return Result.failure(IllegalStateException("Nobody is signed in"))
+    return Result.success(read())
   }
 }

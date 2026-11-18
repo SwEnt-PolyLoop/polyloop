@@ -753,6 +753,62 @@ class PolyLoopAppTest {
     assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
   }
 
+  /**
+   * Opens Rental detail on a request borrowed by "uid", taps "Cancel request" once it shows, and
+   * returns the fake holding the request, with the confirm sheet open. A request has no deadline,
+   * so the server's date does not matter.
+   */
+  private fun openTheCancelSheetOfARequest(): FakeRentalRepository {
+    val rentals =
+        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED)))
+    useRentals(rentals)
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+    // The button shows once the rental is loaded.
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodes(hasTestTag(C.Tag.rental_detail_cancel_button) and isEnabled())
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
+        .performScrollTo()
+        .performClick()
+    waitForTag(C.Tag.rental_detail_cancel_sheet)
+    return rentals
+  }
+
+  @Test
+  fun cancelRequestThenYesCancelsTheRentalAndShowsThePlaceholder() {
+    val rentals = openTheCancelSheetOfARequest()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_yes).performClick()
+
+    waitForTag(C.Tag.rental_detail_unsupported)
+    assertEquals(
+        RentalStatus.CANCELLED,
+        runBlocking { rentals.getRental(rental.id).getOrThrow()?.status },
+    )
+  }
+
+  @Test
+  fun cancelRequestThenNoLeavesTheRentalRequested() {
+    val rentals = openTheCancelSheetOfARequest()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_no).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_sheet).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_unsupported).assertDoesNotExist()
+    assertEquals(
+        RentalStatus.REQUESTED,
+        runBlocking { rentals.getRental(rental.id).getOrThrow()?.status },
+    )
+  }
+
   @Test
   fun anOpenKeyboardShrinksTheScreenAboveItInsteadOfPushingItUp() {
     openAsBorrower(Screen.Chat.createRoute(rental.id))

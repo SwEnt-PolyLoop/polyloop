@@ -25,6 +25,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -69,16 +70,25 @@ class ChatViewModelOfferTest {
           createdAt = now,
       )
 
+  private val dispatcher = UnconfinedTestDispatcher()
+
+  // The phone's time: [clockStart], moved on by the test's virtual time.
+  private var clockStart = now
+  private val clock = { clockStart.plusMillis(dispatcher.scheduler.currentTime) }
+
+  /** Moves the phone's time on by [millis], running what was waiting for it. */
+  private fun advanceClock(millis: Long) {
+    dispatcher.scheduler.advanceTimeBy(millis)
+    dispatcher.scheduler.runCurrent()
+  }
+
   private lateinit var chat: FakeChatRepository
   private lateinit var connectivity: FakeConnectivityRepository
   private lateinit var rentals: FakeRentalRepository
 
-  // Also runs the server clock's reads, so they finish before each assertion.
-  private val testDispatcher = UnconfinedTestDispatcher()
-
   @Before
   fun setUp() {
-    Dispatchers.setMain(testDispatcher)
+    Dispatchers.setMain(dispatcher)
     chat = FakeChatRepository(currentUid = "borrower")
     chat.conversations =
         listOf(
@@ -122,6 +132,7 @@ class ChatViewModelOfferTest {
           repository,
           connectivity,
           serverClock(repository),
+          clock,
       )
 
   private fun serverClock(repository: RentalRepository) =
@@ -130,7 +141,7 @@ class ChatViewModelOfferTest {
           InMemoryServerClockStore(),
           elapsedRealtime = { 0L },
           bootCount = { 0 },
-          ioDispatcher = testDispatcher,
+          ioDispatcher = dispatcher,
       )
 
   /** [rentals] with a server that cannot be reached until [reachable] returns true. */
@@ -143,6 +154,73 @@ class ChatViewModelOfferTest {
   private suspend fun stored(id: String = "r1"): Rental = rentals.getRental(id).getOrThrow()!!
 
   // ---------- The card ----------
+
+  @Test
+  fun anOfferJustBeforeItsExpiryCanStillBeAnswered() {
+    clockStart = expiresAt.minusMillis(1)
+
+    val state = viewModel().uiState.value
+
+    assertFalse(state.offer!!.isExpired)
+    assertTrue(state.canAnswerOffer)
+    assertTrue(state.offer!!.canCounter)
+  }
+
+  @Test
+  fun anOfferLeftOpenBecomesExpiredRightAtItsExpiry() {
+    clockStart = expiresAt.minusMillis(1)
+    val vm = viewModel()
+
+    advanceClock(1)
+
+    val state = vm.uiState.value
+    assertTrue(state.offer!!.isExpired)
+    assertFalse(state.canAnswerOffer)
+    assertFalse(state.offer!!.canCounter)
+  }
+
+  @Test
+  fun anOfferThatExpiredWhileThePhoneSleptShowsExpiredWhenTheScreenComesBack() {
+    clockStart = expiresAt.minusSeconds(3600)
+    val vm = viewModel()
+    vm.onStarted()
+
+    // The phone sleeps past the expiry: its clock moves on, but the wait (uptime) does not.
+    vm.onStopped()
+    clockStart = expiresAt.plusSeconds(60)
+    dispatcher.scheduler.runCurrent()
+    assertFalse(vm.uiState.value.offer!!.isExpired)
+
+    vm.onStarted()
+
+    assertTrue(vm.uiState.value.offer!!.isExpired)
+    assertFalse(vm.uiState.value.canAnswerOffer)
+  }
+
+  @Test
+  fun anExpiredOfferCannotBeAnsweredAndClosesTheCounterForm() {
+    clockStart = expiresAt.minusMillis(1)
+    val vm = viewModel()
+    vm.startCounter()
+    vm.onCounterDraftChange("120")
+
+    advanceClock(1)
+    vm.acceptOffer()
+    vm.sendCounter()
+
+    assertFalse(vm.uiState.value.isCountering)
+    assertFalse(vm.uiState.value.canSendCounter)
+    vm.startCounter()
+    assertFalse(vm.uiState.value.isCountering)
+    runBlocking { assertEquals(RentalStatus.REQUESTED, stored().status) }
+  }
+
+  @Test
+  fun theAuthorAlsoSeesTheirOfferExpired() {
+    clockStart = expiresAt
+
+    assertTrue(viewModel(lender).uiState.value.offer!!.isExpired)
+  }
 
   @Test
   fun noOfferMeansNoCard() {

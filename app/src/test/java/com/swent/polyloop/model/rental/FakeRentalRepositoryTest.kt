@@ -116,6 +116,35 @@ class FakeRentalRepositoryTest {
   }
 
   @Test
+  fun setStatusChangesTheRentalForItsFollowers() = runTest {
+    val repository = repository()
+    val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val other = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val active = async {
+      repository.observeRental(rental.id).first { it?.status == RentalStatus.ACTIVE }
+    }
+    yield()
+
+    repository.setStatus(rental.id, RentalStatus.ACTIVE)
+
+    assertEquals(rental.copy(status = RentalStatus.ACTIVE), active.await())
+    assertEquals(RentalStatus.REQUESTED, repository.getRental(other.id).getOrThrow()?.status)
+    repository.setStatus("unknown", RentalStatus.ACTIVE) // nothing happens
+    assertEquals(2, repository.observeRentalsAsBorrower("borrower").first().size)
+  }
+
+  @Test
+  fun removeLeavesItsFollowersWithNull() = runTest {
+    val repository = repository()
+    val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+
+    repository.remove(rental.id)
+
+    assertNull(repository.observeRental(rental.id).first())
+    assertNull(repository.getRental(rental.id).getOrThrow())
+  }
+
+  @Test
   fun getRentalFindsByIdOrReturnsNull() = runTest {
     val repository = repository()
     val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()

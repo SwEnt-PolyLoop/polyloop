@@ -37,6 +37,9 @@
     <string name="distance_kilometers">%1$s km</string>
 
     <!-- Listing detail -->
+    <!-- Under a long text cut after a few lines (the listing description): shows it whole, then cuts it again. -->
+    <string name="expandable_text_see_more">See more</string>
+    <string name="expandable_text_see_less">See less</string>
     <string name="listing_detail_photo_count">%1$d / %2$d</string>
     <string name="listing_detail_photo_description">Photo %1$d of %2$d</string>
     <string name="listing_detail_suggested_deposit">Suggested deposit</string>
@@ -113,6 +116,7 @@
     <string name="my_rentals_offer_sent_line">%1$d PP reserved · %2$d PP deposit offered</string>
     <!-- e.g. "180 PP deposit offered · expires 22 Oct" -->
     <string name="my_rentals_offer_received_line">%1$d PP deposit offered · expires %2$s</string>
+    <string name="my_rentals_offer_expired_line">%1$d PP deposit offered · expired</string>
     <!-- e.g. "120 PP counteroffer · expires 22 Oct" -->
     <string name="my_rentals_counter_line">%1$d PP counteroffer · expires %2$s</string>
     <string name="my_rentals_open_chat">Open chat</string>
@@ -131,6 +135,10 @@
     <string name="wallet_recharge">Recharge</string>
     <string name="wallet_history_title">HISTORY</string>
     <string name="wallet_history_empty">No transactions yet.</string>
+    <string name="wallet_amount_unknown">—</string>
+    <string name="wallet_amount_unknown_description">Unknown</string>
+    <string name="wallet_unavailable_offline">Your balance is unavailable until your phone is back online.</string>
+    <string name="wallet_history_unavailable_offline">Your history is unavailable until your phone is back online.</string>
     <string name="wallet_footer">1 CHF = 1 PolyPoint. PolyPoints can\'t be withdrawn.</string>
     <string name="wallet_error_fallback">Could not load your wallet</string>
     <string name="wallet_retry">Retry</string>
@@ -184,6 +192,8 @@
     <string name="create_listing_category_required">Please choose a category.</string>
     <string name="create_listing_description_label">Description</string>
     <string name="create_listing_description_required">Please enter a description.</string>
+    <!-- Under the title and description fields: characters used out of the most allowed. -->
+    <string name="create_listing_character_count">%1$,d / %2$,d</string>
     <string name="create_listing_price_label">Price per day</string>
     <string name="create_listing_price_required">Please enter a price per day.</string>
     <!-- Keep 99,999 in sync with Listing.MAX_AMOUNT -->
@@ -327,6 +337,8 @@
     <!-- e.g. "Waiting for Ana. Expires 22 Oct." -->
     <string name="chat_offer_note_waiting">Waiting for %1$s. Expires %2$s.</string>
     <string name="chat_offer_note_expires">Expires %1$s.</string>
+    <string name="chat_offer_note_expired">This offer has expired and can no longer be answered.</string>
+    <string name="offer_expired">Offer expired</string>
     <!-- e.g. "Your offer was 180 PP. Expires 24 Oct." -->
     <string name="chat_offer_note_counter">Your offer was %1$d PP. Expires %2$s.</string>
     <string name="chat_offer_counter_hint">Their offer: %1$d PP. You can counter only once, and the lender can then only accept or decline.</string>
@@ -361,6 +373,7 @@
     <!-- e.g. "Deposit offer: 180 PP. Expires 22 Oct. Answer in the chat." -->
     <string name="rental_detail_offer_body_answer">Deposit offer: %1$d PP. Expires %2$s. Answer in the chat.</string>
     <string name="rental_detail_offer_body_waiting">Deposit offer: %1$d PP. Expires %2$s. Waiting for the answer.</string>
+    <string name="rental_detail_offer_body_expired">Deposit offer: %1$d PP. This offer has expired.</string>
     <string name="rental_detail_counter_body_answer">Counteroffer: %1$d PP. Expires %2$s. Answer in the chat.</string>
     <string name="rental_detail_counter_body_waiting">Counteroffer: %1$d PP. Expires %2$s. Waiting for the answer.</string>
     <string name="rental_detail_offer_label">Deposit offer</string>
@@ -371,6 +384,8 @@
     <string name="rental_detail_pickup_point_label">PICKUP POINT</string>
     <string name="rental_detail_return_address">Drop-off: %1$s</string>
     <string name="rental_detail_address_placeholder">Address not known yet</string>
+    <string name="rental_detail_navigate">Navigate</string>
+    <string name="rental_detail_navigate_failed">Could not open the directions.</string>
     <string name="rental_detail_details_title">Details</string>
     <string name="rental_detail_dates_label">Dates</string>
     <string name="rental_detail_return_label">Return</string>
@@ -384,7 +399,15 @@
     <string name="rental_detail_pickup_note">Only the area is shown for now. The exact address appears once the request is accepted.</string>
     <!-- The last day the rental can be cancelled, e.g. "You can cancel until Wed 30 Sep" -->
     <string name="rental_detail_cancel_until">You can cancel until %1$s</string>
+    <!-- Shown instead of the last cancel day of an accepted rental when the server's date is unknown -->
+    <string name="rental_detail_cancel_needs_connection">Connect to the internet to check the cancel day.</string>
     <string name="rental_detail_cancel_request">Cancel request</string>
+    <string name="rental_detail_cancel_rental">Cancel rental</string>
+    <string name="rental_detail_cancel_confirm_title">Are you sure you want to cancel this rental?</string>
+    <string name="rental_detail_cancel_no">No</string>
+    <string name="rental_detail_cancel_yes">Yes</string>
+    <!-- Shown under the cancel button whenever cancelling failed -->
+    <string name="rental_detail_cancel_error_fallback">Could not cancel the rental.</string>
     <string name="rental_detail_disputed_headline">Damage flagged</string>
     <string name="rental_detail_disputed_body">The deposit stays held until a split is decided.</string>
     <!-- The total rental price of an active or disputed rental, e.g. "120 PP · paid" -->
@@ -519,6 +542,24 @@
     <string name="handover_deposit_amount">%1$d PP</string>
     <!-- The deposit on Handover when it is not known (stored as 0) -->
     <string name="handover_deposit_unknown">—</string>
+    <!-- The card where the person giving the item shows the QR code, e.g. "Show this code to Mara" -->
+    <string name="handover_show_code_title">Show this code to %1$s</string>
+    <string name="handover_show_code_title_borrower">Show this code to the borrower</string>
+    <string name="handover_show_code_title_lender">Show this code to the lender</string>
+    <string name="handover_show_code_hint">They scan it to confirm they received the item.</string>
+    <plurals name="handover_show_code_photos_missing">
+        <item quantity="one">Take %1$d more photo to show your code.</item>
+        <item quantity="other">Take %1$d more photos to show your code.</item>
+    </plurals>
+    <string name="handover_code_description">Your handover QR code</string>
+    <string name="handover_code_no_copy">Connect to the internet once to prepare the pickup.</string>
+    <string name="handover_code_error">Couldn\'t load your code.</string>
+    <!-- Under the QR code while offline, e.g. "Once Mara has scanned, you're done. …" -->
+    <string name="handover_code_offline_note">Once %1$s has scanned, you\'re done. This updates when you\'re back online.</string>
+    <string name="handover_code_offline_note_no_name">Once they have scanned, you\'re done. This updates when you\'re back online.</string>
+    <!-- Once the borrower has scanned, e.g. "Picked up by Mara · the rental has started" -->
+    <string name="handover_code_picked_up">Picked up by %1$s · the rental has started</string>
+    <string name="handover_code_picked_up_no_name">Picked up · the rental has started</string>
 
     <!-- Review request: the lender's answer to a request. -->
     <string name="review_request_title">Review request</string>
