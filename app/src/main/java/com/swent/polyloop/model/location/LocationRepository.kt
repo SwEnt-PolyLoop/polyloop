@@ -6,7 +6,7 @@ package com.swent.polyloop.model.location
  * The phone's position. The app reads the GPS only through this repository, to sort Browse by
  * distance.
  */
-interface LocationRepository {
+fun interface LocationRepository {
 
   /**
    * The phone's current position, or null when the coarse location permission is not granted or

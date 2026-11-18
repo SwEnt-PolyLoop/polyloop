@@ -100,22 +100,13 @@ object RepositoryProvider {
 
   var connectivityRepository: ConnectivityRepository
     get() =
-        connectivity
-            ?: ConnectivityRepositoryAndroid(
-                    checkNotNull(appContext) { "RepositoryProvider.init was not called" }
-                )
-                .also { connectivity = it }
+        connectivity ?: ConnectivityRepositoryAndroid(requireContext()).also { connectivity = it }
     set(value) {
       connectivity = value
     }
 
   var locationRepository: LocationRepository
-    get() =
-        location
-            ?: LocationRepositoryAndroid(
-                    checkNotNull(appContext) { "RepositoryProvider.init was not called" }
-                )
-                .also { location = it }
+    get() = location ?: LocationRepositoryAndroid(requireContext()).also { location = it }
     set(value) {
       location = value
     }
@@ -129,7 +120,7 @@ object RepositoryProvider {
   var serverClock: ServerClock
     get() =
         clock
-            ?: checkNotNull(appContext) { "RepositoryProvider.init was not called" }
+            ?: requireContext()
                 .let { context ->
                   ServerClock(
                       rentalRepository,
@@ -173,6 +164,9 @@ object RepositoryProvider {
    */
   val storage: FirebaseStorage
     get() = Firebase.storage
+
+  private fun requireContext(): Context =
+      checkNotNull(appContext) { "RepositoryProvider.init was not called" }
 
   /**
    * Forgets every repository and the server clock, so the next access creates the real ones again.
