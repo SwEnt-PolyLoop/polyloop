@@ -552,7 +552,7 @@ class BrowseScreenTest {
         uiState =
             BrowseUiState(
                 listings = listings,
-                distanceTexts = mapOf(listings[0].id to "350 m"),
+                distancesMeters = mapOf(listings[0].id to 350.0),
             )
     )
 
@@ -571,7 +571,7 @@ class BrowseScreenTest {
                 listings = listingsOnTheMap,
                 view = BrowseView.MAP,
                 selectedPoint = ecublens,
-                distanceTexts = mapOf("tent" to "1.2 km"),
+                distancesMeters = mapOf("tent" to 1200.0),
             )
     )
 

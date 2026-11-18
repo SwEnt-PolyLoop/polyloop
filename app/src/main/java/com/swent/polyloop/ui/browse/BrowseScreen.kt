@@ -202,7 +202,7 @@ fun BrowseContent(
             uiState.selectedPin?.let { pin ->
               BrowsePinListings(
                   pin = pin,
-                  distanceTexts = uiState.distanceTexts,
+                  distancesMeters = uiState.distancesMeters,
                   onListingClick = onListingClick,
               )
             }
@@ -216,7 +216,7 @@ fun BrowseContent(
             items(uiState.visibleListings, key = { it.id }) { listing ->
               ListingCard(
                   listing = listing,
-                  distanceText = uiState.distanceTexts[listing.id],
+                  distanceMeters = uiState.distancesMeters[listing.id],
                   onClick = { onListingClick(listing.id) },
               )
             }
@@ -227,14 +227,14 @@ fun BrowseContent(
 
 /**
  * The listings of [pin], the pin selected on the map, as cards in a row under the map, which
- * scrolls sideways when there are several, each with its distance from [distanceTexts] when it has
- * one. Tapping a card calls [onListingClick] with its id. The cards' text keeps to one line, so
+ * scrolls sideways when there are several, each with its distance from [distancesMeters] when it
+ * has one. Tapping a card calls [onListingClick] with its id. The cards' text keeps to one line, so
  * they all have the same height and the map above does not jump while the user swipes.
  */
 @Composable
 private fun BrowsePinListings(
     pin: BrowsePin,
-    distanceTexts: Map<String, String>,
+    distancesMeters: Map<String, Double>,
     onListingClick: (String) -> Unit,
 ) {
   val cardWidthFraction = if (pin.listings.size == 1) 1f else PIN_CARD_WIDTH_FRACTION
@@ -246,7 +246,7 @@ private fun BrowsePinListings(
     items(pin.listings, key = { it.id }) { listing ->
       ListingCard(
           listing = listing,
-          distanceText = distanceTexts[listing.id],
+          distanceMeters = distancesMeters[listing.id],
           modifier = Modifier.fillParentMaxWidth(cardWidthFraction),
           singleLineText = true,
           onClick = { onListingClick(listing.id) },

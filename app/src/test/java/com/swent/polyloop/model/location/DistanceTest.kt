@@ -2,7 +2,6 @@
 
 package com.swent.polyloop.model.location
 
-import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -19,7 +18,7 @@ class DistanceTest {
   }
 
   @Test
-  fun distanceBetweenEpflAndLausanneStationIsAboutThreeKilometers() {
+  fun distanceBetweenEpflAndLausanneStationIsAboutFiveKilometers() {
     val epfl = MapPoint(46.5191, 6.5668)
     val station = MapPoint(46.5167, 6.6296)
 
@@ -69,64 +68,48 @@ class DistanceTest {
 
   // ---------- formatDistance ----------
 
-  private fun format(meters: Double, locale: Locale = Locale.US) = formatDistance(meters, locale)
+  private fun meters(value: Int) = RoundedDistance.Meters(value)
+
+  private fun km(value: Double) = RoundedDistance.Kilometers(value)
 
   @Test
   fun metersUnderOneKilometerRoundToTheNearestTen() {
-    assertEquals("0 m", format(0.0))
-    assertEquals("0 m", format(-0.0))
-    assertEquals("0 m", format(4.0))
-    assertEquals("10 m", format(5.0))
-    assertEquals("350 m", format(350.0))
-    assertEquals("350 m", format(354.0))
-    assertEquals("360 m", format(355.0))
-    assertEquals("990 m", format(994.0))
+    assertEquals(meters(0), formatDistance(0.0))
+    assertEquals(meters(0), formatDistance(-0.0))
+    assertEquals(meters(0), formatDistance(4.0))
+    assertEquals(meters(10), formatDistance(5.0))
+    assertEquals(meters(350), formatDistance(350.0))
+    assertEquals(meters(350), formatDistance(354.0))
+    assertEquals(meters(360), formatDistance(355.0))
+    assertEquals(meters(990), formatDistance(994.0))
   }
 
   @Test
   fun aDistanceRoundingToOneKilometerIsInKilometers() {
-    assertEquals("1.0 km", format(995.0))
-    assertEquals("1.0 km", format(999.9))
-    assertEquals("1.0 km", format(1000.0))
+    assertEquals(km(1.0), formatDistance(995.0))
+    assertEquals(km(1.0), formatDistance(999.9))
+    assertEquals(km(1.0), formatDistance(1000.0))
   }
 
   @Test
   fun kilometersHaveOneDecimalRoundedHalfUp() {
-    assertEquals("1.0 km", format(1049.9))
-    assertEquals("1.1 km", format(1050.0))
-    assertEquals("1.1 km", format(1149.9))
-    assertEquals("1.2 km", format(1150.0))
-    assertEquals("12.4 km", format(12_350.0))
+    assertEquals(km(1.0), formatDistance(1049.9))
+    assertEquals(km(1.1), formatDistance(1050.0))
+    assertEquals(km(1.1), formatDistance(1149.9))
+    assertEquals(km(1.2), formatDistance(1150.0))
+    assertEquals(km(12.4), formatDistance(12_350.0))
   }
 
   @Test
-  fun largeDistancesHaveNoThousandsSeparator() {
-    assertEquals("1234.5 km", format(1_234_500.0))
-  }
-
-  @Test
-  fun kilometersUseTheLocaleDecimalSeparator() {
-    assertEquals("350 m", format(350.0, Locale.FRANCE))
-    assertEquals("1,2 km", format(1200.0, Locale.FRANCE))
-    assertEquals("1.2 km", format(1200.0, Locale.US))
+  fun largeDistancesAreKeptWhole() {
+    assertEquals(km(1234.5), formatDistance(1_234_500.0))
   }
 
   @Test
   fun noDistanceToShowGivesNull() {
-    assertNull(format(Double.NaN))
-    assertNull(format(Double.POSITIVE_INFINITY))
-    assertNull(format(Double.NEGATIVE_INFINITY))
-    assertNull(format(-1.0))
-  }
-
-  @Test
-  fun defaultLocaleIsTheDevicesOne() {
-    val original = Locale.getDefault()
-    try {
-      Locale.setDefault(Locale.FRANCE)
-      assertEquals("1,2 km", formatDistance(1200.0))
-    } finally {
-      Locale.setDefault(original)
-    }
+    assertNull(formatDistance(Double.NaN))
+    assertNull(formatDistance(Double.POSITIVE_INFINITY))
+    assertNull(formatDistance(Double.NEGATIVE_INFINITY))
+    assertNull(formatDistance(-1.0))
   }
 }

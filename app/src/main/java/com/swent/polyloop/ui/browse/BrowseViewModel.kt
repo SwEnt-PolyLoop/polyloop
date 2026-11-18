@@ -16,7 +16,6 @@ import com.swent.polyloop.model.listing.search
 import com.swent.polyloop.model.location.LocationRepository
 import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.location.distanceMeters
-import com.swent.polyloop.model.location.formatDistance
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,8 +47,8 @@ data class BrowsePin(val point: MapPoint, val listings: List<Listing>)
  * [view] is whether the listings show as a list or on a map; both follow the same [filter].
  * [selectedPoint] is the point of the pin the user tapped on the map, or null when none is;
  * [BrowseViewModel] only keeps it while a pin is at that point. [listings] are sorted by distance
- * from the phone, those without a distance last; [distanceTexts] maps the id of each listing that
- * has a distance to its text ("350 m", "1.2 km"), and is empty while the position is unknown.
+ * from the phone, those without a distance last; [distancesMeters] maps the id of each listing that
+ * has a distance to that distance in meters, and is empty while the position is unknown.
  */
 data class BrowseUiState(
     val isLoading: Boolean = false,
@@ -59,7 +58,7 @@ data class BrowseUiState(
     val isOffline: Boolean = false,
     val view: BrowseView = BrowseView.LIST,
     val selectedPoint: MapPoint? = null,
-    val distanceTexts: Map<String, String> = emptyMap(),
+    val distancesMeters: Map<String, Double> = emptyMap(),
 ) {
   // The values below are computed from the fields above, once per state: being declared in the
   // body, they are not part of equals or copy, and each copy computes its own on first use.
@@ -217,12 +216,8 @@ class BrowseViewModel(
             .sortedWith(compareBy(nullsLast<Double>()) { it.second })
     return copy(
             listings = sorted.map { it.first },
-            distanceTexts =
-                sorted
-                    .mapNotNull { (listing, meters) ->
-                      meters?.let { formatDistance(it) }?.let { listing.id to it }
-                    }
-                    .toMap(),
+            distancesMeters =
+                sorted.mapNotNull { (listing, meters) -> meters?.let { listing.id to it } }.toMap(),
         )
         .withoutStaleSelection()
   }

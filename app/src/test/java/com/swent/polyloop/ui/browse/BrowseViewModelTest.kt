@@ -21,7 +21,6 @@ import com.swent.polyloop.model.location.LocationRepository
 import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.ui.listingdetail.FakeListingRepository
 import java.time.LocalDate
-import java.util.Locale
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -66,8 +65,6 @@ class BrowseViewModelTest {
 
   private lateinit var locationRepository: FakeLocationRepository
 
-  private lateinit var originalLocale: Locale
-
   @Before
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -75,19 +72,11 @@ class BrowseViewModelTest {
     authRepository = SignedInAuthRepository(AuthUser("me", "me@epfl.ch", "Me"))
     connectivity = FakeConnectivityRepository(online = true)
     locationRepository = FakeLocationRepository()
-    // The distance texts use the default locale.
-    originalLocale = Locale.getDefault()
-    Locale.setDefault(Locale.US)
   }
 
   @After
   fun tearDown() {
-    // The locale is restored even if resetting the dispatcher fails.
-    try {
-      Dispatchers.resetMain()
-    } finally {
-      Locale.setDefault(originalLocale)
-    }
+    Dispatchers.resetMain()
   }
 
   @Test
@@ -581,14 +570,13 @@ class BrowseViewModelTest {
   private fun BrowseViewModel.ids() = uiState.value.listings.map { it.id }
 
   @Test
-  fun listingsAreSortedByDistanceWithTheirTexts() {
-    val vm = distanceViewModel(at("far", 3300.0), at("near", 350.0), at("mid", 1200.0))
+  fun listingsAreSortedByDistanceWithTheirDistancesInMeters() {
+    val vm = distanceViewModel(at("far", 3300.0), at("near", 350.0))
 
-    assertEquals(listOf("near", "mid", "far"), vm.ids())
-    assertEquals(
-        mapOf("near" to "350 m", "mid" to "1.2 km", "far" to "3.3 km"),
-        vm.uiState.value.distanceTexts,
-    )
+    assertEquals(listOf("near", "far"), vm.ids())
+    assertEquals(setOf("near", "far"), vm.uiState.value.distancesMeters.keys)
+    assertEquals(350.0, vm.uiState.value.distancesMeters["near"]!!, 0.5)
+    assertEquals(3300.0, vm.uiState.value.distancesMeters["far"]!!, 0.5)
   }
 
   @Test
@@ -596,7 +584,7 @@ class BrowseViewModelTest {
     val vm = distanceViewModel(at("far", 3300.0), at("near", 350.0), position = null)
 
     assertEquals(listOf("far", "near"), vm.ids())
-    assertTrue(vm.uiState.value.distanceTexts.isEmpty())
+    assertTrue(vm.uiState.value.distancesMeters.isEmpty())
   }
 
   @Test
@@ -605,7 +593,7 @@ class BrowseViewModelTest {
     val vm = distanceViewModel(noPoint, at("far", 3300.0), at("near", 350.0))
 
     assertEquals(listOf("near", "far", "nowhere"), vm.ids())
-    assertEquals(setOf("near", "far"), vm.uiState.value.distanceTexts.keys)
+    assertEquals(setOf("near", "far"), vm.uiState.value.distancesMeters.keys)
   }
 
   @Test
@@ -613,26 +601,6 @@ class BrowseViewModelTest {
     val vm = distanceViewModel(listing("b"), at("near", 350.0), listing("a"))
 
     assertEquals(listOf("near", "b", "a"), vm.ids())
-  }
-
-  @Test
-  fun distanceTextsRoundAtTheKilometerEdge() {
-    val vm =
-        distanceViewModel(at("m", 354.0), at("edge", 997.0), at("km", 1049.0), at("big", 12_360.0))
-
-    assertEquals(
-        mapOf("m" to "350 m", "edge" to "1.0 km", "km" to "1.0 km", "big" to "12.4 km"),
-        vm.uiState.value.distanceTexts,
-    )
-  }
-
-  @Test
-  fun distanceTextsUseTheDeviceLocale() {
-    Locale.setDefault(Locale.FRANCE)
-
-    val vm = distanceViewModel(at("mid", 1200.0))
-
-    assertEquals("1,2 km", vm.uiState.value.distanceTexts["mid"])
   }
 
   @Test
@@ -691,7 +659,7 @@ class BrowseViewModelTest {
     vm.refreshLocation()
 
     assertEquals(listOf("near", "far"), vm.ids())
-    assertEquals("350 m", vm.uiState.value.distanceTexts["near"])
+    assertEquals(350.0, vm.uiState.value.distancesMeters["near"]!!, 0.5)
   }
 
   @Test
@@ -736,7 +704,7 @@ class BrowseViewModelTest {
     vm.refreshLocation()
 
     assertEquals(listOf("far", "near"), vm.ids())
-    assertTrue(vm.uiState.value.distanceTexts.isEmpty())
+    assertTrue(vm.uiState.value.distancesMeters.isEmpty())
   }
 
   /** A [LocationRepository] whose every read waits for the test to answer it. */

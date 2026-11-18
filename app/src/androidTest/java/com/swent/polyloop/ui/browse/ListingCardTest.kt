@@ -2,9 +2,15 @@
 
 package com.swent.polyloop.ui.browse
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -29,6 +35,7 @@ import com.swent.polyloop.utils.colorAt
 import com.swent.polyloop.utils.isCloseTo
 import com.swent.polyloop.utils.waitUntilCenterIs
 import java.time.LocalDate
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -64,7 +71,7 @@ class ListingCardTest {
 
   @Test
   fun displaysTitlePriceAndLocation() {
-    composeTestRule.setContent { ListingCard(listing = listing, distanceText = "0.6 km") }
+    composeTestRule.setContent { ListingCard(listing = listing, distanceMeters = 600.0) }
 
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + listing.id).assertIsDisplayed()
     composeTestRule
@@ -78,32 +85,41 @@ class ListingCardTest {
     composeTestRule
         .onNodeWithTag(C.Tag.listing_card_location, useUnmergedTree = true)
         .assertIsDisplayed()
-        .assertTextEquals("0.6 km · Ecublens")
+        .assertTextEquals("600 m · Ecublens")
   }
 
   @Test
   fun blankPickupAreaShowsOnlyDistance() {
     composeTestRule.setContent {
-      ListingCard(listing = listing.copy(pickupArea = ""), distanceText = "0.6 km")
+      ListingCard(listing = listing.copy(pickupArea = ""), distanceMeters = 600.0)
     }
 
     composeTestRule
         .onNodeWithTag(C.Tag.listing_card_location, useUnmergedTree = true)
-        .assertTextEquals("0.6 km")
+        .assertTextEquals("600 m")
   }
 
   @Test
-  fun distanceIsShownBeforeThePickupArea() {
-    composeTestRule.setContent { ListingCard(listing = listing, distanceText = "350 m") }
+  fun kilometersFollowTheLanguageWithoutRecreatingTheCard() {
+    var locale by mutableStateOf(Locale.FRANCE)
+    composeTestRule.setContent {
+      val configuration = Configuration(LocalConfiguration.current).apply { setLocale(locale) }
+      CompositionLocalProvider(LocalConfiguration provides configuration) {
+        ListingCard(listing = listing, distanceMeters = 1200.0)
+      }
+    }
+    val location =
+        composeTestRule.onNodeWithTag(C.Tag.listing_card_location, useUnmergedTree = true)
+    location.assertTextEquals("1,2 km · Ecublens")
 
-    composeTestRule
-        .onNodeWithTag(C.Tag.listing_card_location, useUnmergedTree = true)
-        .assertTextEquals("350 m · Ecublens")
+    composeTestRule.runOnIdle { locale = Locale.US }
+
+    location.assertTextEquals("1.2 km · Ecublens")
   }
 
   @Test
   fun withoutADistanceTheLocationShowsOnlyThePickupArea() {
-    composeTestRule.setContent { ListingCard(listing = listing, distanceText = null) }
+    composeTestRule.setContent { ListingCard(listing = listing, distanceMeters = null) }
 
     composeTestRule
         .onNodeWithTag(C.Tag.listing_card_location, useUnmergedTree = true)
@@ -113,7 +129,7 @@ class ListingCardTest {
   @Test
   fun withoutADistanceAndAreaNoLocationLineShows() {
     composeTestRule.setContent {
-      ListingCard(listing = listing.copy(pickupArea = ""), distanceText = null)
+      ListingCard(listing = listing.copy(pickupArea = ""), distanceMeters = null)
     }
 
     composeTestRule
@@ -128,12 +144,12 @@ class ListingCardTest {
       Column {
         ListingCard(
             listing = listing.copy(id = "full"),
-            distanceText = "350 m",
+            distanceMeters = 350.0,
             singleLineText = true,
         )
         ListingCard(
             listing = listing.copy(id = "empty", pickupArea = ""),
-            distanceText = null,
+            distanceMeters = null,
             singleLineText = true,
         )
       }
@@ -150,7 +166,7 @@ class ListingCardTest {
   fun clickingCardCallsOnClick() {
     var clicks = 0
     composeTestRule.setContent {
-      ListingCard(listing = listing, distanceText = "0.6 km", onClick = { clicks++ })
+      ListingCard(listing = listing, distanceMeters = 600.0, onClick = { clicks++ })
     }
 
     composeTestRule.onNodeWithTag(C.Tag.listing_card_ + listing.id).performClick()
@@ -163,7 +179,7 @@ class ListingCardTest {
     composeTestRule.setContent {
       PolyLoopTheme {
         grey = MaterialTheme.colorScheme.surfaceVariant
-        ListingCard(listing = listing.copy(photoUrls = photoUrls), distanceText = "0.6 km")
+        ListingCard(listing = listing.copy(photoUrls = photoUrls), distanceMeters = 600.0)
       }
     }
   }
