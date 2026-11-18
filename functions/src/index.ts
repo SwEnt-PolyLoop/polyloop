@@ -23,3 +23,4 @@ export { proposeSplit } from "./proposeSplit";
 export { acceptSplit } from "./acceptSplit";
 export { escalateDispute } from "./escalateDispute";
 export { escalateDisputes } from "./escalateDisputes";
+export { confirmHandover } from "./confirmHandover";

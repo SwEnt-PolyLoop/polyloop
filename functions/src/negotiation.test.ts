@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
+import { codeFingerprint } from "./handoverCode";
 import { declineRequest, makeOffer, respondToOffer } from "./negotiation";
 import { reserveRentalDeposit } from "./reserveDeposit";
 import { hasSeenLastMessage } from "./testing/readTimes";
@@ -138,7 +139,7 @@ describe("makeOffer", () => {
 
     await makeOffer(db, LENDER, { rentalId: id, deposit: 180, ...ADDRESSES }, NOW);
 
-    expect((await rental(id))?.offer.expiresAt.toDate()).toEqual(new Date("2026-11-08T00:00:00Z"));
+    expect((await rental(id))?.offer.expiresAt.toDate()).toEqual(new Date("2026-11-07T23:00:00Z"));
   });
 
   it("refuses a rental whose first day has come, and writes nothing", async () => {
@@ -436,9 +437,87 @@ describe("respondToOffer: accepting", () => {
         db,
         await borrowerOf(id),
         { rentalId: id, action: "ACCEPT" },
-        new Date("2026-11-08T00:00:00Z"),
+        new Date("2026-11-07T23:00:00Z"),
       ),
     ).rejects.toMatchObject({ code: "failed-precondition" });
+  });
+});
+
+describe("respondToOffer: the pickup code", () => {
+  async function pickupCode(id: string) {
+    return (await db.doc(`rentals/${id}/handoverCodes/PICKUP`).get()).data();
+  }
+
+  it("makes the pickup code on acceptance, with its fingerprint on the rental", async () => {
+    const id = await offered(await listing());
+
+    await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, NOW);
+
+    const code = (await pickupCode(id))?.code;
+    expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect((await rental(id))?.pickupCodeHash).toBe(codeFingerprint(code));
+  });
+
+  it("makes it too when the lender accepts a counteroffer", async () => {
+    const id = await countered(await listing());
+
+    await respondToOffer(db, LENDER, { rentalId: id, action: "ACCEPT" }, NOW);
+
+    const code = (await pickupCode(id))?.code;
+    expect((await rental(id))?.pickupCodeHash).toBe(codeFingerprint(code));
+  });
+
+  it("makes only the pickup code: the return one is left to the return", async () => {
+    const id = await offered(await listing());
+
+    await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, NOW);
+
+    expect((await db.doc(`rentals/${id}/handoverCodes/RETURN`).get()).exists).toBe(false);
+    expect((await rental(id))?.returnCodeHash).toBeUndefined();
+  });
+
+  it("gives each rental its own code", async () => {
+    const first = await offered(await listing());
+    const second = await offered(await listing());
+
+    await respondToOffer(db, await borrowerOf(first), { rentalId: first, action: "ACCEPT" }, NOW);
+    await respondToOffer(db, await borrowerOf(second), { rentalId: second, action: "ACCEPT" }, NOW);
+
+    expect((await pickupCode(first))?.code).not.toBe((await pickupCode(second))?.code);
+  });
+
+  it("makes no code when the acceptance fails", async () => {
+    const id = await offered(await listing());
+    const borrower = await borrowerOf(id);
+    await fund(borrower, funds(10)); // below the 180 PP deposit
+
+    await expect(
+      respondToOffer(db, borrower, { rentalId: id, action: "ACCEPT" }, NOW),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+
+    expect(await pickupCode(id)).toBeUndefined();
+    expect((await rental(id))?.pickupCodeHash).toBeUndefined();
+  });
+
+  it("makes no code when the offer is declined or countered", async () => {
+    const declined = await offered(await listing());
+    const counteredId = await offered(await listing());
+
+    await respondToOffer(
+      db,
+      await borrowerOf(declined),
+      { rentalId: declined, action: "DECLINE" },
+      NOW,
+    );
+    await respondToOffer(
+      db,
+      await borrowerOf(counteredId),
+      { rentalId: counteredId, action: "COUNTER", deposit: 120 },
+      NOW,
+    );
+
+    expect(await pickupCode(declined)).toBeUndefined();
+    expect(await pickupCode(counteredId)).toBeUndefined();
   });
 });
 

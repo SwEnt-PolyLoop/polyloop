@@ -16,12 +16,15 @@ import {
   OfferInput,
   RequestError,
   conflicts,
+  firstDayStart,
+  isDateString,
   isValidDeposit,
   listingTitleOf,
   offerExpiry,
   readRange,
   requirePerson,
 } from "./rentalRules";
+import { HANDOVER_CODES, codeFingerprint, newHandoverCode } from "./handoverCode";
 import { runSweep } from "./sweep";
 import { readWallet, requireFunds, writeDepositHold } from "./wallet";
 
@@ -236,6 +239,64 @@ export async function expireOffer(rentalRef: DocumentReference, now: Date): Prom
 }
 
 /**
+ * Declines every request still without an offer once its first day has come at [now], as the lender
+ * can no longer make one then (see makeOffer). One failure is logged and does not stop the others.
+ * The query is on `status` alone, so it needs no composite index; the offer and the dates are
+ * checked here.
+ *
+ * @param db the Firestore database.
+ * @param now the current time, passed so that tests can set it.
+ * @param expire handles one rental; tests pass one that fails.
+ * @returns how many requests were expired and how many could not be.
+ */
+export async function expireUnansweredRequests(
+  db: Firestore,
+  now: Date,
+  expire: typeof expireRequest = expireRequest,
+): Promise<SweepResult> {
+  const requests = await db
+    .collection(RENTALS)
+    .where("status", "==", REQUESTED)
+    .select("startDate", "offer")
+    .get();
+  const due = requests.docs.filter((doc) => isUnansweredAt(doc.data(), now));
+  const { done, failed } = await runSweep(
+    due.map((doc) => doc.ref),
+    (ref) => expire(ref, now),
+    (id) => `Could not expire the request ${id}`,
+  );
+  return { expired: done, failed };
+}
+
+/**
+ * Declines one request if it still has no offer and its first day has come at [now], in one
+ * transaction. The check is made again because the lender may have answered since the query.
+ *
+ * @param rentalRef the rental to check.
+ * @param now the current time.
+ * @returns true if the rental was declined, false if there was nothing to do.
+ */
+export async function expireRequest(rentalRef: DocumentReference, now: Date): Promise<boolean> {
+  return rentalRef.firestore.runTransaction(async (tx) => {
+    const rental = (await tx.get(rentalRef)).data();
+    if (rental?.status !== REQUESTED || !isUnansweredAt(rental, now)) {
+      return false;
+    }
+    decline(tx, rentalRef, "Request expired · no offer sent", null);
+    return true;
+  });
+}
+
+/** True if [rental] has no offer and its first day has come at [now]; invalid dates never come. */
+function isUnansweredAt(rental: DocumentData, now: Date): boolean {
+  return (
+    !rental.offer &&
+    isDateString(rental.startDate) &&
+    firstDayStart(rental.startDate) <= now.getTime()
+  );
+}
+
+/**
  * The acceptance by [callerId]: reads the listing, the addresses, the other requests and the
  * borrower's wallet, then writes it all, holding the deposit last.
  */
@@ -276,6 +337,10 @@ async function accept(
   requireFunds(wallet, offer.amount);
 
   tx.delete(addressesRef(rentalRef));
+  // The pickup's QR code: the code itself where only the lender reads it, its fingerprint on the
+  // rental so the borrower's phone can check a scan (docs/ARCHITECTURE.md, "Handover").
+  const pickupCode = newHandoverCode();
+  tx.set(rentalRef.collection(HANDOVER_CODES).doc("PICKUP"), { code: pickupCode });
   writeWithSystemMessage(
     tx,
     rentalRef,
@@ -285,6 +350,7 @@ async function accept(
       deposit: offer.amount,
       pickupAddress: addresses.pickup,
       returnAddress: addresses.dropOff,
+      pickupCodeHash: codeFingerprint(pickupCode),
       offer: FieldValue.delete(),
     },
     callerId,

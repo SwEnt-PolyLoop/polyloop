@@ -157,6 +157,30 @@ class CreateListingScreenTest {
   }
 
   @Test
+  fun titleAndDescriptionShowTheirCharacterCounters() {
+    setContent(CreateListingUiState(title = "Tent", description = "a".repeat(1_850)))
+
+    node(C.Tag.create_listing_title_counter)
+        .assertIsDisplayed()
+        .assertTextEquals(
+            context.getString(
+                R.string.create_listing_character_count,
+                4,
+                Listing.MAX_TITLE_LENGTH,
+            )
+        )
+    node(C.Tag.create_listing_description_counter)
+        .assertIsDisplayed()
+        .assertTextEquals(
+            context.getString(
+                R.string.create_listing_character_count,
+                1_850,
+                Listing.MAX_DESCRIPTION_LENGTH,
+            )
+        )
+  }
+
+  @Test
   fun typingInEachTextFieldCallsItsCallback() {
     // Held here and updated by each callback, like the ViewModel will.
     var state by mutableStateOf(CreateListingUiState())

@@ -145,10 +145,24 @@ class CreateListingViewModel(
   /** True once the listing is saved: its photos are already deleted. */
   private var published = false
 
-  fun onTitleChange(title: String) = _uiState.update { it.copy(title = title) }
+  /**
+   * Sets the title as typed, cut to [Listing.MAX_TITLE_LENGTH] characters, so typing or pasting
+   * stops at the cap.
+   *
+   * @param title the field's new text.
+   */
+  fun onTitleChange(title: String) = _uiState.update {
+    it.copy(title = title.cutTo(Listing.MAX_TITLE_LENGTH))
+  }
 
+  /**
+   * Sets the description as typed, cut to [Listing.MAX_DESCRIPTION_LENGTH] characters, so typing or
+   * pasting stops at the cap.
+   *
+   * @param description the field's new text.
+   */
   fun onDescriptionChange(description: String) = _uiState.update {
-    it.copy(description = description)
+    it.copy(description = description.cutTo(Listing.MAX_DESCRIPTION_LENGTH))
   }
 
   fun onCategoryChange(category: ListingCategory) = _uiState.update { it.copy(category = category) }
@@ -332,3 +346,16 @@ internal fun storedCreateListingViewModel(
 /** Only the digits 0-9 ("007" is 7), from 1 to [Listing.MAX_AMOUNT]. */
 internal fun String.isWholeNumberAboveZero(): Boolean =
     isNotEmpty() && all { it in '0'..'9' } && (toIntOrNull() ?: 0) in 1..Listing.MAX_AMOUNT
+
+/**
+ * The first [maxLength] characters of this text, without splitting an emoji: if the cut falls
+ * between the two halves of a surrogate pair, the first half is dropped too.
+ *
+ * @param maxLength the most characters (UTF-16 units) to keep.
+ * @return this text if it is short enough, otherwise its start, at most [maxLength] long.
+ */
+internal fun String.cutTo(maxLength: Int): String {
+  val cut = take(maxLength)
+  return if (cut.length < length && cut.lastOrNull()?.isHighSurrogate() == true) cut.dropLast(1)
+  else cut
+}

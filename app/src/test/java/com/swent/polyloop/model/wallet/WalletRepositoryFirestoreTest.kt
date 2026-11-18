@@ -11,7 +11,9 @@ import com.google.firebase.firestore.EventListener
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.QuerySnapshot
+import com.google.firebase.firestore.SnapshotMetadata
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -51,9 +53,15 @@ class WalletRepositoryFirestoreTest {
     every { walletDocument.collection(WalletFields.TRANSACTIONS) } returns transactions
   }
 
-  private fun snapshot(id: String, data: Map<String, Any>?): DocumentSnapshot = mockk {
+  private fun snapshot(
+      id: String,
+      data: Map<String, Any>?,
+      fromCache: Boolean = false,
+  ): DocumentSnapshot = mockk {
     every { this@mockk.id } returns id
     every { getData(ServerTimestampBehavior.ESTIMATE) } returns data
+    every { exists() } returns (data != null)
+    every { metadata } returns mockk<SnapshotMetadata> { every { isFromCache } returns fromCache }
   }
 
   private fun row(
@@ -75,7 +83,9 @@ class WalletRepositoryFirestoreTest {
   private val walletListener = slot<EventListener<DocumentSnapshot>>()
 
   private fun walletIsObserved() {
-    every { walletDocument.addSnapshotListener(capture(walletListener)) } returns registration
+    every {
+      walletDocument.addSnapshotListener(MetadataChanges.INCLUDE, capture(walletListener))
+    } returns registration
   }
 
   @Test
@@ -189,7 +199,7 @@ class WalletRepositoryFirestoreTest {
   }
 
   @Test
-  fun observeWalletUsesAPlainListenerSoTheCacheServesItOffline() = runTest {
+  fun observeWalletListensWithMetadataAndNeverForcesAServerRead() = runTest {
     walletIsObserved()
 
     val wallet = async { repository.observeWallet("me").first() }
@@ -197,12 +207,73 @@ class WalletRepositoryFirestoreTest {
     walletListener.captured.onEvent(snapshot("me", mapOf(WalletFields.AVAILABLE to 5L)), null)
     wallet.await()
 
-    // The plain listener serves the cache, also offline; no forced server read is made.
+    // The listener serves the cache, also offline; no forced server read is made.
     verify(exactly = 1) {
+      walletDocument.addSnapshotListener(
+          MetadataChanges.INCLUDE,
+          any<EventListener<DocumentSnapshot>>(),
+      )
+    }
+    verify(exactly = 0) {
       walletDocument.addSnapshotListener(any<EventListener<DocumentSnapshot>>())
     }
     verify(exactly = 0) { walletDocument.get(any()) }
     verify(exactly = 0) { walletDocument.get() }
+  }
+
+  @Test
+  fun observeWalletEmitsAnExistingDocumentFromTheCache() = runTest {
+    walletIsObserved()
+
+    val wallet = async { repository.observeWallet("me").first() }
+    runCurrent()
+    walletListener.captured.onEvent(
+        snapshot("me", mapOf(WalletFields.AVAILABLE to 5L), fromCache = true),
+        null,
+    )
+
+    assertEquals(Wallet(available = 5), wallet.await())
+  }
+
+  @Test
+  fun observeWalletEmitsNothingForAMissingDocumentFromTheCache() = runTest {
+    walletIsObserved()
+
+    val wallet = async { repository.observeWallet("me").first() }
+    runCurrent()
+    walletListener.captured.onEvent(snapshot("me", null, fromCache = true), null)
+    runCurrent()
+
+    assertTrue(wallet.isActive)
+    wallet.cancel()
+  }
+
+  @Test
+  fun observeWalletEmitsAnEmptyWalletForAMissingDocumentConfirmedByTheServer() = runTest {
+    walletIsObserved()
+
+    val wallet = async { repository.observeWallet("me").first() }
+    runCurrent()
+    walletListener.captured.onEvent(snapshot("me", null, fromCache = false), null)
+
+    assertEquals(Wallet(), wallet.await())
+  }
+
+  @Test
+  fun observeWalletEmitsOneEmptyWalletForACachedMissingThenAServerConfirmedEvent() = runTest {
+    walletIsObserved()
+
+    val seen = mutableListOf<Wallet>()
+    val collected = async { repository.observeWallet("me").toList(seen) }
+    runCurrent()
+    walletListener.captured.onEvent(snapshot("me", null, fromCache = true), null)
+    walletListener.captured.onEvent(snapshot("me", null, fromCache = false), null)
+    // A metadata-only repeat of the confirmed event is not emitted again.
+    walletListener.captured.onEvent(snapshot("me", null, fromCache = false), null)
+    runCurrent()
+
+    assertEquals(listOf(Wallet()), seen)
+    collected.cancel()
   }
 
   // ---------- observeHistory ----------
@@ -210,11 +281,18 @@ class WalletRepositoryFirestoreTest {
   private val historyListener = slot<EventListener<QuerySnapshot>>()
 
   private fun historyIsObserved() {
-    every { transactions.addSnapshotListener(capture(historyListener)) } returns registration
+    every {
+      transactions.addSnapshotListener(MetadataChanges.INCLUDE, capture(historyListener))
+    } returns registration
   }
 
-  private fun querySnapshot(vararg documents: DocumentSnapshot): QuerySnapshot = mockk {
+  private fun querySnapshot(
+      vararg documents: DocumentSnapshot,
+      fromCache: Boolean = false,
+  ): QuerySnapshot = mockk {
     every { this@mockk.documents } returns documents.toList()
+    every { isEmpty } returns documents.isEmpty()
+    every { metadata } returns mockk<SnapshotMetadata> { every { isFromCache } returns fromCache }
   }
 
   @Test
@@ -297,6 +375,82 @@ class WalletRepositoryFirestoreTest {
     historyListener.captured.onEvent(querySnapshot(), null)
 
     assertEquals(emptyList<WalletTransaction>(), history.await())
+  }
+
+  @Test
+  fun observeHistoryEmitsANonEmptyHistoryFromTheCache() = runTest {
+    historyIsObserved()
+
+    val history = async { repository.observeHistory("me").first() }
+    runCurrent()
+    historyListener.captured.onEvent(
+        querySnapshot(snapshot("a", row()), fromCache = true),
+        null,
+    )
+
+    assertEquals(listOf("a"), history.await().map { it.id })
+  }
+
+  @Test
+  fun observeHistoryEmitsNothingForAnEmptyHistoryFromTheCache() = runTest {
+    historyIsObserved()
+
+    val history = async { repository.observeHistory("me").first() }
+    runCurrent()
+    historyListener.captured.onEvent(querySnapshot(fromCache = true), null)
+    runCurrent()
+
+    assertTrue(history.isActive)
+    history.cancel()
+  }
+
+  @Test
+  fun observeHistoryEmitsAnEmptyListForAnEmptyHistoryConfirmedByTheServer() = runTest {
+    historyIsObserved()
+
+    val history = async { repository.observeHistory("me").first() }
+    runCurrent()
+    historyListener.captured.onEvent(querySnapshot(fromCache = false), null)
+
+    assertEquals(emptyList<WalletTransaction>(), history.await())
+  }
+
+  @Test
+  fun observeHistoryEmitsOneEmptyListForACachedEmptyThenAServerConfirmedEvent() = runTest {
+    historyIsObserved()
+
+    val seen = mutableListOf<List<WalletTransaction>>()
+    val collected = async { repository.observeHistory("me").toList(seen) }
+    runCurrent()
+    historyListener.captured.onEvent(querySnapshot(fromCache = true), null)
+    historyListener.captured.onEvent(querySnapshot(fromCache = false), null)
+    // A metadata-only repeat of the confirmed event is not emitted again.
+    historyListener.captured.onEvent(querySnapshot(fromCache = false), null)
+    runCurrent()
+
+    assertEquals(listOf(emptyList<WalletTransaction>()), seen)
+    collected.cancel()
+  }
+
+  @Test
+  fun observeHistoryEmitsTheSameRowsOnlyOnceWhenOnlyTheMetadataChanges() = runTest {
+    historyIsObserved()
+
+    val seen = mutableListOf<List<WalletTransaction>>()
+    val collected = async { repository.observeHistory("me").toList(seen) }
+    runCurrent()
+    historyListener.captured.onEvent(
+        querySnapshot(snapshot("a", row()), fromCache = true),
+        null,
+    )
+    historyListener.captured.onEvent(
+        querySnapshot(snapshot("a", row()), fromCache = false),
+        null,
+    )
+    runCurrent()
+
+    assertEquals(1, seen.size)
+    collected.cancel()
   }
 
   @Test

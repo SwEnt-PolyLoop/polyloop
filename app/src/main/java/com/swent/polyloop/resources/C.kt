@@ -52,6 +52,7 @@ object C {
     const val listing_detail_title = "listing_detail_title"
     const val listing_detail_price = "listing_detail_price"
     const val listing_detail_description = "listing_detail_description"
+    const val listing_detail_description_toggle = "listing_detail_description_toggle"
     const val listing_detail_lender_card = "listing_detail_lender_card"
     const val listing_detail_lender_name = "listing_detail_lender_name"
     const val listing_detail_lender_rating = "listing_detail_lender_rating"
@@ -81,6 +82,7 @@ object C {
     const val create_listing_add_photo = "create_listing_add_photo"
     const val create_listing_title_field = "create_listing_title_field"
     const val create_listing_title_error = "create_listing_title_error"
+    const val create_listing_title_counter = "create_listing_title_counter"
     const val create_listing_category_field = "create_listing_category_field"
     // Prefix: each dropdown option is tagged create_listing_category_option_ + the category name
     const val create_listing_category_option_ = "create_listing_category_option_"
@@ -92,6 +94,7 @@ object C {
     const val create_listing_category_error = "create_listing_category_error"
     const val create_listing_description_field = "create_listing_description_field"
     const val create_listing_description_error = "create_listing_description_error"
+    const val create_listing_description_counter = "create_listing_description_counter"
     const val create_listing_price_field = "create_listing_price_field"
     const val create_listing_price_error = "create_listing_price_error"
     const val create_listing_item_value_field = "create_listing_item_value_field"
@@ -365,6 +368,8 @@ object C {
     const val wallet_error = "wallet_error"
     const val wallet_retry_button = "wallet_retry_button"
     const val wallet_history_empty = "wallet_history_empty"
+    const val wallet_unavailable = "wallet_unavailable"
+    const val wallet_history_unavailable = "wallet_history_unavailable"
     // Prefix: each history row is tagged wallet_row_ + transaction id
     const val wallet_row_ = "wallet_row_"
     const val wallet_row_title = "wallet_row_title"
