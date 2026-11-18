@@ -130,4 +130,50 @@ class HandoverReturnConfirmTest {
     composeTestRule.onNodeWithTag(C.Tag.handover_return_check).assertDoesNotExist()
   }
 
+  // ---------- the whole check, through the ViewModel ----------
+
+  private val rental =
+      Rental(
+          id = "rental1",
+          listingId = "listing1",
+          listingTitle = "Camping tent",
+          ownerId = "owner",
+          ownerName = "Mara",
+          borrowerId = "borrower",
+          borrowerName = "Loca",
+          startDate = returnDay.minusDays(2),
+          endDate = returnDay,
+          status = RentalStatus.RETURNED,
+          pricePerDay = 15,
+          totalPrice = 45,
+          pickupArea = "Ecublens",
+          dropOffArea = "Renens",
+          createdAt = Instant.parse("2026-10-01T09:30:00Z"),
+      )
+
+  /** The ViewModel of the returned [rental], seen by its lender, with [handovers]. */
+  private fun lenderViewModel(handovers: FakeHandoverRepository): HandoverViewModel {
+    val rentals = FakeRentalRepository(listOf(rental))
+    return HandoverViewModel(
+        rental.id,
+        rentals,
+        handovers,
+        FakeAuthRepository(signedInUser = AuthUser("owner", "mara@epfl.ch", "Mara")),
+        FakeConnectivityRepository(),
+        ServerClock(rentals, InMemoryServerClockStore(), bootCount = { 0 }),
+    )
+  }
+
+  @Test
+  fun theLenderOfAReturnedItemSeesOnlyTheirOwnPhotos() {
+    val handovers = FakeHandoverRepository(currentUid = "owner")
+    handovers.photos =
+        photos(3, HandoverPhase.PICKUP).map { StoredPhoto(rental.id, "owner", it) } +
+            photos(2, HandoverPhase.RETURN).map { StoredPhoto(rental.id, "borrower", it) }
+    val viewModel = lenderViewModel(handovers)
+    composeTestRule.setContent { HandoverScreen(viewModel) }
+
+    composeTestRule.onAllNodesWithTag(C.Tag.handover_before_photo).assertCountEquals(3)
+    composeTestRule.onNodeWithTag(C.Tag.handover_no_after_photos).assertExists()
+  }
 }
