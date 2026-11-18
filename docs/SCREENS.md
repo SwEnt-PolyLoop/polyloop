@@ -152,7 +152,7 @@ Start Pickup opens from the server's date, not the phone's, so changing the phon
 
 - Item, dates, return deadline, the other person (linking to their profile), and a status label.
 - The deposit, once an offer is accepted, and its state: held, released, or frozen. Accepting an offer holds the deposit in the borrower's wallet, so from then on, while active and while disputed, the screen shows “Deposit · 60 PP · held”; a deposit stored as 0 is not known and shows “—”. Nothing releases or splits a held deposit yet, so “released” does not occur either.
-- Active and Disputed show the rental price as “paid”: the lender is paid once the item is picked up (payLender), which the pickup scan will call; until then the label is ahead of the money.
+- Active and Disputed show the rental price as “paid”: the lender is paid when the pickup scan is confirmed (`confirmHandover`, see ARCHITECTURE.md), in the same transaction that makes the rental Active.
 - While an offer waits for an answer, its amount and when it expires (Figma frame 13.10), or “Offer expired” once it has expired by the phone's clock, checked again each time the screen comes back. If the rental can no longer be followed live, the offer is hidden, as in the chat, rather than left out of date.
 - The meeting point: the lender sets the pickup and drop-off addresses when sending the offer, after agreeing with the borrower in chat if needed. The exact addresses show only once the rental is accepted, on a map with a “Navigate” button; offline, as text.
 - A “Chat” button.
@@ -181,7 +181,7 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
     - “Item is fine” releases the full deposit to the borrower.
     - “Flag damage” opens a dispute and keeps the deposit held.
 - A footer showing the deposit held since acceptance: “Deposit held” for the lender, “Your deposit, held” for the borrower, then its amount, or “—” when it is stored as 0 and so not known. Nothing releases it yet, so “Item is fine” and “Flag damage” do not move it.
-- Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading. Until the queue exists, the offline banner shows and no photo can be taken: the camera tiles are disabled.
+- Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading. Until the queue exists, the offline banner shows and no photo can be taken: the camera tiles are disabled, and the scan button is disabled with “Scanning offline is coming soon.”
 
 ## Dispute
 
