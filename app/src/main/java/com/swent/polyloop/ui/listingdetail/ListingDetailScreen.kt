@@ -54,6 +54,7 @@ import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.DateRangePickerMode
+import com.swent.polyloop.ui.components.ExpandableText
 import com.swent.polyloop.ui.components.ListingPhoto
 import com.swent.polyloop.ui.components.PickupMap
 import com.swent.polyloop.ui.components.PolyLoopDateRangePicker
@@ -232,10 +233,11 @@ private fun ListingDetailLoaded(
             modifier = Modifier.testTag(C.Tag.listing_detail_price),
         )
       }
-      Text(
+      ExpandableText(
           text = listing.description,
           style = MaterialTheme.typography.bodyLarge,
           modifier = Modifier.testTag(C.Tag.listing_detail_description),
+          toggleTag = C.Tag.listing_detail_description_toggle,
       )
       LenderCard(owner = owner, onClick = onLenderClick)
       InfoCard(listing = listing)

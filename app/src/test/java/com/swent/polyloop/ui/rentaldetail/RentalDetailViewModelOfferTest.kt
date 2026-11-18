@@ -66,6 +66,10 @@ class RentalDetailViewModelOfferTest {
   // Also runs the server clock's reads, so they finish before each assertion.
   private val testDispatcher = UnconfinedTestDispatcher()
 
+  // The phone's time: [clockStart], moved on by the test's virtual time.
+  private var clockStart = now
+  private val clock = { clockStart.plusMillis(testDispatcher.scheduler.currentTime) }
+
   @Before
   fun setUp() {
     Dispatchers.setMain(testDispatcher)
@@ -92,6 +96,7 @@ class RentalDetailViewModelOfferTest {
               bootCount = { 0 },
               ioDispatcher = testDispatcher,
           ),
+          clock,
       )
 
   @Test
@@ -107,6 +112,43 @@ class RentalDetailViewModelOfferTest {
 
     assertEquals(offer, state.offer)
     assertFalse(state.isOfferMine)
+  }
+
+  @Test
+  fun anOfferIsShownAsExpiredRightAtItsExpiry() {
+    clockStart = offer.expiresAt.minusMillis(1)
+    rentals = FakeRentalRepository(listOf(request.copy(offer = offer)), clock = { now })
+    val vm = viewModel()
+    assertFalse(vm.uiState.value.isOfferExpired)
+
+    testDispatcher.scheduler.advanceTimeBy(1)
+    testDispatcher.scheduler.runCurrent()
+
+    assertTrue(vm.uiState.value.isOfferExpired)
+    assertEquals(offer, vm.uiState.value.offer)
+  }
+
+  @Test
+  fun anOfferThatExpiredWhileThePhoneSleptShowsExpiredWhenTheScreenComesBack() {
+    clockStart = offer.expiresAt.minusSeconds(3600)
+    rentals = FakeRentalRepository(listOf(request.copy(offer = offer)), clock = { now })
+    val vm = viewModel()
+
+    // The phone sleeps past the expiry: its clock moves on, but the wait (uptime) does not.
+    clockStart = offer.expiresAt.plusSeconds(60)
+    testDispatcher.scheduler.runCurrent()
+    assertFalse(vm.uiState.value.isOfferExpired)
+
+    vm.onScreenResumed()
+
+    assertTrue(vm.uiState.value.isOfferExpired)
+  }
+
+  @Test
+  fun aRequestWithoutAnOfferIsNeverExpired() {
+    clockStart = offer.expiresAt.plusSeconds(60)
+
+    assertFalse(viewModel().uiState.value.isOfferExpired)
   }
 
   @Test

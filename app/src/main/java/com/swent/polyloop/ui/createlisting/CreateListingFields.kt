@@ -46,6 +46,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.ListingCategory
@@ -87,7 +88,22 @@ internal fun HelperText(text: String) {
   )
 }
 
-/** A full-width text field; multi-line when [minLines] is above 1. */
+/**
+ * A full-width text field; multi-line when [minLines] is above 1.
+ *
+ * @param value the text shown.
+ * @param onValueChange called with the new text on each edit.
+ * @param isError true to show the field in the error colour.
+ * @param tag the field's test tag.
+ * @param label read by screen readers as the field's description.
+ * @param placeholder shown while [value] is empty, or nothing when null.
+ * @param suffix shown after the text, such as the currency, or nothing when null.
+ * @param keyboardType the keyboard to open.
+ * @param minLines the field's height in lines; above 1 makes it multi-line.
+ * @param maxLength when set, a "used / max" character counter shows under the field. The cap itself
+ *   is applied by the ViewModel, which cuts the text it stores.
+ * @param counterTag the counter's test tag, used only with [maxLength].
+ */
 @Composable
 internal fun FormTextField(
     value: String,
@@ -99,12 +115,24 @@ internal fun FormTextField(
     suffix: String? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
     minLines: Int = 1,
+    maxLength: Int? = null,
+    counterTag: String = "",
 ) {
   OutlinedTextField(
       value = value,
       onValueChange = onValueChange,
       placeholder = placeholder?.let { { Text(it) } },
       suffix = suffix?.let { { Text(it) } },
+      supportingText =
+          maxLength?.let { max ->
+            {
+              Text(
+                  text = stringResource(R.string.create_listing_character_count, value.length, max),
+                  textAlign = TextAlign.End,
+                  modifier = Modifier.fillMaxWidth().testTag(counterTag),
+              )
+            }
+          },
       isError = isError,
       singleLine = minLines == 1,
       minLines = minLines,

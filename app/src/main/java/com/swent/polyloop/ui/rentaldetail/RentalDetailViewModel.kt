@@ -14,14 +14,19 @@ import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.model.rental.ServerClock
+import com.swent.polyloop.ui.components.isOfferExpired
+import com.swent.polyloop.ui.components.withNowAtExpiries
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -39,18 +44,19 @@ import kotlinx.coroutines.launch
  * is missing, could not be read or is not geocoded yet. [otherPerson] is the borrower for the
  * lender and the owner for the borrower. [isOffline] is true while the phone has no connection; the
  * screen then shows the pickup area of a request as a placeholder instead of the map. [offer] is
- * the deposit offer waiting for an answer, if any, and [isOfferMine] is true when the signed-in
- * user wrote it. [deposit] is the accepted amount in PolyPoints, and [pickupAddress] and
- * [returnAddress] are the exact addresses, set once the rental is accepted. [lateFees] is the total
- * taken from the deposit for a late return, in PolyPoints, and 0 when the return was never late.
- * [serverToday] is today by the server's clock, which Start Pickup, Start Return and the cancel
- * window of an accepted rental go by: read only for an accepted or active rental, again each time
- * the screen comes back (so a screen left open across days does not keep an old day), and null
- * until it is read or when it is unknown (the server was not reached since the phone booted).
- * [isReadingServerToday] is true while it is being read with no day known yet, so the screen can
- * tell a read still running from an unknown date; a re-read of a known day leaves it false.
- * [isCancelling] is true while a cancel is being sent, and [cancelError] is non-null when the last
- * one failed (blank when the failure carried no message, like [errorMsg]).
+ * the deposit offer waiting for an answer, if any, [isOfferMine] is true when the signed-in user
+ * wrote it, and [isOfferExpired] once it has expired by the phone's clock, even before the hourly
+ * `expireOffers` job removes it. [deposit] is the accepted amount in PolyPoints, and
+ * [pickupAddress] and [returnAddress] are the exact addresses, set once the rental is accepted.
+ * [lateFees] is the total taken from the deposit for a late return, in PolyPoints, and 0 when the
+ * return was never late. [serverToday] is today by the server's clock, which Start Pickup, Start
+ * Return and the cancel window of an accepted rental go by: read only for an accepted or active
+ * rental, again each time the screen comes back (so a screen left open across days does not keep an
+ * old day), and null until it is read or when it is unknown (the server was not reached since the
+ * phone booted). [isReadingServerToday] is true while it is being read with no day known yet, so
+ * the screen can tell a read still running from an unknown date; a re-read of a known day leaves it
+ * false. [isCancelling] is true while a cancel is being sent, and [cancelError] is non-null when
+ * the last one failed (blank when the failure carried no message, like [errorMsg]).
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -71,6 +77,7 @@ data class RentalDetailUiState(
     val isOffline: Boolean = false,
     val offer: DepositOffer? = null,
     val isOfferMine: Boolean = false,
+    val isOfferExpired: Boolean = false,
     val deposit: Int = 0,
     val pickupAddress: String = "",
     val returnAddress: String = "",
@@ -141,7 +148,8 @@ data class OtherPerson(
  * requested or accepted rental. The date is read again each time the screen comes back
  * ([onScreenResumed]), and an unknown date when the phone comes back online. A requested rental
  * whose listing could not be read (e.g. opened offline, listing not cached) reads it again when the
- * phone comes back online, to fill the suggested deposit and the map point.
+ * phone comes back online, to fill the suggested deposit and the map point. The offer shows as
+ * expired once it expires by [clock], checked again each time the screen comes back.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
@@ -151,6 +159,7 @@ class RentalDetailViewModel(
     private val authRepository: AuthRepository,
     private val connectivityRepository: ConnectivityRepository,
     private val serverClock: ServerClock,
+    private val clock: () -> Instant = Instant::now,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(RentalDetailUiState())
@@ -165,9 +174,21 @@ class RentalDetailViewModel(
   // True once the live updates of the rental failed and stopped, until the next load restarts them;
   // [cancel] then reads the rental again to show its result.
   private var liveUpdatesStopped = false
+  // Asks to check the offer's expiry again by [clock], when the screen comes back.
+  private val offerRechecks = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
   init {
     load()
+    viewModelScope.launch {
+      _uiState
+          .map { it.offer?.expiresAt }
+          .distinctUntilChanged()
+          .withNowAtExpiries({ listOfNotNull(it) }, clock, offerRechecks)
+          .collect { (expiresAt, now) ->
+            val expired = expiresAt != null && isOfferExpired(expiresAt, now)
+            _uiState.update { it.copy(isOfferExpired = expired) }
+          }
+    }
     viewModelScope.launch {
       var wasOnline: Boolean? = null
       connectivityRepository.isOnline.collect { online ->
@@ -192,9 +213,11 @@ class RentalDetailViewModel(
    * Start Return grey on the very day they should open, or leave cancelling open after its last
    * day. [ServerClock] works offline from its saved time, so this needs no connection. It does
    * nothing while the rental is loading (no status yet), for a status with nothing that goes by the
-   * server's day, or while a read is running.
+   * server's day, or while a read is running. It also checks the offer's expiry again by [clock],
+   * whose wait stops while the phone sleeps.
    */
   fun onScreenResumed() {
+    offerRechecks.tryEmit(Unit)
     val state = _uiState.value
     if (!needsServerToday(state.status)) return
     readServerToday(showReading = state.serverToday == null)
@@ -345,6 +368,8 @@ class RentalDetailViewModel(
             isOffline = it.isOffline,
             offer = rental.offer,
             isOfferMine = rental.offer?.authorId == uid,
+            // Kept, as the expiry check only runs again when the offer's expiry changes.
+            isOfferExpired = it.isOfferExpired,
             deposit = rental.deposit,
             pickupAddress = rental.pickupAddress,
             returnAddress = rental.returnAddress,
