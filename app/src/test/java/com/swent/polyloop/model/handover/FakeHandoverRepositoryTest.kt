@@ -4,6 +4,10 @@ package com.swent.polyloop.model.handover
 
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -176,5 +180,79 @@ class FakeHandoverRepositoryTest {
     gate.complete(Unit)
     runCurrent()
     assertTrue(done)
+  }
+
+  // ---------- photos added at once, on different threads ----------
+
+  /** [count] calls of addPhoto at once on real threads: runTest would run them one at a time. */
+  private fun addAtOnce(repository: FakeHandoverRepository, count: Int): List<Result<Unit>> =
+      runBlocking {
+        coroutineScope {
+          List(count) {
+                async(Dispatchers.Default) {
+                  repository.addPhoto("r1", HandoverPhase.PICKUP, "file://$it")
+                }
+              }
+              .awaitAll()
+        }
+      }
+
+  private fun slots(count: Int) = List(count) { "u1_PICKUP_$it" }
+
+  @Test
+  fun twoPhotosAddedAtOnceGetDifferentSlots() {
+    var badRounds = 0
+    repeat(200) {
+      val repository = FakeHandoverRepository()
+
+      val results = addAtOnce(repository, 2)
+
+      val ids = repository.photos.map { it.photo.id }
+      if (!results.all { it.isSuccess } || ids.sorted() != slots(2)) badRounds++
+    }
+
+    assertEquals("rounds out of 200 where two photos got the same slot", 0, badRounds)
+  }
+
+  @Test
+  fun theMaximumNumberOfPhotosAddedAtOnceGetOneSlotEach() {
+    var badRounds = 0
+    repeat(100) {
+      val repository = FakeHandoverRepository()
+
+      val results = addAtOnce(repository, HandoverPhoto.MAX_PHOTOS)
+
+      val ids = repository.photos.map { it.photo.id }
+      if (
+          !results.all { it.isSuccess } || ids.sorted() != slots(HandoverPhoto.MAX_PHOTOS).sorted()
+      ) {
+        badRounds++
+      }
+    }
+
+    assertEquals("rounds out of 100 where the photos did not get one slot each", 0, badRounds)
+  }
+
+  @Test
+  fun morePhotosThanTheMaximumAddedAtOnceFailTheExtraOnes() {
+    var badRounds = 0
+    repeat(100) {
+      val repository = FakeHandoverRepository()
+
+      val results = addAtOnce(repository, HandoverPhoto.MAX_PHOTOS + 5)
+
+      val ids = repository.photos.map { it.photo.id }
+      val refused = results.filter { it.isFailure }
+      if (
+          results.count { it.isSuccess } != HandoverPhoto.MAX_PHOTOS ||
+              refused.size != 5 ||
+              refused.any { it.exceptionOrNull() !is IllegalStateException } ||
+              ids.sorted() != slots(HandoverPhoto.MAX_PHOTOS).sorted()
+      ) {
+        badRounds++
+      }
+    }
+
+    assertEquals("rounds out of 100 that did not keep the cap exactly", 0, badRounds)
   }
 }
