@@ -14,8 +14,11 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 
-/** The white squares around a QR code, on each side, which scanners need to find its edges. */
-private const val QUIET_ZONE = 2
+/**
+ * The white squares around a QR code, on each side, which scanners need to find its edges: 4, as
+ * the QR standard (ISO/IEC 18004) asks, since the card around it is dark in dark theme.
+ */
+private const val QUIET_ZONE = 4
 
 /**
  * [code] drawn as a square QR code, black on white, as large as [modifier] allows. Screen readers
