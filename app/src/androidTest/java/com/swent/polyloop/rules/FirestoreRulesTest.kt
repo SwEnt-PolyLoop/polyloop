@@ -243,7 +243,7 @@ class FirestoreRulesTest {
         listOf(
                 ownPhotoUrl(other.uid),
                 ownPhotoUrl(me.uid, bucket = "another-project.firebasestorage.app"),
-                ownPhotoUrl(me.uid, host = "http://10.0.2.2:9199"),
+                ownPhotoUrl(me.uid, host = "https://example.com"),
                 "https://example.com/ben.jpg",
             )
             .forEach { url ->
@@ -251,6 +251,42 @@ class FirestoreRulesTest {
                 profile.set(mapOf("name" to "Ben", "email" to me.email, "photoUrl" to url)).await()
               }
             }
+      }
+
+  @Test
+  fun photoUrlAcceptsProductionAndOwnEmulatorUrlsOnly() =
+      runBlocking<Unit> {
+        val other = newAccount()
+        val me = newAccount()
+        FirebaseEmulator.createDocumentAsAdmin(
+            "users/${me.uid}",
+            mapOf("name" to "Ben", "email" to me.email),
+        )
+        val profile = db.collection("users").document(me.uid)
+        val emulatorHosts =
+            listOf("http://10.0.2.2:9199", "http://localhost:9199", "http://127.0.0.1:9199")
+
+        profile.update("photoUrl", ownPhotoUrl(me.uid)).await()
+        emulatorHosts.forEach { host ->
+          profile
+              .update("photoUrl", ownPhotoUrl(me.uid, bucket = "any-bucket", host = host))
+              .await()
+        }
+
+        listOf(
+                // Another user's photo, on each emulator host.
+                *emulatorHosts
+                    .map { ownPhotoUrl(other.uid, bucket = "any-bucket", host = it) }
+                    .toTypedArray(),
+                // A bucket part with a slash is not one bucket.
+                ownPhotoUrl(me.uid, bucket = "a/b", host = "http://10.0.2.2:9199"),
+                // Another port, other hosts, and the production host with the wrong scheme.
+                ownPhotoUrl(me.uid, host = "http://10.0.2.2:9198"),
+                ownPhotoUrl(me.uid, host = "https://example.com"),
+                ownPhotoUrl(me.uid, host = "http://example.com:9199"),
+                ownPhotoUrl(me.uid, host = "http://firebasestorage.googleapis.com"),
+            )
+            .forEach { url -> assertDenied { profile.update("photoUrl", url).await() } }
       }
 
   @Test
@@ -267,7 +303,7 @@ class FirestoreRulesTest {
         listOf(
                 ownPhotoUrl(other.uid),
                 ownPhotoUrl(me.uid, bucket = "another-project.firebasestorage.app"),
-                ownPhotoUrl(me.uid, host = "http://10.0.2.2:9199"),
+                ownPhotoUrl(me.uid, host = "https://example.com"),
                 "https://example.com/ben.jpg",
             )
             .forEach { url -> assertDenied { profile.update("photoUrl", url).await() } }

@@ -34,11 +34,16 @@ service cloud.firestore {
     }
 
     // A profile photo is "" or the download URL of the user's own users/{uid}/profile.jpg in this
-    // project's bucket. Firestore rules cannot read the bucket name, so it is written in.
+    // project's bucket. Firestore rules cannot read the bucket name, so it is written in. The
+    // Storage emulator's hosts are accepted with any bucket, so that the tests can use the URL of a
+    // real upload; this holds in production too.
     function isOwnPhotoUrl(uid, url) {
-      return url == '' || url.matches(
-          'https://firebasestorage\\.googleapis\\.com/v0/b/polyloop-97543\\.firebasestorage\\.app'
-          + '/o/users%2F' + uid + '%2Fprofile\\.jpg\\?alt=media&token=[0-9a-fA-F-]+');
+      let path = '/o/users%2F' + uid + '%2Fprofile\\.jpg\\?alt=media&token=[0-9a-fA-F-]+';
+      return url == ''
+          || url.matches(
+              'https://firebasestorage\\.googleapis\\.com/v0/b/polyloop-97543\\.firebasestorage\\.app'
+              + path)
+          || url.matches('http://(10\\.0\\.2\\.2|localhost|127\\.0\\.0\\.1):9199/v0/b/[^/]+' + path);
     }
 
     function isNonBlankString(value) {

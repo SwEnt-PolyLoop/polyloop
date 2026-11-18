@@ -107,10 +107,10 @@ class ProfileRepositoryFirestoreEmulatorTest {
           mapOf("name" to "John", "email" to email, "averageRating" to 4.5, "reviewCount" to 2),
       )
 
-      // The rules accept only the user's own photo URL (or "").
+      // The rules accept only the user's own photo URL (or ""): the one a real upload to the
+      // Storage emulator returns, used as it comes back.
       val photoUrl =
-          "https://firebasestorage.googleapis.com/v0/b/polyloop-97543.firebasestorage.app" +
-              "/o/users%2F$uid%2Fprofile.jpg?alt=media&token=0a1b2c3d-4e5f-6789-abcd-ef0123456789"
+          repository.uploadProfilePhoto(uid, photoFile(byteArrayOf(1, 2, 3))).getOrThrow()
 
       repository.updateProfile(uid, "Johnny", photoUrl).getOrThrow()
 
