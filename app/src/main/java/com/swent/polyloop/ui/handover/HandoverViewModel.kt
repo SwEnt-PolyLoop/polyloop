@@ -16,6 +16,7 @@ import com.swent.polyloop.model.handover.WrongCodeException
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.ui.createlisting.deletePhotoFile
 import java.time.LocalDate
 import kotlinx.coroutines.Job
@@ -43,7 +44,12 @@ enum class ScanError {
  * @property notFound true when there is no such rental.
  * @property otherPersonName the borrower for the lender, the owner for the borrower; can be "".
  * @property phase the phase photos are taken in, or null when the rental's status takes none.
- * @property isPickupDay true only on the rental's first day, the only day the pickup can be done.
+ * @property pickupDate the rental's first day, the only day the pickup can be done.
+ * @property serverToday today by the server's clock, read only when photos are taken in [phase];
+ *   null until it is read or when it is unknown (the server was not reached since the phone
+ *   booted).
+ * @property isReadingServerToday true while [serverToday] is being read, so the screen can tell a
+ *   read still running from an unknown day.
  * @property deposit the deposit held, in PolyPoints.
  * @property photos the photos the signed-in user took in [phase], oldest first.
  * @property photosFailed true when the photos could not be loaded.
@@ -70,7 +76,8 @@ data class HandoverUiState(
     val otherPersonName: String = "",
     val phase: HandoverPhase? = null,
     val pickupDate: LocalDate? = null,
-    val isPickupDay: Boolean = false,
+    val serverToday: LocalDate? = null,
+    val isReadingServerToday: Boolean = false,
     val deposit: Int = 0,
     val photos: List<HandoverPhoto> = emptyList(),
     val photosFailed: Boolean = false,
@@ -85,6 +92,13 @@ data class HandoverUiState(
     val scanError: ScanError? = null,
     val isPickedUp: Boolean = false,
 ) {
+  /**
+   * True on the pickup day by the server's clock, never by the phone's, whose date the user can
+   * change. False while the server's day is unknown.
+   */
+  val isPickupDay: Boolean
+    get() = pickupDate != null && pickupDate == serverToday
+
   /** How many more photos are needed before the handover can go on; 0 once there are enough. */
   val photosNeeded: Int
     get() = (HandoverPhoto.MIN_PHOTOS - photos.size).coerceAtLeast(0)
@@ -134,8 +148,11 @@ data class HandoverUiState(
 
 /**
  * Shows the handover of the rental [rentalId], then follows it live: uploads the photos taken,
- * reads the code to show or the fingerprint of the one to scan, and sends the scanned code. [today]
- * is the current date; [deletePhoto] deletes a photo file once it is uploaded or refused.
+ * reads the code to show or the fingerprint of the one to scan, and sends the scanned code. When
+ * the rental takes pickup photos, it reads today from [serverClock], so that photos cannot be taken
+ * early by changing the phone's date; an unknown day is read again when the phone comes back
+ * online, and online with [retryServerToday]. [deletePhoto] deletes a photo file once it is
+ * uploaded or refused.
  */
 class HandoverViewModel(
     private val rentalId: String,
@@ -143,7 +160,7 @@ class HandoverViewModel(
     private val handoverRepository: HandoverRepository,
     private val authRepository: AuthRepository,
     private val connectivityRepository: ConnectivityRepository,
-    private val today: () -> LocalDate = LocalDate::now,
+    private val serverClock: ServerClock,
     private val deletePhoto: (uri: String) -> Unit = ::deletePhotoFile,
 ) : ViewModel() {
 
@@ -151,13 +168,41 @@ class HandoverViewModel(
   private var followJob: Job? = null
   val uiState: StateFlow<HandoverUiState> = _uiState.asStateFlow()
 
+  private var serverTodayRead: Job? = null
+
   init {
     viewModelScope.launch {
+      var wasOnline: Boolean? = null
       connectivityRepository.isOnline.collect { online ->
         _uiState.update { it.copy(isOffline = !online) }
+        // The note asks to connect when the day is unknown, so connecting reads it again.
+        if (online && wasOnline == false) retryServerToday()
+        wasOnline = online
       }
     }
     load()
+  }
+
+  /** Reads today from [serverClock] for the pickup, unless a read is already running. */
+  private fun readServerToday() {
+    if (serverTodayRead?.isActive == true) return
+    _uiState.update { it.copy(isReadingServerToday = true) }
+    serverTodayRead = viewModelScope.launch {
+      val today = serverClock.today()
+      _uiState.update { it.copy(serverToday = today, isReadingServerToday = false) }
+    }
+  }
+
+  /**
+   * Reads the server's day again when it is unknown and the rental takes pickup photos, e.g. after
+   * the server failed to answer while the phone was online: when the screen comes back to the
+   * front, and from "Retry" on the note. Ignored offline: coming back online reads it.
+   */
+  fun retryServerToday() {
+    val state = _uiState.value
+    if (state.phase == HandoverPhase.PICKUP && state.serverToday == null && !state.isOffline) {
+      readServerToday()
+    }
   }
 
   /**
@@ -258,10 +303,12 @@ class HandoverViewModel(
               otherPersonName = rental.otherPersonName(uid),
               phase = phase,
               pickupDate = rental.startDate,
-              isPickupDay = rental.startDate == today(),
               deposit = rental.deposit,
           )
       )
+      // Read after the rental is shown, not awaited with it: the Function can take seconds on a
+      // cold start. Only pickup photos need the day.
+      if (phase == HandoverPhase.PICKUP) readServerToday()
       if (phase != null) {
         observePhotos(phase)
         loadCode(phase, _uiState.value.showsCode)
@@ -331,9 +378,16 @@ class HandoverViewModel(
     }
   }
 
-  /** Shows [state], keeping whether the phone is online, which is followed apart. */
+  /**
+   * Shows [state], keeping whether the phone is online and the server's day, which are read apart,
+   * so a retry neither loses a known day nor hides a read still running.
+   */
   private fun show(state: HandoverUiState) = _uiState.update {
-    state.copy(isOffline = it.isOffline)
+    state.copy(
+        isOffline = it.isOffline,
+        serverToday = it.serverToday,
+        isReadingServerToday = it.isReadingServerToday,
+    )
   }
 
   private fun observePhotos(phase: HandoverPhase) {
@@ -367,6 +421,7 @@ class HandoverViewModel(
       private val handoverRepository: HandoverRepository,
       private val authRepository: AuthRepository,
       private val connectivityRepository: ConnectivityRepository,
+      private val serverClock: ServerClock,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass.isAssignableFrom(HandoverViewModel::class.java)) {
@@ -379,6 +434,7 @@ class HandoverViewModel(
           handoverRepository,
           authRepository,
           connectivityRepository,
+          serverClock,
       )
           as T
     }

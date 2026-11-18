@@ -38,7 +38,7 @@ class ShowCodeCardTest {
           otherPersonName = "Mara",
           phase = HandoverPhase.PICKUP,
           pickupDate = LocalDate.of(2026, 10, 6),
-          isPickupDay = true,
+          serverToday = LocalDate.of(2026, 10, 6),
           photos = photos(3),
           code = "secret-code",
       )
@@ -147,7 +147,7 @@ class ShowCodeCardTest {
 
   @Test
   fun noCodeCardOutsideThePickupDay() {
-    setContent(ready.copy(isPickupDay = false))
+    setContent(ready.copy(serverToday = LocalDate.of(2026, 10, 7)))
     node(C.Tag.handover_code_card).assertDoesNotExist()
   }
 
