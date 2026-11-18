@@ -145,6 +145,28 @@ class ListingDetailScreenTest {
   }
 
   @Test
+  fun shortTitleAndDescriptionShowNoSeeMore() {
+    setContent()
+
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_title_toggle).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_description_toggle).assertDoesNotExist()
+  }
+
+  @Test
+  fun longTitleIsCutBehindSeeMore() {
+    setContent(listing.copy(title = "Camping tent for two people ".repeat(3).trim()))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_detail_title_toggle)
+        .performScrollTo()
+        .assertTextEquals(context.getString(R.string.expandable_text_see_more))
+        .performClick()
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_detail_title_toggle)
+        .assertTextEquals(context.getString(R.string.expandable_text_see_less))
+  }
+
+  @Test
   fun displaysTitlePriceAndDescription() {
     setContent()
 

@@ -3,7 +3,11 @@
 package com.swent.polyloop.ui.browse
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -15,6 +19,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.polyloop.model.listing.Listing
@@ -78,6 +83,31 @@ class ListingCardTest {
         .onNodeWithTag(C.Tag.listing_card_location, useUnmergedTree = true)
         .assertIsDisplayed()
         .assertTextEquals("0.6 km · Ecublens")
+  }
+
+  @Test
+  fun longTitleIsCutAfterTwoLinesInTheListAndOneUnderTheMap() {
+    val long = listing.copy(title = "Camping tent for two people, light and waterproof ".repeat(3))
+    var singleLine by mutableStateOf(false)
+    composeTestRule.setContent {
+      ListingCard(listing = long, distanceText = "0.6 km", singleLineText = singleLine)
+    }
+
+    assertEquals(CARD_TITLE_MAX_LINES, titleLineCount())
+    singleLine = true
+    assertEquals(1, titleLineCount())
+  }
+
+  /** How many lines the card's title is drawn on. */
+  private fun titleLineCount(): Int {
+    val layouts = mutableListOf<TextLayoutResult>()
+    composeTestRule
+        .onNodeWithTag(C.Tag.listing_card_title, useUnmergedTree = true)
+        .fetchSemanticsNode()
+        .config[SemanticsActions.GetTextLayoutResult]
+        .action
+        ?.invoke(layouts)
+    return layouts.single().lineCount
   }
 
   @Test
