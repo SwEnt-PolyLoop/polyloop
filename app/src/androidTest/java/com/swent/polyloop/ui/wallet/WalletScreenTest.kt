@@ -50,8 +50,8 @@ class WalletScreenTest {
   ) = WalletTransaction(id, type, amount, item, date)
 
   private fun state(
-      wallet: Wallet = Wallet(available = 120, heldAsDeposits = 150),
-      history: List<WalletTransaction> = emptyList(),
+      wallet: Wallet? = Wallet(available = 120, heldAsDeposits = 150),
+      history: List<WalletTransaction>? = emptyList(),
       isLoading: Boolean = false,
       errorMsg: String? = null,
       isOffline: Boolean = false,
@@ -182,10 +182,70 @@ class WalletScreenTest {
 
   @Test
   fun loadingShowsASpinnerInsteadOfTheWallet() {
-    setContent(state(isLoading = true))
+    setContent(state(wallet = null, history = null, isLoading = true))
 
     composeTestRule.onNodeWithTag(C.Tag.wallet_loading).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.wallet_available).assertDoesNotExist()
+  }
+
+  @Test
+  fun anUnknownWalletOfflineShowsDashesAndTheUnavailableLineInsteadOfZero() {
+    setContent(state(wallet = null, history = null, isLoading = true, isOffline = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.wallet_available).assertTextEquals("—")
+    composeTestRule.onNodeWithTag(C.Tag.wallet_held_deposits).assertTextEquals("—")
+    composeTestRule
+        .onNodeWithTag(C.Tag.wallet_unavailable)
+        .assertTextEquals("Your balance is unavailable until your phone is back online.")
+    composeTestRule.onNodeWithTag(C.Tag.wallet_held_rentals).assertDoesNotExist()
+  }
+
+  @Test
+  fun anUnknownWalletOfflineShowsNoSpinnerAndKeepsRechargeDisabled() {
+    setContent(state(wallet = null, history = null, isLoading = true, isOffline = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.wallet_loading).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.wallet_recharge_button).assertIsNotEnabled()
+  }
+
+  @Test
+  fun anUnknownHistoryOfflineShowsTheUnavailableLineInsteadOfTheEmptyText() {
+    setContent(state(wallet = null, history = null, isLoading = true, isOffline = true))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.wallet_history_unavailable)
+        .assertTextEquals("Your history is unavailable until your phone is back online.")
+    composeTestRule.onNodeWithTag(C.Tag.wallet_history_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun anUnknownHistoryNextToAKnownWalletOfflineIsUnavailableNotEmpty() {
+    setContent(state(history = null, isLoading = true, isOffline = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.wallet_available).assertTextEquals("120")
+    composeTestRule.onNodeWithTag(C.Tag.wallet_unavailable).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.wallet_history_unavailable).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.wallet_history_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun anUnknownWalletOnlineShowsDashesWithoutTheOfflineLine() {
+    setContent(state(wallet = null, history = emptyList(), isLoading = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.wallet_available).assertTextEquals("—")
+    composeTestRule.onNodeWithTag(C.Tag.wallet_unavailable).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.wallet_loading).assertIsDisplayed()
+  }
+
+  @Test
+  fun aKnownEmptyHistoryStillSaysNoTransactionsYetWhileOffline() {
+    setContent(state(history = emptyList(), isOffline = true))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.wallet_history_empty)
+        .assertTextEquals("No transactions yet.")
+    composeTestRule.onNodeWithTag(C.Tag.wallet_history_unavailable).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.wallet_unavailable).assertDoesNotExist()
   }
 
   @Test
@@ -200,7 +260,7 @@ class WalletScreenTest {
 
   @Test
   fun aBlankErrorShowsTheGenericTextAndHidesTheBalance() {
-    setContent(state(errorMsg = ""))
+    setContent(state(wallet = null, history = null, errorMsg = ""))
 
     composeTestRule.onNodeWithTag(C.Tag.wallet_error).assertTextEquals("Could not load your wallet")
     composeTestRule.onNodeWithTag(C.Tag.wallet_available).assertDoesNotExist()
@@ -209,7 +269,7 @@ class WalletScreenTest {
   @Test
   fun retryButtonCallsOnRetry() {
     var retried = 0
-    setContent(state(errorMsg = ""), onRetry = { retried++ })
+    setContent(state(wallet = null, history = null, errorMsg = ""), onRetry = { retried++ })
 
     composeTestRule.onNodeWithTag(C.Tag.wallet_retry_button).performClick()
 

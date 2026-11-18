@@ -61,6 +61,7 @@ The Wallet screen holds the user's in-app balance, which pays for rentals and de
 - A transaction history, newest first: recharges, rental payments, late fees, and deposits held, released, split or forfeited (the rest of the deposit, paid to the lender once the item is lost). The amounts add up to the available balance; late fees and forfeited deposits show only in the lender's history, and a borrower's late fees appear as a smaller deposit release.
 - PolyPoints cannot be withdrawn back to Swiss francs.
 - Offline: balance and history stay readable from cache; recharging is disabled.
+- Unknown is never shown as zero. Until the server has confirmed them, a balance or a history that the phone's cache does not hold is unknown, not 0 PP and not empty, which is what an empty cache looks like after a reinstall or on a first launch offline. The three amounts then show “—” and, offline, a line says the balance is unavailable until the phone is back online; an unknown history shows “Your history is unavailable until your phone is back online.” instead of “No transactions yet.”, which is only for a history known to be empty. Online, an unknown wallet shows a progress bar until it arrives. Once the screen has shown a balance or a history, it keeps it when the phone goes offline; “unavailable” is for a screen opened with nothing confirmed yet, so a user whose history is really empty sees it when they reopen the screen offline.
 
 ## Chat list & chat
 
