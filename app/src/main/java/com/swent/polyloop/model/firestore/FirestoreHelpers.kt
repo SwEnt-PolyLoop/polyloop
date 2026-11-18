@@ -158,6 +158,25 @@ internal fun <T> DocumentReference.serverConfirmedSnapshotsAsFlow(
     )
 
 /**
+ * Like [snapshotsAsFlow] for a query, but ignores an empty result that comes from the local cache.
+ * Such a result cannot be told from a real empty one: after a reinstall, or on a first launch
+ * offline, the cache holds nothing, so Firestore reports "no documents" even if the server has
+ * some. A non-empty result from the cache is emitted as usual, so offline reads keep working. Once
+ * the server confirms the result is empty, that is emitted.
+ *
+ * The listener uses [MetadataChanges.INCLUDE]: the server's confirmation of an empty result changes
+ * no data, so without it Firestore would not deliver it and the flow would stay silent forever.
+ * Metadata-only events can repeat a value, so collectors should apply `distinctUntilChanged()`. A
+ * read error closes the flow, as with [snapshotsAsFlow].
+ */
+internal fun <T> Query.serverConfirmedSnapshotsAsFlow(transform: (QuerySnapshot) -> T): Flow<T> =
+    listenAsFlow(
+        { listener -> addSnapshotListener(MetadataChanges.INCLUDE) { s, e -> listener(s, e) } },
+        transform,
+        accept = { !it.isEmpty || !it.metadata.isFromCache },
+    )
+
+/**
  * The shared body of the flows above: [register] starts a listener that gives each event as a
  * snapshot or an error. An event with neither is ignored, and so is a snapshot that [accept]
  * refuses.

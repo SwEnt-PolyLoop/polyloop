@@ -281,11 +281,18 @@ class WalletRepositoryFirestoreTest {
   private val historyListener = slot<EventListener<QuerySnapshot>>()
 
   private fun historyIsObserved() {
-    every { transactions.addSnapshotListener(capture(historyListener)) } returns registration
+    every {
+      transactions.addSnapshotListener(MetadataChanges.INCLUDE, capture(historyListener))
+    } returns registration
   }
 
-  private fun querySnapshot(vararg documents: DocumentSnapshot): QuerySnapshot = mockk {
+  private fun querySnapshot(
+      vararg documents: DocumentSnapshot,
+      fromCache: Boolean = false,
+  ): QuerySnapshot = mockk {
     every { this@mockk.documents } returns documents.toList()
+    every { isEmpty } returns documents.isEmpty()
+    every { metadata } returns mockk<SnapshotMetadata> { every { isFromCache } returns fromCache }
   }
 
   @Test
@@ -368,6 +375,82 @@ class WalletRepositoryFirestoreTest {
     historyListener.captured.onEvent(querySnapshot(), null)
 
     assertEquals(emptyList<WalletTransaction>(), history.await())
+  }
+
+  @Test
+  fun observeHistoryEmitsANonEmptyHistoryFromTheCache() = runTest {
+    historyIsObserved()
+
+    val history = async { repository.observeHistory("me").first() }
+    runCurrent()
+    historyListener.captured.onEvent(
+        querySnapshot(snapshot("a", row()), fromCache = true),
+        null,
+    )
+
+    assertEquals(listOf("a"), history.await().map { it.id })
+  }
+
+  @Test
+  fun observeHistoryEmitsNothingForAnEmptyHistoryFromTheCache() = runTest {
+    historyIsObserved()
+
+    val history = async { repository.observeHistory("me").first() }
+    runCurrent()
+    historyListener.captured.onEvent(querySnapshot(fromCache = true), null)
+    runCurrent()
+
+    assertTrue(history.isActive)
+    history.cancel()
+  }
+
+  @Test
+  fun observeHistoryEmitsAnEmptyListForAnEmptyHistoryConfirmedByTheServer() = runTest {
+    historyIsObserved()
+
+    val history = async { repository.observeHistory("me").first() }
+    runCurrent()
+    historyListener.captured.onEvent(querySnapshot(fromCache = false), null)
+
+    assertEquals(emptyList<WalletTransaction>(), history.await())
+  }
+
+  @Test
+  fun observeHistoryEmitsOneEmptyListForACachedEmptyThenAServerConfirmedEvent() = runTest {
+    historyIsObserved()
+
+    val seen = mutableListOf<List<WalletTransaction>>()
+    val collected = async { repository.observeHistory("me").toList(seen) }
+    runCurrent()
+    historyListener.captured.onEvent(querySnapshot(fromCache = true), null)
+    historyListener.captured.onEvent(querySnapshot(fromCache = false), null)
+    // A metadata-only repeat of the confirmed event is not emitted again.
+    historyListener.captured.onEvent(querySnapshot(fromCache = false), null)
+    runCurrent()
+
+    assertEquals(listOf(emptyList<WalletTransaction>()), seen)
+    collected.cancel()
+  }
+
+  @Test
+  fun observeHistoryEmitsTheSameRowsOnlyOnceWhenOnlyTheMetadataChanges() = runTest {
+    historyIsObserved()
+
+    val seen = mutableListOf<List<WalletTransaction>>()
+    val collected = async { repository.observeHistory("me").toList(seen) }
+    runCurrent()
+    historyListener.captured.onEvent(
+        querySnapshot(snapshot("a", row()), fromCache = true),
+        null,
+    )
+    historyListener.captured.onEvent(
+        querySnapshot(snapshot("a", row()), fromCache = false),
+        null,
+    )
+    runCurrent()
+
+    assertEquals(1, seen.size)
+    collected.cancel()
   }
 
   @Test

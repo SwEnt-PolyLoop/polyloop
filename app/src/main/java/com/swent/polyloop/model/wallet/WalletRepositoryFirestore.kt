@@ -9,7 +9,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.swent.polyloop.model.firestore.isValidDocumentId
 import com.swent.polyloop.model.firestore.serverConfirmedSnapshotsAsFlow
-import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
@@ -23,8 +22,8 @@ import kotlinx.coroutines.flow.flowOf
  * first and while offline, so both stay readable offline (see "Offline mode" in AGENTS.md). A
  * wallet that is in the cache is emitted from it. A missing wallet document is read as 0 only once
  * the server has confirmed it: from the cache, "missing" cannot be told from an empty cache (after
- * a reinstall, or a first launch offline), so nothing is emitted until then. The history is
- * unchanged. That is deliberate: do not force a server read here.
+ * a reinstall, or a first launch offline), so nothing is emitted until then. The same goes for an
+ * empty history. That is deliberate: do not force a server read here.
  *
  * @param db the Firestore instance; tests pass a mock.
  */
@@ -46,15 +45,16 @@ class WalletRepositoryFirestore(private val db: FirebaseFirestore = Firebase.fir
   }
 
   /**
-   * An invalid [uid] gives an empty history without touching Firestore. A malformed row is skipped
-   * instead of failing the list (see [walletTransactionFromDocument]). The rows are not sorted: the
-   * caller does it.
+   * An invalid [uid] gives an empty history without touching Firestore. An empty history from the
+   * cache is not emitted until the server has confirmed it, and a metadata-only change does not
+   * emit the same list again. A malformed row is skipped instead of failing the list (see
+   * [walletTransactionFromDocument]). The rows are not sorted: the caller does it.
    */
   override fun observeHistory(uid: String): Flow<List<WalletTransaction>> {
     if (!isValidDocumentId(uid)) return flowOf(emptyList())
     return walletDocument(uid)
         .collection(WalletFields.TRANSACTIONS)
-        .snapshotsAsFlow { snapshot ->
+        .serverConfirmedSnapshotsAsFlow { snapshot ->
           snapshot.documents.mapNotNull { document ->
             document.getData(ServerTimestampBehavior.ESTIMATE)?.let {
               walletTransactionFromDocument(document.id, it)
