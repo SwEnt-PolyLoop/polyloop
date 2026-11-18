@@ -346,7 +346,7 @@ class HandoverViewModel(
   fun retry() {
     val state = _uiState.value
     if (state.loadFailed) return load()
-    if (state.photosFailed) followPhotos(shownPhase)
+    if (state.photosFailed) followPhotos(shownPhases)
     val phase = state.phase ?: return
     if (state.codeFailed) loadCode(phase, state.showsCode)
   }
@@ -434,7 +434,7 @@ class HandoverViewModel(
   private fun load() {
     rentalJob?.cancel()
     codeJob?.cancel()
-    followPhotos(null)
+    followPhotos(emptyList())
     show(HandoverUiState())
     val uid = authRepository.getCurrentUser()?.uid
     if (uid == null) {
@@ -445,7 +445,7 @@ class HandoverViewModel(
       rentalRepository
           .observeRental(rentalId)
           .catch {
-            followPhotos(null)
+            followPhotos(emptyList())
             show(HandoverUiState(isLoading = false, loadFailed = true))
           }
           .collect { rental ->
@@ -454,7 +454,7 @@ class HandoverViewModel(
               // which coming back online loads again, not a deleted rental. Either way the photo
               // waiting for a retry is kept, for a rental that comes back with its phase.
               val isOffline = _uiState.value.isOffline
-              followPhotos(null)
+              followPhotos(emptyList())
               show(
                   HandoverUiState(isLoading = false, loadFailed = isOffline, notFound = !isOffline)
               )
@@ -503,7 +503,6 @@ class HandoverViewModel(
       // A code still being read for the phase shown before must not land in this one; loadCode
       // cancels it too, so this matters when no phase is shown any more.
       codeJob?.cancel()
-      followPhotos(phase)
       if (phase != null) loadCode(phase, _uiState.value.showsCode)
       // Read after the rental is shown, not awaited with it: the Function can take seconds on a
       // cold start. Only a rental that takes photos needs the day, read when its phase is first
@@ -511,6 +510,13 @@ class HandoverViewModel(
       // each change (a chat message changes the rental too).
       if (phase != null && _uiState.value.serverToday == null) readServerToday()
     }
+    val phases =
+        when {
+          phase != null -> listOf(phase)
+          _uiState.value.isReturnCheck -> listOf(HandoverPhase.RETURN, HandoverPhase.PICKUP)
+          else -> emptyList()
+        }
+    if (phases != shownPhases) followPhotos(phases)
   }
 
   /**
@@ -530,17 +536,30 @@ class HandoverViewModel(
     )
   }
 
-  /** Follows the photos of [phase], none if it is null, and clears the ones shown before. */
-  private fun followPhotos(phase: HandoverPhase?) {
+  /**
+   * Follows the photos of [phases]: the first ones go to `photos`, the second ones, if any, to
+   * `pickupPhotos`. The photos shown before are cleared.
+   */
+  private fun followPhotos(phases: List<HandoverPhase>) {
     photosJob?.cancel()
-    shownPhase = phase
-    _uiState.update { it.copy(photos = emptyList(), photosFailed = false) }
-    if (phase == null) return
+    shownPhases = phases
+    _uiState.update {
+      it.copy(photos = emptyList(), pickupPhotos = emptyList(), photosFailed = false)
+    }
+    if (phases.isEmpty()) return
     photosJob = viewModelScope.launch {
-      handoverRepository
-          .observeMyPhotos(rentalId, phase)
-          .catch { _uiState.update { it.copy(photosFailed = true) } }
-          .collect { photos -> _uiState.update { it.copy(photos = photos) } }
+      phases.forEachIndexed { index, phase ->
+        launch {
+          handoverRepository
+              .observeMyPhotos(rentalId, phase)
+              .catch { _uiState.update { it.copy(photosFailed = true) } }
+              .collect { photos ->
+                _uiState.update {
+                  if (index == 0) it.copy(photos = photos) else it.copy(pickupPhotos = photos)
+                }
+              }
+        }
+      }
     }
   }
 
