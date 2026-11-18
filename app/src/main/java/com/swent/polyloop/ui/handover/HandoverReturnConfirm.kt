@@ -180,3 +180,81 @@ private fun BeforeAfterCard(
   }
 }
 
+/**
+ * The [label] "Pickup" or "Return", in capitals, then [photos] tagged [photoTag], or "No photos"
+ * tagged [emptyTag] when there are none.
+ */
+@Composable
+private fun PhotoSection(
+    @StringRes label: Int,
+    photos: List<HandoverPhoto>,
+    zone: ZoneId,
+    onPhotoClick: (id: String) -> Unit,
+    photoTag: String,
+    emptyTag: String,
+) {
+  Text(
+      text = stringResource(label).uppercase(),
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+  )
+  if (photos.isEmpty()) {
+    Text(
+        text = stringResource(R.string.handover_no_photos),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(emptyTag),
+    )
+  } else {
+    TileGrid(
+        photos.map { photo ->
+          { PhotoTile(photo, zone, onClick = { onPhotoClick(photo.id) }, tag = photoTag) }
+        },
+        perRow = CHECK_PHOTOS_PER_ROW,
+    )
+  }
+}
+
+/**
+ * What the borrower sees once the return is scanned: the lender, [lenderName], checks the item
+ * before the deposit is released.
+ */
+@Composable
+internal fun WaitingForCheck(lenderName: String, modifier: Modifier = Modifier) {
+  Text(
+      text =
+          if (lenderName.isBlank()) stringResource(R.string.handover_waiting_check_no_name)
+          else stringResource(R.string.handover_waiting_check, lenderName),
+      style = MaterialTheme.typography.bodyLarge,
+      textAlign = TextAlign.Center,
+      modifier =
+          modifier
+              .padding(dimensionResource(R.dimen.handover_check_padding))
+              .testTag(C.Tag.handover_waiting_check),
+  )
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ReturnCheckPreview() {
+  fun photos(phase: HandoverPhase) =
+      List(3) { HandoverPhoto("$phase$it", phase, Instant.parse("2026-10-06T12:02:00Z"), "") }
+  PolyLoopTheme {
+    HandoverContent(
+        uiState =
+            HandoverUiState(
+                isLoading = false,
+                isLender = true,
+                itemTitle = "Camping tent, 2 people",
+                otherPersonName = "Loca",
+                isReturned = true,
+                deposit = 150,
+                photos = photos(HandoverPhase.RETURN),
+                pickupPhotos = photos(HandoverPhase.PICKUP),
+            ),
+        onRetry = {},
+        onAddPhoto = {},
+        onRetryUpload = {},
+    )
+  }
+}
