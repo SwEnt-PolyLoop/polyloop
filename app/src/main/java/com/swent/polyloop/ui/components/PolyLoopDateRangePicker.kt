@@ -144,7 +144,9 @@ internal fun DateRangePickerBody(
 ) {
   // Availability mode has no booked days, hence no buffer days either.
   val booked = if (mode is DateRangePickerMode.Request) disabledDates else emptySet()
-  var selection by remember(booked, today) { mutableStateOf(DateRangeSelection()) }
+  // A request starts tomorrow at the earliest; a lender's window can start today.
+  val firstDay = if (mode is DateRangePickerMode.Request) firstRequestDay(today) else today
+  var selection by remember(booked, firstDay) { mutableStateOf(DateRangeSelection()) }
   DateRangePickerContent(
       window = window,
       disabledDates = booked,
@@ -156,13 +158,13 @@ internal fun DateRangePickerBody(
                 day = day,
                 window = window,
                 disabledDates = booked,
-                today = today,
+                today = firstDay,
                 requireBufferDay = mode is DateRangePickerMode.Request,
             )
         onDayPicked()
       },
       onConfirm = onConfirm,
-      today = today,
+      today = firstDay,
       isSending = isSending,
       errorMsg = errorMsg,
   )
