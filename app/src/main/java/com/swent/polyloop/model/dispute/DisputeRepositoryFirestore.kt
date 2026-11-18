@@ -7,10 +7,10 @@ import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.FirebaseFunctions
-import com.google.firebase.functions.FirebaseFunctionsException
 import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
 import com.swent.polyloop.model.firestore.callCloudFunction
 import com.swent.polyloop.model.firestore.isValidDocumentId
+import com.swent.polyloop.model.firestore.refusalReason
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -70,19 +70,15 @@ class DisputeRepositoryFirestore(
   }
 
   /** The exception the app expects when [error] says the request lost a race, or null. */
-  private fun lostRace(error: Throwable): Exception? {
-    val refusal = error as? FirebaseFunctionsException ?: return null
-    if (refusal.code != FirebaseFunctionsException.Code.FAILED_PRECONDITION) return null
-    return when ((refusal.details as? Map<*, *>)?.get(REASON)) {
-      PROPOSAL_CHANGED -> ProposalChangedException()
-      STAGE_CHANGED -> StageChangedException()
-      else -> null
-    }
-  }
+  private fun lostRace(error: Throwable): Exception? =
+      when (refusalReason(error)) {
+        PROPOSAL_CHANGED -> ProposalChangedException()
+        STAGE_CHANGED -> StageChangedException()
+        else -> null
+      }
 
   private companion object {
-    /** The key and values of a refusal's `details` (see `disputeRules.ts` in functions/src). */
-    const val REASON = "reason"
+    /** The reasons of a refusal (see [refusalReason] and `disputeRules.ts` in functions/src). */
     const val PROPOSAL_CHANGED = "PROPOSAL_CHANGED"
     const val STAGE_CHANGED = "STAGE_CHANGED"
   }

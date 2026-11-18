@@ -10,11 +10,15 @@ import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
+import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.model.RepositoryProvider
+import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
+import com.swent.polyloop.model.firestore.callCloudFunction
 import com.swent.polyloop.model.firestore.confirmWrite
 import com.swent.polyloop.model.firestore.isValidDocumentId
+import com.swent.polyloop.model.firestore.refusalReason
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
 import java.util.concurrent.ConcurrentHashMap
@@ -33,11 +37,20 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * [HandoverRepository] backed by Firebase: each photo's file is in Cloud Storage and its document
  * in Firestore, both at `rentals/{rentalId}/photos/{photoId}` (the file with `.jpg`). The id is the
- * photo's slot, see [photoSlotId].
+ * photo's slot, see [photoSlotId]. The code to show is at
+ * `rentals/{rentalId}/handoverCodes/{phase}`, readable only by the person who shows it; the
+ * fingerprint of the code to scan is on the rental. A scan goes to the Cloud Function
+ * `confirmHandover`, the only one that moves the rental on.
+ *
+ * @param functions gives the Cloud Functions client. A provider, not an instance, so that Firebase
+ *   is only touched when a Function is called.
  */
 class HandoverRepositoryFirestore(
     private val db: FirebaseFirestore = Firebase.firestore,
     private val auth: FirebaseAuth = Firebase.auth,
+    private val functions: () -> FirebaseFunctions = {
+      FirebaseFunctions.getInstance(FUNCTIONS_REGION)
+    },
     storageProvider: () -> FirebaseStorage = { RepositoryProvider.storage },
 ) : HandoverRepository {
 
@@ -159,10 +172,66 @@ class HandoverRepositoryFirestore(
     return Result.success(Unit)
   }
 
+  // A plain get() asks the server and, offline, gives the copy the phone keeps from the last read.
+  override suspend fun getCodeToShow(rentalId: String, phase: HandoverPhase): Result<String?> =
+      readText(rentalId) {
+        rental(rentalId)
+            .collection(HandoverFields.CODES)
+            .document(phase.name)
+            .get()
+            .await()
+            .get(HandoverFields.CODE)
+      }
+
+  override suspend fun getCodeFingerprint(
+      rentalId: String,
+      phase: HandoverPhase,
+  ): Result<String?> =
+      readText(rentalId) {
+        rental(rentalId).get().await().get(HandoverFields.fingerprintField(phase))
+      }
+
+  override suspend fun confirmScan(
+      rentalId: String,
+      phase: HandoverPhase,
+      code: String,
+  ): Result<Unit> {
+    val data = mapOf("rentalId" to rentalId, "phase" to phase.name, "code" to code)
+    val result = callCloudFunction(functions(), CONFIRM_HANDOVER, data)
+    return result.exceptionOrNull()?.let(::scanRefusal)?.let { Result.failure(it) } ?: result
+  }
+
+  /**
+   * Reads one text field with [read], for a signed-in user and a valid [rentalId]. A missing or
+   * blank field, or one that is not text, gives null.
+   */
+  private suspend fun readText(rentalId: String, read: suspend () -> Any?): Result<String?> {
+    if (!isValidDocumentId(rentalId)) {
+      return Result.failure(IllegalArgumentException("Invalid rental id"))
+    }
+    if (auth.currentUser == null) return Result.failure(IllegalStateException("Signed out"))
+    return withFirebaseErrors { Result.success((read() as? String)?.takeIf { it.isNotBlank() }) }
+  }
+
+  /** The exception the app expects when [error] is a refusal with a known reason, or null. */
+  private fun scanRefusal(error: Throwable): Exception? =
+      when (refusalReason(error)) {
+        WRONG_CODE -> WrongCodeException()
+        RENTAL_CHANGED -> RentalChangedException()
+        else -> null
+      }
+
+  private fun rental(rentalId: String) = db.collection(HandoverFields.RENTALS).document(rentalId)
+
   private fun photos(rentalId: String) =
       db.collection(HandoverFields.RENTALS).document(rentalId).collection(HandoverFields.PHOTOS)
 
   private companion object {
     const val UPLOAD_TIMEOUT_MS = 30_000L
+    const val CONFIRM_HANDOVER = "confirmHandover"
+
+    /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */
+    const val WRONG_CODE = "WRONG_CODE"
+    const val RENTAL_CHANGED = "RENTAL_CHANGED"
   }
 }
