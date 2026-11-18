@@ -687,6 +687,86 @@ class FirestoreRulesTest {
         assertDenied { requested.document().set(photo(borrower.uid)).await() }
       }
 
+  // ---------- handover codes ----------
+
+  /** The code of [phase] for [rental], written as an admin (only Cloud Functions write it). */
+  private fun seedCode(rental: DocumentReference, phase: String): DocumentReference {
+    val code = rental.collection("handoverCodes").document(phase)
+    FirebaseEmulator.createDocumentAsAdmin(code.path, mapOf("code" to "secret-$phase"))
+    return code
+  }
+
+  @Test
+  fun onlyTheLenderReadsThePickupCode() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val code = seedCode(seedRental(owner.uid, borrower.uid, status = "ACCEPTED"), "PICKUP")
+
+        // borrower is signed in: they get only the fingerprint, never the code
+        assertDenied { code.get(Source.SERVER).await() }
+        newAccount()
+        assertDenied { code.get(Source.SERVER).await() } // a stranger
+
+        signInAs(owner)
+        assertEquals("secret-PICKUP", code.get(Source.SERVER).await().getString("code"))
+      }
+
+  @Test
+  fun onlyTheBorrowerReadsTheReturnCode() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val code = seedCode(seedRental(owner.uid, borrower.uid, status = "ACTIVE"), "RETURN")
+
+        assertEquals("secret-RETURN", code.get(Source.SERVER).await().getString("code"))
+
+        signInAs(owner)
+        assertDenied { code.get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun aCodeNotMadeYetReadsAsMissingForTheLender() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid, status = "ACCEPTED")
+
+        signInAs(owner)
+        assertFalse(
+            rental
+                .collection("handoverCodes")
+                .document("PICKUP")
+                .get(Source.SERVER)
+                .await()
+                .exists()
+        )
+        // Any other phase is nobody's.
+        assertDenied {
+          rental.collection("handoverCodes").document("OTHER").get(Source.SERVER).await()
+        }
+      }
+
+  @Test
+  fun noClientWritesACodeOrItsFingerprint() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid, status = "ACCEPTED")
+        val pickup = seedCode(rental, "PICKUP")
+        val returnCode = rental.collection("handoverCodes").document("RETURN")
+
+        for (account in listOf(borrower, owner)) {
+          signInAs(account)
+          assertDenied { pickup.set(mapOf("code" to "mine")).await() }
+          assertDenied { pickup.update("code", "mine").await() }
+          assertDenied { pickup.delete().await() }
+          assertDenied { returnCode.set(mapOf("code" to "mine")).await() }
+          assertDenied { rental.update("pickupCodeHash", "0".repeat(64)).await() }
+          assertDenied { rental.update("returnCodeHash", "0".repeat(64)).await() }
+        }
+      }
+
   // ---------- wallets ----------
 
   /**
