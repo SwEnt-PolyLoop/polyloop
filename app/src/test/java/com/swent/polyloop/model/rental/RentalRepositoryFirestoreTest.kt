@@ -213,6 +213,13 @@ class RentalRepositoryFirestoreTest {
   }
 
   @Test
+  fun requestRentalReportsAnOverlappingPendingRequestAsUnavailableDates() = runTest {
+    requestRentalRefuses(FirebaseFunctionsException.Code.ALREADY_EXISTS)
+
+    assertTrue(request().exceptionOrNull() is RentalDatesUnavailableException)
+  }
+
+  @Test
   fun requestRentalReportsADeletedOrUnpublishedListingAsUnavailable() = runTest {
     requestRentalRefuses(FirebaseFunctionsException.Code.NOT_FOUND)
 

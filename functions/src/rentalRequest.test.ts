@@ -237,13 +237,24 @@ describe("createRentalRequest", () => {
     expect(await rentalsOf(listingId)).toBe(1);
   });
 
-  it("refuses a second request of the same borrower with days in common", async () => {
+  it("answers the same request sent again with the first rental, writing nothing", async () => {
+    const { lender, borrower } = await people();
+    const listingId = await listing(lender);
+
+    const first = await createRentalRequest(db, borrower, input(listingId), NOW);
+    const again = await createRentalRequest(db, borrower, input(listingId), NOW);
+
+    expect(again).toBe(first);
+    expect(await rentalsOf(listingId)).toBe(1);
+  });
+
+  it("refuses a second request of the same borrower with other days in common", async () => {
     const { lender, borrower } = await people();
     const listingId = await listing(lender);
     await createRentalRequest(db, borrower, input(listingId, "2030-03-20", "2030-03-22"), NOW);
 
     for (const [start, end] of [
-      ["2030-03-20", "2030-03-22"],
+      ["2030-03-21", "2030-03-22"],
       ["2030-03-22", "2030-03-25"],
       ["2030-03-15", "2030-03-20"],
     ]) {

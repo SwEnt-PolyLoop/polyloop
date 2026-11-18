@@ -60,13 +60,18 @@ export function parseRentalRequestInput(data: unknown): RentalRequestInput {
  * profiles. The listing is read in the same transaction as the rental is written, so two requests
  * sent at once are both checked against the same `bookedRanges`. No money is reserved yet.
  *
+ * Sending the same request again is safe: if the caller already has a `REQUESTED` rental of this
+ * listing for exactly these days, its id is returned and nothing is written. So when the answer is
+ * lost after the server committed, or the app cannot read the new rental, a retry gets the same
+ * rental instead of a second one.
+ *
  * @param db the Firestore database.
  * @param borrowerId the caller.
  * @param input the listing and the days, already checked by `parseRentalRequestInput`.
  * @param now the current time, passed so that tests can set it.
  * @throws RequestError `not-found` (no such listing), `permission-denied` (the caller's own
- *   listing), `already-exists` (the caller already has a request for this listing with days in
- *   common) or `failed-precondition` (the listing is not published, or, with `details.reason`
+ *   listing), `already-exists` (the caller already has a request for this listing with other
+ *   days in common) or `failed-precondition` (the listing is not published, or, with `details.reason`
  *   [DATES_UNAVAILABLE], the first day is not after today, the days are outside the listing's
  *   availability or they conflict with a booking, buffer day included). Nothing is written then.
  */
@@ -80,7 +85,7 @@ export async function createRentalRequest(
   const rentalRef = db.collection(RENTALS).doc();
   const dates = { start: input.startDate, end: input.endDate };
 
-  await db.runTransaction(async (tx) => {
+  return db.runTransaction(async (tx) => {
     const listing = (await tx.get(listingRef)).data();
     if (!listing) {
       throw new RequestError("not-found", "This listing does not exist.");
@@ -92,13 +97,6 @@ export async function createRentalRequest(
     if (ownerId === borrowerId) {
       throw new RequestError("permission-denied", "You cannot rent your own listing.");
     }
-    if (listing.status !== PUBLISHED) {
-      throw new RequestError("failed-precondition", "This listing is not published.");
-    }
-    requireAvailableDays(listing, dates, now);
-    if (bookedRanges(listing.bookedRanges).some((range) => conflicts(range, dates))) {
-      throw datesUnavailable("These dates are no longer available.");
-    }
     const ownRequests = await tx.get(
       db
         .collection(RENTALS)
@@ -106,6 +104,18 @@ export async function createRentalRequest(
         .where("borrowerId", "==", borrowerId)
         .where("status", "==", "REQUESTED"),
     );
+    // The same request sent again (e.g. a retry after a lost answer): answer with the first one.
+    const sameRequest = ownRequests.docs.find(
+      (doc) => doc.get("startDate") === dates.start && doc.get("endDate") === dates.end,
+    );
+    if (sameRequest) return sameRequest.id;
+    if (listing.status !== PUBLISHED) {
+      throw new RequestError("failed-precondition", "This listing is not published.");
+    }
+    requireAvailableDays(listing, dates, now);
+    if (bookedRanges(listing.bookedRanges).some((range) => conflicts(range, dates))) {
+      throw datesUnavailable("These dates are no longer available.");
+    }
     if (ownRequests.docs.some((doc) => sharesADay(doc, dates))) {
       throw new RequestError(
         "already-exists",
@@ -144,8 +154,8 @@ export async function createRentalRequest(
       lastMessage: "",
       lastMessageAt: created,
     });
+    return rentalRef.id;
   });
-  return rentalRef.id;
 }
 
 /**

@@ -15,6 +15,7 @@ import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
 import com.swent.polyloop.model.firestore.callCloudFunction
 import com.swent.polyloop.model.firestore.isValidDocumentId
+import com.swent.polyloop.model.firestore.refusalReason
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
 import com.swent.polyloop.model.listing.Listing
@@ -79,14 +80,18 @@ class RentalRepositoryFirestore(
 
   /**
    * The exception the app expects when [error] is `requestRental`'s refusal of the days or of the
-   * listing, or null. Read from the code and `details.reason`, never from the message.
+   * listing, or null. Read from the code and `details.reason`, never from the message. A pending
+   * request of the same borrower for other days in common (`already-exists`) also makes these days
+   * unavailable to them, so it reads as [RentalDatesUnavailableException] too. The same request
+   * sent again is not refused: the Function returns the first rental.
    */
   private fun requestRefusal(error: Throwable): Exception? {
     val refusal = error as? FirebaseFunctionsException ?: return null
     return when (refusal.code) {
       FirebaseFunctionsException.Code.NOT_FOUND -> ListingUnavailableException()
+      FirebaseFunctionsException.Code.ALREADY_EXISTS -> RentalDatesUnavailableException()
       FirebaseFunctionsException.Code.FAILED_PRECONDITION ->
-          if ((refusal.details as? Map<*, *>)?.get(REASON) == DATES_UNAVAILABLE) {
+          if (refusalReason(error) == DATES_UNAVAILABLE) {
             RentalDatesUnavailableException()
           } else {
             // The only other refusal of this code: the listing is no longer published.
@@ -189,7 +194,6 @@ class RentalRepositoryFirestore(
     private const val REQUEST_RENTAL = "requestRental"
 
     /** The key and value of a refusal's `details` (see `rentalRequest.ts` in functions/src). */
-    private const val REASON = "reason"
     private const val DATES_UNAVAILABLE = "DATES_UNAVAILABLE"
   }
 }
