@@ -25,3 +25,4 @@ export { acceptSplit } from "./acceptSplit";
 export { escalateDispute } from "./escalateDispute";
 export { escalateDisputes } from "./escalateDisputes";
 export { confirmHandover } from "./confirmHandover";
+export { draftLlmProposal } from "./draftLlmProposal";
