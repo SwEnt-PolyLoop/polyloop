@@ -243,4 +243,30 @@ class CreateListingViewModelTest {
       selectDates(from, to)
     }
   }
+
+  @Test
+  fun titleIsCutAtTheCap() {
+    viewModel.onTitleChange("a".repeat(Listing.MAX_TITLE_LENGTH + 5))
+    assertEquals("a".repeat(Listing.MAX_TITLE_LENGTH), state.title)
+  }
+
+  @Test
+  fun descriptionIsCutAtTheCap() {
+    viewModel.onDescriptionChange("a".repeat(Listing.MAX_DESCRIPTION_LENGTH + 5))
+    assertEquals("a".repeat(Listing.MAX_DESCRIPTION_LENGTH), state.description)
+  }
+
+  @Test
+  fun textUnderTheCapIsKeptAsTyped() {
+    viewModel.onTitleChange("  Tent  ")
+    assertEquals("  Tent  ", state.title)
+  }
+
+  @Test
+  fun cutToNeverSplitsAnEmoji() {
+    // The camping emoji is two UTF-16 units; a cut after 3 units falls between them.
+    assertEquals("ab", "ab\uD83C\uDFD5".cutTo(3))
+    assertEquals("ab\uD83C\uDFD5", "ab\uD83C\uDFD5c".cutTo(4))
+    assertEquals("abc", "abc".cutTo(3))
+  }
 }

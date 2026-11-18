@@ -111,7 +111,9 @@ service cloud.firestore {
             && listing.keys().hasOnly(required.concat(['pickupArea', 'dropOffArea', 'pickupPoint',
                 'dropOffPoint', 'bookedRanges']))
             && isNonBlankString(listing.title)
+            && listing.title.size() <= 80
             && isNonBlankString(listing.description)
+            && listing.description.size() <= 2000
             && listing.category in ['ELECTRONICS', 'SPORTS_OUTDOOR', 'BOOKS_COURSE_MATERIAL',
                 'TOOLS_DIY', 'KITCHEN_HOME', 'MUSIC', 'OTHER']
             && listing.photoUrls is list

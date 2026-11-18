@@ -300,6 +300,32 @@ class FirestoreRulesTest {
       }
 
   @Test
+  fun listingTextsAreCappedOnCreateAndEdit() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val atTheCaps =
+            listing(owner.uid)
+                .copy(
+                    title = "t".repeat(Listing.MAX_TITLE_LENGTH),
+                    description = "d".repeat(Listing.MAX_DESCRIPTION_LENGTH),
+                )
+
+        listOf(
+                atTheCaps.copy(title = "t".repeat(Listing.MAX_TITLE_LENGTH + 1)),
+                atTheCaps.copy(description = "d".repeat(Listing.MAX_DESCRIPTION_LENGTH + 1)),
+            )
+            .forEach { listing ->
+              assertDenied { listingRef(listing.id).set(listingToDocument(listing)).await() }
+            }
+        val ref = listingRef(atTheCaps.id)
+        ref.set(listingToDocument(atTheCaps)).await()
+        assertDenied { ref.update("title", "t".repeat(Listing.MAX_TITLE_LENGTH + 1)).await() }
+        assertDenied {
+          ref.update("description", "d".repeat(Listing.MAX_DESCRIPTION_LENGTH + 1)).await()
+        }
+      }
+
+  @Test
   fun ownerEditsTheirListingButNotItsOwnerOrBookings() =
       runBlocking<Unit> {
         val owner = newAccount()
