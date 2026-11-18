@@ -982,6 +982,30 @@ class HandoverViewModelTest {
     assertEquals(0, handoverRepository.addPhotoCalls)
   }
 
+  // ---------- the lender's check ----------
+
+  /** The ViewModel of the returned rental, seen by its lender. */
+  private fun lenderCheck(): HandoverViewModel {
+    useStatus(RentalStatus.RETURNED)
+    signInAsLender()
+    return viewModel()
+  }
+
+  @Test
+  fun photosThatFailedOnTheLendersCheckAreRetriedForBothPhases() {
+    handoverRepository.failure = RuntimeException("down")
+    handoverRepository.photos =
+        photos(3, takenBy = "owner") + photos(4, takenBy = "owner", phase = HandoverPhase.RETURN)
+    val vm = lenderCheck()
+    assertTrue(vm.uiState.value.photosFailed)
+
+    handoverRepository.failure = null
+    vm.retry()
+    assertFalse(vm.uiState.value.photosFailed)
+    assertEquals(3, vm.uiState.value.pickupPhotos.size)
+    assertEquals(4, vm.uiState.value.photos.size)
+  }
+
   // ---------- factory ----------
 
   private fun factory() =
