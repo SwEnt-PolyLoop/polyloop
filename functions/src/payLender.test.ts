@@ -221,18 +221,49 @@ describe("paying the lender", () => {
   }, 15000);
 });
 
-describe("when it refuses", () => {
-  it("refuses a price that is not held, writing nothing, even with enough available", async () => {
+describe("until the price is held at request (#357)", () => {
+  it("takes a price that is not held from available, with a row for each", async () => {
     const who = people();
     const id = await rental(who);
-    await fund(who.borrower, { available: 1000, heldForRentals: 14 });
+    await fund(who.borrower, { available: 100, heldForRentals: 14 });
+
+    await payLender.run(asUser(who.lender, { rentalId: id }));
+
+    // The 14 PP held for another rental stay held.
+    expect(await wallet(who.borrower)).toMatchObject({ available: 85, heldForRentals: 14 });
+    expect(await wallet(who.lender)).toMatchObject({ available: 15 });
+    expect(await rows(who.borrower)).toEqual([
+      expect.objectContaining({ id: `rental_payment_${id}`, type: "RENTAL_PAYMENT", amount: -15 }),
+    ]);
+    expect(await rows(who.lender)).toEqual([paymentRow(id)]);
+  });
+
+  it("takes it only once when called twice", async () => {
+    const who = people();
+    const id = await rental(who);
+    await fund(who.borrower, { available: 100 });
+
+    await payLender.run(asUser(who.borrower, { rentalId: id }));
+    await payLender.run(asUser(who.lender, { rentalId: id }));
+
+    expect(await wallet(who.borrower)).toMatchObject({ available: 85 });
+    expect(await wallet(who.lender)).toMatchObject({ available: 15 });
+    expect(await rows(who.borrower)).toHaveLength(1);
+  });
+});
+
+describe("when it refuses", () => {
+  it("refuses when neither the held price nor available covers it, writing nothing", async () => {
+    const who = people();
+    const id = await rental(who);
+    await fund(who.borrower, { available: 14, heldForRentals: 14 });
 
     await expect(payLender.run(asUser(who.borrower, { rentalId: id }))).rejects.toMatchObject({
       code: "failed-precondition",
-      message: expect.stringContaining("not held"),
+      message: expect.stringContaining("Insufficient funds"),
     });
 
-    expect(await wallet(who.borrower)).toEqual({ available: 1000, heldForRentals: 14 });
+    expect(await wallet(who.borrower)).toEqual({ available: 14, heldForRentals: 14 });
     expect(await wallet(who.lender)).toBeUndefined();
     expect(await rows(who.borrower)).toEqual([]);
     expect(await rows(who.lender)).toEqual([]);
@@ -244,7 +275,7 @@ describe("when it refuses", () => {
 
     await expect(payLender.run(asUser(who.lender, { rentalId: id }))).rejects.toMatchObject({
       code: "failed-precondition",
-      message: expect.stringContaining("not held"),
+      message: expect.stringContaining("Insufficient funds"),
     });
 
     expect(await wallet(who.borrower)).toBeUndefined();

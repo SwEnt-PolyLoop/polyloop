@@ -116,6 +116,21 @@ describe("confirming the pickup", () => {
 });
 
 describe("paying the lender at pickup", () => {
+  it("takes a price that is not held from available until it is held at request", async () => {
+    const who = people();
+    const id = await accepted(who);
+    await fund(who.borrower, { available: 100, heldForRentals: 0 });
+
+    await confirmPickup(db, who.borrower, scan(id), NOW);
+
+    expect((await rentalData(id))?.status).toBe("ACTIVE");
+    expect(await wallet(who.borrower)).toMatchObject({ available: 85, heldForRentals: 0 });
+    expect(await wallet(who.lender)).toMatchObject({ available: 15 });
+    expect(await rows(who.borrower)).toEqual([
+      expect.objectContaining({ id: `rental_payment_${id}`, type: "RENTAL_PAYMENT", amount: -15 }),
+    ]);
+  });
+
   it("pays the held price to the lender in the same transaction", async () => {
     const who = people();
     const id = await accepted(who);
@@ -176,17 +191,17 @@ describe("paying the lender at pickup", () => {
 });
 
 describe("refusing a pickup", () => {
-  it("refuses a pickup whose price is not held, changing nothing", async () => {
+  it("refuses a pickup whose price neither the held price nor available covers", async () => {
     const who = people();
     const id = await accepted(who);
-    await fund(who.borrower, { available: 1000, heldForRentals: 0 });
+    await fund(who.borrower, { available: 14, heldForRentals: 0 });
 
     const error = await confirmPickup(db, who.borrower, scan(id), NOW).catch((e) => e);
 
     expect(error).toMatchObject({ code: "failed-precondition" });
     expect(error.details).toBeUndefined();
     await expectUnchanged(id);
-    expect(await wallet(who.borrower)).toEqual({ available: 1000, heldForRentals: 0 });
+    expect(await wallet(who.borrower)).toEqual({ available: 14, heldForRentals: 0 });
     expect(await wallet(who.lender)).toBeUndefined();
   });
 

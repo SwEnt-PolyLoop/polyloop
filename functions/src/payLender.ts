@@ -34,19 +34,22 @@ const RENTAL_PAYMENT = "RENTAL_PAYMENT";
  * `available += price` (the lender's wallet is created if it does not exist), and one
  * `RENTAL_PAYMENT` row `+price` with the id `rental_payment_<rentalId>` and the item's title in the
  * lender's history. The borrower's history gets no row: their `available` does not change, it went
- * down when the price was held. The price, the people and the title all come from the rental. The
- * checks run in this order: the rental exists, the caller is a participant, the borrower and the
- * lender are valid and different, then, if the lender's row already exists, the call succeeds and
- * changes nothing (whatever the rental's status is by now; the row is looked for in the same
- * transaction), then the status is one of [PAID_STATUSES], the price is valid and held.
+ * down when the price was held. Until the price is held at request (#357), a price that is not
+ * held is taken from the borrower's `available` instead, with a `-price` row in their history.
+ * The price, the people and the title all come from the rental. The checks run in this order:
+ * the rental exists, the caller is a participant, the borrower and the lender are valid and
+ * different, then, if the lender's row already exists, the call succeeds and changes nothing
+ * (whatever the rental's status is by now; the row is looked for in the same transaction), then
+ * the status is one of [PAID_STATUSES], the price is valid and covered.
  *
  * @param db the Firestore database.
  * @param callerId the caller, who must be the rental's borrower or its lender.
  * @param rentalId the rental to pay.
  * @throws RequestError `not-found`, `permission-denied` (not the borrower or the lender),
- *   `failed-precondition` (no row yet and the rental is not picked up, or the borrower's
- *   `heldForRentals` is below the price) or `internal` (the rental has no valid borrower or lender, the same
- *   one for both, or, with no row yet, no valid price). Nothing is written then.
+ *   `failed-precondition` (no row yet and the rental is not picked up, or neither the borrower's
+ *   `heldForRentals` nor their `available` covers the price) or `internal` (the rental has no
+ *   valid borrower or lender, the same one for both, or, with no row yet, no valid price). Nothing
+ *   is written then.
  */
 export async function payRentalLender(
   db: Firestore,
@@ -85,6 +88,8 @@ export interface LenderPayment extends Parties {
   itemTitle: string;
   borrower: Wallet;
   lender: Wallet;
+  // False until the price is reserved at request (#357): it is then taken from `available`.
+  fromHeld: boolean;
 }
 
 /**
@@ -115,9 +120,10 @@ export function isLenderPaid(
 
 /**
  * Read step of a payment, inside the caller's transaction before its writes: the price, the title
- * and both wallets. Fails with `internal` for a missing or invalid price, and with
- * `failed-precondition` when the borrower's `heldForRentals` is below the price: the price was not
- * held when the request was sent. It is never taken from `available` instead.
+ * and both wallets. The price comes from the borrower's `heldForRentals` when it covers it.
+ * Otherwise, until the price is reserved when a request is sent (#357), it is taken from
+ * `available`, as `payLender` did before. Fails with `internal` for a missing or invalid price, and
+ * with `failed-precondition` when neither covers it.
  */
 export async function readLenderPayment(
   tx: Transaction,
@@ -127,11 +133,13 @@ export async function readLenderPayment(
 ): Promise<LenderPayment> {
   const price = requirePrice(rental);
   const borrower = await readWallet(tx, db, parties.borrowerId);
-  if (borrower.heldForRentals < price) {
-    throw new RequestError("failed-precondition", "The rental price is not held.");
+  const fromHeld = borrower.heldForRentals >= price;
+  if (!fromHeld && borrower.available < price) {
+    throw new RequestError("failed-precondition", "Insufficient funds to pay the rental price.");
   }
   const lender = await readWallet(tx, db, parties.lenderId);
-  return { ...parties, price, itemTitle: listingTitleOf(rental), borrower, lender };
+  const itemTitle = listingTitleOf(rental);
+  return { ...parties, price, itemTitle, borrower, lender, fromHeld };
 }
 
 /** Write step of a payment, inside the caller's transaction after its reads. */
@@ -143,11 +151,21 @@ export function writeLenderPayment(
 ): void {
   const { price, itemTitle, borrower, lender } = payment;
   const id = paymentRowId(rentalId);
-  // No row for the borrower: their available balance went down when the price was held.
-  writeWallet(tx, db, payment.borrowerId, {
-    ...borrower,
-    heldForRentals: borrower.heldForRentals - price,
-  });
+  if (payment.fromHeld) {
+    // No row for the borrower: their available balance went down when the price was held.
+    writeWallet(tx, db, payment.borrowerId, {
+      ...borrower,
+      heldForRentals: borrower.heldForRentals - price,
+    });
+  } else {
+    writeWallet(
+      tx,
+      db,
+      payment.borrowerId,
+      { ...borrower, available: borrower.available - price },
+      { id, type: RENTAL_PAYMENT, amount: -price, itemTitle },
+    );
+  }
   writeWallet(
     tx,
     db,
@@ -163,8 +181,9 @@ function paymentRowId(rentalId: string): string {
 
 /**
  * Callable `payLender` (see docs/ARCHITECTURE.md): moves a picked-up rental's price from what the
- * borrower holds for rentals to the lender's available balance. Input: `{rentalId}` only. Returns
- * nothing, so the lender learns only whether the price is held, never the borrower's balances.
+ * borrower holds for rentals (or, until it is held at request, their available balance) to the
+ * lender's available balance. Input: `{rentalId}` only. Returns
+ * nothing, so the lender learns only whether the price is covered, never the borrower's balances.
  */
 export const payLender = onCall(async (request) => {
   try {
