@@ -447,9 +447,9 @@ class HandoverScreenTest {
   }
 
   @Test
-  fun aLateReturnShowsTheDepositLeftAfterTheLateFees() {
-    setContent(returning.copy(deposit = 80, lateFees = 17))
+  fun aDepositUsedUpByLateFeesShowsZeroNotUnknown() {
+    setContent(returning.copy(deposit = 80, lateFees = 80))
 
-    text(C.Tag.handover_deposit, "63 PP")
+    text(C.Tag.handover_deposit, "0 PP")
   }
 }

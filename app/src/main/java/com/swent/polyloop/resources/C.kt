@@ -312,6 +312,7 @@ object C {
     const val handover_pickup_day_retry = "handover_pickup_day_retry"
     const val handover_not_return_day = "handover_not_return_day"
     const val handover_return_needs_connection = "handover_return_needs_connection"
+    const val handover_return_day_retry = "handover_return_day_retry"
     const val handover_photo_viewer = "handover_photo_viewer"
     const val handover_photo_viewer_close = "handover_photo_viewer_close"
     const val handover_photo_viewer_label = "handover_photo_viewer_label"

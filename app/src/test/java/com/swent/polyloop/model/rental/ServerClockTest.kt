@@ -118,6 +118,17 @@ class ServerClockTest {
   }
 
   @Test
+  fun nowIsTheServersTimeOnlineAndWorkedOutOffline() = runTest {
+    repository.serverNow = Instant.parse("2026-11-11T22:30:00Z")
+    val clock = clock()
+    assertEquals(Instant.parse("2026-11-11T22:30:00Z"), clock.now())
+
+    goOffline()
+    elapsed += Duration.ofMinutes(45).toMillis()
+    assertEquals(Instant.parse("2026-11-11T23:15:00Z"), clock.now())
+  }
+
+  @Test
   fun aNewerSuccessReplacesTheSavedPair() = runTest {
     repository.serverNow = Instant.parse("2026-11-11T10:00:00Z")
     clock().today()

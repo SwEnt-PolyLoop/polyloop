@@ -301,9 +301,9 @@ private fun RolePill(isLender: Boolean) {
 }
 
 /**
- * Who the item goes to or comes from: at pickup "with <borrower>" for the lender and "from <lender>"
- * for the borrower, at return "from <borrower>" for the lender and "to <lender>" for the borrower,
- * or the other person's role for a blank name.
+ * Who the item goes to or comes from: at pickup "with <borrower>" for the lender and "from
+ * <lender>" for the borrower, at return "from <borrower>" for the lender and "to <lender>" for the
+ * borrower, or the other person's role for a blank name.
  */
 @Composable
 private fun otherPersonLine(isLender: Boolean, isPickup: Boolean, name: String): String {
@@ -452,40 +452,60 @@ private fun PhotosStatus(photosNeeded: Int, phase: HandoverPhase?) {
  */
 @Composable
 private fun NotHandoverDayNote(uiState: HandoverUiState, onRetryServerToday: () -> Unit) {
-  val isPickup = uiState.phase == HandoverPhase.PICKUP
-  val serverToday = uiState.serverToday
-  val (text, tag) =
-      if (serverToday == null) {
-        stringResource(
-            if (isPickup) R.string.handover_pickup_needs_connection
-            else R.string.handover_return_needs_connection
-        ) to
-            (if (isPickup) C.Tag.handover_pickup_needs_connection
-            else C.Tag.handover_return_needs_connection)
-      } else {
-        val day =
-            (if (isPickup) uiState.pickupDate else uiState.returnDate)?.let { formatDay(it) } ?: ""
-        stringResource(
-            if (isPickup) R.string.handover_not_pickup_day else R.string.handover_not_return_day,
-            day,
-        ) to (if (isPickup) C.Tag.handover_not_pickup_day else C.Tag.handover_not_return_day)
-      }
+  val note = if (uiState.phase == HandoverPhase.PICKUP) PICKUP_DAY_NOTE else RETURN_DAY_NOTE
+  val isDayUnknown = uiState.serverToday == null
+  val day = note.day(uiState)
   Text(
-      text = text,
+      text =
+          if (isDayUnknown) stringResource(note.needsConnection)
+          else stringResource(note.notTheDay, day?.let { formatDay(it) } ?: ""),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.testTag(tag),
+      modifier = Modifier.testTag(if (isDayUnknown) note.needsConnectionTag else note.notTheDayTag),
   )
-  if (serverToday == null) {
+  if (isDayUnknown) {
     OutlinedButton(
         onClick = onRetryServerToday,
         enabled = !uiState.isOffline,
-        modifier = Modifier.testTag(C.Tag.handover_pickup_day_retry),
+        modifier = Modifier.testTag(note.retryTag),
     ) {
       Text(stringResource(R.string.handover_retry))
     }
   }
 }
+
+/**
+ * The texts and tags of [NotHandoverDayNote] for one phase: [notTheDay] names the [day] photos can
+ * be taken on, [needsConnection] asks to connect when the server's day is unknown.
+ */
+private class DayNote(
+    val day: (HandoverUiState) -> LocalDate?,
+    @StringRes val notTheDay: Int,
+    val notTheDayTag: String,
+    @StringRes val needsConnection: Int,
+    val needsConnectionTag: String,
+    val retryTag: String,
+)
+
+private val PICKUP_DAY_NOTE =
+    DayNote(
+        { it.pickupDate },
+        R.string.handover_not_pickup_day,
+        C.Tag.handover_not_pickup_day,
+        R.string.handover_pickup_needs_connection,
+        C.Tag.handover_pickup_needs_connection,
+        C.Tag.handover_pickup_day_retry,
+    )
+
+private val RETURN_DAY_NOTE =
+    DayNote(
+        { it.returnDate },
+        R.string.handover_not_return_day,
+        C.Tag.handover_not_return_day,
+        R.string.handover_return_needs_connection,
+        C.Tag.handover_return_needs_connection,
+        C.Tag.handover_return_day_retry,
+    )
 
 /** The tile of the photo being uploaded: a spinner in a dashed tile. */
 @Composable
@@ -647,9 +667,9 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
 /**
  * The deposit held since acceptance, pinned under the scrolling content, then its amount (Figma
  * frames 14 to 17). [isLender] picks the label: true for the lender ("Deposit held"), false for the
- * borrower ("Your deposit, held"). The amount is [held], what is left once late fees are taken
- * from [deposit]. A [deposit] of 0 shows "—": an accepted deposit is at least 1, so 0 means it is
- * not known.
+ * borrower ("Your deposit, held"). The amount is [held], what is left once late fees are taken from
+ * [deposit]. A [deposit] of 0 shows "—": an accepted deposit is at least 1, so 0 means it is not
+ * known.
  */
 @Composable
 private fun DepositFooter(deposit: Int, held: Int, isLender: Boolean) {
