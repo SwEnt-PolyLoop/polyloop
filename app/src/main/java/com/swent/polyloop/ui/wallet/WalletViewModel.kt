@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -39,10 +41,15 @@ enum class RechargeStatus {
  * loaded (or nobody is signed in); it is blank when there is no message to show, and the screen
  * then shows a generic text. On an error the last wallet and history are kept.
  *
- * @property wallet the balance and the amounts held, as last observed from the repository.
- * @property history the transaction history, newest first. Transactions with the same date are
- *   ordered by id, highest first, so the order is always the same.
- * @property isLoading true until the wallet and the history have both been read once, or failed.
+ * @property wallet the balance and the amounts held, as last observed from the repository; null
+ *   while unknown: nothing has been confirmed yet, e.g. offline with an empty cache. Unknown is not
+ *   0, so the screen never shows it as 0 PP. Once known it is kept, also when the phone goes
+ *   offline or a later read fails.
+ * @property history the transaction history, newest first, or null while unknown (see [wallet]):
+ *   unknown is not "no transactions". Transactions with the same date are ordered by id, highest
+ *   first, so the order is always the same.
+ * @property isLoading true until the wallet and the history are both known, or a read failed. It
+ *   stays true offline while one is still unknown, so the screen shows a spinner only online.
  * @property errorMsg null without an error, blank for the generic text.
  * @property isOffline true while the phone is offline: the wallet and the history stay readable
  *   from cache, but a recharge is refused.
@@ -53,8 +60,8 @@ enum class RechargeStatus {
  *   until one succeeds, and reset when the next recharge starts.
  */
 data class WalletUiState(
-    val wallet: Wallet = Wallet(),
-    val history: List<WalletTransaction> = emptyList(),
+    val wallet: Wallet? = null,
+    val history: List<WalletTransaction>? = null,
     val isLoading: Boolean = true,
     val errorMsg: String? = null,
     val isOffline: Boolean = false,
@@ -162,13 +169,28 @@ class WalletViewModel(
     val walletFlow = walletRepository.observeWallet(uid)
     val historyFlow = walletRepository.observeHistory(uid)
     observing = viewModelScope.launch {
-      combine(walletFlow, historyFlow) { wallet, history ->
-            wallet to history.sortedWith(NEWEST_FIRST)
+      // Each repository flow stays silent while its data is unconfirmed (e.g. offline with an empty
+      // cache), so a null first lets the other one through instead of waiting for both.
+      combine(
+              walletFlow.map<Wallet, Wallet?> { it }.onStart { emit(null) },
+              historyFlow
+                  .map<List<WalletTransaction>, List<WalletTransaction>?> { it }
+                  .onStart { emit(null) },
+          ) { wallet, history ->
+            wallet to history?.sortedWith(NEWEST_FIRST)
           }
           .catch { _uiState.update { it.copy(isLoading = false, errorMsg = "") } }
           .collect { (wallet, history) ->
             _uiState.update {
-              it.copy(wallet = wallet, history = history, isLoading = false, errorMsg = null)
+              // A restart (retry) begins with nulls: keep what was known instead of dropping it.
+              val knownWallet = wallet ?: it.wallet
+              val knownHistory = history ?: it.history
+              it.copy(
+                  wallet = knownWallet,
+                  history = knownHistory,
+                  isLoading = knownWallet == null || knownHistory == null,
+                  errorMsg = null,
+              )
             }
           }
     }

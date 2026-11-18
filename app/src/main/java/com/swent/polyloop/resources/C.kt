@@ -368,6 +368,8 @@ object C {
     const val wallet_error = "wallet_error"
     const val wallet_retry_button = "wallet_retry_button"
     const val wallet_history_empty = "wallet_history_empty"
+    const val wallet_unavailable = "wallet_unavailable"
+    const val wallet_history_unavailable = "wallet_history_unavailable"
     // Prefix: each history row is tagged wallet_row_ + transaction id
     const val wallet_row_ = "wallet_row_"
     const val wallet_row_title = "wallet_row_title"
