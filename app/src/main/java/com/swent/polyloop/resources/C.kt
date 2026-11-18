@@ -81,6 +81,7 @@ object C {
     const val create_listing_add_photo = "create_listing_add_photo"
     const val create_listing_title_field = "create_listing_title_field"
     const val create_listing_title_error = "create_listing_title_error"
+    const val create_listing_title_counter = "create_listing_title_counter"
     const val create_listing_category_field = "create_listing_category_field"
     // Prefix: each dropdown option is tagged create_listing_category_option_ + the category name
     const val create_listing_category_option_ = "create_listing_category_option_"
@@ -92,6 +93,7 @@ object C {
     const val create_listing_category_error = "create_listing_category_error"
     const val create_listing_description_field = "create_listing_description_field"
     const val create_listing_description_error = "create_listing_description_error"
+    const val create_listing_description_counter = "create_listing_description_counter"
     const val create_listing_price_field = "create_listing_price_field"
     const val create_listing_price_error = "create_listing_price_error"
     const val create_listing_item_value_field = "create_listing_item_value_field"
