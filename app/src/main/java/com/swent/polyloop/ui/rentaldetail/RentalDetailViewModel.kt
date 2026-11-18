@@ -14,14 +14,19 @@ import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.model.rental.ServerClock
+import com.swent.polyloop.ui.components.isOfferExpired
+import com.swent.polyloop.ui.components.withNowAtExpiries
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -39,16 +44,19 @@ import kotlinx.coroutines.launch
  * is missing, could not be read or is not geocoded yet. [otherPerson] is the borrower for the
  * lender and the owner for the borrower. [isOffline] is true while the phone has no connection; the
  * screen then shows the pickup area of a request as a placeholder instead of the map. [offer] is
- * the deposit offer waiting for an answer, if any, and [isOfferMine] is true when the signed-in
- * user wrote it. [deposit] is the accepted amount in PolyPoints, and [pickupAddress] and
- * [returnAddress] are the exact addresses, set once the rental is accepted. [lateFees] is the total
- * taken from the deposit for a late return, in PolyPoints, and 0 when the return was never late.
- * [serverToday] is today by the server's clock, which Start Pickup and Start Return open from: read
- * only for an accepted or active rental, again each time the screen comes back (so a screen left
- * open across days does not keep an old day), and null until it is read or when it is unknown (the
- * server was not reached since the phone booted). [isReadingServerToday] is true while it is being
- * read with no day known yet, so the screen can tell a read still running from an unknown date; a
- * re-read of a known day leaves it false.
+ * the deposit offer waiting for an answer, if any, [isOfferMine] is true when the signed-in user
+ * wrote it, and [isOfferExpired] once it has expired by the phone's clock, even before the hourly
+ * `expireOffers` job removes it. [deposit] is the accepted amount in PolyPoints, and
+ * [pickupAddress] and [returnAddress] are the exact addresses, set once the rental is accepted.
+ * [lateFees] is the total taken from the deposit for a late return, in PolyPoints, and 0 when the
+ * return was never late. [serverToday] is today by the server's clock, which Start Pickup, Start
+ * Return and the cancel window of an accepted rental go by: read only for an accepted or active
+ * rental, again each time the screen comes back (so a screen left open across days does not keep an
+ * old day), and null until it is read or when it is unknown (the server was not reached since the
+ * phone booted). [isReadingServerToday] is true while it is being read with no day known yet, so
+ * the screen can tell a read still running from an unknown date; a re-read of a known day leaves it
+ * false. [isCancelling] is true while a cancel is being sent, and [cancelError] is non-null when
+ * the last one failed (blank when the failure carried no message, like [errorMsg]).
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -69,13 +77,51 @@ data class RentalDetailUiState(
     val isOffline: Boolean = false,
     val offer: DepositOffer? = null,
     val isOfferMine: Boolean = false,
+    val isOfferExpired: Boolean = false,
     val deposit: Int = 0,
     val pickupAddress: String = "",
     val returnAddress: String = "",
     val lateFees: Int = 0,
     val serverToday: LocalDate? = null,
     val isReadingServerToday: Boolean = false,
-)
+    val isCancelling: Boolean = false,
+    val cancelError: String? = null,
+) {
+  // Computed rather than stored, so they can never go out of sync with the fields they come from.
+
+  /**
+   * The last day an accepted rental can be cancelled, the day before pickup. Null for any other
+   * status, a request included: it has no deadline.
+   */
+  val cancelUntil: LocalDate?
+    get() = if (status == RentalStatus.ACCEPTED) startDate?.minusDays(1) else null
+
+  /**
+   * Whether the cancel button is enabled. Disabled offline and while a cancel is being sent.
+   *
+   * A request can be cancelled at any time, without the server's day: a request without an offer
+   * never expires, so without the button it would stay in My rentals as a request forever.
+   *
+   * An accepted rental is locked from its pickup day: the 1-day buffer before it is the lender's
+   * last chance to cancel the next rental, so cancelling stops the day before. That day is the
+   * server's, like Start Pickup's, because the phone's date can be changed in Settings; so while it
+   * is unknown or being read, the button stays disabled rather than falling back to the phone's
+   * date.
+   */
+  val canCancel: Boolean
+    get() {
+      if (isOffline || isCancelling) return false
+      return when (status) {
+        RentalStatus.REQUESTED -> true
+        RentalStatus.ACCEPTED -> {
+          val today = serverToday
+          val lastDay = cancelUntil
+          today != null && lastDay != null && !isReadingServerToday && !today.isAfter(lastDay)
+        }
+        else -> false
+      }
+    }
+}
 
 /**
  * The other side of the rental, shown on the person card with their initial. [name] comes from
@@ -96,11 +142,14 @@ data class OtherPerson(
  * handled so far. The rental is read once, then followed, so that the offer and an acceptance show
  * without a reload. It follows the network status from [connectivityRepository], so the screen
  * knows when to replace the map. For an accepted or active rental, it reads today from
- * [serverClock], so that Start Pickup and Start Return do not open from the phone's date, which the
- * user can change. The screen shows without waiting for that date. The date is read again each time
- * the screen comes back ([onScreenResumed]), and an unknown date when the phone comes back online.
- * A requested rental whose listing could not be read (e.g. opened offline, listing not cached)
- * reads it again when the phone comes back online, to fill the suggested deposit and the map point.
+ * [serverClock], so that Start Pickup, Start Return and the cancel window of an accepted rental do
+ * not go by the phone's date, which the user can change; a request has no deadline, so it does not
+ * need that date. The screen shows without waiting for it. [cancel] asks the server to cancel a
+ * requested or accepted rental. The date is read again each time the screen comes back
+ * ([onScreenResumed]), and an unknown date when the phone comes back online. A requested rental
+ * whose listing could not be read (e.g. opened offline, listing not cached) reads it again when the
+ * phone comes back online, to fill the suggested deposit and the map point. The offer shows as
+ * expired once it expires by [clock], checked again each time the screen comes back.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
@@ -110,6 +159,7 @@ class RentalDetailViewModel(
     private val authRepository: AuthRepository,
     private val connectivityRepository: ConnectivityRepository,
     private val serverClock: ServerClock,
+    private val clock: () -> Instant = Instant::now,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(RentalDetailUiState())
@@ -121,9 +171,24 @@ class RentalDetailViewModel(
   // The listing whose read failed, so it is read again on reconnection; null once read (a missing
   // listing counts as read).
   private var failedListingId: String? = null
+  // True once the live updates of the rental failed and stopped, until the next load restarts them;
+  // [cancel] then reads the rental again to show its result.
+  private var liveUpdatesStopped = false
+  // Asks to check the offer's expiry again by [clock], when the screen comes back.
+  private val offerRechecks = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
   init {
     load()
+    viewModelScope.launch {
+      _uiState
+          .map { it.offer?.expiresAt }
+          .distinctUntilChanged()
+          .withNowAtExpiries({ listOfNotNull(it) }, clock, offerRechecks)
+          .collect { (expiresAt, now) ->
+            val expired = expiresAt != null && isOfferExpired(expiresAt, now)
+            _uiState.update { it.copy(isOfferExpired = expired) }
+          }
+    }
     viewModelScope.launch {
       var wasOnline: Boolean? = null
       connectivityRepository.isOnline.collect { online ->
@@ -145,19 +210,47 @@ class RentalDetailViewModel(
    * Reads today from [serverClock] again when the screen comes back, for an accepted or active
    * rental, even when a day is already known: the ViewModel can stay in memory across days (behind
    * Handover, or with the app in the background), so a day read earlier would keep Start Pickup or
-   * Start Return grey on the very day they should open. [ServerClock] works offline from its saved
-   * time, so this needs no connection. It does nothing while the rental is loading (no status yet),
-   * for a status with no button that opens from the server's day, or while a read is running.
+   * Start Return grey on the very day they should open, or leave cancelling open after its last
+   * day. [ServerClock] works offline from its saved time, so this needs no connection. It does
+   * nothing while the rental is loading (no status yet), for a status with nothing that goes by the
+   * server's day, or while a read is running. It also checks the offer's expiry again by [clock],
+   * whose wait stops while the phone sleeps.
    */
   fun onScreenResumed() {
+    offerRechecks.tryEmit(Unit)
     val state = _uiState.value
     if (!needsServerToday(state.status)) return
     readServerToday(showReading = state.serverToday == null)
   }
 
   /**
-   * Reads today from [serverClock] for Start Pickup or Start Return, unless a read is already
-   * running. Whatever it returns replaces the day, null included (unknown, e.g. after a reboot).
+   * Cancels the rental, if [RentalDetailUiState.canCancel]; otherwise does nothing. It does not set
+   * the status itself: the rental is followed live, so it turns Cancelled once the Cloud Function
+   * has run, and a call that failed never shows as Cancelled. After a success it loads the rental
+   * again only when the live updates had stopped (see below). A failure sets
+   * [RentalDetailUiState.cancelError], which the next attempt clears.
+   */
+  fun cancel() {
+    if (!_uiState.value.canCancel) return
+    _uiState.update { it.copy(isCancelling = true, cancelError = null) }
+    viewModelScope.launch {
+      val error = rentalRepository.cancelRental(rentalId).exceptionOrNull()
+      _uiState.update {
+        it.copy(isCancelling = false, cancelError = error?.let { e -> e.message ?: "" })
+      }
+      // While the rental is still followed, the live update shows the result, so nothing is read
+      // again: no full-screen spinner, and no second read that could fail. Only when the live
+      // updates had stopped would nothing show the Cancelled rental, leaving the screen on
+      // Requested or Accepted with no sign that it worked; reading the rental again then shows it
+      // as it is now (the placeholder) and restarts the live updates.
+      if (error == null && liveUpdatesStopped) load()
+    }
+  }
+
+  /**
+   * Reads today from [serverClock] for Start Pickup, Start Return or the cancel window, unless a
+   * read is already running. Whatever it returns replaces the day, null included (unknown, e.g.
+   * after a reboot).
    *
    * @param showReading whether [RentalDetailUiState.isReadingServerToday] turns true during the
    *   read. False when a day is already known, so the bottom button keeps its look until the new
@@ -212,6 +305,7 @@ class RentalDetailViewModel(
     // A re-read still running would otherwise land its result after the reload.
     listingReread?.cancel()
     failedListingId = null
+    liveUpdatesStopped = false
     _uiState.update { it.copy(isLoading = true, errorMsg = null, notFound = false) }
     loading = viewModelScope.launch {
       val rental =
@@ -274,6 +368,8 @@ class RentalDetailViewModel(
             isOffline = it.isOffline,
             offer = rental.offer,
             isOfferMine = rental.offer?.authorId == uid,
+            // Kept, as the expiry check only runs again when the offer's expiry changes.
+            isOfferExpired = it.isOfferExpired,
             deposit = rental.deposit,
             pickupAddress = rental.pickupAddress,
             returnAddress = rental.returnAddress,
@@ -281,6 +377,8 @@ class RentalDetailViewModel(
             // Kept from before a retry, so a read still running or a date already known stays.
             serverToday = it.serverToday,
             isReadingServerToday = it.isReadingServerToday,
+            // A cancel still running keeps the button disabled, so it cannot be sent twice.
+            isCancelling = it.isCancelling,
         )
       }
       followRental(uid, readsServerToday = needsServerToday(rental.status))
@@ -288,27 +386,28 @@ class RentalDetailViewModel(
   }
 
   /**
-   * Reads today for Start Pickup or Start Return when [readsServerToday], then follows the rental
-   * live until the collection ends or fails.
+   * Reads today for Start Pickup, Start Return or the cancel window when [readsServerToday], then
+   * follows the rental live until the collection ends or fails.
    *
-   * A failure of the live updates hides the offer rather than leaving it out of date.
+   * A failure of the live updates hides the offer rather than leaving it out of date. A rental
+   * cancelled meanwhile leaves the supported statuses, so it shows the placeholder.
    *
    * @param uid the signed-in user, used to tell whether the live offer is theirs.
-   * @param readsServerToday true when the rental is accepted or active, so today is read for Start
-   *   Pickup or Start Return.
+   * @param readsServerToday true when the rental is accepted or active (see [needsServerToday]).
    */
   private suspend fun followRental(uid: String, readsServerToday: Boolean) {
     // Read after the state is shown, not awaited with the listing and profile: only the bottom
-    // button needs the date, and the Function can take seconds on a cold start. Only an accepted
-    // or active rental reads it: Start Return on an active rental opens from the server's day,
-    // like Start Pickup on an accepted one.
+    // button and the cancel row need the date, and the Function can take seconds on a cold start.
     var serverTodayAsked = readsServerToday
     if (serverTodayAsked) readServerToday()
     // A read error here stops the updates: the rental read above stays on screen, but not its
     // offer, which could be out of date. The chat hides its offer card in the same way.
     rentalRepository
         .observeRental(rentalId)
-        .catch { _uiState.update { it.copy(offer = null, isOfferMine = false) } }
+        .catch {
+          liveUpdatesStopped = true
+          _uiState.update { it.copy(offer = null, isOfferMine = false) }
+        }
         .collect { live ->
           when {
             live == null -> Unit
@@ -354,7 +453,10 @@ class RentalDetailViewModel(
             RentalStatus.DISPUTED,
         )
 
-    /** Whether [status] has a bottom button that opens from the server's day. */
+    /**
+     * Whether [status] shows something that goes by the server's day: Start Pickup and the cancel
+     * window (Accepted), or Start Return (Active). A request has no deadline, so it needs no day.
+     */
     fun needsServerToday(status: RentalStatus?): Boolean =
         status == RentalStatus.ACCEPTED || status == RentalStatus.ACTIVE
   }
