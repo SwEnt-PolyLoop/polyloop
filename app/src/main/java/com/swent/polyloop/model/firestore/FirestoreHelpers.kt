@@ -10,6 +10,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.functions.FirebaseFunctions
@@ -135,15 +136,40 @@ internal fun <T> DocumentReference.snapshotsAsFlow(transform: (DocumentSnapshot)
     listenAsFlow({ listener -> addSnapshotListener { s, e -> listener(s, e) } }, transform)
 
 /**
- * The shared body of both [snapshotsAsFlow]: [register] starts a listener that gives each event as
- * a snapshot or an error. An event with neither is ignored.
+ * Like [snapshotsAsFlow] for a document, but ignores a snapshot of a missing document that comes
+ * from the local cache. Such a snapshot cannot be told from a real empty document: after a
+ * reinstall, or on a first launch offline, the cache holds nothing, so Firestore reports "missing"
+ * even if the document exists on the server. A document that exists is emitted from the cache as
+ * usual, so offline reads keep working. Once the server confirms the document is missing, that is
+ * emitted.
+ *
+ * The listener uses [MetadataChanges.INCLUDE]: the server's confirmation of a missing document
+ * changes no data, so without it Firestore would not deliver it and the flow would stay silent
+ * forever. Metadata-only events can repeat a value, so collectors that care should apply
+ * `distinctUntilChanged()`. A read error closes the flow, as with [snapshotsAsFlow].
+ */
+internal fun <T> DocumentReference.serverConfirmedSnapshotsAsFlow(
+    transform: (DocumentSnapshot) -> T
+): Flow<T> =
+    listenAsFlow(
+        { listener -> addSnapshotListener(MetadataChanges.INCLUDE) { s, e -> listener(s, e) } },
+        transform,
+        accept = { it.exists() || !it.metadata.isFromCache },
+    )
+
+/**
+ * The shared body of the flows above: [register] starts a listener that gives each event as a
+ * snapshot or an error. An event with neither is ignored, and so is a snapshot that [accept]
+ * refuses.
  */
 private fun <S, T> listenAsFlow(
     register: ((S?, FirebaseFirestoreException?) -> Unit) -> ListenerRegistration,
     transform: (S) -> T,
+    accept: (S) -> Boolean = { true },
 ): Flow<T> = callbackFlow {
   val registration = register { snapshot, error ->
-    if (error != null) close(error) else if (snapshot != null) trySend(transform(snapshot))
+    if (error != null) close(error)
+    else if (snapshot != null && accept(snapshot)) trySend(transform(snapshot))
   }
   awaitClose { registration.remove() }
 }
