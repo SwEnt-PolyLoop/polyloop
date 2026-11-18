@@ -211,4 +211,20 @@ class RentalDetailViewModelOfferTest {
     assertNull(state.offer)
     assertFalse(state.isOfferMine)
   }
+
+  @Test
+  fun aRequestWithAnOfferCannotBeReviewedWhenFollowingItFails() {
+    rentals = FakeRentalRepository(listOf(request.copy(offer = offer)), clock = { now })
+    val failing =
+        object : RentalRepository by rentals {
+          override fun observeRental(id: String): Flow<Rental?> = flow { error("down") }
+        }
+
+    val state = viewModel(lender, repository = failing).uiState.value
+
+    // The offer is hidden because it may be out of date, not because there is none.
+    assertNull(state.offer)
+    assertTrue(state.liveUpdatesStopped)
+    assertFalse(state.canReviewRequest)
+  }
 }
