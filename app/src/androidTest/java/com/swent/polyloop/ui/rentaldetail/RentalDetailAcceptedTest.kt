@@ -4,7 +4,6 @@ package com.swent.polyloop.ui.rentaldetail
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -19,6 +18,7 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.utils.FakeUriHandler
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Locale
@@ -54,8 +54,8 @@ class RentalDetailAcceptedTest {
 
   private var startPickupClicks = 0
 
-  /** The links the Navigate button opened, instead of opening Google Maps. */
-  private val openedLinks = mutableListOf<String>()
+  /** Records the links the Navigate button opens, instead of opening Google Maps. */
+  private val uriHandler = FakeUriHandler()
 
   private fun setContent(
       state: RentalDetailUiState = accepted,
@@ -63,12 +63,6 @@ class RentalDetailAcceptedTest {
       // English is fixed so the expected dates pass on an emulator in any language.
       locale: Locale = Locale.ENGLISH,
   ) {
-    val uriHandler =
-        object : UriHandler {
-          override fun openUri(uri: String) {
-            openedLinks += uri
-          }
-        }
     composeTestRule.setContent {
       CompositionLocalProvider(LocalUriHandler provides uriHandler) {
         RentalDetailContent(
@@ -188,7 +182,7 @@ class RentalDetailAcceptedTest {
         .assertIsEnabled()
         .performClick()
 
-    assertEquals(listOf(directionsUrl("Route Cantonale 1, Ecublens")), openedLinks)
+    assertEquals(listOf(directionsUrl("Route Cantonale 1, Ecublens")), uriHandler.opened)
   }
 
   @Test

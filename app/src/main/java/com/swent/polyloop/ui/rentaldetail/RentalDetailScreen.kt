@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -778,17 +776,10 @@ private fun PickupArea(area: String, point: MapPoint?, showMap: Boolean) {
     ) {
       PickupMap(area = area, point = point, showMap = showMap)
     }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Icon(Icons.Outlined.Place, contentDescription = null, modifier = Modifier.size(20.dp))
-      Text(
-          text = area.ifBlank { stringResource(R.string.rental_detail_area_placeholder) },
-          style = MaterialTheme.typography.bodyMedium,
-          modifier = Modifier.testTag(C.Tag.rental_detail_pickup_area),
-      )
-    }
+    PinnedText(
+        text = area.ifBlank { stringResource(R.string.rental_detail_area_placeholder) },
+        tag = C.Tag.rental_detail_pickup_area,
+    )
     Text(
         text = stringResource(R.string.rental_detail_pickup_note),
         style = MaterialTheme.typography.bodySmall,

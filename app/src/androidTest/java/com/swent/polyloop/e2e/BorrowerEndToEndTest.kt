@@ -2,7 +2,6 @@
 
 package com.swent.polyloop.e2e
 
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Firebase
@@ -17,6 +16,7 @@ import com.swent.polyloop.model.rental.RentalFields
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
+import com.swent.polyloop.utils.FakeUriHandler
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.time.LocalDate
 import java.time.ZoneId
@@ -297,19 +297,8 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
                 ),
         )
     // The first link fails, as on a phone where no app can open it; the next one opens.
-    var failures = 1
-    val opened = mutableListOf<String>()
-    setApp(
-        object : UriHandler {
-          override fun openUri(uri: String) {
-            if (failures > 0) {
-              failures--
-              throw IllegalArgumentException("Can't open $uri.")
-            }
-            opened += uri
-          }
-        }
-    )
+    val uriHandler = FakeUriHandler(failures = 1)
+    setApp(uriHandler)
 
     // My rentals: the accepted rental opens its Rental detail, with the exact pickup address.
     openFromMenu(Screen.MyRentals)
@@ -336,7 +325,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
             "https://www.google.com/maps/dir/?api=1&destination=" +
                 "Rue%20du%20Lac%2012%2C%20Ecublens"
         ),
-        opened,
+        uriHandler.opened,
     )
   }
 

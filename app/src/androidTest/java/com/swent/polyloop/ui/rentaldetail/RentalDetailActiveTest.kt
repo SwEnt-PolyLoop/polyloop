@@ -4,7 +4,6 @@ package com.swent.polyloop.ui.rentaldetail
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -23,6 +22,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.utils.FakeUriHandler
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Locale
@@ -59,19 +59,14 @@ class RentalDetailActiveTest {
   private var startPickupClicks = 0
   private var startReturnClicks = 0
 
-  /** The links the Navigate button opened, instead of opening Google Maps. */
-  private val openedLinks = mutableListOf<String>()
+  /** Records the links the Navigate button opens, instead of opening Google Maps. */
+  private val uriHandler = FakeUriHandler()
 
   private fun setContent(
       state: RentalDetailUiState = active,
       today: LocalDate = LocalDate.of(2026, 10, 3),
+      uriHandler: FakeUriHandler = this.uriHandler,
   ) {
-    val uriHandler =
-        object : UriHandler {
-          override fun openUri(uri: String) {
-            openedLinks += uri
-          }
-        }
     composeTestRule.setContent {
       CompositionLocalProvider(LocalUriHandler provides uriHandler) {
         RentalDetailContent(
@@ -222,8 +217,25 @@ class RentalDetailActiveTest {
         .assertIsEnabled()
         .performClick()
 
-    assertEquals(listOf(directionsUrl("Rue de Lausanne 10, Renens")), openedLinks)
+    assertEquals(listOf(directionsUrl("Rue de Lausanne 10, Renens")), uriHandler.opened)
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate).assertDoesNotExist()
+  }
+
+  @Test
+  fun navigateShowsItsErrorUnderTheReturnAddressWhenNoAppOpensIt() {
+    setContent(uriHandler = FakeUriHandler(failures = 1))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_return_navigate)
+        .performScrollTo()
+        .performClick()
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_return_navigate_error)
+        .performScrollTo()
+        .assertIsDisplayed()
+        .assertTextEquals(context.getString(R.string.rental_detail_navigate_failed))
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate_error).assertDoesNotExist()
   }
 
   @Test

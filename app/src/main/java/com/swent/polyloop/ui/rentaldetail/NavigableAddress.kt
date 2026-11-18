@@ -44,10 +44,10 @@ internal fun directionsUrl(address: String): String =
  * An exact meeting point: a pin, [address] on the left (tagged [addressTag], wrapping when long),
  * and a "Navigate" button on the right that opens the directions to it ([directionsUrl]). A blank
  * [address] shows "Address not known yet" and no button. The button stays enabled offline: the
- * navigation app may have the map downloaded. If no app on the phone can open the link, or the app
- * chosen for it refuses to be opened, an error shows under the row until the next tap or another
- * [address]. The button is tagged [navigateTag] and the error [errorTag], so that a screen can show
- * several meeting points.
+ * navigation app may have the map downloaded. If the link cannot be opened (no app on the phone can
+ * open it, the app chosen for it refuses to be opened, or opening it fails in any other way), an
+ * error shows under the row until the next tap or another [address]. The button is tagged
+ * [navigateTag] and the error [errorTag], so that a screen can show several meeting points.
  */
 @Composable
 internal fun NavigableAddress(
@@ -61,17 +61,11 @@ internal fun NavigableAddress(
   var openFailed by remember(address) { mutableStateOf(false) }
   Column {
     Row(verticalAlignment = Alignment.CenterVertically) {
-      Icon(
-          Icons.Outlined.Place,
-          contentDescription = null,
-          modifier = Modifier.size(dimensionResource(R.dimen.navigable_address_pin_size)),
-      )
-      Spacer(Modifier.width(dimensionResource(R.dimen.navigable_address_spacing)))
-      Text(
+      PinnedText(
           text = address.ifBlank { stringResource(R.string.rental_detail_address_placeholder) },
-          style = MaterialTheme.typography.bodyMedium,
+          tag = addressTag,
           // Takes the room the button leaves, so the button stays at the right edge.
-          modifier = Modifier.weight(1f).testTag(addressTag),
+          modifier = Modifier.weight(1f),
       )
       if (address.isNotBlank()) {
         Spacer(Modifier.width(dimensionResource(R.dimen.navigable_address_spacing)))
@@ -81,11 +75,10 @@ internal fun NavigableAddress(
               openFailed = false
               try {
                 uriHandler.openUri(directionsUrl(address))
-              } catch (e: IllegalArgumentException) {
-                // What the platform's handler throws when no app can open the link.
-                openFailed = true
-              } catch (e: SecurityException) {
-                // The app chosen for the link does not let other apps open it.
+              } catch (e: RuntimeException) {
+                // The platform's handler throws IllegalArgumentException when no app can open the
+                // link, and SecurityException when the app chosen does not let others open it; any
+                // other failure to open it shows the same error rather than crashing the screen.
                 openFailed = true
               }
             },
@@ -100,6 +93,23 @@ internal fun NavigableAddress(
           modifier = Modifier.testTag(errorTag),
       )
     }
+  }
+}
+
+/**
+ * A pin before [text] (tagged [tag]), wrapping when long: the line of an exact meeting point and of
+ * the public pickup area on Rental detail.
+ */
+@Composable
+internal fun PinnedText(text: String, tag: String, modifier: Modifier = Modifier) {
+  Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+    Icon(
+        Icons.Outlined.Place,
+        contentDescription = null,
+        modifier = Modifier.size(dimensionResource(R.dimen.navigable_address_pin_size)),
+    )
+    Spacer(Modifier.width(dimensionResource(R.dimen.navigable_address_spacing)))
+    Text(text = text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag(tag))
   }
 }
 

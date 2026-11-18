@@ -18,6 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swent.polyloop.R
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.utils.FakeUriHandler
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -32,27 +33,6 @@ class NavigableAddressTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
   private val tag = C.Tag.rental_detail_pickup_address
-
-  /**
-   * Records the links it opens; its first [failures] calls throw [failure], by default what the
-   * platform's handler throws when no app can open the link.
-   */
-  private class FakeUriHandler(
-      private var failures: Int = 0,
-      private val failure: (String) -> RuntimeException = {
-        IllegalArgumentException("Can't open $it.")
-      },
-  ) : UriHandler {
-    val opened = mutableListOf<String>()
-
-    override fun openUri(uri: String) {
-      if (failures > 0) {
-        failures--
-        throw failure(uri)
-      }
-      opened += uri
-    }
-  }
 
   private var address by mutableStateOf("")
 
@@ -108,10 +88,11 @@ class NavigableAddressTest {
   }
 
   @Test
-  fun anAppThatRefusesToOpenTheLinkShowsTheError() {
+  fun anyOtherFailureToOpenTheLinkShowsTheError() {
+    // Neither the "no app" error nor an app refusing the link (SecurityException): any failure.
     setContent(
         "Route Cantonale 1, Ecublens",
-        FakeUriHandler(failures = 1) { SecurityException("Not exported: $it") },
+        FakeUriHandler(failures = 1) { IllegalStateException("Can't open $it now.") },
     )
 
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate).performClick()
