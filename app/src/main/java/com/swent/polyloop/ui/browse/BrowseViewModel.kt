@@ -121,7 +121,6 @@ class BrowseViewModel(
   private var locationJob: Job? = null
 
   init {
-    refreshLocation()
     viewModelScope.launch {
       connectivityRepository.isOnline.collect { online ->
         if (online) {
@@ -139,14 +138,19 @@ class BrowseViewModel(
   fun refresh() = load()
 
   /**
-   * Reads the phone's position again and sorts the listings by it, e.g. after the user answered the
-   * location permission. A position that cannot be read (null) means no distances.
+   * Reads the phone's position again and sorts the listings by it if it changed, e.g. after the
+   * user answered the location permission or when Browse comes back on screen. A position that
+   * cannot be read (null) means no distances.
    */
   fun refreshLocation() {
     locationJob?.cancel()
     locationJob = viewModelScope.launch {
-      position = locationRepository.currentPosition()
-      _uiState.update { it.withLoadedListings() }
+      val read = locationRepository.currentPosition()
+      // Sorted again only when the position changed, so an equal one costs nothing.
+      if (read != position) {
+        position = read
+        _uiState.update { it.withLoadedListings() }
+      }
     }
   }
 

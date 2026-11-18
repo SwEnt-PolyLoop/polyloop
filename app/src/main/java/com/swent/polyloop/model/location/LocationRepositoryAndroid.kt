@@ -2,9 +2,7 @@
 
 package com.swent.polyloop.model.location
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
@@ -48,9 +46,7 @@ class LocationRepositoryAndroid(
     }
   }
 
-  private fun hasCoarsePermission(): Boolean =
-      ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
-          PackageManager.PERMISSION_GRANTED
+  private fun hasCoarsePermission(): Boolean = hasCoarseLocationPermission(context)
 
   /**
    * The enabled providers that can give a fix with the coarse permission, best first. GPS needs the

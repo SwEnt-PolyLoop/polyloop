@@ -3,7 +3,7 @@
 package com.swent.polyloop.ui.browse
 
 import android.Manifest
-import android.content.pm.PackageManager
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -47,11 +47,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.location.MapPoint
+import com.swent.polyloop.model.location.hasCoarseLocationPermission
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.theme.PolyLoopTheme
@@ -77,6 +78,7 @@ fun BrowseScreen(
     viewModel: BrowseViewModel,
     onListingClick: (String) -> Unit = {},
     onOpenMyRentals: () -> Unit = {},
+    hasLocationPermission: (Context) -> Boolean = ::hasCoarseLocationPermission,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   // Ask for the coarse location once, when Browse is shown and it is not granted yet; the answer,
@@ -88,13 +90,15 @@ fun BrowseScreen(
       }
   var locationPermissionAsked by rememberSaveable { mutableStateOf(false) }
   LaunchedEffect(Unit) {
-    val granted =
-        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
-    if (!granted && !locationPermissionAsked) {
+    if (!hasLocationPermission(context) && !locationPermissionAsked) {
       locationPermissionAsked = true
       locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
     }
+  }
+  // Read the position each time Browse comes back on screen.
+  LifecycleResumeEffect(Unit) {
+    viewModel.refreshLocation()
+    onPauseOrDispose {}
   }
   BrowseContent(
       uiState = uiState,

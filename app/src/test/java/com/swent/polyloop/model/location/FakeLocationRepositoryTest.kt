@@ -20,6 +20,17 @@ class FakeLocationRepositoryTest {
   }
 
   @Test
+  fun countsTheReads() = runTest {
+    val repository = FakeLocationRepository()
+    assertEquals(0, repository.reads)
+
+    repository.currentPosition()
+    repository.currentPosition()
+
+    assertEquals(2, repository.reads)
+  }
+
+  @Test
   fun returnsTheNewPositionOnceSet() = runTest {
     val repository = FakeLocationRepository(MapPoint(46.52, 6.57))
 

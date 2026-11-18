@@ -705,6 +705,29 @@ class BrowseViewModelTest {
   }
 
   @Test
+  fun readingTheSamePositionAgainKeepsTheListAndItsSelection() {
+    val vm = distanceViewModel(at("far", 3300.0), at("near", 350.0), at("mid", 1200.0))
+    vm.selectPin(north(1200.0))
+    val before = vm.uiState.value
+    val reads = locationRepository.reads
+
+    vm.refreshLocation()
+
+    assertEquals(reads + 1, locationRepository.reads)
+    assertEquals(listOf("near", "mid", "far"), vm.ids())
+    assertEquals(before, vm.uiState.value)
+  }
+
+  @Test
+  fun creatingTheViewModelDoesNotReadThePositionByItself() {
+    connectivity.setOnline(false)
+    val reads = locationRepository.reads
+    BrowseViewModel(repository, authRepository, connectivity, locationRepository)
+
+    assertEquals(reads, locationRepository.reads)
+  }
+
+  @Test
   fun losingThePositionRemovesTheDistances() {
     val vm = distanceViewModel(at("far", 3300.0), at("near", 350.0))
     assertEquals(listOf("near", "far"), vm.ids())

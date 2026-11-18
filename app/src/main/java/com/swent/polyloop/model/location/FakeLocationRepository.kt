@@ -11,5 +11,12 @@ package com.swent.polyloop.model.location
  */
 class FakeLocationRepository(var position: MapPoint? = null) : LocationRepository {
 
-  override suspend fun currentPosition(): MapPoint? = position
+  /** How many times the position was read. */
+  var reads = 0
+    private set
+
+  override suspend fun currentPosition(): MapPoint? {
+    reads++
+    return position
+  }
 }
