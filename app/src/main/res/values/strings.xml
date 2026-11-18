@@ -111,6 +111,7 @@
     <string name="my_rentals_offer_sent_line">%1$d PP reserved · %2$d PP deposit offered</string>
     <!-- e.g. "180 PP deposit offered · expires 22 Oct" -->
     <string name="my_rentals_offer_received_line">%1$d PP deposit offered · expires %2$s</string>
+    <string name="my_rentals_offer_expired_line">%1$d PP deposit offered · expired</string>
     <!-- e.g. "120 PP counteroffer · expires 22 Oct" -->
     <string name="my_rentals_counter_line">%1$d PP counteroffer · expires %2$s</string>
     <string name="my_rentals_open_chat">Open chat</string>
@@ -325,6 +326,8 @@
     <!-- e.g. "Waiting for Ana. Expires 22 Oct." -->
     <string name="chat_offer_note_waiting">Waiting for %1$s. Expires %2$s.</string>
     <string name="chat_offer_note_expires">Expires %1$s.</string>
+    <string name="chat_offer_note_expired">This offer has expired and can no longer be answered.</string>
+    <string name="offer_expired">Offer expired</string>
     <!-- e.g. "Your offer was 180 PP. Expires 24 Oct." -->
     <string name="chat_offer_note_counter">Your offer was %1$d PP. Expires %2$s.</string>
     <string name="chat_offer_counter_hint">Their offer: %1$d PP. You can counter only once, and the lender can then only accept or decline.</string>
@@ -359,6 +362,7 @@
     <!-- e.g. "Deposit offer: 180 PP. Expires 22 Oct. Answer in the chat." -->
     <string name="rental_detail_offer_body_answer">Deposit offer: %1$d PP. Expires %2$s. Answer in the chat.</string>
     <string name="rental_detail_offer_body_waiting">Deposit offer: %1$d PP. Expires %2$s. Waiting for the answer.</string>
+    <string name="rental_detail_offer_body_expired">Deposit offer: %1$d PP. This offer has expired.</string>
     <string name="rental_detail_counter_body_answer">Counteroffer: %1$d PP. Expires %2$s. Answer in the chat.</string>
     <string name="rental_detail_counter_body_waiting">Counteroffer: %1$d PP. Expires %2$s. Waiting for the answer.</string>
     <string name="rental_detail_offer_label">Deposit offer</string>

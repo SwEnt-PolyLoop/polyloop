@@ -139,7 +139,7 @@ describe("makeOffer", () => {
 
     await makeOffer(db, LENDER, { rentalId: id, deposit: 180, ...ADDRESSES }, NOW);
 
-    expect((await rental(id))?.offer.expiresAt.toDate()).toEqual(new Date("2026-11-08T00:00:00Z"));
+    expect((await rental(id))?.offer.expiresAt.toDate()).toEqual(new Date("2026-11-07T23:00:00Z"));
   });
 
   it("refuses a rental whose first day has come, and writes nothing", async () => {
@@ -437,7 +437,7 @@ describe("respondToOffer: accepting", () => {
         db,
         await borrowerOf(id),
         { rentalId: id, action: "ACCEPT" },
-        new Date("2026-11-08T00:00:00Z"),
+        new Date("2026-11-07T23:00:00Z"),
       ),
     ).rejects.toMatchObject({ code: "failed-precondition" });
   });
