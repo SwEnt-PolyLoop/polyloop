@@ -170,7 +170,6 @@ class ChatScreenTest {
             onRetry = {},
             onRentalDetailsClick = {},
             now = now,
-            today = today,
         )
       }
     }

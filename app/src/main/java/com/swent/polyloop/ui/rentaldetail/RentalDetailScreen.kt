@@ -278,10 +278,10 @@ fun RentalDetailContent(
 
 /**
  * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "Start
- * Return" once active, "View Dispute" once disputed, and, for the lender of a request
- * with no offer, "Review request"; nothing otherwise for a request. Start Pickup opens
- * on the pickup day and Start Return on the return day, both by the server's date (see
- * [ServerDayButton]); before that day, the day it opens is written in [locale].
+ * Return" once active, "View Dispute" once disputed, and, for the lender of a request with no
+ * offer, "Review request"; nothing otherwise for a request. Start Pickup opens on the pickup day
+ * and Start Return on the return day, both by the server's date (see [ServerDayButton]); before
+ * that day, the day it opens is written in [locale].
  */
 @Composable
 private fun ActionBar(
