@@ -167,8 +167,10 @@ dependencies {
   implementation(libs.camera.camera2)
   implementation(libs.camera.lifecycle)
   implementation(libs.camera.view)
-  // Handover QR code: ZXing draws it
+  // Handover QR code: ZXing draws it, the ML Kit code scanner (Google Play services) reads it,
+  // without the camera permission
   implementation(libs.zxing.core)
+  implementation(libs.code.scanner)
   // Google Maps SDK for Android, through its Compose wrapper (pickup area on Listing detail)
   implementation(libs.maps.compose)
   // Android Studio Preview support
