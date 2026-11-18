@@ -64,7 +64,9 @@ class RentalDetailAcceptedTest {
           onChatClick = {},
           onPersonClick = {},
           onStartPickupClick = { startPickupClicks++ },
+          onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCancelClick = {},
           today = today,
           zone = ZoneOffset.UTC,
           locale = locale,
@@ -130,21 +132,18 @@ class RentalDetailAcceptedTest {
   }
 
   @Test
-  fun theDetailsGiveTheDepositWithoutHeldOrASuggestion() {
+  fun theDetailsGiveTheDepositAsHeldWithoutASuggestion() {
     setContent()
 
-    assertShown(
-        C.Tag.rental_detail_accepted_deposit,
-        context.getString(R.string.listing_card_price, 60),
-    )
+    assertShown(C.Tag.rental_detail_accepted_deposit, "60 PP · held")
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_deposit).assertDoesNotExist()
   }
 
   @Test
-  fun anUnknownDepositLeavesOutTheRow() {
+  fun anUnknownDepositShowsADash() {
     setContent(accepted.copy(deposit = 0))
 
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_accepted_deposit).assertDoesNotExist()
+    assertShown(C.Tag.rental_detail_accepted_deposit, "—")
   }
 
   @Test

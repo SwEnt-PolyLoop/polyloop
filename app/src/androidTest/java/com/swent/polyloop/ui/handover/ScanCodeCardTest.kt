@@ -39,7 +39,7 @@ class ScanCodeCardTest {
           otherPersonName = "Loca",
           phase = HandoverPhase.PICKUP,
           pickupDate = LocalDate.of(2026, 10, 6),
-          isPickupDay = true,
+          serverToday = LocalDate.of(2026, 10, 6),
           photos = photos(3),
           codeFingerprint = "fingerprint",
       )
@@ -184,7 +184,7 @@ class ScanCodeCardTest {
 
   @Test
   fun noScanCardOutsideThePickupDay() {
-    setContent(ready.copy(isPickupDay = false))
+    setContent(ready.copy(serverToday = LocalDate.of(2026, 10, 7)))
     node(C.Tag.handover_scan_card).assertDoesNotExist()
   }
 
