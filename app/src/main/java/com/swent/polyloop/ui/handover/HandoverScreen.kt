@@ -115,12 +115,13 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
 
 /**
  * The Handover screen drawn from [uiState]: a spinner while loading, an error with Retry, a missing
- * rental, a rental that takes no photos, the pickup or the return. [onAddPhoto] is called when an
- * empty photo tile is tapped, [onRetryUpload] when the photo that failed to upload is, and
- * [onRetryServerToday] when "Retry" is tapped under the note asking to connect; photo times are
- * shown in [zone]. While [isCameraOpen], the in-app camera fills the screen for one photo, given to
- * [onPhotoTaken], or to [onCaptureFailed] if the shot fails; [cameraPermissionGranted] false shows
- * how to allow the camera.
+ * rental, a rental that takes no photos, the pickup or the return, the lender's check of the
+ * returned item, or the borrower waiting for it. [onAddPhoto] is called when an empty photo tile is
+ * tapped, [onRetryUpload] when the photo that failed to upload is, and [onRetryServerToday] when
+ * "Retry" is tapped under the note asking to connect; photo times are shown in [zone]. While
+ * [isCameraOpen], the in-app camera fills the screen for one photo, given to [onPhotoTaken], or to
+ * [onCaptureFailed] if the shot fails; [cameraPermissionGranted] false shows how to allow the
+ * camera.
  */
 @Composable
 fun HandoverContent(
@@ -172,6 +173,15 @@ fun HandoverContent(
                 C.Tag.handover_not_found,
                 Modifier.align(Alignment.Center),
             )
+        uiState.isReturnCheck ->
+            ReturnCheckContent(
+                uiState,
+                zone,
+                onPhotoClick = { enlargedId = it },
+                onRetryPhotos = onRetry,
+            )
+        uiState.isReturned ->
+            WaitingForCheck(uiState.otherPersonName, Modifier.align(Alignment.Center))
         uiState.phase == null ->
             CenteredMessage(
                 R.string.handover_nothing,
@@ -215,7 +225,7 @@ fun HandoverContent(
       }
     }
   }
-  uiState.photos
+  (uiState.photos + uiState.pickupPhotos)
       .find { it.id == enlargedId }
       ?.let { PhotoViewer(it, zone, onClose = { enlargedId = null }) }
   if (isCameraOpen) {
