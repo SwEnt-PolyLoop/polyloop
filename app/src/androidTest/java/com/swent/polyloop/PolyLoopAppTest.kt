@@ -156,6 +156,9 @@ class PolyLoopAppTest {
   /** The signed-in user PolyLoopApp reads on start; null means nobody is signed in. */
   private var currentUser: AuthUser? = null
 
+  /** Whether [currentUser] has the admin claim. */
+  private var currentUserIsAdmin = false
+
   private val me = AuthUser("me", "me@epfl.ch", "Me")
 
   /** What logging in on the Sign-up / login screen returns. */
@@ -173,6 +176,8 @@ class PolyLoopAppTest {
             AuthResult.Success(Unit)
 
         override fun getCurrentUser(): AuthUser? = currentUser
+
+        override suspend fun isAdmin(): Boolean = currentUser != null && currentUserIsAdmin
 
         override fun signOut() {
           currentUser = null
@@ -265,12 +270,12 @@ class PolyLoopAppTest {
   }
 
   // isSignedIn is left to its default, so the app reads the user from RepositoryProvider.
-  private fun setApp(isAdmin: Boolean = false) {
+  private fun setApp() {
     composeTestRule.setContent {
       backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
       appView = LocalView.current
       navController = rememberNavController()
-      PolyLoopApp(navController = navController, isAdmin = isAdmin)
+      PolyLoopApp(navController = navController)
     }
   }
 
@@ -280,10 +285,11 @@ class PolyLoopAppTest {
     }
   }
 
-  /** Starts the app with [me] already signed in, so it opens on Browse. */
+  /** Starts the app with [me] already signed in, with the admin claim if [isAdmin], on Browse. */
   private fun setAppSignedIn(isAdmin: Boolean = false) {
     currentUser = me
-    setApp(isAdmin)
+    currentUserIsAdmin = isAdmin
+    setApp()
   }
 
   /** Fills the log-in form of the Sign-up / login screen and presses "Log in". */
@@ -806,8 +812,8 @@ class PolyLoopAppTest {
     composeTestRule.runOnUiThread {
       NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(shown.id))
     }
-    // The screen shows before the server's date is read, so Start Pickup can still be grey at
-    // first; View Dispute is always enabled.
+    // The screen shows before the server's date is read, so Start Pickup or Start Return can still
+    // be grey at first; View Dispute is always enabled.
     composeTestRule.waitUntil(timeoutMillis = 5_000) {
       composeTestRule
           .onAllNodes(hasTestTag(C.Tag.rental_detail_action_button) and isEnabled())
@@ -827,6 +833,78 @@ class PolyLoopAppTest {
     )
 
     assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
+  }
+
+  @Test
+  fun startReturnOnItsReturnDayOpensTheHandover() {
+    val returnDay = LocalDate.of(2026, 10, 8)
+    // Noon in Zurich on the return day: Start Return opens from the server's day.
+    tapActionButtonOnRentalDetail(
+        rental.copy(
+            status = RentalStatus.ACTIVE,
+            startDate = returnDay.minusDays(2),
+            endDate = returnDay,
+        ),
+        serverNow = Instant.parse("2026-10-08T10:00:00Z"),
+    )
+
+    assertCurrentScreen(Screen.Handover, shownRoute = Screen.Handover.createRoute(rental.id))
+  }
+
+  /**
+   * Opens Rental detail on a request borrowed by "uid", taps "Cancel request" once it shows, and
+   * returns the fake holding the request, with the confirm sheet open. A request has no deadline,
+   * so the server's date does not matter.
+   */
+  private fun openTheCancelSheetOfARequest(): FakeRentalRepository {
+    val rentals =
+        FakeRentalRepository(rentals = listOf(rental.copy(status = RentalStatus.REQUESTED)))
+    useRentals(rentals)
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+    // The button shows once the rental is loaded.
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodes(hasTestTag(C.Tag.rental_detail_cancel_button) and isEnabled())
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
+        .performScrollTo()
+        .performClick()
+    waitForTag(C.Tag.rental_detail_cancel_sheet)
+    return rentals
+  }
+
+  @Test
+  fun cancelRequestThenYesCancelsTheRentalAndShowsThePlaceholder() {
+    val rentals = openTheCancelSheetOfARequest()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_yes).performClick()
+
+    waitForTag(C.Tag.rental_detail_unsupported)
+    assertEquals(
+        RentalStatus.CANCELLED,
+        runBlocking { rentals.getRental(rental.id).getOrThrow()?.status },
+    )
+  }
+
+  @Test
+  fun cancelRequestThenNoLeavesTheRentalRequested() {
+    val rentals = openTheCancelSheetOfARequest()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_no).performClick()
+
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_sheet).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_unsupported).assertDoesNotExist()
+    assertEquals(
+        RentalStatus.REQUESTED,
+        runBlocking { rentals.getRental(rental.id).getOrThrow()?.status },
+    )
   }
 
   @Test
@@ -854,13 +932,24 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.chat_header_name).assertIsDisplayed()
   }
 
+  /**
+   * Uses [rental] starting on 1 Oct 2026, with the server's clock at noon in Zurich that day: the
+   * chat's Start pickup shows from the server's day, not the phone's.
+   */
+  private fun useRentalOnItsPickupDay() {
+    val pickupDay = LocalDate.of(2026, 10, 1)
+    useRentals(
+        FakeRentalRepository(
+                rentals =
+                    listOf(rental.copy(startDate = pickupDay, endDate = pickupDay.plusDays(2)))
+            )
+            .also { it.serverNow = Instant.parse("2026-10-01T10:00:00Z") }
+    )
+  }
+
   @Test
   fun startPickupInTheChatOnThePickupDayOpensTheHandover() {
-    val today = LocalDate.now()
-    RepositoryProvider.rentalRepository =
-        FakeRentalRepository(
-            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
-        )
+    useRentalOnItsPickupDay()
     openAsBorrower(Screen.Chat.createRoute(rental.id))
 
     waitForTag(C.Tag.chat_start_pickup_button)
@@ -906,11 +995,7 @@ class PolyLoopAppTest {
 
   @Test
   fun aDoubleTapOnStartPickupInTheChatOpensOneHandover() {
-    val today = LocalDate.now()
-    RepositoryProvider.rentalRepository =
-        FakeRentalRepository(
-            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
-        )
+    useRentalOnItsPickupDay()
     openAsBorrower(Screen.Chat.createRoute(rental.id))
 
     doubleTap(C.Tag.chat_start_pickup_button)
@@ -1035,6 +1120,24 @@ class PolyLoopAppTest {
     composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
 
     composeTestRule.onNodeWithTag(C.Tag.drawer_name).assertTextEquals("Me")
+  }
+
+  @Test
+  fun drawerListsCourtRulingsForAnAdminWhoSignsIn() {
+    signInResult = AuthResult.Success(me)
+    setApp()
+    // Started signed out; Firebase knows the admin once they log in.
+    currentUser = me
+    currentUserIsAdmin = true
+
+    logIn()
+    waitForTag(C.Tag.browse_screen)
+    composeTestRule.onNodeWithTag(C.Tag.top_bar_menu_button).performClick()
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.drawerItem(Screen.AdminCourtRuling.route))
+        .performScrollTo()
+        .assertIsDisplayed()
   }
 
   @Test

@@ -12,7 +12,9 @@ import com.swent.polyloop.model.chat.Message
 import com.swent.polyloop.model.chat.MessageType
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
 import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
@@ -65,6 +67,10 @@ class ChatViewModelTest {
   private lateinit var chat: FakeChatRepository
   private lateinit var auth: FakeAuthRepository
 
+  // No rental is stored, so none is accepted and the server's day is never read.
+  private val rentals = FakeRentalRepository()
+  private val serverClock = ServerClock(rentals, InMemoryServerClockStore(), bootCount = { 0 })
+
   @Before
   fun setUp() {
     Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -83,7 +89,7 @@ class ChatViewModelTest {
       repository: ChatRepository = chat,
       rentalId: String = "tent",
       connectivity: FakeConnectivityRepository = FakeConnectivityRepository(),
-  ) = ChatViewModel(rentalId, repository, auth, FakeRentalRepository(), connectivity)
+  ) = ChatViewModel(rentalId, repository, auth, rentals, connectivity, serverClock)
 
   // ---------- loading ----------
 
@@ -626,8 +632,9 @@ class ChatViewModelTest {
                 "tent",
                 chat,
                 auth,
-                FakeRentalRepository(),
+                rentals,
                 FakeConnectivityRepository(),
+                serverClock,
             )
             .create(ChatViewModel::class.java)
 
@@ -636,7 +643,7 @@ class ChatViewModelTest {
 
   @Test(expected = IllegalArgumentException::class)
   fun factoryRejectsOtherViewModels() {
-    ChatViewModel.Factory("tent", chat, auth, FakeRentalRepository(), FakeConnectivityRepository())
+    ChatViewModel.Factory("tent", chat, auth, rentals, FakeConnectivityRepository(), serverClock)
         .create(OtherViewModel::class.java)
   }
 

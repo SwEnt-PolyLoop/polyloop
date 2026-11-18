@@ -15,6 +15,7 @@ import com.swent.polyloop.ui.components.withNowAtExpiries
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -110,8 +111,19 @@ class MyRentalsViewModel(
 
   private var observing: Job? = null
 
+  // Asks to check the offers' expiries again by [clock], when the screen comes back.
+  private val offerRechecks = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
   init {
     observe()
+  }
+
+  /**
+   * The screen is visible again (opened, or back from another screen or the background). The wait
+   * for the next offer expiry stops while the phone sleeps, so the expiries are checked again now.
+   */
+  fun onScreenResumed() {
+    offerRechecks.tryEmit(Unit)
   }
 
   /** Shows the rows of [tab]. */
@@ -147,6 +159,7 @@ class MyRentalsViewModel(
           .withNowAtExpiries(
               { (borrowed, lent) -> (borrowed + lent).mapNotNull { it.offer?.expiresAt } },
               clock,
+              offerRechecks,
           )
           .map { (rentals, now) ->
             val (borrowed, lent) = rentals

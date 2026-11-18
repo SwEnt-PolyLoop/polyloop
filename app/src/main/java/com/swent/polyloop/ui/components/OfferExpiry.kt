@@ -7,6 +7,9 @@ import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.transformLatest
 
 /**
@@ -15,11 +18,25 @@ import kotlinx.coroutines.flow.transformLatest
  * it expires, without waiting for the hourly `expireOffers` job to remove it. A new value replaces
  * the waiting one.
  *
+ * The wait runs on the uptime clock, which stops while the phone sleeps, so after a sleep it can
+ * end late. Each emission of [rechecks] emits the latest value again with the time from [clock] and
+ * plans the next wait from there; screens send one when they come back to the front.
+ *
  * @param expiries the times at which the value must be shown again, e.g. its offers' expiries.
  * @param clock the current time; the phone's clock, as the server refuses an expired offer anyway.
+ * @param rechecks asks to read [clock] again, e.g. when the screen comes back after a sleep.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 fun <T> Flow<T>.withNowAtExpiries(
+    expiries: (T) -> List<Instant>,
+    clock: () -> Instant,
+    rechecks: Flow<Unit> = emptyFlow(),
+): Flow<Pair<T, Instant>> =
+    combine(this, rechecks.onStart { emit(Unit) }) { value, _ -> value }
+        .nowAtExpiries(expiries, clock)
+
+@OptIn(ExperimentalCoroutinesApi::class)
+private fun <T> Flow<T>.nowAtExpiries(
     expiries: (T) -> List<Instant>,
     clock: () -> Instant,
 ): Flow<Pair<T, Instant>> = transformLatest { value ->

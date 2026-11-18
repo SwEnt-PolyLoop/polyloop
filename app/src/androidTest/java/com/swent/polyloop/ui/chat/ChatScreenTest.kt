@@ -36,7 +36,9 @@ import com.swent.polyloop.model.chat.Message
 import com.swent.polyloop.model.chat.MessageType
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.chatlist.formatMessageTime
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
@@ -67,6 +69,9 @@ class ChatScreenTest {
   private val loaded =
       ChatUiState(header = header, messages = listOf(theirs, mine), isLoading = false)
 
+  // An accepted rental on its pickup day, by the server's clock.
+  private val pickupDay = loaded.copy(pickupDate = start, serverToday = start)
+
   private var drafts = mutableListOf<String>()
   private var sends = 0
   private var retries = 0
@@ -74,21 +79,20 @@ class ChatScreenTest {
   private var pickupClicks = 0
   private var reviewRequestClicks = 0
 
-  // The day the screen takes as today; a test can change it after setContent and the screen
-  // follows.
-  private var today by mutableStateOf(start)
+  // The state shown; a test can change it after setContent and the screen follows.
+  private var shown by mutableStateOf(loaded)
 
   private fun setContent(uiState: ChatUiState) {
+    shown = uiState
     composeTestRule.setContent {
       PolyLoopTheme {
         ChatContent(
-            uiState = uiState,
+            uiState = shown,
             onDraftChange = { drafts += it },
             onSend = { sends++ },
             onRetry = { retries++ },
             onRentalDetailsClick = { rentalDetailsClicks++ },
             now = now,
-            today = today,
             onStartPickupClick = { pickupClicks++ },
             onReviewRequestClick = { reviewRequestClicks++ },
         )
@@ -180,7 +184,7 @@ class ChatScreenTest {
 
   @Test
   fun onThePickupDayTheBarShowsAndItsButtonStartsThePickup() {
-    setContent(loaded.copy(pickupDate = start))
+    setContent(pickupDay)
 
     composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertIsDisplayed()
     composeTestRule
@@ -191,28 +195,37 @@ class ChatScreenTest {
   }
 
   @Test
-  fun theBarShowsOnlyOnThePickupDayItself() {
-    today = start.minusDays(1)
-    setContent(loaded.copy(pickupDate = start))
+  fun theBarShowsOnlyWhenTheServersDayIsThePickupDay() {
+    setContent(pickupDay.copy(serverToday = start.minusDays(1)))
     composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
 
-    today = start.plusDays(1)
+    shown = pickupDay.copy(serverToday = start.plusDays(1))
     composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
 
-    today = start
+    shown = pickupDay
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertIsDisplayed()
+  }
+
+  @Test
+  fun theBarIsHiddenWhenTheServersDayIsUnknownEvenOnThePhonesPickupDay() {
+    val phoneToday = LocalDate.now()
+    setContent(loaded.copy(pickupDate = phoneToday, serverToday = null))
+    composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
+
+    shown = loaded.copy(pickupDate = phoneToday, serverToday = phoneToday)
     composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertIsDisplayed()
   }
 
   @Test
   fun aRentalThatIsNotAcceptedHasNoBar() {
-    setContent(loaded)
+    setContent(loaded.copy(serverToday = start))
 
     composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
   }
 
   @Test
   fun theBarIsHiddenWhileTheChatLoads() {
-    setContent(loaded.copy(pickupDate = start, isLoading = true))
+    setContent(pickupDay.copy(isLoading = true))
 
     composeTestRule.onNodeWithTag(C.Tag.chat_loading).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
@@ -220,7 +233,7 @@ class ChatScreenTest {
 
   @Test
   fun theBarIsHiddenWhenTheChatCannotBeLoaded() {
-    setContent(loaded.copy(pickupDate = start, errorMsg = "Network error"))
+    setContent(pickupDay.copy(errorMsg = "Network error"))
 
     composeTestRule.onNodeWithTag(C.Tag.chat_error).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
@@ -228,7 +241,7 @@ class ChatScreenTest {
 
   @Test
   fun theStartPickupButtonStaysEnabledOfflineUnderTheHeader() {
-    setContent(loaded.copy(pickupDate = start, isOffline = true))
+    setContent(pickupDay.copy(isOffline = true))
 
     composeTestRule.onNodeWithTag(C.Tag.chat_start_pickup_button).assertIsEnabled()
     assertTrue(bounds(C.Tag.chat_pickup_bar).top >= bounds(C.Tag.chat_header_item).bottom)
@@ -439,7 +452,16 @@ class ChatScreenTest {
 
           override fun signOut() = Unit
         }
-    return ChatViewModel("tent", chat, auth, FakeRentalRepository(), FakeConnectivityRepository())
+    // No rental is stored, so none is accepted and the server's day is never read.
+    val rentals = FakeRentalRepository()
+    return ChatViewModel(
+        "tent",
+        chat,
+        auth,
+        rentals,
+        FakeConnectivityRepository(),
+        ServerClock(rentals, InMemoryServerClockStore(), bootCount = { 0 }),
+    )
   }
 
   @Test

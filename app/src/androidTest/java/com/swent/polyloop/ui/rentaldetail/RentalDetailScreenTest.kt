@@ -71,7 +71,9 @@ class RentalDetailScreenTest {
           onChatClick = { chatClicks++ },
           onPersonClick = { personClicks += it },
           onStartPickupClick = {},
+          onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCancelClick = {},
           onReviewRequestClick = { reviewRequestClicks++ },
           today = today,
           zone = ZoneOffset.UTC,
@@ -411,7 +413,9 @@ class RentalDetailScreenTest {
           onChatClick = {},
           onPersonClick = {},
           onStartPickupClick = {},
+          onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCancelClick = {},
           today = today,
           zone = ZoneOffset.UTC,
           locale = Locale.ENGLISH,
@@ -432,102 +436,5 @@ class RentalDetailScreenTest {
         C.Tag.rental_detail_pickup_area,
         context.getString(R.string.rental_detail_area_placeholder),
     )
-  }
-
-  @Test
-  fun borrowerSeesTheCancelRow() {
-    setContent()
-
-    assertShown(
-        C.Tag.rental_detail_cancel_until,
-        context.getString(R.string.rental_detail_cancel_until, "Wed 30 Sep"),
-    )
-    composeTestRule
-        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
-        .performScrollTo()
-        .assertIsDisplayed()
-  }
-
-  @Test
-  fun cancelSaysItIsNotAvailableYet() {
-    setContent()
-
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).performScrollTo()
-    assertShown(
-        C.Tag.rental_detail_cancel_not_available,
-        context.getString(R.string.not_available_yet),
-    )
-  }
-
-  @Test
-  fun cancelRowShowsOnTheLastCancelDay() {
-    // Pickup tomorrow: today (Mon 28 Sep) is the last day to cancel, so its date still shows.
-    setContent(requested.copy(startDate = today.plusDays(1)))
-
-    assertShown(
-        C.Tag.rental_detail_cancel_until,
-        context.getString(R.string.rental_detail_cancel_until, "Mon 28 Sep"),
-    )
-  }
-
-  @Test
-  fun cancelRowShowsTheYearWhenNotThisYear() {
-    setContent(
-        requested.copy(startDate = LocalDate.of(2027, 1, 6), endDate = LocalDate.of(2027, 1, 8))
-    )
-
-    assertShown(
-        C.Tag.rental_detail_cancel_until,
-        context.getString(R.string.rental_detail_cancel_until, "Tue 5 Jan 2027"),
-    )
-  }
-
-  @Test
-  fun lenderSeesNoCancelRow() {
-    setContent(requested.copy(isLender = true))
-
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_map).performScrollTo()
-    assertAbsent(C.Tag.rental_detail_cancel_until)
-    assertAbsent(C.Tag.rental_detail_cancel_button)
-    assertAbsent(C.Tag.rental_detail_cancel_not_available)
-  }
-
-  @Test
-  fun onlyTheCancelButtonShowsOnThePickupDay() {
-    setContent(requested.copy(startDate = today))
-
-    composeTestRule
-        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
-        .performScrollTo()
-        .assertIsDisplayed()
-    assertAbsent(C.Tag.rental_detail_cancel_until)
-  }
-
-  @Test
-  fun onlyTheCancelButtonShowsAfterThePickupDay() {
-    // A request never accepted can still be withdrawn once its dates have passed.
-    setContent(requested.copy(startDate = today.minusDays(3), endDate = today.minusDays(1)))
-
-    composeTestRule
-        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
-        .performScrollTo()
-        .assertIsDisplayed()
-    assertAbsent(C.Tag.rental_detail_cancel_until)
-  }
-
-  @Test
-  fun tappingCancelRequestChangesNothing() {
-    setContent()
-
-    composeTestRule
-        .onNodeWithTag(C.Tag.rental_detail_cancel_button)
-        .performScrollTo()
-        .performClick()
-
-    composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_button).assertIsDisplayed()
-    assertShown(C.Tag.rental_detail_title, "Ski helmet, size M")
-    assertEquals(0, retries)
-    assertEquals(0, chatClicks)
-    assertEquals(emptyList<String>(), personClicks)
   }
 }

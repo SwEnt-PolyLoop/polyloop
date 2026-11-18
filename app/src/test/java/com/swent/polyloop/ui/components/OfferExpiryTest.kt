@@ -4,6 +4,7 @@ package com.swent.polyloop.ui.components
 
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -58,6 +59,32 @@ class OfferExpiryTest {
 
     // Nothing at 10 s: that expiry was replaced before it came.
     assertEquals(listOf(start.plusSeconds(10) to start, start.plusSeconds(60) to start), emitted)
+    job.cancel()
+  }
+
+  @Test
+  fun aRecheckReadsTheClockAgainAndPlansTheNextWaitFromThere() = runTest {
+    // The phone's clock, which a sleep moves on while the virtual (uptime) time stands still.
+    var jump = 0L
+    val clock = { start.plusMillis(testScheduler.currentTime + jump) }
+    val rechecks = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val first = start.plusSeconds(10)
+    val second = start.plusSeconds(30)
+    val emitted = mutableListOf<Instant>()
+    val job = launch {
+      val times = flowOf("v").withNowAtExpiries({ listOf(first, second) }, clock, rechecks)
+      times.collect { emitted += it.second }
+    }
+    runCurrent()
+
+    jump = 20_000
+    rechecks.tryEmit(Unit)
+    runCurrent()
+    advanceTimeBy(10_001)
+    runCurrent()
+
+    // Back at 20 s, past the first expiry, then the second one 10 s later.
+    assertEquals(listOf(start, start.plusSeconds(20), second), emitted)
     job.cancel()
   }
 
