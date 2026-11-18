@@ -107,4 +107,27 @@ class HandoverReturnConfirmTest {
     composeTestRule.onNodeWithTag(C.Tag.handover_no_after_photos).assertDoesNotExist()
   }
 
+  @Test
+  fun photosThatCannotBeLoadedShowAnErrorWhoseRetryRetries() {
+    setContent(check.copy(photosFailed = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.handover_photos_error).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.handover_before_photo).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.handover_photos_retry_button).performClick()
+    assertEquals(1, retries)
+  }
+
+  @Test
+  fun theBorrowerWaitsForTheLendersCheck() {
+    setContent(check.copy(isLender = false, otherPersonName = "Mara"))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.handover_waiting_check)
+        .assertTextEquals(
+            "The item is being checked against the pickup photos. The deposit is released once " +
+                "Mara confirms everything is fine."
+        )
+    composeTestRule.onNodeWithTag(C.Tag.handover_return_check).assertDoesNotExist()
+  }
+
 }
