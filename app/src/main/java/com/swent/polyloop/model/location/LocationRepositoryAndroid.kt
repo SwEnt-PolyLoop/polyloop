@@ -9,8 +9,10 @@ import android.location.Location
 import android.location.LocationManager
 import android.os.Build
 import android.os.CancellationSignal
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -19,7 +21,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * [LocationRepository] backed by Android's [LocationManager], with the coarse location permission
  * only. It asks the enabled providers in turn (fused on API 31+, then network) for one fresh fix,
  * giving each [PROVIDER_TIMEOUT_MILLIS] and all of them [timeoutMillis] in all, then falls back to
- * the last known location. It never throws: a missing permission, provider or fix gives null.
+ * the last known location if it is at most 30 minutes old. It never throws: a missing permission,
+ * provider or fix gives null.
  *
  * The logic is kept thin because it depends on the system's location services, which unit tests
  * cannot reproduce.
@@ -91,21 +94,37 @@ class LocationRepositoryAndroid(
         }
       }
 
-  /** The newest last known location. The passive provider is only useful here, never for a fix. */
-  private fun lastKnown(manager: LocationManager): Location? =
-      (freshProviders(manager) + LocationManager.PASSIVE_PROVIDER)
-          .mapNotNull { provider ->
-            try {
-              manager.getLastKnownLocation(provider)
-            } catch (_: SecurityException) {
-              // The permission was revoked meanwhile: no known location.
-              null
-            }
+  /**
+   * The newest last known location whose age is between 0 and [MAX_LAST_KNOWN_AGE_NANOS], by the
+   * elapsed realtime clock (which a change of the phone's date does not move), or null. A location
+   * with a larger elapsed time than now, saved before a reboot for example, is never recent. The
+   * enabled providers of [freshProviders] are asked, plus the passive one on API 31+, as the fused
+   * one is; it is only useful here, never for a fix.
+   */
+  private fun lastKnown(manager: LocationManager): Location? {
+    val now = SystemClock.elapsedRealtimeNanos()
+    val providers =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          freshProviders(manager) + LocationManager.PASSIVE_PROVIDER
+        } else {
+          freshProviders(manager)
+        }
+    return providers
+        .mapNotNull { provider ->
+          try {
+            manager.getLastKnownLocation(provider)
+          } catch (_: SecurityException) {
+            // The permission was revoked meanwhile: no known location.
+            null
           }
-          .maxByOrNull { it.time }
+        }
+        .filter { now - it.elapsedRealtimeNanos in 0..MAX_LAST_KNOWN_AGE_NANOS }
+        .maxByOrNull { it.elapsedRealtimeNanos }
+  }
 
   companion object {
     const val FIX_TIMEOUT_MILLIS = 6_000L
     const val PROVIDER_TIMEOUT_MILLIS = 3_000L
+    val MAX_LAST_KNOWN_AGE_NANOS = TimeUnit.MINUTES.toNanos(30)
   }
 }
