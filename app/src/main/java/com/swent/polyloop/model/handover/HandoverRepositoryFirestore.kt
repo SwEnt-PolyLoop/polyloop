@@ -6,12 +6,15 @@ import androidx.core.net.toUri
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageException
+import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.firestore.FUNCTIONS_REGION
@@ -42,6 +45,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * fingerprint of the code to scan is on the rental. A scan goes to the Cloud Function
  * `confirmHandover`, the only one that moves the rental on.
  *
+ * A slot whose file exists in Storage without a document (an upload that finished but whose
+ * document was never written) can never be written again, as the rules refuse to replace a file:
+ * [addPhoto] skips it for the rest of the session and tries the next slot.
+ *
  * @param functions gives the Cloud Functions client. A provider, not an instance, so that Firebase
  *   is only touched when a Function is called.
  */
@@ -62,6 +69,11 @@ class HandoverRepositoryFirestore(
 
   // The slots chosen by an addPhoto call that has not written its document yet, per rental.
   private val reservedIds = ConcurrentHashMap<String, MutableSet<String>>()
+
+  // The slots whose file exists in Storage without a document (an upload that finished but whose
+  // document was never written), per rental, for the rest of the session. The rules never let a
+  // file be replaced, so writing to such a slot again is refused: it is skipped instead.
+  private val burnedIds = ConcurrentHashMap<String, MutableSet<String>>()
 
   /** The user's own photos of [phase], the query behind [observeMyPhotos] and the slots. */
   private fun myPhotos(rentalId: String, uid: String, phase: HandoverPhase) =
@@ -95,27 +107,37 @@ class HandoverRepositoryFirestore(
     }
     val uid = auth.currentUser?.uid ?: return Result.failure(IllegalStateException("Signed out"))
     return withFirebaseErrors {
-      val slotId =
-          reserveSlot(rentalId, uid, phase)
-              ?: return@withFirebaseErrors Result.failure(
-                  IllegalStateException(
-                      "All ${HandoverPhoto.MAX_PHOTOS} ${phase.name} photos are already taken"
-                  )
-              )
-      try {
-        upload(rentalId, uid, phase, slotId, photoUri)
-      } finally {
-        // The document is written, so the next call sees the slot in the snapshot, or the upload
-        // failed and the slot is free again.
-        reservedIds[rentalId]?.remove(slotId)
+      // At most one attempt per slot: a slot whose file already exists is burned, the next is
+      // tried.
+      for (attempt in 0 until HandoverPhoto.MAX_PHOTOS) {
+        val slotId = reserveSlot(rentalId, uid, phase) ?: break
+        val document = photos(rentalId).document(slotId)
+        val ref = storage.reference.child("${document.path}.jpg")
+        try {
+          return@withFirebaseErrors upload(document, ref, uid, phase, photoUri)
+        } catch (e: StorageException) {
+          // Only "not authorized" can mean that the file is already there, and only if it is. Any
+          // other error, or a metadata read that fails (e.g. offline), is the real failure.
+          if (e.errorCode != StorageException.ERROR_NOT_AUTHORIZED || !fileExists(ref)) throw e
+          burnedIds.getOrPut(rentalId) { ConcurrentHashMap.newKeySet() }.add(slotId)
+        } finally {
+          // The document is written, so the next call sees the slot in the snapshot, or the upload
+          // failed and the slot is free again (or burned, above, before it is freed).
+          reservedIds[rentalId]?.remove(slotId)
+        }
       }
+      Result.failure(
+          IllegalStateException(
+              "All ${HandoverPhoto.MAX_PHOTOS} ${phase.name} photos are already taken"
+          )
+      )
     }
   }
 
   /**
    * Picks the lowest slot of the user that is neither in the local snapshot of their photos, which
-   * includes writes still waiting to be sent, nor chosen by a call still uploading. Null when all
-   * are used.
+   * includes writes still waiting to be sent, nor chosen by a call still uploading, nor burned (its
+   * file exists without a document). Null when all are used.
    */
   private suspend fun reserveSlot(rentalId: String, uid: String, phase: HandoverPhase): String? =
       slotLocks
@@ -126,20 +148,30 @@ class HandoverRepositoryFirestore(
                 myPhotos(rentalId, uid, phase)
                     .snapshotsAsFlow { it.documents.map { d -> d.id } }
                     .first()
-            lowestFreeSlot(uid, phase, existing + reserved)
+            lowestFreeSlot(uid, phase, existing + reserved + burnedIds[rentalId].orEmpty())
                 ?.let { photoSlotId(uid, phase, it) }
                 ?.also { reserved.add(it) }
           }
 
+  /**
+   * Whether the file of [ref] exists, from its metadata. False when it is not found, and also when
+   * the read fails for another reason or takes more than [METADATA_TIMEOUT_MS] (e.g. offline): the
+   * caller then keeps the original failure.
+   */
+  private suspend fun fileExists(ref: StorageReference): Boolean =
+      try {
+        withTimeoutOrNull(METADATA_TIMEOUT_MS) { ref.metadata.await() } != null
+      } catch (e: StorageException) {
+        false
+      }
+
   private suspend fun upload(
-      rentalId: String,
+      document: DocumentReference,
+      ref: StorageReference,
       uid: String,
       phase: HandoverPhase,
-      slotId: String,
       photoUri: String,
   ): Result<Unit> {
-    val document = photos(rentalId).document(slotId)
-    val ref = storage.reference.child("${document.path}.jpg")
     val upload = ref.putFile(photoUri.toUri(), storageMetadata { contentType = "image/jpeg" })
     // Offline, Storage keeps retrying for minutes, so stop waiting after a while.
     val url =
@@ -228,6 +260,11 @@ class HandoverRepositoryFirestore(
 
   private companion object {
     const val UPLOAD_TIMEOUT_MS = 30_000L
+
+    /**
+     * The server has just answered when the metadata is read, so a long wait only delays the error.
+     */
+    const val METADATA_TIMEOUT_MS = 10_000L
     const val CONFIRM_HANDOVER = "confirmHandover"
 
     /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */

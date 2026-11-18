@@ -4,6 +4,8 @@ package com.swent.polyloop.model.handover
 
 import android.net.Uri
 import com.google.android.gms.tasks.OnCompleteListener
+import com.google.android.gms.tasks.Task
+import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
@@ -13,6 +15,8 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageException
+import com.google.firebase.storage.StorageMetadata
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.UploadTask
 import io.mockk.every
@@ -62,6 +66,20 @@ class HandoverRepositoryFirestoreTest {
         }
   }
 
+  // What the upload of a path does (by default, never finishes) and what reading its metadata
+  // gives.
+  private var uploadFor: (String) -> UploadTask = { upload }
+  private var metadata: Task<StorageMetadata> = Tasks.forResult(mockk())
+
+  private fun failedUpload(error: Exception): UploadTask = mockk {
+    every { isComplete } returns true
+    every { isCanceled } returns false
+    every { exception } returns error
+  }
+
+  private fun storageError(httpCode: Int) =
+      StorageException.fromExceptionAndHttpCode(null, httpCode)!!
+
   private lateinit var repository: HandoverRepositoryFirestore
 
   @Before
@@ -99,7 +117,8 @@ class HandoverRepositoryFirestoreTest {
           uploadedPaths.add(firstArg())
           photoRef
         }
-    every { photoRef.putFile(any(), any()) } returns upload
+    every { photoRef.putFile(any(), any()) } answers { uploadFor(uploadedPaths.last()) }
+    every { photoRef.metadata } answers { metadata }
     repository = HandoverRepositoryFirestore(db, auth) { storage }
   }
 
@@ -182,5 +201,111 @@ class HandoverRepositoryFirestoreTest {
         List(2) { "rentals/r1/photos/u1_PICKUP_0.jpg" },
         uploadedPaths,
     )
+  }
+
+  // ---------- a slot whose file exists without a document ----------
+
+  private val notAuthorized = 403
+  private val notFound = 404
+
+  @Test
+  fun theErrorCodesUsedByTheTestsAreTheExpectedOnes() {
+    assertEquals(StorageException.ERROR_NOT_AUTHORIZED, storageError(notAuthorized).errorCode)
+    assertEquals(StorageException.ERROR_OBJECT_NOT_FOUND, storageError(notFound).errorCode)
+  }
+
+  @Test
+  fun aSlotWhoseFileExistsWithoutADocumentIsSkippedAndTheNextOneIsUsed() = runTest {
+    uploadFor = { path ->
+      if (path.endsWith("u1_PICKUP_0.jpg")) failedUpload(storageError(notAuthorized)) else upload
+    }
+
+    val call = launch { repository.addPhoto("r1", HandoverPhase.PICKUP, photoUri) }
+    runCurrent() // slot 0 was refused, its file exists, slot 1 is being uploaded
+
+    assertEquals(
+        listOf("rentals/r1/photos/u1_PICKUP_0.jpg", "rentals/r1/photos/u1_PICKUP_1.jpg"),
+        uploadedPaths,
+    )
+    call.cancel()
+  }
+
+  @Test
+  fun aBurnedSlotIsNotTriedAgainByTheNextCall() = runTest {
+    uploadFor = { path ->
+      if (path.endsWith("u1_PICKUP_0.jpg")) failedUpload(storageError(notAuthorized)) else upload
+    }
+    val first = launch { repository.addPhoto("r1", HandoverPhase.PICKUP, photoUri) }
+    runCurrent()
+    first.cancel()
+    first.join()
+
+    val second = launch { repository.addPhoto("r1", HandoverPhase.PICKUP, photoUri) }
+    runCurrent()
+
+    // Slot 0 once, then slot 1 twice (the first call was cancelled, which freed it).
+    assertEquals(
+        listOf(
+            "rentals/r1/photos/u1_PICKUP_0.jpg",
+            "rentals/r1/photos/u1_PICKUP_1.jpg",
+            "rentals/r1/photos/u1_PICKUP_1.jpg",
+        ),
+        uploadedPaths,
+    )
+    second.cancel()
+  }
+
+  @Test
+  fun aRefusedUploadWhoseFileDoesNotExistKeepsTheOriginalFailureAndBurnsNothing() = runTest {
+    val refused = storageError(notAuthorized)
+    uploadFor = { failedUpload(refused) }
+    metadata = Tasks.forException(storageError(notFound))
+
+    val result = repository.addPhoto("r1", HandoverPhase.PICKUP, photoUri)
+
+    assertEquals(refused, result.exceptionOrNull())
+    assertEquals(listOf("rentals/r1/photos/u1_PICKUP_0.jpg"), uploadedPaths)
+
+    // Nothing was burned: the next call starts from slot 0 again.
+    repository.addPhoto("r1", HandoverPhase.PICKUP, photoUri)
+    assertEquals(
+        List(2) { "rentals/r1/photos/u1_PICKUP_0.jpg" },
+        uploadedPaths,
+    )
+  }
+
+  @Test
+  fun aMetadataReadThatFailsKeepsTheOriginalFailure() = runTest {
+    val refused = storageError(notAuthorized)
+    uploadFor = { failedUpload(refused) }
+    metadata = Tasks.forException(storageError(503))
+
+    val result = repository.addPhoto("r1", HandoverPhase.PICKUP, photoUri)
+
+    assertEquals(refused, result.exceptionOrNull())
+    assertEquals(1, uploadedPaths.size)
+  }
+
+  @Test
+  fun anErrorOtherThanNotAuthorizedIsNeverTreatedAsAnExistingFile() = runTest {
+    val failure = storageError(503)
+    uploadFor = { failedUpload(failure) }
+
+    val result = repository.addPhoto("r1", HandoverPhase.PICKUP, photoUri)
+
+    assertEquals(failure, result.exceptionOrNull())
+    assertEquals(1, uploadedPaths.size)
+    verify(exactly = 0) { photoRef.metadata }
+  }
+
+  @Test
+  fun whenEverySlotIsBurnedTheAllPhotosTakenFailureIsKept() = runTest {
+    uploadFor = { failedUpload(storageError(notAuthorized)) }
+
+    val result = repository.addPhoto("r1", HandoverPhase.PICKUP, photoUri)
+
+    assertTrue(result.exceptionOrNull() is IllegalStateException)
+    assertEquals(HandoverPhoto.MAX_PHOTOS, uploadedPaths.toSet().size)
+    assertEquals(HandoverPhoto.MAX_PHOTOS, uploadedPaths.size)
   }
 }

@@ -9,6 +9,9 @@ import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
+import com.google.firebase.storage.StorageException
+import com.google.firebase.storage.storage
+import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.io.File
 import java.util.UUID
@@ -197,5 +200,42 @@ class HandoverRepositoryFirestoreEmulatorTest {
     } finally {
       Firebase.firestore.enableNetwork().await()
     }
+  }
+
+  /** A file in the user's slot [slot] with no document, as an upload whose document was lost. */
+  private fun orphanFile(rentalId: String, slot: Int) = runBlocking {
+    Firebase.storage.reference
+        .child("rentals/$rentalId/photos/${uid}_PICKUP_$slot.jpg")
+        .putFile(Uri.parse(photoFile()), storageMetadata { contentType = "image/jpeg" })
+        .await()
+  }
+
+  @Test
+  fun aSlotWhoseFileExistsWithoutADocumentIsSkipped() = runBlocking {
+    val rentalId = seedRental()
+    orphanFile(rentalId, slot = 0)
+
+    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
+    assertEquals(listOf("${uid}_PICKUP_1"), myPhotoIds(rentalId))
+
+    // Slot 0 is set aside for the rest of the session, so the next photo goes to slot 2.
+    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
+    assertEquals(listOf("${uid}_PICKUP_1", "${uid}_PICKUP_2"), myPhotoIds(rentalId))
+  }
+
+  @Test
+  fun aReallyNotAuthorizedUploadFailsWithoutBurningAnySlot() = runBlocking {
+    val rentalId = seedRental(status = "REQUESTED")
+
+    val refused = repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile())
+
+    assertEquals(
+        StorageException.ERROR_NOT_AUTHORIZED,
+        (refused.exceptionOrNull() as? StorageException)?.errorCode,
+    )
+    // Once the rental is accepted, the first slot is still free: nothing was burned.
+    FirebaseEmulator.updateDocumentAsAdmin("rentals/$rentalId", mapOf("status" to "ACCEPTED"))
+    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
+    assertEquals(listOf("${uid}_PICKUP_0"), myPhotoIds(rentalId))
   }
 }
