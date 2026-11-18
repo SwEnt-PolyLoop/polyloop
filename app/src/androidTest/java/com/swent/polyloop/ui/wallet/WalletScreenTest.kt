@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.wallet
 
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -198,6 +199,16 @@ class WalletScreenTest {
         .onNodeWithTag(C.Tag.wallet_unavailable)
         .assertTextEquals("Your balance is unavailable until your phone is back online.")
     composeTestRule.onNodeWithTag(C.Tag.wallet_held_rentals).assertDoesNotExist()
+  }
+
+  @Test
+  fun anUnknownAmountIsReadAsUnknownByAScreenReaderNotAsADash() {
+    setContent(state(wallet = null, history = null, isLoading = true, isOffline = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.wallet_available).assertContentDescriptionEquals("Unknown")
+    composeTestRule
+        .onNodeWithTag(C.Tag.wallet_held_deposits)
+        .assertContentDescriptionEquals("Unknown")
   }
 
   @Test

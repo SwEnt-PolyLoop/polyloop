@@ -30,6 +30,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -124,7 +126,11 @@ fun WalletContent(
             }
             BalanceCard(uiState.wallet, enabled = !uiState.isOffline, onRecharge = onRecharge)
             if (uiState.wallet == null && uiState.isOffline) {
-              UnavailableLine(R.string.wallet_unavailable_offline, C.Tag.wallet_unavailable)
+              UnavailableLine(
+                  R.string.wallet_unavailable_offline,
+                  C.Tag.wallet_unavailable,
+                  Modifier.padding(horizontal = 16.dp),
+              )
             }
             // Online with no history yet, the progress bar above says it is coming.
             if (uiState.history != null || uiState.isOffline) {
@@ -165,7 +171,7 @@ private fun BalanceCard(wallet: Wallet?, enabled: Boolean, onRecharge: () -> Uni
             text = wallet?.available?.toString() ?: stringResource(R.string.wallet_amount_unknown),
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.testTag(C.Tag.wallet_available),
+            modifier = Modifier.testTag(C.Tag.wallet_available).unknownDescription(wallet == null),
         )
         Text(
             text = stringResource(R.string.wallet_polypoints),
@@ -217,9 +223,20 @@ private fun HeldRow(@StringRes labelRes: Int, amount: Int?, amountTag: String) {
             else stringResource(R.string.wallet_pp_amount, amount),
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.testTag(amountTag),
+        modifier = Modifier.testTag(amountTag).unknownDescription(amount == null),
     )
   }
+}
+
+/**
+ * When [unknown], says "Unknown" to screen readers instead of reading the "—" that stands for an
+ * amount, which they would announce as "em dash".
+ */
+@Composable
+private fun Modifier.unknownDescription(unknown: Boolean): Modifier {
+  if (!unknown) return this
+  val description = stringResource(R.string.wallet_amount_unknown_description)
+  return semantics { contentDescription = description }
 }
 
 /**
@@ -227,14 +244,19 @@ private fun HeldRow(@StringRes labelRes: Int, amount: Int?, amountTag: String) {
  *
  * @param textRes the text of the line.
  * @param tag the test tag of the line.
+ * @param modifier how the line is laid out, e.g. its padding.
  */
 @Composable
-private fun UnavailableLine(@StringRes textRes: Int, tag: String) {
+private fun UnavailableLine(
+    @StringRes textRes: Int,
+    tag: String,
+    modifier: Modifier = Modifier,
+) {
   Text(
       text = stringResource(textRes),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.padding(horizontal = 16.dp).testTag(tag),
+      modifier = modifier.testTag(tag),
   )
 }
 
@@ -259,11 +281,10 @@ private fun HistorySection(history: List<WalletTransaction>?, today: LocalDate) 
     )
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
       if (history == null) {
-        Text(
-            text = stringResource(R.string.wallet_history_unavailable_offline),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(16.dp).testTag(C.Tag.wallet_history_unavailable),
+        UnavailableLine(
+            R.string.wallet_history_unavailable_offline,
+            C.Tag.wallet_history_unavailable,
+            Modifier.padding(16.dp),
         )
       } else if (history.isEmpty()) {
         Text(
