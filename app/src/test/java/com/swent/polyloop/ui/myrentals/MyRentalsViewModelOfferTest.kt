@@ -90,6 +90,21 @@ class MyRentalsViewModelOfferTest {
   }
 
   @Test
+  fun anOfferThatExpiredWhileThePhoneSleptShowsExpiredWhenTheScreenComesBack() {
+    clockStart = expiresAt.minusSeconds(3600)
+    val vm = viewModel("borrower", request.copy(offer = offer))
+
+    // The phone sleeps past the expiry: its clock moves on, but the wait (uptime) does not.
+    clockStart = expiresAt.plusSeconds(60)
+    dispatcher.scheduler.runCurrent()
+    assertFalse(vm.uiState.value.borrowingRequests.single().isOfferExpired)
+
+    vm.onScreenResumed()
+
+    assertTrue(vm.uiState.value.borrowingRequests.single().isOfferExpired)
+  }
+
+  @Test
   fun aRequestWithoutAnOfferIsNeverExpired() {
     clockStart = expiresAt.plusSeconds(60)
 

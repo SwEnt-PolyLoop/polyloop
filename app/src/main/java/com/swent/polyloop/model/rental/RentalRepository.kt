@@ -107,6 +107,17 @@ interface RentalRepository {
   suspend fun declineRequest(rentalId: String): Result<Unit>
 
   /**
+   * Cancels a Requested or Accepted rental, for either participant. The app only asks: the Cloud
+   * Function checks the status and the day, sets the status to Cancelled and gives the reserved
+   * money back. So a success only means the request was accepted; the screen learns the new status
+   * from the live rental, not from this result.
+   *
+   * @param rentalId the rental to cancel.
+   * @return a failure with the cause if the server refuses or cannot be reached.
+   */
+  suspend fun cancelRental(rentalId: String): Result<Unit>
+
+  /**
    * The server's current time, from the `serverToday` Cloud Function. Start Pickup opens from it
    * rather than from the phone's clock, which the user can change in the phone's settings; the
    * server's cannot be changed from the phone.
