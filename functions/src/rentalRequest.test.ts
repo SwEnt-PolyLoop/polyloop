@@ -191,7 +191,10 @@ describe("createRentalRequest", () => {
     ]) {
       await expect(
         createRentalRequest(db, borrower, input(listingId, start, end), NOW),
-      ).rejects.toMatchObject({ code: "invalid-argument" });
+      ).rejects.toMatchObject({
+        code: "failed-precondition",
+        details: { reason: DATES_UNAVAILABLE },
+      });
     }
     // Both ends of the window are allowed.
     await createRentalRequest(db, borrower, input(listingId, "2030-04-30", "2030-04-30"), NOW);
@@ -203,27 +206,74 @@ describe("createRentalRequest", () => {
     const listingId = await listing(lender, { availableTo: null });
 
     await expect(createRentalRequest(db, borrower, input(listingId), NOW)).rejects.toMatchObject({
-      code: "invalid-argument",
+      code: "failed-precondition",
+      details: { reason: DATES_UNAVAILABLE },
     });
   });
 
-  it("refuses a first day in the past, by Zurich's day", async () => {
+  it("refuses a first day in the past or today, by Zurich's day", async () => {
     const { lender, borrower } = await people();
     const listingId = await listing(lender);
     // 23:30 UTC on 9 March is already 10 March in Zurich.
     const lateEvening = new Date("2030-03-09T23:30:00Z");
 
-    await expect(
-      createRentalRequest(db, borrower, input(listingId, "2030-03-09", "2030-03-12"), lateEvening),
-    ).rejects.toMatchObject({ code: "invalid-argument" });
-    // Today is allowed.
+    // Today can get no offer any more: makeOffer refuses once the first day has started.
+    for (const start of ["2030-03-09", "2030-03-10"]) {
+      await expect(
+        createRentalRequest(db, borrower, input(listingId, start, "2030-03-12"), lateEvening),
+      ).rejects.toMatchObject({
+        code: "failed-precondition",
+        details: { reason: DATES_UNAVAILABLE },
+      });
+    }
+    expect(await rentalsOf(listingId)).toBe(0);
+    // Tomorrow is the earliest first day.
     await createRentalRequest(
       db,
       borrower,
-      input(listingId, "2030-03-10", "2030-03-12"),
+      input(listingId, "2030-03-11", "2030-03-12"),
       lateEvening,
     );
     expect(await rentalsOf(listingId)).toBe(1);
+  });
+
+  it("refuses a second request of the same borrower with days in common", async () => {
+    const { lender, borrower } = await people();
+    const listingId = await listing(lender);
+    await createRentalRequest(db, borrower, input(listingId, "2030-03-20", "2030-03-22"), NOW);
+
+    for (const [start, end] of [
+      ["2030-03-20", "2030-03-22"],
+      ["2030-03-22", "2030-03-25"],
+      ["2030-03-15", "2030-03-20"],
+    ]) {
+      await expect(
+        createRentalRequest(db, borrower, input(listingId, start, end), NOW),
+      ).rejects.toMatchObject({ code: "already-exists" });
+    }
+    expect(await rentalsOf(listingId)).toBe(1);
+
+    // Other days, or the same days once the first request is answered, are fine.
+    await createRentalRequest(db, borrower, input(listingId, "2030-03-23", "2030-03-24"), NOW);
+    const first = await db
+      .collection("rentals")
+      .where("listingId", "==", listingId)
+      .where("startDate", "==", "2030-03-20")
+      .get();
+    await first.docs[0].ref.update({ status: "DECLINED" });
+    await createRentalRequest(db, borrower, input(listingId, "2030-03-20", "2030-03-22"), NOW);
+    expect(await rentalsOf(listingId)).toBe(3);
+  });
+
+  it("lets another borrower request the same days", async () => {
+    const { lender, borrower } = await people();
+    const other = (await people()).borrower;
+    const listingId = await listing(lender);
+
+    await createRentalRequest(db, borrower, input(listingId), NOW);
+    await createRentalRequest(db, other, input(listingId), NOW);
+
+    expect(await rentalsOf(listingId)).toBe(2);
   });
 
   it("refuses days that overlap a booking, or only its buffer day", async () => {

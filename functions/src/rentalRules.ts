@@ -13,6 +13,7 @@ export type RequestErrorCode =
   | "unauthenticated"
   | "permission-denied"
   | "not-found"
+  | "already-exists"
   | "failed-precondition"
   | "internal";
 
@@ -85,6 +86,12 @@ export function conflicts(a: DateRange, b: DateRange): boolean {
   );
 }
 
+/** The valid ranges of a listing's `bookedRanges`; malformed entries are ignored. */
+export function bookedRanges(value: unknown): DateRange[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(readRange).filter((range): range is DateRange => range !== null);
+}
+
 /**
  * Reads a stored date range (`{start, end}`, as in `bookedRanges`), or returns null if it is not
  * one. A range whose end is before its start is refused too.
@@ -95,12 +102,6 @@ export function readRange(value: unknown): DateRange | null {
   if (!isDateString(start) || !isDateString(end)) return null;
   if (dayNumber(end) < dayNumber(start)) return null;
   return { start, end };
-}
-
-/** The valid ranges of a listing's `bookedRanges`; malformed entries are ignored. */
-export function bookedRanges(value: unknown): DateRange[] {
-  if (!Array.isArray(value)) return [];
-  return value.map(readRange).filter((range): range is DateRange => range !== null);
 }
 
 /**
