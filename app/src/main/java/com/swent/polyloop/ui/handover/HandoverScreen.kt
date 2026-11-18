@@ -198,7 +198,16 @@ fun HandoverContent(
                     onPhotoClick = { enlargedId = it },
                     onRetryPhotos = onRetry,
                 )
-                if (uiState.showsCode && uiState.isPickupDay) ShowCodeCard(uiState, onRetry)
+                // Only the pickup has a code for now: the server makes no return code yet. Once its
+                // day is over, the code is no longer shown, even while the new day is read.
+                if (
+                    uiState.phase == HandoverPhase.PICKUP &&
+                        uiState.showsCode &&
+                        uiState.isPickupDay &&
+                        !uiState.isDayOver
+                ) {
+                  ShowCodeCard(uiState, onRetry)
+                }
                 CameraPermissionMessage(cameraPermissionGranted)
               }
               DepositFooter(uiState.deposit, uiState.depositHeld, uiState.isLender)
