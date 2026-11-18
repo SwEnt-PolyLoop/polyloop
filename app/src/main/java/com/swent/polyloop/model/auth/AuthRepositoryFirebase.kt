@@ -1,3 +1,5 @@
+// Edited with Claude.
+
 package com.swent.polyloop.model.auth
 
 import com.google.firebase.Firebase
@@ -109,6 +111,17 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
     return if (user.isEmailVerified) user.toAuthUser() else null
   }
 
+  override suspend fun isAdmin(): Boolean {
+    // Unverified users count as signed out, as in getCurrentUser.
+    val user = auth.currentUser?.takeIf { it.isEmailVerified } ?: return false
+    return try {
+      // A fresh token from the server, so a claim set or removed by the script shows at once.
+      user.getIdToken(true).await().claims[ADMIN_CLAIM] == true
+    } catch (e: FirebaseException) {
+      false
+    }
+  }
+
   override fun signOut() {
     auth.signOut()
   }
@@ -135,5 +148,8 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
   private companion object {
     /** The error code the server returns when a password breaks the Firebase password policy. */
     const val PASSWORD_POLICY_ERROR = "PASSWORD_DOES_NOT_MEET_REQUIREMENTS"
+
+    /** The custom claim that makes a user an admin when it is set to true. */
+    const val ADMIN_CLAIM = "admin"
   }
 }

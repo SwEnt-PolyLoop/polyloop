@@ -1,3 +1,5 @@
+// Edited with Claude.
+
 package com.swent.polyloop.model.auth
 
 /** User accounts. Only EPFL emails can sign up, and only verified users can sign in. */
@@ -17,6 +19,13 @@ interface AuthRepository {
 
   /** The signed-in user, or null. */
   fun getCurrentUser(): AuthUser?
+
+  /**
+   * Whether the signed-in user is an admin, read from the custom claim `admin` set to true. False
+   * when nobody is signed in or the read fails, so offline too, as the claim is read from the
+   * server. False by default, for the repositories that have no admins.
+   */
+  suspend fun isAdmin(): Boolean = false
 
   fun signOut()
 }

@@ -244,4 +244,19 @@ class RentalDetailViewModelAcceptedTest {
     assertEquals("Rue de Lausanne 10", state.returnAddress)
     assertNull(state.offer)
   }
+
+  @Test
+  fun anAcceptedRentalGetsTheNewDayWhenTheScreenComesBack() {
+    val vm = viewModel(accepted)
+    assertEquals(serverDay, vm.uiState.value.serverToday)
+    // The screen waited in memory until the next day.
+    val nextDay = serverDay.plusDays(1)
+    rentals.serverNow = nextDay.atTime(12, 0).atZone(ZoneId.of("Europe/Zurich")).toInstant()
+
+    vm.onScreenResumed()
+
+    assertEquals(nextDay, vm.uiState.value.serverToday)
+    assertFalse(vm.uiState.value.isReadingServerToday)
+    assertEquals(2, rentals.serverNowCalls)
+  }
 }
