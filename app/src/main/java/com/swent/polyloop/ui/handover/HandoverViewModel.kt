@@ -62,9 +62,13 @@ data class FailedPhoto(val uri: String, val phase: HandoverPhase)
  * @property isDayOver true once the end of [serverToday] is noticed (at midnight, or when the
  *   screen comes back after the phone slept past it) until the new day is read: the day stays
  *   shown, so its note does not blink, but no photo, QR code or scan is taken on it any more.
+ * @property isReturned true once the return was scanned and the lender has not checked the item.
  * @property deposit the deposit accepted, in PolyPoints; 0 when it is not known.
  * @property lateFees the late fees already taken from [deposit], in PolyPoints.
- * @property photos the photos the signed-in user took in [phase], oldest first.
+ * @property photos the photos the signed-in user took in [phase], oldest first; on the lender's
+ *   check of a returned item, their return photos.
+ * @property pickupPhotos on the lender's check of a returned item, their pickup photos, oldest
+ *   first; empty otherwise.
  * @property photosFailed true when the photos could not be loaded.
  * @property failedPhoto the photo whose upload failed, kept to try again; null when none did.
  * @property isOffline true while the phone has no connection; no photo can be uploaded then.
@@ -94,9 +98,11 @@ data class HandoverUiState(
     val serverToday: LocalDate? = null,
     val isReadingServerToday: Boolean = false,
     val isDayOver: Boolean = false,
+    val isReturned: Boolean = false,
     val deposit: Int = 0,
     val lateFees: Int = 0,
     val photos: List<HandoverPhoto> = emptyList(),
+    val pickupPhotos: List<HandoverPhoto> = emptyList(),
     val photosFailed: Boolean = false,
     val isUploading: Boolean = false,
     val failedPhoto: FailedPhoto? = null,
@@ -193,6 +199,10 @@ data class HandoverUiState(
             !isSendingScan &&
             !scanConfirmed &&
             !isPickedUp
+
+  /** True when the lender checks the returned item; the borrower only waits for them. */
+  val isReturnCheck: Boolean
+    get() = isReturned && isLender
 }
 
 /**
@@ -228,8 +238,9 @@ class HandoverViewModel(
   private var serverTodayRead: Job? = null
   private var midnightRead: Job? = null
 
-  // The phase whose photos are followed, or null when none are.
-  private var shownPhase: HandoverPhase? = null
+  // The phases whose photos are followed: first the ones in `photos`, then the ones in
+  // `pickupPhotos`.
+  private var shownPhases: List<HandoverPhase> = emptyList()
 
   // When the server's day shown ends, in [elapsedRealtime] time; null while the day is unknown.
   private var dayEndsAt: Long? = null
@@ -466,6 +477,7 @@ class HandoverViewModel(
     val phase = if (pickedUp) HandoverPhase.PICKUP else HandoverPhase.fromStatus(rental.status)
     val isLender = uid == rental.ownerId
     val phaseChanged = phase != shown.phase
+    val isReturned = rental.status == RentalStatus.RETURNED
     _uiState.update {
       val updated =
           it.copy(
@@ -478,6 +490,7 @@ class HandoverViewModel(
               phase = phase,
               pickupDate = rental.startDate,
               returnDate = rental.endDate,
+              isReturned = isReturned,
               deposit = rental.deposit,
               lateFees = rental.lateFees,
               isPickedUp = pickedUp,
