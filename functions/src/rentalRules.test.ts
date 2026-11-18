@@ -4,6 +4,7 @@ import {
   MAX_DEPOSIT,
   RequestError,
   conflicts,
+  firstDayStart,
   isDateString,
   offerExpiry,
   isValidDeposit,
@@ -93,7 +94,25 @@ describe("offerExpiry", () => {
   });
 
   it("is the rental's first day when that comes sooner", () => {
-    expect(offerExpiry(now, "2026-11-08")).toEqual(new Date("2026-11-08T00:00:00Z"));
+    expect(offerExpiry(now, "2026-11-08")).toEqual(new Date("2026-11-07T23:00:00Z"));
+  });
+});
+
+describe("firstDayStart", () => {
+  it("is midnight in Zurich, 23:00 UTC the day before, in winter", () => {
+    expect(firstDayStart("2026-12-01")).toBe(Date.parse("2026-11-30T23:00:00Z"));
+  });
+
+  it("is midnight in Zurich, 22:00 UTC the day before, in summer", () => {
+    expect(firstDayStart("2026-07-01")).toBe(Date.parse("2026-06-30T22:00:00Z"));
+  });
+
+  it("uses winter time on the day summer time starts", () => {
+    expect(firstDayStart("2026-03-29")).toBe(Date.parse("2026-03-28T23:00:00Z"));
+  });
+
+  it("uses summer time on the day summer time ends", () => {
+    expect(firstDayStart("2026-10-25")).toBe(Date.parse("2026-10-24T22:00:00Z"));
   });
 });
 
