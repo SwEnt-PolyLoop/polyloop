@@ -33,6 +33,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
+import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.DateRangePickerMode
@@ -175,6 +176,8 @@ fun CreateListingContent(
             isError = isError,
             label = titleLabel,
             tag = C.Tag.create_listing_title_field,
+            maxLength = Listing.MAX_TITLE_LENGTH,
+            counterTag = C.Tag.create_listing_title_counter,
         )
       }
       LabelledField(
@@ -211,6 +214,8 @@ fun CreateListingContent(
             label = descriptionLabel,
             tag = C.Tag.create_listing_description_field,
             minLines = DESCRIPTION_MIN_LINES,
+            maxLength = Listing.MAX_DESCRIPTION_LENGTH,
+            counterTag = C.Tag.create_listing_description_counter,
         )
       }
       Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

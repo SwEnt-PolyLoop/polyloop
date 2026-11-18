@@ -15,6 +15,7 @@ import {
   OfferAnswer,
   OfferInput,
   RequestError,
+  bookedRanges,
   conflicts,
   firstDayStart,
   isDateString,
@@ -24,6 +25,7 @@ import {
   readRange,
   requirePerson,
 } from "./rentalRules";
+import { HANDOVER_CODES, codeFingerprint, newHandoverCode } from "./handoverCode";
 import { runSweep } from "./sweep";
 import { readWallet, requireFunds, writeDepositHold } from "./wallet";
 
@@ -336,6 +338,10 @@ async function accept(
   requireFunds(wallet, offer.amount);
 
   tx.delete(addressesRef(rentalRef));
+  // The pickup's QR code: the code itself where only the lender reads it, its fingerprint on the
+  // rental so the borrower's phone can check a scan (docs/ARCHITECTURE.md, "Handover").
+  const pickupCode = newHandoverCode();
+  tx.set(rentalRef.collection(HANDOVER_CODES).doc("PICKUP"), { code: pickupCode });
   writeWithSystemMessage(
     tx,
     rentalRef,
@@ -345,6 +351,7 @@ async function accept(
       deposit: offer.amount,
       pickupAddress: addresses.pickup,
       returnAddress: addresses.dropOff,
+      pickupCodeHash: codeFingerprint(pickupCode),
       offer: FieldValue.delete(),
     },
     callerId,
@@ -493,12 +500,6 @@ function requireLiveOffer(rental: DocumentData, callerId: string, now: Date): St
     throw new RequestError("failed-precondition", "This offer has expired.");
   }
   return offer;
-}
-
-/** The valid ranges of a listing's `bookedRanges`; malformed entries are ignored. */
-function bookedRanges(value: unknown): DateRange[] {
-  if (!Array.isArray(value)) return [];
-  return value.map(readRange).filter((range): range is DateRange => range !== null);
 }
 
 /** True if a stored request's dates conflict with [dates], buffer days included. */

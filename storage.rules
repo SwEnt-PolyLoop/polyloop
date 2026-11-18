@@ -74,10 +74,13 @@ service firebase.storage {
 
     // Pickup photos, uploaded by HandoverRepositoryFirestore while the rental is Accepted. Only its
     // two participants read and add them; nobody replaces or deletes one, since they are evidence.
+    // The file is named after its Firestore document, the uploader's slot {uid}_PICKUP_{0..19}.jpg
+    // (#428), so a person cannot add more than 20.
     match /rentals/{rentalId}/photos/{photo} {
       allow read: if isParticipant(rentalId);
 
       allow create: if isParticipant(rentalId)
+          && photo.matches(request.auth.uid + '_PICKUP_([0-9]|1[0-9])[.]jpg')
           && resource == null // no file there yet: create alone also let a photo be replaced
           && firestore.get(rentalDoc(rentalId)).data.status == 'ACCEPTED'
           && request.resource.size < 10 * 1024 * 1024

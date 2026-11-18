@@ -29,7 +29,9 @@ data class Listing(
 ) {
   fun canPublish(addresses: ListingAddresses): Boolean =
       title.isNotBlank() &&
+          title.length <= MAX_TITLE_LENGTH &&
           description.isNotBlank() &&
+          description.length <= MAX_DESCRIPTION_LENGTH &&
           photoUrls.size in MIN_PHOTOS..MAX_PHOTOS &&
           pricePerDay in 1..MAX_AMOUNT &&
           itemValue in 1..MAX_AMOUNT &&
@@ -45,6 +47,15 @@ data class Listing(
      * Highest price per day and item value, in PP, so totals over a year-long window fit in an Int.
      */
     const val MAX_AMOUNT = 99_999
+
+    /**
+     * Longest title, in characters (UTF-16 units, as [String.length] counts them). The Security
+     * Rules count characters too, never more than this, so a title the app accepts always passes.
+     */
+    const val MAX_TITLE_LENGTH = 80
+
+    /** Longest description, in characters, counted like [MAX_TITLE_LENGTH]. */
+    const val MAX_DESCRIPTION_LENGTH = 2_000
   }
 }
 
