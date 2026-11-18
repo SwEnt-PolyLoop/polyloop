@@ -149,6 +149,7 @@ class BrowseScreenTest {
         )
       }
     }
+    return viewModel
   }
 
   /** A registry that records each permission requested and answers it with [granted]. */
@@ -164,7 +165,6 @@ class BrowseScreenTest {
       requests += input as String
       @Suppress("UNCHECKED_CAST") dispatchResult(requestCode, granted as O)
     }
-    return viewModel
   }
 
   private fun withRegistry(
