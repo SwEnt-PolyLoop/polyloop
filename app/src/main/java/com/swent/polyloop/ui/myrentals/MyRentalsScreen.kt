@@ -41,6 +41,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.rental.DepositOffer
@@ -68,6 +70,7 @@ fun MyRentalsScreen(
     onOpenChat: (String) -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onScreenResumed() }
   MyRentalsContent(
       uiState = uiState,
       onTabSelected = viewModel::selectTab,
@@ -283,6 +286,7 @@ private fun OfferRequestCard(
       formatDay(offer.expiresAt.atZone(ZoneId.systemDefault()).toLocalDate(), locale = locale)
   val badge =
       when {
+        row.isOfferExpired -> R.string.offer_expired
         row.isOfferMine && offer.isCounter -> R.string.my_rentals_badge_counter_sent
         row.isOfferMine -> R.string.my_rentals_badge_offer_sent
         offer.isCounter -> R.string.my_rentals_badge_counter_received
@@ -290,6 +294,7 @@ private fun OfferRequestCard(
       }
   val line =
       when {
+        row.isOfferExpired -> stringResource(R.string.my_rentals_offer_expired_line, offer.amount)
         offer.isCounter -> stringResource(R.string.my_rentals_counter_line, offer.amount, expiry)
         row.isOfferMine ->
             stringResource(R.string.my_rentals_offer_sent_line, row.totalPrice, offer.amount)

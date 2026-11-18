@@ -13,10 +13,14 @@ import com.swent.polyloop.model.connectivity.ConnectivityRepository
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
+import com.swent.polyloop.model.rental.ServerClock
+import com.swent.polyloop.ui.components.isOfferExpired
+import com.swent.polyloop.ui.components.withNowAtExpiries
 import com.swent.polyloop.ui.createlisting.isWholeNumberAboveZero
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -67,6 +71,8 @@ data class ChatHeader(
  * @property expiresAt when it stops being valid.
  * @property overlappingRequests how many other requests accepting it would decline; only counted
  *   for the lender, who is the one to see them.
+ * @property isExpired true once [expiresAt] has passed by the phone's clock: it can no longer be
+ *   answered, even before the hourly `expireOffers` job removes it.
  */
 data class ChatOffer(
     val amount: Int,
@@ -75,10 +81,11 @@ data class ChatOffer(
     val isCounter: Boolean,
     val expiresAt: Instant,
     val overlappingRequests: Int,
+    val isExpired: Boolean = false,
 ) {
   /** True when the signed-in user can answer with a counteroffer: only once, on the first offer. */
   val canCounter: Boolean
-    get() = !isMine && !isCounter
+    get() = !isMine && !isCounter && !isExpired
 }
 
 /**
@@ -95,8 +102,10 @@ data class ChatOffer(
  * failure carried no message. [isOffline] is true while the phone has no connection, which disables
  * the answers.
  *
- * [pickupDate] is the rental's first day while it is accepted, and null otherwise; the screen shows
- * "Start pickup" when it is today.
+ * [pickupDate] is the rental's first day while it is accepted, and null otherwise. [serverToday] is
+ * today by the server's clock, read only for an accepted rental, and null until it is read or when
+ * it is unknown (the server was not reached since the phone booted). The screen shows "Start
+ * pickup" when they are the same day ([isPickupDay]).
  */
 data class ChatUiState(
     val header: ChatHeader? = null,
@@ -112,14 +121,22 @@ data class ChatUiState(
     val offerError: String? = null,
     val isOffline: Boolean = false,
     val pickupDate: LocalDate? = null,
+    val serverToday: LocalDate? = null,
 ) {
+  /**
+   * True on the pickup day by the server's clock, never by the phone's, whose date the user can
+   * change. False while the server's day is unknown.
+   */
+  val isPickupDay: Boolean
+    get() = pickupDate != null && pickupDate == serverToday
+
   /** True when Send can be pressed: there is some text. */
   val canSend: Boolean
     get() = draft.isNotBlank()
 
   /** True when the offer can be accepted, declined or countered. */
   val canAnswerOffer: Boolean
-    get() = offer != null && !offer.isMine && !isOffline && !isAnswering
+    get() = offer != null && !offer.isMine && !offer.isExpired && !isOffline && !isAnswering
 
   /** True when the counteroffer can be sent: a whole amount from 1 to the cap. */
   val canSendCounter: Boolean
@@ -135,6 +152,9 @@ data class ChatUiState(
  * @param authRepository tells who the signed-in user is.
  * @param rentalRepository gives the offer and sends the answers.
  * @param connectivityRepository tells whether the phone is online.
+ * @param serverClock gives today by the server's clock, for Start pickup; an unknown day is read
+ *   again when the phone comes back online, and online when the screen comes back to the front.
+ * @param clock the current time, which tells when the offer has expired; tests pass their own.
  */
 class ChatViewModel(
     private val rentalId: String,
@@ -142,12 +162,15 @@ class ChatViewModel(
     private val authRepository: AuthRepository,
     private val rentalRepository: RentalRepository,
     private val connectivityRepository: ConnectivityRepository,
+    private val serverClock: ServerClock,
+    private val clock: () -> Instant = Instant::now,
 ) : ViewModel() {
 
   private val _uiState = MutableStateFlow(ChatUiState())
   val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
   private var observing: Job? = null
+  private var serverTodayRead: Job? = null
 
   // True while the Chat screen is visible: only then does it count the messages as seen.
   private var isStarted = false
@@ -155,21 +178,52 @@ class ChatViewModel(
   // The newest message already counted as seen, so the same messages are not saved twice.
   private var markedId: String? = null
 
+  // Asks to check the offer's expiry again by [clock], when the screen comes back.
+  private val offerRechecks = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
   init {
     // Apart from the chat job, so that retry() neither stops nor duplicates it.
     viewModelScope.launch {
+      var wasOnline: Boolean? = null
       connectivityRepository.isOnline.collect { online ->
         _uiState.update { it.copy(isOffline = !online) }
         if (online) markAsRead() // what was shown offline is saved once the connection is back
+        // An unknown day may be known once online.
+        if (online && wasOnline == false) readServerTodayIfUnknown()
+        wasOnline = online
       }
     }
     observe()
   }
 
-  /** The screen is visible again (opened, or back from another screen or the background). */
+  /** Reads today from [serverClock] for Start pickup, unless a read is already running. */
+  private fun readServerToday() {
+    if (serverTodayRead?.isActive == true) return
+    serverTodayRead = viewModelScope.launch {
+      val today = serverClock.today()
+      _uiState.update { it.copy(serverToday = today) }
+    }
+  }
+
+  /**
+   * Reads the server's day again when it is unknown for an accepted rental (only it has a pickup
+   * date). Ignored offline: coming back online reads it.
+   */
+  private fun readServerTodayIfUnknown() {
+    val state = _uiState.value
+    if (state.pickupDate != null && state.serverToday == null && !state.isOffline) readServerToday()
+  }
+
+  /**
+   * The screen is visible again (opened, or back from another screen or the background). An unknown
+   * server day is read again, in case the server failed to answer while the phone was online.
+   */
   fun onStarted() {
     isStarted = true
     markAsRead()
+    readServerTodayIfUnknown()
+    // The wait for the offer's expiry stops while the phone sleeps: check it again now.
+    offerRechecks.tryEmit(Unit)
   }
 
   /** The screen is hidden: another screen is on top of it, or the app is in the background. */
@@ -312,22 +366,35 @@ class ChatViewModel(
   /**
    * Follows the offer and the pickup date of the rental. Without them the conversation still works,
    * so a read error only hides the card and the pickup. The form closes if the offer it answers is
-   * gone.
+   * gone or expires. Once the rental is accepted, today is read from the server for Start pickup,
+   * once, so an unknown day is not asked again at every change of the rental.
    */
   private suspend fun observeOffer(uid: String) {
+    var serverTodayAsked = false
     combine(
             rentalRepository.observeRental(rentalId).catch { emit(null) },
             rentalRepository.observeRentalsAsLender(uid).catch { emit(emptyList()) },
         ) { rental, lent ->
-          rental to rental?.toChatOffer(uid, lent)
+          rental to lent
         }
-        .collect { (rental, offer) ->
+        .withNowAtExpiries(
+            { (rental, _) -> listOfNotNull(rental?.offer?.expiresAt) },
+            clock,
+            offerRechecks,
+        )
+        .collect { (rentalAndLent, now) ->
+          val (rental, lent) = rentalAndLent
+          val offer = rental?.toChatOffer(uid, lent, now)
           _uiState.update {
             it.copy(
                 offer = offer,
                 isCountering = it.isCountering && offer?.canCounter == true,
                 pickupDate = rental?.startDate?.takeIf { rental.status == RentalStatus.ACCEPTED },
             )
+          }
+          if (rental?.status == RentalStatus.ACCEPTED && !serverTodayAsked) {
+            serverTodayAsked = true
+            readServerToday()
           }
         }
   }
@@ -343,6 +410,7 @@ class ChatViewModel(
       private val authRepository: AuthRepository,
       private val rentalRepository: RentalRepository,
       private val connectivityRepository: ConnectivityRepository,
+      private val serverClock: ServerClock,
   ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
       require(modelClass.isAssignableFrom(ChatViewModel::class.java)) {
@@ -355,14 +423,15 @@ class ChatViewModel(
           authRepository,
           rentalRepository,
           connectivityRepository,
+          serverClock,
       )
           as T
     }
   }
 
   private companion object {
-    /** The offer of this rental for the user [uid], who lends the rentals [lent]. */
-    fun Rental.toChatOffer(uid: String, lent: List<Rental>): ChatOffer? = offer?.let {
+    /** The offer of this rental for the user [uid], who lends the rentals [lent], at [now]. */
+    fun Rental.toChatOffer(uid: String, lent: List<Rental>, now: Instant): ChatOffer? = offer?.let {
       ChatOffer(
           amount = it.amount,
           previousAmount = it.previousAmount,
@@ -370,6 +439,7 @@ class ChatViewModel(
           isCounter = it.isCounter,
           expiresAt = it.expiresAt,
           overlappingRequests = lent.count { other -> other.isDeclinedByAccepting(this) },
+          isExpired = isOfferExpired(it.expiresAt, now),
       )
     }
 

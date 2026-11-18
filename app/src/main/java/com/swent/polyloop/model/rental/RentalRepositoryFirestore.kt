@@ -145,6 +145,9 @@ class RentalRepositoryFirestore(
   override suspend fun declineRequest(rentalId: String): Result<Unit> =
       callFunction("declineRequest", mapOf("rentalId" to rentalId))
 
+  override suspend fun cancelRental(rentalId: String): Result<Unit> =
+      callFunction("cancelRental", mapOf("rentalId" to rentalId))
+
   override suspend fun serverNow(): Result<Instant> = withFirebaseErrors {
     val data = functions().getHttpsCallable(SERVER_TODAY).call().await().data
     // Callable results come back as JSON numbers, decoded as Integer, Long or Double.

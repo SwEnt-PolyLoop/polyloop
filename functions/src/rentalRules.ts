@@ -105,11 +105,51 @@ export function bookedRanges(value: unknown): DateRange[] {
 
 /**
  * When an offer made at [now] expires: after [OFFER_LIFETIME_DAYS], or at the start of the rental's
- * first day ([startDate], in UTC like every date here) if that comes sooner.
+ * first day ([startDate], midnight in Zurich) if that comes sooner.
  */
 export function offerExpiry(now: Date, startDate: string): Date {
   const afterLifetime = now.getTime() + OFFER_LIFETIME_DAYS * MILLISECONDS_PER_DAY;
-  return new Date(Math.min(afterLifetime, Date.parse(`${startDate}T00:00:00Z`)));
+  return new Date(Math.min(afterLifetime, firstDayStart(startDate)));
+}
+
+// The time in Zurich, part by part. h23 so that midnight reads as 00, not 24.
+const zurichClock = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Europe/Zurich",
+  hourCycle: "h23",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
+/** How far Zurich's clock is ahead of UTC at [instant], in ms: 1 hour in winter, 2 in summer. */
+function zurichOffset(instant: number): number {
+  const parts = Object.fromEntries(
+    zurichClock.formatToParts(new Date(instant)).map((part) => [part.type, Number(part.value)]),
+  );
+  const zurichAsUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+  );
+  return zurichAsUtc - Math.floor(instant / 1000) * 1000;
+}
+
+/**
+ * The start of the rental's first day [startDate], midnight in Zurich, in epoch ms. Rental dates
+ * are Swiss days, as in `serverToday` and the app's `ServerClock`, so the first day starts 1 hour
+ * (2 in summer) before midnight UTC.
+ */
+export function firstDayStart(startDate: string): number {
+  const midnightUtc = Date.parse(`${startDate}T00:00:00Z`);
+  // Summer time starts and ends between 1 and 3 a.m., never between midnight in Zurich and
+  // midnight UTC, so the offset at midnight UTC is the one at midnight in Zurich.
+  return midnightUtc - zurichOffset(midnightUtc);
 }
 
 /** True for a whole deposit from 1 to [MAX_DEPOSIT]. */

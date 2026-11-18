@@ -93,6 +93,30 @@ class ChatOfferCardTest {
   }
 
   @Test
+  fun anExpiredOfferSaysSoAndItsAnswersAreDisabled() {
+    val expired = received.copy(isExpired = true)
+    setCard(expired)
+
+    node(C.Tag.chat_offer_badge).assertTextEquals(context.getString(R.string.offer_expired))
+    node(C.Tag.chat_offer_note)
+        .assertTextEquals(context.getString(R.string.chat_offer_note_expired))
+    node(C.Tag.chat_offer_accept).assertIsNotEnabled()
+    node(C.Tag.chat_offer_decline).assertIsNotEnabled()
+    node(C.Tag.chat_offer_counter).assertDoesNotExist()
+    node(C.Tag.chat_offer_accept).performClick()
+    assertEquals(0, accepts)
+  }
+
+  @Test
+  fun theAuthorSeesTheirOwnOfferExpired() {
+    setCard(mine.copy(isExpired = true))
+
+    node(C.Tag.chat_offer_badge).assertTextEquals(context.getString(R.string.offer_expired))
+    node(C.Tag.chat_offer_note)
+        .assertTextEquals(context.getString(R.string.chat_offer_note_expired))
+  }
+
+  @Test
   fun theAnswersCallTheirActions() {
     setCard(received)
 

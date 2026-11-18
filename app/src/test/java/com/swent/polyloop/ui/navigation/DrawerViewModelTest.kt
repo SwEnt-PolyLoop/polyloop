@@ -16,8 +16,10 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -124,6 +126,68 @@ class DrawerViewModelTest {
     vm.refresh()
 
     assertEquals(me, vm.uiState.value.profile)
+  }
+
+  @Test
+  fun adminIsShownAsAdmin() {
+    auth.admin = true
+
+    assertTrue(viewModel().uiState.value.isAdmin)
+  }
+
+  @Test
+  fun nonAdminIsNotShownAsAdmin() {
+    assertFalse(viewModel().uiState.value.isAdmin)
+  }
+
+  @Test
+  fun profileChangesKeepTheAdminFlag() = runTest {
+    auth.admin = true
+    val vm = viewModel()
+
+    profiles.updateProfile("me", "Johnny", "")
+
+    assertEquals("Johnny", vm.uiState.value.profile?.name)
+    assertTrue(vm.uiState.value.isAdmin)
+  }
+
+  @Test
+  fun refreshAfterSignOutClearsTheAdminFlag() {
+    auth.admin = true
+    val vm = viewModel()
+
+    auth.signedInUser = null
+    vm.refresh()
+
+    assertFalse(vm.uiState.value.isAdmin)
+  }
+
+  @Test
+  fun refreshAfterAnAdminSignsInReadsTheirClaim() {
+    auth.signedInUser = null
+    auth.admin = true
+    val vm = viewModel()
+    assertFalse(vm.uiState.value.isAdmin)
+
+    auth.signedInUser = AuthUser(uid = "jane", email = jane.email, name = "Jane")
+    vm.refresh()
+
+    assertTrue(vm.uiState.value.isAdmin)
+  }
+
+  @Test
+  fun signOutWhileTheClaimIsReadNeverShowsTheAdmin() {
+    auth.admin = true
+    auth.gate = CompletableDeferred()
+    val vm = viewModel()
+    // The header does not wait for the claim.
+    assertEquals(me, vm.uiState.value.profile)
+
+    auth.signedInUser = null
+    vm.refresh()
+    auth.gate?.complete(Unit)
+
+    assertFalse(vm.uiState.value.isAdmin)
   }
 
   @Test
