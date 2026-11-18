@@ -1,10 +1,11 @@
 // Made with Claude.
 
-import { DocumentData, FieldValue, Firestore } from "firebase-admin/firestore";
+import { DocumentData, DocumentSnapshot, FieldValue, Firestore } from "firebase-admin/firestore";
 import {
   DateRange,
   RequestError,
   asFields,
+  bookedRanges,
   conflicts,
   dayNumber,
   isDateString,
@@ -25,7 +26,10 @@ export interface RentalRequestInput {
   endDate: string;
 }
 
-/** The `details.reason` of a refusal because the days are booked, which the app reads. */
+/**
+ * The `details.reason` of a refusal because the days cannot be requested (booked, already
+ * started, or outside the availability window), which the app reads.
+ */
 export const DATES_UNAVAILABLE = "DATES_UNAVAILABLE";
 
 /**
@@ -61,9 +65,10 @@ export function parseRentalRequestInput(data: unknown): RentalRequestInput {
  * @param input the listing and the days, already checked by `parseRentalRequestInput`.
  * @param now the current time, passed so that tests can set it.
  * @throws RequestError `not-found` (no such listing), `permission-denied` (the caller's own
- *   listing), `invalid-argument` (the days are in the past or outside the listing's availability)
- *   or `failed-precondition` (the listing is not published, or the days conflict with a booking,
- *   buffer day included, with `details.reason` [DATES_UNAVAILABLE]). Nothing is written then.
+ *   listing), `already-exists` (the caller already has a request for this listing with days in
+ *   common) or `failed-precondition` (the listing is not published, or, with `details.reason`
+ *   [DATES_UNAVAILABLE], the first day is not after today, the days are outside the listing's
+ *   availability or they conflict with a booking, buffer day included). Nothing is written then.
  */
 export async function createRentalRequest(
   db: Firestore,
@@ -92,9 +97,20 @@ export async function createRentalRequest(
     }
     requireAvailableDays(listing, dates, now);
     if (bookedRanges(listing.bookedRanges).some((range) => conflicts(range, dates))) {
-      throw new RequestError("failed-precondition", "These dates are no longer available.", {
-        reason: DATES_UNAVAILABLE,
-      });
+      throw datesUnavailable("These dates are no longer available.");
+    }
+    const ownRequests = await tx.get(
+      db
+        .collection(RENTALS)
+        .where("listingId", "==", listingRef.id)
+        .where("borrowerId", "==", borrowerId)
+        .where("status", "==", "REQUESTED"),
+    );
+    if (ownRequests.docs.some((doc) => sharesADay(doc, dates))) {
+      throw new RequestError(
+        "already-exists",
+        "You already sent a request for these dates.",
+      );
     }
     const [owner, borrower] = await tx.getAll(
       db.collection(USERS).doc(ownerId),
@@ -133,12 +149,13 @@ export async function createRentalRequest(
 }
 
 /**
- * Refuses [dates] if the first day has passed in Zurich at [now], or if they are not inside the
- * listing's availability window.
+ * Refuses [dates] if the first day is not after today in Zurich at [now], or if they are not inside
+ * the listing's availability window. A request starting today could get no offer: `makeOffer`
+ * refuses once the first day has started, and `expireOffers` declines it.
  */
 function requireAvailableDays(listing: DocumentData, dates: DateRange, now: Date): void {
-  if (dayNumber(dates.start) < dayNumber(zurichDay(now))) {
-    throw new RequestError("invalid-argument", "The rental cannot start in the past.");
+  if (dayNumber(dates.start) <= dayNumber(zurichDay(now))) {
+    throw datesUnavailable("The rental must start tomorrow at the earliest.");
   }
   const window = readRange({ start: listing.availableFrom, end: listing.availableTo });
   if (
@@ -146,17 +163,23 @@ function requireAvailableDays(listing: DocumentData, dates: DateRange, now: Date
     dayNumber(dates.start) < dayNumber(window.start) ||
     dayNumber(dates.end) > dayNumber(window.end)
   ) {
-    throw new RequestError(
-      "invalid-argument",
-      "These dates are outside the listing's availability.",
-    );
+    throw datesUnavailable("These dates are outside the listing's availability.");
   }
 }
 
-/** The valid ranges of a listing's `bookedRanges`; malformed entries are ignored. */
-function bookedRanges(value: unknown): DateRange[] {
-  if (!Array.isArray(value)) return [];
-  return value.map(readRange).filter((range): range is DateRange => range !== null);
+/** A refusal of the days, with `details.reason` [DATES_UNAVAILABLE] for the app. */
+function datesUnavailable(message: string): RequestError {
+  return new RequestError("failed-precondition", message, { reason: DATES_UNAVAILABLE });
+}
+
+/** True if a stored request's days share at least one day with [dates] (no buffer). */
+function sharesADay(doc: DocumentSnapshot, dates: DateRange): boolean {
+  const range = readRange({ start: doc.get("startDate"), end: doc.get("endDate") });
+  return (
+    range !== null &&
+    dayNumber(range.start) <= dayNumber(dates.end) &&
+    dayNumber(dates.start) <= dayNumber(range.end)
+  );
 }
 
 /** The listing's first photo URL, or "" when it has none (as the app did). */
