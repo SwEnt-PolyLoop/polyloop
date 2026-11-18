@@ -20,4 +20,12 @@
     <dimen name="dispute_split_thumb_border">3dp</dimen>
     <dimen name="dispute_percent_extra_width">2dp</dimen>
     <dimen name="dispute_percent_underline">1dp</dimen>
+    <!-- Handover: the lender's check of the returned item -->
+    <dimen name="handover_check_padding">16dp</dimen>
+    <dimen name="handover_check_spacing">16dp</dimen>
+    <dimen name="handover_check_card_corner">16dp</dimen>
+    <dimen name="handover_check_card_padding">16dp</dimen>
+    <dimen name="handover_check_card_spacing">8dp</dimen>
+    <dimen name="handover_check_icon_spacing">12dp</dimen>
+    <dimen name="handover_check_icon_size">40dp</dimen>
 </resources>
