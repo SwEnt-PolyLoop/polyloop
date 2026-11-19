@@ -37,9 +37,6 @@ import com.swent.polyloop.ui.theme.PositiveGreen
 import java.time.Instant
 import java.time.ZoneId
 
-// Before and after photos are larger than the condition photos: 3 per row, as in Figma 17b.
-private const val CHECK_PHOTOS_PER_ROW = 3
-
 /**
  * The lender's check of the returned item (Figma 17b): the header, that the return was scanned, and
  * their pickup and return photos side by side, over the deposit footer. Tapping a photo gives its
@@ -135,7 +132,7 @@ private fun ReturnScannedCard() {
 }
 
 /**
- * "Before and after": the lender's pickup photos, then their return photos, 3 per row; a spinner
+ * "Before and after": the lender's pickup photos, then their return photos, 4 per row; a spinner
  * until both are read, or an error with Retry when they could not be loaded.
  */
 @Composable
@@ -212,7 +209,6 @@ private fun PhotoSection(
         photos.map { photo ->
           { PhotoTile(photo, zone, onClick = { onPhotoClick(photo.id) }, tag = photoTag) }
         },
-        perRow = CHECK_PHOTOS_PER_ROW,
     )
   }
 }

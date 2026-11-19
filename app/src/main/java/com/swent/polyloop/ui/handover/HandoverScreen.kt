@@ -590,14 +590,14 @@ private fun FailedTile(uri: String, onRetry: () -> Unit) {
   }
 }
 
-/** [tiles] as square tiles, [perRow] per row; a short last row keeps the same tile size. */
+/** [tiles] as square tiles, [TILES_PER_ROW] per row; a short last row keeps the same tile size. */
 @Composable
-internal fun TileGrid(tiles: List<@Composable () -> Unit>, perRow: Int = TILES_PER_ROW) {
+internal fun TileGrid(tiles: List<@Composable () -> Unit>) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    tiles.chunked(perRow).forEach { row ->
+    tiles.chunked(TILES_PER_ROW).forEach { row ->
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         row.forEach { tile -> Box(modifier = Modifier.weight(1f).aspectRatio(1f)) { tile() } }
-        repeat(perRow - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+        repeat(TILES_PER_ROW - row.size) { Spacer(modifier = Modifier.weight(1f)) }
       }
     }
   }
