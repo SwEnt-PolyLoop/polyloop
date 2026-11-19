@@ -687,6 +687,21 @@ class FirestoreRulesTest {
         assertDenied { requested.document().set(photo(borrower.uid)).await() }
       }
 
+  @Test
+  fun returnPhotosAreAddedOnlyWhileTheRentalIsActiveOrOverdue() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val active = seedRental(owner.uid, borrower.uid, status = "ACTIVE").collection("photos")
+        val overdue = seedRental(owner.uid, borrower.uid, status = "OVERDUE").collection("photos")
+        val returned = seedRental(owner.uid, borrower.uid, status = "RETURNED").collection("photos")
+
+        active.document().set(photo(borrower.uid, phase = "RETURN")).await()
+        overdue.document().set(photo(borrower.uid, phase = "RETURN")).await() // a late item
+        assertDenied { returned.document().set(photo(borrower.uid, phase = "RETURN")).await() }
+        assertDenied { active.document().set(photo(borrower.uid, phase = "OTHER")).await() }
+      }
+
   // ---------- handover codes ----------
 
   /** The code of [phase] for [rental], written as an admin (only Cloud Functions write it). */

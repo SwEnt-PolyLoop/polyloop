@@ -262,8 +262,9 @@ service cloud.firestore {
             && request.resource.data.type == 'USER';
       }
 
-      // Condition photos (#231). Each participant adds only their own pickup photos, while the
-      // rental is Accepted. They are evidence: never changed.
+      // Condition photos (#231). Each participant adds only their own photos: pickup photos while
+      // the rental is Accepted, return photos while it is Active or Overdue (a late item is given
+      // back the same way). They are evidence: never changed.
       match /photos/{photoId} {
         allow read: if isVerifiedEpfl()
             && request.auth.uid in get(rentalPath(rentalId)).data.participants;
@@ -275,8 +276,14 @@ service cloud.firestore {
             && request.resource.data.takenBy == request.auth.uid
             && request.resource.data.takenAt == request.time
             && request.resource.data.url is string
-            && request.resource.data.phase == 'PICKUP'
-            && get(rentalPath(rentalId)).data.status == 'ACCEPTED';
+            && request.resource.data.phase in phaseStatuses().keys()
+            && get(rentalPath(rentalId)).data.status
+                in phaseStatuses()[request.resource.data.phase];
+      }
+
+      // The statuses a rental must have for photos of each phase.
+      function phaseStatuses() {
+        return {'PICKUP': ['ACCEPTED'], 'RETURN': ['ACTIVE', 'OVERDUE']};
       }
 
       // The secret code of each handover's QR code (#434, #435), one document per phase (PICKUP,
