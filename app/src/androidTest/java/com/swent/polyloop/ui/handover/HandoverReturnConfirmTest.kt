@@ -177,7 +177,10 @@ class HandoverReturnConfirmTest {
     setContent(check.copy(sendingCheck = ReturnCheck.DAMAGE_FLAGGED))
 
     composeTestRule.onNodeWithTag(C.Tag.handover_item_fine_button).assertIsNotEnabled()
-    composeTestRule.onNodeWithTag(C.Tag.handover_flag_damage_button).assertIsNotEnabled()
+    composeTestRule
+        .onNodeWithTag(C.Tag.handover_flag_damage_button)
+        .performScrollTo()
+        .assertIsNotEnabled()
     composeTestRule
         .onNodeWithTag(C.Tag.handover_check_progress, useUnmergedTree = true)
         .assertIsDisplayed()
