@@ -228,6 +228,8 @@ object C {
     const val chat_offer_counter_send = "chat_offer_counter_send"
     const val chat_pickup_bar = "chat_pickup_bar"
     const val chat_start_pickup_button = "chat_start_pickup_button"
+    const val chat_review_request_bar = "chat_review_request_bar"
+    const val chat_review_request_button = "chat_review_request_button"
 
     const val rental_detail_screen = "rental_detail_screen"
     const val rental_detail_title = "rental_detail_title"
@@ -336,6 +338,14 @@ object C {
     const val handover_scan_retry_button = "handover_scan_retry_button"
     const val handover_scan_confirmed = "handover_scan_confirmed"
     const val handover_code_picked_up = "handover_code_picked_up"
+    const val handover_return_check = "handover_return_check"
+    const val handover_return_scanned = "handover_return_scanned"
+    const val handover_check_photos_loading = "handover_check_photos_loading"
+    const val handover_before_photo = "handover_before_photo"
+    const val handover_after_photo = "handover_after_photo"
+    const val handover_no_before_photos = "handover_no_before_photos"
+    const val handover_no_after_photos = "handover_no_after_photos"
+    const val handover_waiting_check = "handover_waiting_check"
 
     const val top_bar = "top_bar"
     const val top_bar_menu_button = "top_bar_menu_button"

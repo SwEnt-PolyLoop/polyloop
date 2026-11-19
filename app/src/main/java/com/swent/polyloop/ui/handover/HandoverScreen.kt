@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -49,12 +50,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -119,12 +122,13 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
 
 /**
  * The Handover screen drawn from [uiState]: a spinner while loading, an error with Retry, a missing
- * rental, a rental that takes no photos, the pickup or the return. [onAddPhoto] is called when an
- * empty photo tile is tapped, [onRetryUpload] when the photo that failed to upload is, and
- * [onRetryServerToday] when "Retry" is tapped under the note asking to connect; photo times are
- * shown in [zone]. While [isCameraOpen], the in-app camera fills the screen for one photo, given to
- * [onPhotoTaken], or to [onCaptureFailed] if the shot fails; [cameraPermissionGranted] false shows
- * how to allow the camera. [onScan] is called when "Scan QR code" is pressed.
+ * rental, a rental that takes no photos, the pickup or the return, the lender's check of the
+ * returned item, or the borrower waiting for it. [onAddPhoto] is called when an empty photo tile is
+ * tapped, [onRetryUpload] when the photo that failed to upload is, and [onRetryServerToday] when
+ * "Retry" is tapped under the note asking to connect; photo times are shown in [zone]. While
+ * [isCameraOpen], the in-app camera fills the screen for one photo, given to [onPhotoTaken], or to
+ * [onCaptureFailed] if the shot fails; [cameraPermissionGranted] false shows how to allow the
+ * camera. [onScan] is called when "Scan QR code" is pressed.
  */
 @Composable
 fun HandoverContent(
@@ -178,6 +182,14 @@ fun HandoverContent(
                 C.Tag.handover_not_found,
                 Modifier.align(Alignment.Center),
             )
+        uiState.isReturnCheck ->
+            ReturnCheckContent(
+                uiState,
+                zone,
+                onPhotoClick = { enlargedId = it },
+                onRetryPhotos = onRetry,
+            )
+        uiState.isReturned -> WaitingForCheckContent(uiState)
         uiState.phase == null ->
             CenteredMessage(
                 R.string.handover_nothing,
@@ -222,7 +234,7 @@ fun HandoverContent(
       }
     }
   }
-  uiState.photos
+  (uiState.photos + uiState.pickupPhotos)
       .find { it.id == enlargedId }
       ?.let { PhotoViewer(it, zone, onClose = { enlargedId = null }) }
   if (isCameraOpen) {
@@ -257,7 +269,7 @@ private fun CenteredMessage(@StringRes text: Int, tag: String, modifier: Modifie
 
 /** "Pickup" or "Return" with the role pill on the same row, then the item and the other person. */
 @Composable
-private fun HandoverHeader(uiState: HandoverUiState) {
+internal fun HandoverHeader(uiState: HandoverUiState) {
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -375,53 +387,80 @@ private fun PhotosCard(
       if (uiState.failedPhotoUri != null) 0 else emptyTileCount(shownCount, uiState.isHandoverDay)
   val emptyTiles: List<@Composable () -> Unit> =
       List(cameraTileCount) { { EmptyTile(enabled = uiState.canAddPhoto, onClick = onAddPhoto) } }
-  Surface(
-      shape = RoundedCornerShape(16.dp),
-      color = MaterialTheme.colorScheme.surface,
-      modifier = Modifier.fillMaxWidth().testTag(C.Tag.handover_photos_card),
+  HandoverCard(
+      modifier = Modifier.testTag(C.Tag.handover_photos_card),
+      spacing = dimensionResource(R.dimen.handover_photos_card_spacing),
   ) {
-    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-            text = stringResource(R.string.handover_photos_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.testTag(C.Tag.handover_photos_title),
-        )
-        Text(
-            text =
-                stringResource(
-                    R.string.handover_photos_range,
-                    HandoverPhoto.MIN_PHOTOS,
-                    HandoverPhoto.MAX_PHOTOS,
-                ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.testTag(C.Tag.handover_photos_range),
-        )
-      }
-      if (uiState.photosFailed) {
-        Text(
-            text = stringResource(R.string.handover_photos_error),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.testTag(C.Tag.handover_photos_error),
-        )
-        OutlinedButton(
-            onClick = onRetryPhotos,
-            modifier = Modifier.testTag(C.Tag.handover_photos_retry_button),
-        ) {
-          Text(stringResource(R.string.handover_retry))
-        }
-      } else {
-        TileGrid(photoTiles + pendingTiles + emptyTiles)
-        if (uiState.isHandoverDay) PhotosStatus(uiState.photosNeeded, uiState.phase)
-      }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+          text = stringResource(R.string.handover_photos_title),
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+          modifier = Modifier.testTag(C.Tag.handover_photos_title),
+      )
+      Text(
+          text =
+              stringResource(
+                  R.string.handover_photos_range,
+                  HandoverPhoto.MIN_PHOTOS,
+                  HandoverPhoto.MAX_PHOTOS,
+              ),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.testTag(C.Tag.handover_photos_range),
+      )
     }
+    if (uiState.photosFailed) {
+      PhotosLoadError(onRetryPhotos)
+    } else {
+      TileGrid(photoTiles + pendingTiles + emptyTiles)
+      if (uiState.isHandoverDay) PhotosStatus(uiState.photosNeeded, uiState.phase)
+    }
+  }
+}
+
+/**
+ * A white card with rounded corners holding [content] in a column, its rows [spacing] apart: the
+ * photos card here, and the cards of the return check.
+ */
+@Composable
+internal fun HandoverCard(
+    modifier: Modifier = Modifier,
+    spacing: Dp = dimensionResource(R.dimen.handover_card_spacing),
+    content: @Composable ColumnScope.() -> Unit,
+) {
+  Surface(
+      shape = RoundedCornerShape(dimensionResource(R.dimen.handover_card_corner)),
+      color = MaterialTheme.colorScheme.surface,
+      modifier = modifier.fillMaxWidth(),
+  ) {
+    Column(
+        modifier = Modifier.padding(dimensionResource(R.dimen.handover_card_padding)),
+        verticalArrangement = Arrangement.spacedBy(spacing),
+    ) {
+      content()
+    }
+  }
+}
+
+/** "The photos could not be loaded." in red, then a Retry button calling [onRetry]. */
+@Composable
+internal fun PhotosLoadError(onRetry: () -> Unit) {
+  Text(
+      text = stringResource(R.string.handover_photos_error),
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.error,
+      modifier = Modifier.testTag(C.Tag.handover_photos_error),
+  )
+  OutlinedButton(
+      onClick = onRetry,
+      modifier = Modifier.testTag(C.Tag.handover_photos_retry_button),
+  ) {
+    Text(stringResource(R.string.handover_retry))
   }
 }
 
@@ -560,7 +599,7 @@ private fun FailedTile(uri: String, onRetry: () -> Unit) {
 
 /** [tiles] as square tiles, [TILES_PER_ROW] per row; a short last row keeps the same tile size. */
 @Composable
-private fun TileGrid(tiles: List<@Composable () -> Unit>) {
+internal fun TileGrid(tiles: List<@Composable () -> Unit>) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     tiles.chunked(TILES_PER_ROW).forEach { row ->
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -571,16 +610,24 @@ private fun TileGrid(tiles: List<@Composable () -> Unit>) {
   }
 }
 
-/** A photo, cropped to fill its tile, with the time it was taken; tapping it calls [onClick]. */
+/**
+ * A photo, cropped to fill its tile, with the time it was taken; tapping it calls [onClick]. [tag]
+ * is its test tag.
+ */
 @Composable
-private fun PhotoTile(photo: HandoverPhoto, zone: ZoneId, onClick: () -> Unit) {
+internal fun PhotoTile(
+    photo: HandoverPhoto,
+    zone: ZoneId,
+    onClick: () -> Unit,
+    tag: String = C.Tag.handover_photo,
+) {
   val time = PHOTO_TIME.format(photo.takenAt.atZone(zone))
   Box(
       modifier =
           Modifier.fillMaxSize()
               .clip(RoundedCornerShape(TILE_CORNER))
               .clickable(onClick = onClick)
-              .testTag(C.Tag.handover_photo)
+              .testTag(tag)
   ) {
     ListingPhoto(
         url = photo.url,
@@ -688,7 +735,7 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
  * known.
  */
 @Composable
-private fun DepositFooter(deposit: Int, held: Int, isLender: Boolean) {
+internal fun DepositFooter(deposit: Int, held: Int, isLender: Boolean) {
   Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
