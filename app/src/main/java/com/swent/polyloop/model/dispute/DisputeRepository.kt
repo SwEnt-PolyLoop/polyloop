@@ -6,8 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * The disputes of the rentals the signed-in user takes part in. The app only sends proposals and
- * requests; Cloud Functions move the dispute on and split the deposit. Every action also fails if
- * the rental is no longer disputed.
+ * requests; Cloud Functions open and move the dispute on and split the deposit. Every action but
+ * [openDispute] also fails if the rental is no longer disputed.
  */
 interface DisputeRepository {
 
@@ -47,6 +47,13 @@ interface DisputeRepository {
    * does not take part in the rental, the dispute does not exist, or it cannot be sent.
    */
   suspend fun escalate(rentalId: String): Result<Unit>
+
+  /**
+   * Opens a dispute, as the signed-in lender, on the returned rental [rentalId] whose item came
+   * back damaged; the deposit stays held. Fails if nobody is signed in, the user is not the lender,
+   * the rental is not Returned, or it cannot be sent.
+   */
+  suspend fun openDispute(rentalId: String): Result<Unit>
 }
 
 /** Thrown when the user accepts a proposal that is no longer the one on the table. */

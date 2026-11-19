@@ -74,6 +74,12 @@ class DisputeRepositoryFirestoreTest {
     assertCalled("escalateDispute", mapOf("rentalId" to "r1"))
   }
 
+  @Test
+  fun openDisputeFailsWithoutCallingAnythingUntilItsFunctionExists() = runTest {
+    assertTrue(repository.openDispute("r1").exceptionOrNull() is UnsupportedOperationException)
+    verify(exactly = 0) { functions.getHttpsCallable(any()) }
+  }
+
   /** Makes the next call refused with [code] and [details], as an HttpsError from a Function. */
   private fun refusedWith(
       details: Any?,

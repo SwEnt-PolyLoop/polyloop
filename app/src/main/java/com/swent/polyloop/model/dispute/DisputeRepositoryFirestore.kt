@@ -59,6 +59,10 @@ class DisputeRepositoryFirestore(
   override suspend fun escalate(rentalId: String): Result<Unit> =
       callFunction("escalateDispute", mapOf("rentalId" to rentalId))
 
+  /** Always fails for now: the Cloud Function that opens a dispute does not exist yet. */
+  override suspend fun openDispute(rentalId: String): Result<Unit> =
+      Result.failure(UnsupportedOperationException("Opening a dispute is not available yet"))
+
   /**
    * Calls the Cloud Function [name] with [data]. A refusal or a lost connection is a failure; a
    * request that lost a race fails with [ProposalChangedException] or [StageChangedException], read
