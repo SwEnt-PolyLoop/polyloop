@@ -63,7 +63,7 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 - One **bounded, reviewable** change per PR, tied to one GitHub issue. Read the issue first (`gh issue view <N>`) and put `Closes #<N>` in the PR description. If the change sprawls across unrelated files, split it.
 - Branch names: `<type>/<issue>-<short-description>`, e.g. `chore/26-cleanup-template-leftovers`.
 - Commits follow Conventional Commits: `feat:`, `fix:`, `test:`, `chore:`, `build:`, `style:`, `docs:`, then an imperative subject of at most 72 characters. Add a body when the subject is not enough.
-- **No AI signature**: no `Co-authored-by` or "generated with" lines in commits or PR descriptions.
+- **AI use on GitHub**: every text an agent posts on GitHub (PR descriptions, reviews and each of their inline comments, issues and comments) ends with one short line saying it was co-authored by Claude: `🤖 Co-authored by [Claude Code](https://claude.com/claude-code)`. Commits carry no `Co-authored-by` or "generated with" lines.
 - Stage only the files you changed; never `git add .` or `git add -A` (it can pull in local config like `local.properties`).
 - Read failing tests and CI logs carefully and iterate until everything passes.
 
@@ -76,3 +76,13 @@ Diagram: `docs/architecture/polyloop_architecture.png` (the SVG next to it is th
 ## Your role (for the human)
 
 You provide the goal, the context, the acceptance criteria and the permissions. The agent plans, acts and observes. **You review the diff, and you own every line you submit.** "The agent wrote it" is not a defence.
+
+## Agent docs
+
+### Issue tracker
+
+Issues live in GitHub Issues for `SwEnt-PolyLoop/polyloop`, used through the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root, created when needed, alongside `docs/ARCHITECTURE.md` and `docs/SCREENS.md`. See `docs/agents/domain.md`.

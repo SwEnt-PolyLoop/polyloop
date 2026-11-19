@@ -13,6 +13,8 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.bookedDays
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
+import com.swent.polyloop.model.rental.ListingUnavailableException
+import com.swent.polyloop.model.rental.RentalDatesUnavailableException
 import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.wallet.WalletRepository
 import com.swent.polyloop.ui.components.isRequestable
@@ -196,14 +198,7 @@ class ListingDetailViewModel(
             return@launch
           }
       if (ranges == null) {
-        _uiState.update {
-          it.copy(
-              isSending = false,
-              isDatePickerOpen = false,
-              listing = null,
-              listingNotFound = true,
-          )
-        }
+        showListingNotFound()
         return@launch
       }
       val disabledDates = bookedDays(ranges)
@@ -222,9 +217,32 @@ class ListingDetailViewModel(
             }
           }
           .onFailure { e ->
-            _uiState.update { it.copy(isSending = false, sendError = e.message ?: "") }
+            when (e) {
+              // Booked or unpublished between the check above and the server's: same as above.
+              is RentalDatesUnavailableException -> showDatesTaken()
+              is ListingUnavailableException -> showListingNotFound()
+              else -> _uiState.update { it.copy(isSending = false, sendError = e.message ?: "") }
+            }
           }
     }
+  }
+
+  /** Closes the date picker and shows the listing as not found: it was deleted or unpublished. */
+  private fun showListingNotFound() {
+    _uiState.update {
+      it.copy(isSending = false, isDatePickerOpen = false, listing = null, listingNotFound = true)
+    }
+  }
+
+  /**
+   * Shows that the picked days were booked meanwhile, and greys out the booked days read again from
+   * the server. If they cannot be read, the days greyed out so far stay.
+   */
+  private suspend fun showDatesTaken() {
+    val disabledDates =
+        listingRepository.getBookedRanges(listingId).getOrNull()?.let { bookedDays(it) }
+            ?: _uiState.value.disabledDates
+    _uiState.update { it.copy(isSending = false, datesTaken = true, disabledDates = disabledDates) }
   }
 
   /** Clears the send error and the dates-taken message, e.g. once the user taps a new day. */

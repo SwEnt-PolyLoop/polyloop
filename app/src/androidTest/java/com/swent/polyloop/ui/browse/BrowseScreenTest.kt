@@ -2,22 +2,34 @@
 
 package com.swent.polyloop.ui.browse
 
+import android.Manifest
+import android.content.Context
 import android.net.Uri
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.core.app.ActivityOptionsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.GrantPermissionRule
 import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.auth.AuthResult
@@ -30,7 +42,9 @@ import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingFilter
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingStatus
+import com.swent.polyloop.model.location.FakeLocationRepository
 import com.swent.polyloop.model.location.MapPoint
+import com.swent.polyloop.model.location.hasCoarseLocationPermission
 import com.swent.polyloop.resources.C
 import java.time.LocalDate
 import kotlinx.coroutines.awaitCancellation
@@ -43,6 +57,10 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class BrowseScreenTest {
+
+  // Browse asks for the coarse location when it is not granted; granted here, no dialog opens.
+  @get:Rule(order = 0)
+  val locationPermissionRule = GrantPermissionRule.grant(Manifest.permission.ACCESS_COARSE_LOCATION)
 
   @get:Rule val composeTestRule = createComposeRule()
 
@@ -89,6 +107,11 @@ class BrowseScreenTest {
   private fun setContentWithViewModel(
       listings: List<Listing>,
       onListingClick: (String) -> Unit = {},
+      locationRepository: FakeLocationRepository = FakeLocationRepository(),
+      online: Boolean = true,
+      hasLocationPermission: (Context) -> Boolean = ::hasCoarseLocationPermission,
+      wrap: @Composable (@Composable () -> Unit) -> Unit = { it() },
+      host: (@Composable () -> Unit) -> Unit = { composeTestRule.setContent(it) },
   ): BrowseViewModel {
     val repository =
         object : ListingRepository {
@@ -110,11 +133,103 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository, authRepository, FakeConnectivityRepository())
-    composeTestRule.setContent {
-      BrowseScreen(viewModel = viewModel, onListingClick = onListingClick)
+    val viewModel =
+        BrowseViewModel(
+            repository,
+            authRepository,
+            FakeConnectivityRepository(online),
+            locationRepository,
+        )
+    host {
+      wrap {
+        BrowseScreen(
+            viewModel = viewModel,
+            onListingClick = onListingClick,
+            hasLocationPermission = hasLocationPermission,
+        )
+      }
     }
     return viewModel
+  }
+
+  /** A registry that records each permission requested and answers it with [granted]. */
+  private class RecordingRegistry(private val granted: Boolean) : ActivityResultRegistry() {
+    val requests = mutableListOf<String>()
+
+    override fun <I, O> onLaunch(
+        requestCode: Int,
+        contract: ActivityResultContract<I, O>,
+        input: I,
+        options: ActivityOptionsCompat?,
+    ) {
+      requests += input as String
+      @Suppress("UNCHECKED_CAST") dispatchResult(requestCode, granted as O)
+    }
+  }
+
+  private fun withRegistry(
+      registry: ActivityResultRegistry
+  ): @Composable (@Composable () -> Unit) -> Unit = { content ->
+    val owner =
+        object : ActivityResultRegistryOwner {
+          override val activityResultRegistry = registry
+        }
+    CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) { content() }
+  }
+
+  @Test
+  fun locationPermissionIsAskedOnceWhenNotGrantedAndTheAnswerReadsThePositionAgain() {
+    val registry = RecordingRegistry(granted = false)
+    val location = FakeLocationRepository()
+    setContentWithViewModel(
+        listings,
+        locationRepository = location,
+        online = false,
+        hasLocationPermission = { false },
+        wrap = withRegistry(registry),
+    )
+
+    composeTestRule.waitForIdle()
+    // The read when Browse is shown, then the one after the answer.
+    composeTestRule.waitUntil(timeoutMillis = 5_000) { location.reads >= 2 }
+    assertEquals(listOf(Manifest.permission.ACCESS_COARSE_LOCATION), registry.requests)
+  }
+
+  @Test
+  fun locationPermissionIsNotAskedWhenGranted() {
+    val registry = RecordingRegistry(granted = true)
+    val location = FakeLocationRepository()
+    setContentWithViewModel(
+        listings,
+        locationRepository = location,
+        online = false,
+        hasLocationPermission = { true },
+        wrap = withRegistry(registry),
+    )
+
+    composeTestRule.waitUntil(timeoutMillis = 5_000) { location.reads >= 1 }
+    composeTestRule.waitForIdle()
+    assertTrue(registry.requests.isEmpty())
+  }
+
+  @Test
+  fun refusedLocationPermissionIsNotAskedAgainWhenBrowseIsComposedAgainWithItsSavedState() {
+    val registry = RecordingRegistry(granted = false)
+    val restorationTester = StateRestorationTester(composeTestRule)
+    setContentWithViewModel(
+        listings,
+        online = false,
+        hasLocationPermission = { false },
+        wrap = withRegistry(registry),
+        host = { restorationTester.setContent(it) },
+    )
+    composeTestRule.waitForIdle()
+    assertEquals(1, registry.requests.size)
+
+    restorationTester.emulateSavedInstanceStateRestore()
+    composeTestRule.waitForIdle()
+
+    assertEquals(1, registry.requests.size)
   }
 
   private fun waitForTag(tag: String) {
@@ -236,7 +351,8 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository, authRepository, connectivity)
+    val viewModel =
+        BrowseViewModel(repository, authRepository, connectivity, FakeLocationRepository())
     composeTestRule.setContent { BrowseScreen(viewModel = viewModel) }
     waitForTag(C.Tag.browse_list)
 
@@ -276,7 +392,8 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository, authRepository, connectivity)
+    val viewModel =
+        BrowseViewModel(repository, authRepository, connectivity, FakeLocationRepository())
     composeTestRule.setContent { BrowseScreen(viewModel = viewModel) }
     waitForTag(C.Tag.browse_list)
     connectivity.setOnline(false)
@@ -421,6 +538,51 @@ class BrowseScreenTest {
     assertEquals(heights[0], heights[1])
   }
 
+  // ---------- distances ----------
+
+  private fun locationOf(id: String) =
+      composeTestRule.onNode(
+          hasTestTag(C.Tag.listing_card_location) and
+              hasAnyAncestor(hasTestTag(C.Tag.listing_card_ + id)),
+          useUnmergedTree = true,
+      )
+
+  @Test
+  fun listCardShowsItsDistanceAndACardWithoutOneShowsOnlyItsArea() {
+    setContent(
+        uiState =
+            BrowseUiState(
+                listings = listings,
+                distancesMeters = mapOf(listings[0].id to 350.0),
+            )
+    )
+
+    locationOf(listings[0].id).assertTextEquals("350 m · Ecublens")
+    composeTestRule
+        .onNodeWithTag(C.Tag.browse_list)
+        .performScrollToNode(hasTestTag(C.Tag.listing_card_ + listings[1].id))
+    locationOf(listings[1].id).assertTextEquals("Ecublens")
+  }
+
+  @Test
+  fun cardsUnderTheMapShowTheirDistance() {
+    setContent(
+        uiState =
+            BrowseUiState(
+                listings = listingsOnTheMap,
+                view = BrowseView.MAP,
+                selectedPoint = ecublens,
+                distancesMeters = mapOf("tent" to 1200.0),
+            )
+    )
+
+    locationOf("tent").assertTextEquals("1.2 km · Ecublens")
+    composeTestRule
+        .onNodeWithTag(C.Tag.browse_pin_listings)
+        .performScrollToNode(hasTestTag(C.Tag.listing_card_ + "projector"))
+    locationOf("projector").assertTextEquals("Ecublens")
+  }
+
   @Test
   fun noCardsShowUnderTheMapWithoutASelection() {
     setMapContent(selectedPoint = null)
@@ -493,7 +655,13 @@ class BrowseScreenTest {
               photos: List<Uri>,
           ): Result<String> = error("Not used in this test")
         }
-    val viewModel = BrowseViewModel(repository, authRepository, FakeConnectivityRepository())
+    val viewModel =
+        BrowseViewModel(
+            repository,
+            authRepository,
+            FakeConnectivityRepository(),
+            FakeLocationRepository(),
+        )
     var clickedId: String? = null
     composeTestRule.setContent {
       BrowseScreen(viewModel = viewModel, onListingClick = { clickedId = it })

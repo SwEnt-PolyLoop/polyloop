@@ -33,6 +33,19 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // A profile photo is "" or the download URL of the user's own users/{uid}/profile.jpg in this
+    // project's bucket. Firestore rules cannot read the bucket name, so it is written in. The
+    // Storage emulator's hosts are accepted with any bucket, so that the tests can use the URL of a
+    // real upload; this holds in production too.
+    function isOwnPhotoUrl(uid, url) {
+      let path = '/o/users%2F' + uid + '%2Fprofile\\.jpg\\?alt=media&token=[0-9a-fA-F-]+';
+      return url == ''
+          || url.matches(
+              'https://firebasestorage\\.googleapis\\.com/v0/b/polyloop-97543\\.firebasestorage\\.app'
+              + path)
+          || url.matches('http://(10\\.0\\.2\\.2|localhost|127\\.0\\.0\\.1):9199/v0/b/[^/]+' + path);
+    }
+
     function isNonBlankString(value) {
       return value is string && value.trim().size() > 0;
     }
@@ -55,11 +68,6 @@ service cloud.firestore {
           && (list.size() <= 9 || list[9] is string);
     }
 
-    // Midnight UTC of a YYYY-MM-DD string, in milliseconds.
-    function dateMillis(date) {
-      return timestamp.date(int(date[0:4]), int(date[5:7]), int(date[8:10])).toMillis();
-    }
-
     // ---------- users ----------
 
     match /users/{uid} {
@@ -71,12 +79,16 @@ service cloud.firestore {
           && request.resource.data.name is string
           && request.resource.data.email is string
           && request.resource.data.email.lower() == request.auth.token.email.lower()
-          && request.resource.data.get('photoUrl', '') is string;
+          && request.resource.data.get('photoUrl', '') is string
+          && isOwnPhotoUrl(uid, request.resource.data.get('photoUrl', ''));
 
       allow update: if isUser(uid)
           && changedKeys().hasOnly(['name', 'photoUrl'])
           && request.resource.data.name is string
-          && request.resource.data.get('photoUrl', '') is string;
+          && request.resource.data.get('photoUrl', '') is string
+          // Checked only when it changes, so an old stored value does not block a name change.
+          && (!('photoUrl' in changedKeys())
+              || isOwnPhotoUrl(uid, request.resource.data.get('photoUrl', '')));
     }
 
     // ---------- listings ----------
@@ -170,12 +182,9 @@ service cloud.firestore {
               || request.auth.uid == resource.data.ownerId
               || request.auth.uid in resource.data.participants);
 
-      // Temporary exception to the core rule, until the requestRental Cloud Function exists: the
-      // borrower creates the request, with status REQUESTED only and no money reserved.
-      allow create: if isVerifiedEpfl() && isValidNewRental(request.resource.data);
-
-      // Afterwards the participants may only update the chat preview (#101) and the time they last
-      // opened the chat (#181), which the app saves by itself.
+      // Only the requestRental Cloud Function creates a rental. The participants may only update the
+      // chat preview (#101) and the time they last opened the chat (#181), which the app saves by
+      // itself.
       allow update: if isVerifiedEpfl()
           && request.auth.uid in resource.data.participants
           && changedKeys().size() > 0
@@ -203,48 +212,6 @@ service cloud.firestore {
             && reads[request.auth.uid] == request.time;
       }
 
-      function isValidNewRental(rental) {
-        let fields = ['listingId', 'listingTitle', 'listingPhotoUrl', 'ownerId', 'ownerName',
-            'borrowerId', 'borrowerName', 'participants', 'startDate', 'endDate', 'status',
-            'pricePerDay', 'totalPrice', 'pickupArea', 'dropOffArea', 'pickupAddress',
-            'returnAddress', 'createdAt', 'lastMessage', 'lastMessageAt'];
-        let listing = get(listingPath(rental.listingId)).data;
-        return rental.keys().hasOnly(fields)
-            && rental.keys().hasAll(fields)
-            && rental.borrowerId == request.auth.uid
-            && rental.ownerId == listing.ownerId
-            && rental.ownerId != rental.borrowerId
-            && rental.participants == [rental.ownerId, rental.borrowerId]
-            && rental.ownerName is string
-            && rental.borrowerName is string
-            && rental.status == 'REQUESTED'
-            && listing.status == 'PUBLISHED'
-            // The copies of the listing match it.
-            && rental.listingTitle == listing.title
-            // The first photo, or "" for a listing from before the photo rules that has none.
-            && rental.listingPhotoUrl == (listing.get('photoUrls', []).size() > 0
-                ? listing.photoUrls[0] : '')
-            && rental.pricePerDay == listing.pricePerDay
-            && rental.pickupArea == listing.get('pickupArea', '')
-            && rental.dropOffArea == listing.get('dropOffArea', '')
-            && isDate(rental.startDate)
-            && isDate(rental.endDate)
-            && rental.startDate <= rental.endDate
-            && rental.startDate >= listing.availableFrom
-            && rental.endDate <= listing.availableTo
-            // totalPrice is pricePerDay × days, both days included (Rental.totalPrice).
-            && rental.totalPrice is int
-            && rental.totalPrice * 86400000
-                == rental.pricePerDay
-                    * (dateMillis(rental.endDate) - dateMillis(rental.startDate) + 86400000)
-            // The exact addresses stay empty until the lender accepts.
-            && rental.pickupAddress == ''
-            && rental.returnAddress == ''
-            && rental.createdAt == request.time
-            && rental.lastMessageAt == request.time
-            && rental.lastMessage == '';
-      }
-
       // One conversation per rental, visible only to its two participants.
       match /messages/{messageId} {
         allow read: if isVerifiedEpfl()
@@ -264,7 +231,9 @@ service cloud.firestore {
 
       // Condition photos (#231). Each participant adds only their own photos: pickup photos while
       // the rental is Accepted, return photos while it is Active or Overdue (a late item is given
-      // back the same way). They are evidence: never changed.
+      // back the same way). They are evidence: never changed. Rules cannot count documents, so the
+      // cap of 20 photos per person and phase (#428) is the id: a fixed slot, {uid}_{phase}_{0..19},
+      // written once because photos are never replaced.
       match /photos/{photoId} {
         allow read: if isVerifiedEpfl()
             && request.auth.uid in get(rentalPath(rentalId)).data.participants;
@@ -277,6 +246,8 @@ service cloud.firestore {
             && request.resource.data.takenAt == request.time
             && request.resource.data.url is string
             && request.resource.data.phase in phaseStatuses().keys()
+            && photoId.matches(
+                request.auth.uid + '_' + request.resource.data.phase + '_([0-9]|1[0-9])')
             && get(rentalPath(rentalId)).data.status
                 in phaseStatuses()[request.resource.data.phase];
       }

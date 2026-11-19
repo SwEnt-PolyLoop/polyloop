@@ -265,7 +265,11 @@ class StorageRulesTest {
 
   // ---------- pickup photos ----------
 
-  private fun pickupPhoto(rentalId: String, name: String = "0.jpg") =
+  /** The file name of a pickup photo: the slot [n] of [uid]. */
+  private fun slotName(uid: String, n: Int, phase: String = "PICKUP") = "${uid}_${phase}_$n.jpg"
+
+  // The signed-in user's own first slot, unless a name is given.
+  private fun pickupPhoto(rentalId: String, name: String = slotName(ownerUid, 0)) =
       Firebase.storage.reference.child("rentals/$rentalId/photos/$name")
 
   /** A rental between the owner and [borrowerUid], written as an admin. Returns its id. */
@@ -281,14 +285,53 @@ class StorageRulesTest {
   @Test
   fun participantsAddAndReadPickupPhotosButNeverReplaceOrDeleteThem() =
       runBlocking<Unit> {
-        val rentalId = seedRental(FirebaseEmulator.signUpVerified())
+        val borrowerUid = FirebaseEmulator.signUpVerified()
+        val rentalId = seedRental(borrowerUid)
+        val name = slotName(borrowerUid, 0)
 
-        pickupPhoto(rentalId).putBytes(bytes, jpeg).await()
-        assertDenied { pickupPhoto(rentalId).putBytes(byteArrayOf(9), jpeg).await() }
-        assertDenied { pickupPhoto(rentalId).delete().await() }
+        pickupPhoto(rentalId, name).putBytes(bytes, jpeg).await()
+        assertDenied { pickupPhoto(rentalId, name).putBytes(byteArrayOf(9), jpeg).await() }
+        assertDenied { pickupPhoto(rentalId, name).delete().await() }
 
         signInAsOwner()
-        assertArrayEquals(bytes, pickupPhoto(rentalId).getBytes(MAX_BYTES).await())
+        assertArrayEquals(bytes, pickupPhoto(rentalId, name).getBytes(MAX_BYTES).await())
+      }
+
+  @Test
+  fun aPersonAddsAtMost20PickupPhotosOneInEachSlot() =
+      runBlocking<Unit> {
+        val borrowerUid = FirebaseEmulator.signUpVerified()
+        val rentalId = seedRental(borrowerUid)
+
+        repeat(20) {
+          pickupPhoto(rentalId, slotName(borrowerUid, it)).putBytes(bytes, jpeg).await()
+        }
+
+        // The 21st has no slot.
+        assertDenied {
+          pickupPhoto(rentalId, slotName(borrowerUid, 20)).putBytes(bytes, jpeg).await()
+        }
+      }
+
+  @Test
+  fun pickupPhotoNamesMustBeTheUsersOwnSlot() =
+      runBlocking<Unit> {
+        val borrowerUid = FirebaseEmulator.signUpVerified()
+        val rentalId = seedRental(borrowerUid)
+
+        listOf(
+                "photo-${UUID.randomUUID()}.jpg",
+                "0.jpg",
+                slotName(ownerUid, 0), // the other participant's slot
+                slotName(borrowerUid, 0, phase = "RETURN"),
+                "${borrowerUid}_PICKUP_01.jpg",
+                "${borrowerUid}_PICKUP_0.png",
+                "${borrowerUid}_PICKUP_0",
+            )
+            .forEach { name ->
+              assertDenied { pickupPhoto(rentalId, name).putBytes(bytes, jpeg).await() }
+            }
+        pickupPhoto(rentalId, slotName(borrowerUid, 19)).putBytes(bytes, jpeg).await()
       }
 
   @Test
@@ -299,19 +342,26 @@ class StorageRulesTest {
         val requested = seedRental("someone-else", status = "REQUESTED")
         assertDenied { pickupPhoto(requested).putBytes(bytes, jpeg).await() }
 
-        FirebaseEmulator.signUpVerified() // a stranger
-        assertDenied { pickupPhoto(rentalId).getBytes(MAX_BYTES).await() }
-        assertDenied { pickupPhoto(rentalId, "1.jpg").putBytes(bytes, jpeg).await() }
+        val strangerUid = FirebaseEmulator.signUpVerified()
+        assertDenied { pickupPhoto(rentalId, slotName(ownerUid, 0)).getBytes(MAX_BYTES).await() }
+        assertDenied {
+          pickupPhoto(rentalId, slotName(strangerUid, 0)).putBytes(bytes, jpeg).await()
+        }
       }
 
   @Test
   fun returnPhotosAreAddedWhileTheRentalIsActiveOrOverdueOnly() =
       runBlocking<Unit> {
         // A late item is given back the same way; once returned, the photos are taken.
-        pickupPhoto(seedRental("someone-else", status = "ACTIVE")).putBytes(bytes, jpeg).await()
-        pickupPhoto(seedRental("someone-else", status = "OVERDUE")).putBytes(bytes, jpeg).await()
+        val returnSlot = slotName(ownerUid, 0, phase = "RETURN")
+        val active = seedRental("someone-else", status = "ACTIVE")
+        pickupPhoto(active, returnSlot).putBytes(bytes, jpeg).await()
+        val overdue = seedRental("someone-else", status = "OVERDUE")
+        pickupPhoto(overdue, returnSlot).putBytes(bytes, jpeg).await()
         val returned = seedRental("someone-else", status = "RETURNED")
-        assertDenied { pickupPhoto(returned).putBytes(bytes, jpeg).await() }
+        assertDenied { pickupPhoto(returned, returnSlot).putBytes(bytes, jpeg).await() }
+        // A pickup slot is not taken once the item is out.
+        assertDenied { pickupPhoto(active).putBytes(bytes, jpeg).await() }
       }
 
   @Test

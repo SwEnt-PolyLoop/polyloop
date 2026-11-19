@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.e2e
 
+import android.Manifest
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -10,6 +11,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.rule.GrantPermissionRule
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.swent.polyloop.MainActivity
@@ -71,6 +73,9 @@ class AppStartEndToEndTest {
           RepositoryProvider.reset()
         }
       }
+
+  @get:Rule(order = 0)
+  val locationPermissionRule = GrantPermissionRule.grant(Manifest.permission.ACCESS_COARSE_LOCATION)
 
   @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
 

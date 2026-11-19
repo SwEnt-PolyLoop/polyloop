@@ -2,12 +2,16 @@
 
 package com.swent.polyloop.e2e
 
+import android.Manifest
 import android.util.Log
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.semantics.AccessibilityAction
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -40,6 +44,7 @@ import androidx.compose.ui.test.performTextReplacement as composePerformTextRepl
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.GrantPermissionRule
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
@@ -95,6 +100,10 @@ import org.junit.Rule
  * wrote, so runs never get in each other's way.
  */
 abstract class EndToEndTestBase {
+
+  // Browse asks for the coarse location when it is not granted; granted here, no dialog opens.
+  @get:Rule(order = 0)
+  val locationPermissionRule = GrantPermissionRule.grant(Manifest.permission.ACCESS_COARSE_LOCATION)
 
   @get:Rule val composeTestRule = createComposeRule()
 
@@ -199,13 +208,18 @@ abstract class EndToEndTestBase {
     Firebase.auth.signOut()
   }
 
-  /** Shows [PolyLoopApp], the screens MainActivity shows inside its theme. */
-  protected fun setApp() {
+  /**
+   * Shows [PolyLoopApp], the screens MainActivity shows inside its theme. A [uriHandler] receives
+   * the links the app opens in other apps (e.g. Navigate), instead of the phone.
+   */
+  protected fun setApp(uriHandler: UriHandler? = null) {
     composeTestRule.setContent {
       if (showApp) {
         backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
         navController = rememberNavController()
-        PolyLoopApp(navController = navController)
+        CompositionLocalProvider(LocalUriHandler provides (uriHandler ?: LocalUriHandler.current)) {
+          PolyLoopApp(navController = navController)
+        }
       }
     }
     // On CI the activity is sometimes paused for a moment just after the emulator boots, and

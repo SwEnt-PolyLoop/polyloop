@@ -21,8 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -204,6 +202,8 @@ fun RentalDetailContent(
                     labelTag = C.Tag.rental_detail_pickup_point_label,
                     address = uiState.pickupAddress,
                     addressTag = C.Tag.rental_detail_pickup_address,
+                    navigateTag = C.Tag.rental_detail_pickup_navigate,
+                    errorTag = C.Tag.rental_detail_pickup_navigate_error,
                     dropOffAddress = uiState.returnAddress,
                 )
             // The item is with the borrower, so only where it goes back matters now: the return
@@ -214,6 +214,8 @@ fun RentalDetailContent(
                     labelTag = C.Tag.rental_detail_return_point_label,
                     address = uiState.returnAddress,
                     addressTag = C.Tag.rental_detail_return_address,
+                    navigateTag = C.Tag.rental_detail_return_navigate,
+                    errorTag = C.Tag.rental_detail_return_navigate_error,
                 )
             else ->
                 PickupArea(
@@ -742,10 +744,11 @@ internal fun PersonCard(person: OtherPerson, onClick: () -> Unit, onChatClick: (
 }
 
 /**
- * An exact meeting point: the [label] (tagged [labelTag]), a map box, and the [address] (tagged
- * [addressTag]). Once accepted it is the pickup point (Figma frame 13.01), with [dropOffAddress] on
- * a "Drop-off" line under it; once active, the return point alone (Figma frame 13.02-active), with
- * no [dropOffAddress]. A missing address reads as "not known yet".
+ * An exact meeting point: the [label] (tagged [labelTag]), a map box, and the [address] with its
+ * "Navigate" button ([NavigableAddress], tagged [addressTag], [navigateTag] and [errorTag]). Once
+ * accepted it is the pickup point (Figma frame 13.01), with [dropOffAddress] on a "Drop-off" line
+ * under it; once active, the return point alone (Figma frame 13.02-active), with no
+ * [dropOffAddress]. A missing address reads as "not known yet".
  */
 @Composable
 private fun PickupPoint(
@@ -753,6 +756,8 @@ private fun PickupPoint(
     labelTag: String,
     address: String,
     addressTag: String,
+    navigateTag: String,
+    errorTag: String,
     dropOffAddress: String? = null,
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -773,17 +778,12 @@ private fun PickupPoint(
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .testTag(C.Tag.rental_detail_map)
     )
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Icon(Icons.Outlined.Place, contentDescription = null, modifier = Modifier.size(20.dp))
-      Text(
-          text = address.ifBlank { stringResource(R.string.rental_detail_address_placeholder) },
-          style = MaterialTheme.typography.bodyMedium,
-          modifier = Modifier.testTag(addressTag),
-      )
-    }
+    NavigableAddress(
+        address = address,
+        addressTag = addressTag,
+        navigateTag = navigateTag,
+        errorTag = errorTag,
+    )
     dropOffAddress?.let {
       Text(
           text =
@@ -822,17 +822,10 @@ private fun PickupArea(area: String, point: MapPoint?, showMap: Boolean) {
     ) {
       PickupMap(area = area, point = point, showMap = showMap)
     }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Icon(Icons.Outlined.Place, contentDescription = null, modifier = Modifier.size(20.dp))
-      Text(
-          text = area.ifBlank { stringResource(R.string.rental_detail_area_placeholder) },
-          style = MaterialTheme.typography.bodyMedium,
-          modifier = Modifier.testTag(C.Tag.rental_detail_pickup_area),
-      )
-    }
+    PinnedText(
+        text = area.ifBlank { stringResource(R.string.rental_detail_area_placeholder) },
+        tag = C.Tag.rental_detail_pickup_area,
+    )
     Text(
         text = stringResource(R.string.rental_detail_pickup_note),
         style = MaterialTheme.typography.bodySmall,
