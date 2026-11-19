@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.swent.polyloop.model.auth.AuthRepository
 import com.swent.polyloop.model.connectivity.ConnectivityRepository
+import com.swent.polyloop.model.dispute.DisputeRepository
 import com.swent.polyloop.model.handover.HandoverCode
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
@@ -43,6 +44,12 @@ enum class ScanError {
 
 /** The photo at [uri] whose upload failed, taken in [phase], the only phase it can be sent in. */
 data class FailedPhoto(val uri: String, val phase: HandoverPhase)
+
+/** The lender's answer once the item is back: it came back fine, or it is damaged. */
+enum class ReturnCheck {
+  ITEM_FINE,
+  DAMAGE_FLAGGED,
+}
 
 /**
  * State of the Handover screen for one rental, as seen by the signed-in user.
@@ -86,6 +93,9 @@ data class FailedPhoto(val uri: String, val phase: HandoverPhase)
  * @property isPickedUp true once the rental is picked up (ACTIVE or later) while the screen shows
  *   its pickup, seen live on both phones: no more photos, no QR and no scan. A screen opened on a
  *   picked-up rental shows its return instead.
+ * @property sendingCheck the lender's answer being sent, or null when none is.
+ * @property checkFailed true when the lender's last answer could not be sent.
+ * @property checkSent the lender's answer once it was sent, so it is never sent twice.
  */
 data class HandoverUiState(
     val isLoading: Boolean = true,
@@ -117,6 +127,9 @@ data class HandoverUiState(
     val scanConfirmed: Boolean = false,
     val scanError: ScanError? = null,
     val isPickedUp: Boolean = false,
+    val sendingCheck: ReturnCheck? = null,
+    val checkFailed: Boolean = false,
+    val checkSent: ReturnCheck? = null,
 ) {
   /** The file of [failedPhoto], or null when no upload failed. */
   val failedPhotoUri: String?
@@ -203,28 +216,36 @@ data class HandoverUiState(
             !scanConfirmed &&
             !isPickedUp
 
-  /** True when the lender checks the returned item; the borrower only waits for them. */
+  /**
+   * True when the lender checks the returned item; the borrower only waits for them. It stays true
+   * while their answer is sent and once it is, even if the rental moves on meanwhile.
+   */
   val isReturnCheck: Boolean
-    get() = isReturned && isLender
+    get() = isLender && (isReturned || sendingCheck != null || checkSent != null)
+
+  /** True when the lender can answer: online, with no answer being sent or already sent. */
+  val canSendCheck: Boolean
+    get() = isReturnCheck && !isOffline && sendingCheck == null && checkSent == null
 }
 
 /**
  * Shows the handover of the rental [rentalId], followed live: a screen showing the pickup sees it
  * confirmed by the scan (or the rental cancelled) on both phones, and one showing the return moves
  * on by itself when the return is scanned. It uploads the photos taken, reads the code to show or
- * the fingerprint of the one to scan, and sends the scanned code. When the rental takes photos, it
- * reads today from [serverClock], so that photos cannot be taken early by changing the phone's
- * date; an unknown day is read again when the phone comes back online, and online with
- * [retryServerToday]. A known day is read again at midnight in Zurich, by the server's time, so a
- * screen left open does not keep yesterday; [elapsedRealtime] (the time since boot, sleep included)
- * tells [retryServerToday] whether that midnight passed while the phone slept, which stops the
- * wait. [deletePhoto] deletes a photo file: once it is uploaded or refused, when its shot failed,
- * or when a photo that failed to upload can no longer be sent.
+ * the fingerprint of the one to scan, sends the scanned code, and sends the lender's answer once
+ * the item is back. When the rental takes photos, it reads today from [serverClock], so that photos
+ * cannot be taken early by changing the phone's date; an unknown day is read again when the phone
+ * comes back online, and online with [retryServerToday]. A known day is read again at midnight in
+ * Zurich, by the server's time, so a screen left open does not keep yesterday; [elapsedRealtime]
+ * (the time since boot, sleep included) tells [retryServerToday] whether that midnight passed while
+ * the phone slept, which stops the wait. [deletePhoto] deletes a photo file: once it is uploaded or
+ * refused, when its shot failed, or when a photo that failed to upload can no longer be sent.
  */
 class HandoverViewModel(
     private val rentalId: String,
     private val rentalRepository: RentalRepository,
     private val handoverRepository: HandoverRepository,
+    private val disputeRepository: DisputeRepository,
     private val authRepository: AuthRepository,
     private val connectivityRepository: ConnectivityRepository,
     private val serverClock: ServerClock,
@@ -403,6 +424,26 @@ class HandoverViewModel(
   /** Deletes the file the camera prepared for a shot that failed; it was never a photo. */
   fun onCaptureFailed(photoUri: String) = deletePhoto(photoUri)
 
+  /** Tells, as the lender, that the returned item is fine, which releases the deposit. */
+  fun confirmItemFine() =
+      sendCheck(ReturnCheck.ITEM_FINE) { handoverRepository.confirmReturnOk(rentalId) }
+
+  /** Tells, as the lender, that the returned item is damaged, which opens a dispute. */
+  fun flagDamage() =
+      sendCheck(ReturnCheck.DAMAGE_FLAGGED) { disputeRepository.openDispute(rentalId) }
+
+  /** Sends the lender's [answer] with [send], if it can be sent now (see `canSendCheck`). */
+  private fun sendCheck(answer: ReturnCheck, send: suspend () -> Result<Unit>) {
+    if (!_uiState.value.canSendCheck) return
+    _uiState.update { it.copy(sendingCheck = answer, checkFailed = false) }
+    viewModelScope.launch {
+      val sent = send().isSuccess
+      _uiState.update {
+        it.copy(sendingCheck = null, checkFailed = !sent, checkSent = answer.takeIf { sent })
+      }
+    }
+  }
+
   private fun upload(photoUri: String) {
     val phase = _uiState.value.phase ?: return
     _uiState.update { it.copy(isUploading = true, failedPhoto = null) }
@@ -471,10 +512,10 @@ class HandoverViewModel(
   }
 
   /**
-   * Shows [rental] as seen by [uid], keeping the photos and the upload, and follows other photos
-   * and reads another code when its status changed the phase shown. A pickup shown when the rental
-   * is picked up stays on screen, marked [HandoverUiState.isPickedUp]. A photo that failed to
-   * upload and can no longer be sent is deleted.
+   * Shows [rental] as seen by [uid], keeping the photos, the upload and the lender's answer, and
+   * follows other photos and reads another code when its status changed the phase shown. A pickup
+   * shown when the rental is picked up stays on screen, marked [HandoverUiState.isPickedUp]. A
+   * photo that failed to upload and can no longer be sent is deleted.
    */
   private fun showRental(rental: Rental, uid: String) {
     val shown = _uiState.value
@@ -520,8 +561,9 @@ class HandoverViewModel(
 
   /**
    * Shows [state], keeping what is read or followed apart: whether the phone is online, the
-   * server's day, the upload running or the photo waiting for a retry, and a scan being sent, so a
-   * reload does not lose them.
+   * server's day, the upload running or the photo waiting for a retry, a scan being sent, and the
+   * lender's answer being sent or already sent, so a reload does not lose them and the answer is
+   * never sent twice.
    */
   private fun show(state: HandoverUiState) = _uiState.update {
     state.copy(
@@ -532,6 +574,8 @@ class HandoverViewModel(
         isUploading = it.isUploading,
         failedPhoto = it.failedPhoto,
         isSendingScan = it.isSendingScan,
+        sendingCheck = it.sendingCheck,
+        checkSent = it.checkSent,
     )
   }
 
@@ -629,6 +673,7 @@ class HandoverViewModel(
       private val rentalId: String,
       private val rentalRepository: RentalRepository,
       private val handoverRepository: HandoverRepository,
+      private val disputeRepository: DisputeRepository,
       private val authRepository: AuthRepository,
       private val connectivityRepository: ConnectivityRepository,
       private val serverClock: ServerClock,
@@ -642,6 +687,7 @@ class HandoverViewModel(
           rentalId,
           rentalRepository,
           handoverRepository,
+          disputeRepository,
           authRepository,
           connectivityRepository,
           serverClock,

@@ -400,6 +400,7 @@ private fun PolyLoopScaffold(
                         rentalId = entry.stringArg(Screen.ARG_RENTAL_ID),
                         rentalRepository = RepositoryProvider.rentalRepository,
                         handoverRepository = RepositoryProvider.handoverRepository,
+                        disputeRepository = RepositoryProvider.disputeRepository,
                         authRepository = RepositoryProvider.authRepository,
                         connectivityRepository = RepositoryProvider.connectivityRepository,
                         serverClock = RepositoryProvider.serverClock,
