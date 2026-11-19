@@ -109,9 +109,10 @@ class ScanCodeCardTest {
   }
 
   @Test
-  fun atReturnTheLenderScansTheBorrowersCode() {
-    setContent(ready.copy(isLender = true, phase = HandoverPhase.RETURN, otherPersonName = ""))
-    node(C.Tag.handover_scan_title).assertTextEquals("Scan the borrower's code")
+  fun atReturnThereIsNoScanCardYet() {
+    // The server makes no return code yet, so the lender has nothing to scan.
+    setContent(ready.copy(isLender = true, phase = HandoverPhase.RETURN))
+    node(C.Tag.handover_scan_card).assertDoesNotExist()
     node(C.Tag.handover_code_card).assertDoesNotExist()
   }
 

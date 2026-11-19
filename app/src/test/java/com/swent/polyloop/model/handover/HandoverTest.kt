@@ -14,8 +14,15 @@ class HandoverTest {
       assertEquals(HandoverPhase.PICKUP, HandoverPhase.fromStatus(RentalStatus.ACCEPTED))
 
   @Test
+  fun anItemOutOnLoanLateOrNotTakesReturnPhotos() {
+    assertEquals(HandoverPhase.RETURN, HandoverPhase.fromStatus(RentalStatus.ACTIVE))
+    assertEquals(HandoverPhase.RETURN, HandoverPhase.fromStatus(RentalStatus.OVERDUE))
+  }
+
+  @Test
   fun everyOtherStatusTakesNoPhotos() {
-    val others = RentalStatus.entries - RentalStatus.ACCEPTED
+    val others =
+        RentalStatus.entries - RentalStatus.ACCEPTED - RentalStatus.ACTIVE - RentalStatus.OVERDUE
     others.forEach { assertNull("$it", HandoverPhase.fromStatus(it)) }
   }
 }

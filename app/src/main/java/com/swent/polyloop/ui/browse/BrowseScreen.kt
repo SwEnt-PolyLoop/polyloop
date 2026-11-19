@@ -2,6 +2,10 @@
 
 package com.swent.polyloop.ui.browse
 
+import android.Manifest
+import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,9 +32,14 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -38,16 +47,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.location.MapPoint
+import com.swent.polyloop.model.location.hasCoarseLocationPermission
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.theme.PolyLoopTheme
-
-// TODO: temporary until LocationRepository exists; every card shows the same distance.
-private const val FAKE_DISTANCE_TEXT = "0.6 km"
 
 /** Space around the row of cards under the map. */
 private val PIN_CARDS_PADDING = 16.dp
@@ -70,8 +78,29 @@ fun BrowseScreen(
     viewModel: BrowseViewModel,
     onListingClick: (String) -> Unit = {},
     onOpenMyRentals: () -> Unit = {},
+    hasLocationPermission: (Context) -> Boolean = ::hasCoarseLocationPermission,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  // Ask for the coarse location when Browse opens and it is not granted, not again after a refusal
+  // while it stays in the back stack (`locationPermissionAsked`). The answer and each resume read
+  // the position again (LifecycleResumeEffect below); a refusal leaves no distances.
+  val context = LocalContext.current
+  val locationPermissionLauncher =
+      rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        viewModel.refreshLocation()
+      }
+  var locationPermissionAsked by rememberSaveable { mutableStateOf(false) }
+  LaunchedEffect(Unit) {
+    if (!hasLocationPermission(context) && !locationPermissionAsked) {
+      locationPermissionAsked = true
+      locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+  }
+  // Read the position each time Browse comes back on screen.
+  LifecycleResumeEffect(Unit) {
+    viewModel.refreshLocation()
+    onPauseOrDispose {}
+  }
   BrowseContent(
       uiState = uiState,
       onListingClick = onListingClick,
@@ -172,7 +201,11 @@ fun BrowseContent(
                 modifier = Modifier.weight(1f),
             )
             uiState.selectedPin?.let { pin ->
-              BrowsePinListings(pin = pin, onListingClick = onListingClick)
+              BrowsePinListings(
+                  pin = pin,
+                  distancesMeters = uiState.distancesMeters,
+                  onListingClick = onListingClick,
+              )
             }
           }
       else ->
@@ -184,7 +217,7 @@ fun BrowseContent(
             items(uiState.visibleListings, key = { it.id }) { listing ->
               ListingCard(
                   listing = listing,
-                  distanceText = FAKE_DISTANCE_TEXT,
+                  distanceMeters = uiState.distancesMeters[listing.id],
                   onClick = { onListingClick(listing.id) },
               )
             }
@@ -195,12 +228,16 @@ fun BrowseContent(
 
 /**
  * The listings of [pin], the pin selected on the map, as cards in a row under the map, which
- * scrolls sideways when there are several. Tapping a card calls [onListingClick] with its id. The
- * cards' text keeps to one line, so they all have the same height and the map above does not jump
- * while the user swipes.
+ * scrolls sideways when there are several, each with its distance from [distancesMeters] when it
+ * has one. Tapping a card calls [onListingClick] with its id. The cards' text keeps to one line, so
+ * they all have the same height and the map above does not jump while the user swipes.
  */
 @Composable
-private fun BrowsePinListings(pin: BrowsePin, onListingClick: (String) -> Unit) {
+private fun BrowsePinListings(
+    pin: BrowsePin,
+    distancesMeters: Map<String, Double>,
+    onListingClick: (String) -> Unit,
+) {
   val cardWidthFraction = if (pin.listings.size == 1) 1f else PIN_CARD_WIDTH_FRACTION
   LazyRow(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.browse_pin_listings),
@@ -210,7 +247,7 @@ private fun BrowsePinListings(pin: BrowsePin, onListingClick: (String) -> Unit) 
     items(pin.listings, key = { it.id }) { listing ->
       ListingCard(
           listing = listing,
-          distanceText = FAKE_DISTANCE_TEXT,
+          distanceMeters = distancesMeters[listing.id],
           modifier = Modifier.fillParentMaxWidth(cardWidthFraction),
           singleLineText = true,
           onClick = { onListingClick(listing.id) },

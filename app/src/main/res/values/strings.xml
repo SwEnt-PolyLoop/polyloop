@@ -33,6 +33,8 @@
     <string name="listing_card_price">%1$d PP</string>
     <string name="listing_card_per_day">/ day</string>
     <string name="listing_card_location">%1$s · %2$s</string>
+    <string name="distance_meters">%1$d m</string>
+    <string name="distance_kilometers">%1$s km</string>
 
     <!-- Listing detail -->
     <!-- Under a long text cut after a few lines (the listing description): shows it whole, then cuts it again. -->
@@ -382,6 +384,8 @@
     <string name="rental_detail_pickup_point_label">PICKUP POINT</string>
     <string name="rental_detail_return_address">Drop-off: %1$s</string>
     <string name="rental_detail_address_placeholder">Address not known yet</string>
+    <string name="rental_detail_navigate">Navigate</string>
+    <string name="rental_detail_navigate_failed">Could not open the directions.</string>
     <string name="rental_detail_details_title">Details</string>
     <string name="rental_detail_dates_label">Dates</string>
     <string name="rental_detail_return_label">Return</string>
@@ -505,20 +509,30 @@
     <string name="handover_not_found">This rental no longer exists.</string>
     <string name="handover_nothing">Nothing to hand over right now.</string>
     <string name="handover_pickup_title">Pickup</string>
+    <string name="handover_return_title">Return</string>
     <string name="handover_you_lend">You lend</string>
     <string name="handover_you_borrow">You borrow</string>
-    <!-- The other person on Handover: "with Loca" for the lender, "from Mara" for the borrower -->
+    <!-- The other person on Handover, by name: at pickup "with <borrower>" for the lender and
+         "from <lender>" for the borrower; at return the lender also uses "from <borrower>" -->
     <string name="handover_with">with %1$s</string>
     <string name="handover_from">from %1$s</string>
     <string name="handover_with_the_borrower">with the borrower</string>
     <string name="handover_from_the_lender">from the lender</string>
+    <!-- At return, for the lender, when the borrower has no name -->
+    <string name="handover_from_the_borrower">from the borrower</string>
+    <!-- At return, for the borrower: "to <lender>", or "to the lender" without a name -->
+    <string name="handover_to">to %1$s</string>
+    <string name="handover_to_the_lender">to the lender</string>
     <string name="handover_photos_title">Condition photos</string>
     <!-- The number of photos each person takes, e.g. "3–20 photos" -->
     <string name="handover_photos_range">%1$d–%2$d photos</string>
     <!-- Read by screen readers for a pickup photo, e.g. "Pickup photo, 14:02" -->
     <string name="handover_photo_description">Pickup photo, %1$s</string>
+    <!-- Read by screen readers for a return photo, e.g. "Return photo, 16:31" -->
+    <string name="handover_return_photo_description">Return photo, %1$s</string>
     <string name="handover_take_photo">Take a photo</string>
     <string name="handover_photos_done">Pickup photos done</string>
+    <string name="handover_return_photos_done">Return photos done</string>
     <plurals name="handover_photos_missing">
         <item quantity="one">Take %1$d more photo</item>
         <item quantity="other">Take %1$d more photos</item>
@@ -529,8 +543,14 @@
     <string name="handover_not_pickup_day">Pickup is on %1$s</string>
     <!-- Shown on Handover instead when the server's date is unknown -->
     <string name="handover_pickup_needs_connection">Connect to the internet to check the pickup day.</string>
+    <!-- Shown on Handover before the return day, e.g. "Return is on 18 Oct" -->
+    <string name="handover_not_return_day">Return is on %1$s</string>
+    <!-- Shown on Handover instead, at return, when the server's date is unknown -->
+    <string name="handover_return_needs_connection">Connect to the internet to check the return day.</string>
     <!-- Under a pickup photo shown full screen, e.g. "Pickup · 14:02" -->
     <string name="handover_photo_label">Pickup · %1$s</string>
+    <!-- Under a return photo shown full screen, e.g. "Return · 16:31" -->
+    <string name="handover_return_photo_label">Return · %1$s</string>
     <string name="handover_close_photo">Close the photo</string>
     <string name="handover_deposit_held_lender">Deposit held</string>
     <string name="handover_deposit_held_borrower">Your deposit, held</string>

@@ -11,9 +11,17 @@ enum class HandoverPhase {
   RETURN;
 
   companion object {
-    /** The phase photos are taken in for a rental in [status], or null if none can be taken. */
+    /**
+     * The phase photos are taken in for a rental in [status], or null if none can be taken: the
+     * pickup while it is accepted, the return while the item is out, late or not.
+     */
     fun fromStatus(status: RentalStatus): HandoverPhase? =
-        if (status == RentalStatus.ACCEPTED) PICKUP else null
+        when (status) {
+          RentalStatus.ACCEPTED -> PICKUP
+          RentalStatus.ACTIVE,
+          RentalStatus.OVERDUE -> RETURN
+          else -> null
+        }
   }
 }
 

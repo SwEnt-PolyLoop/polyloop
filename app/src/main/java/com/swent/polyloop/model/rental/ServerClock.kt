@@ -44,7 +44,14 @@ class ServerClock(
    * and nothing was saved since the phone booted. Callers then treat the day as unknown rather than
    * fall back on the phone's date, which airplane mode plus a changed date would otherwise move.
    */
-  suspend fun today(): LocalDate? {
+  suspend fun today(): LocalDate? = now()?.let { dayOf(it) }
+
+  /**
+   * The server's time now, worked out like [today]: asked from the server, or from the last saved
+   * pair when it cannot be reached. Null when it is unknown. Screens that stay open use it to know
+   * when the server's day ends, which the phone's clock cannot tell.
+   */
+  suspend fun now(): Instant? {
     val result = repository.serverNow()
     // Read once the answer arrives, after the server read its clock, so the worked-out time can
     // only lag behind the server's, never run ahead of it and open a day early.
@@ -55,21 +62,21 @@ class ServerClock(
       result.fold(
           onSuccess = { now ->
             store.save(Saved(now.toEpochMilli(), elapsed, bootCount()))
-            dayOf(now)
+            now
           },
-          onFailure = { dayFromSaved(elapsed) },
+          onFailure = { timeFromSaved(elapsed) },
       )
     }
   }
 
   /**
-   * The day worked out from the saved pair at [elapsed], or null if there is none for this boot.
+   * The time worked out from the saved pair at [elapsed], or null if there is none for this boot.
    */
-  private fun dayFromSaved(elapsed: Long): LocalDate? {
+  private fun timeFromSaved(elapsed: Long): Instant? {
     val saved = store.load() ?: return null
     // A smaller elapsed time means the phone rebooted, even if the boot count did not change.
     if (saved.bootCount != bootCount() || elapsed < saved.elapsedRealtimeMs) return null
-    return dayOf(Instant.ofEpochMilli(saved.serverTimeMs + (elapsed - saved.elapsedRealtimeMs)))
+    return Instant.ofEpochMilli(saved.serverTimeMs + (elapsed - saved.elapsedRealtimeMs))
   }
 
   /**
@@ -87,10 +94,11 @@ class ServerClock(
     fun save(saved: Saved)
   }
 
-  private companion object {
-    // Rental dates are Swiss days, as in the serverToday function, wherever the phone is set.
+  companion object {
+    /** Rental dates are Swiss days, as in the serverToday function, wherever the phone is set. */
     val ZURICH: ZoneId = ZoneId.of("Europe/Zurich")
 
+    /** The rental day [instant] falls on. */
     fun dayOf(instant: Instant): LocalDate = instant.atZone(ZURICH).toLocalDate()
   }
 }

@@ -18,7 +18,7 @@ interface HandoverRepository {
    * Uploads the photo file at [photoUri] as the signed-in user's photo of [rentalId] in [phase].
    * Fails with an [IllegalArgumentException] if [rentalId] is invalid, an [IllegalStateException]
    * if nobody is signed in, or the cause if it cannot be saved (e.g. offline, or the rental is not
-   * Accepted).
+   * in [phase]'s status: Accepted at pickup, Active or Overdue at return).
    */
   suspend fun addPhoto(rentalId: String, phase: HandoverPhase, photoUri: String): Result<Unit>
 
