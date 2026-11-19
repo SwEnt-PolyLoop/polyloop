@@ -241,6 +241,17 @@ class ScanCodeCardTest {
   }
 
   @Test
+  fun aScanRefusedOnTheNextDayKeepsItsCardAndMessage() {
+    // The answer to a scan sent before midnight, refused because the day changed.
+    setContent(ready.copy(serverToday = LocalDate.of(2026, 10, 7), scanError = ScanError.REFUSED))
+    assertMessage(
+        "The pickup couldn't be confirmed. Check that you have enough PolyPoints for this rental " +
+            "and that today is the pickup day."
+    )
+    button().assertIsNotEnabled()
+  }
+
+  @Test
   fun aPickupSeenFromTheServerAlsoShowsPickedUp() {
     // No scan from this phone (scanConfirmed is false): the rental became ACTIVE on the server.
     setContent(ready.copy(isPickedUp = true))

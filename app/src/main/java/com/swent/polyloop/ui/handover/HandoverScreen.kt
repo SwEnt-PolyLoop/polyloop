@@ -216,16 +216,17 @@ fun HandoverContent(
                     onPhotoClick = { enlargedId = it },
                     onRetryPhotos = onRetry,
                 )
-                // Only the pickup has a code for now: the server makes no return code yet. Once its
-                // day is over, neither card is shown, even while the new day is read, except for a
-                // scan sent before midnight, whose answer is still shown. The person giving the
-                // item
-                // shows the code; the one receiving it scans.
+                // Only the pickup has a code for now: the server makes no return code yet. The
+                // person giving the item shows the code; the one receiving it scans. Once the
+                // pickup day is over, neither card is shown, even while the new day is read, except
+                // for a scan sent before midnight, which keeps its card for its answer (the
+                // ViewModel clears older messages at midnight).
                 if (
                     uiState.phase == HandoverPhase.PICKUP &&
                         ((uiState.isPickupDay && !uiState.isDayOver) ||
                             uiState.isSendingScan ||
-                            uiState.scanConfirmed)
+                            uiState.scanConfirmed ||
+                            uiState.scanError != null)
                 ) {
                   if (uiState.showsCode) ShowCodeCard(uiState, onRetry)
                   else ScanCodeCard(uiState, onScan, onRetry)

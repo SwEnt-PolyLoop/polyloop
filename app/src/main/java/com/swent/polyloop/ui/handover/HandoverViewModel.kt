@@ -328,7 +328,7 @@ class HandoverViewModel(
       delay(endsAt - elapsedRealtime())
       if (_uiState.value.isPickedUp) return@launch
       if (_uiState.value.phase != null) {
-        _uiState.update { it.copy(isDayOver = true) }
+        endDay()
         readServerToday()
       } else {
         dayEndsAt = null
@@ -336,6 +336,12 @@ class HandoverViewModel(
       }
     }
   }
+
+  /**
+   * Marks the day as over. A scan message from that day goes with it, so a message shown afterwards
+   * can only be the answer to a scan still being sent at midnight, which the screen keeps showing.
+   */
+  private fun endDay() = _uiState.update { it.copy(isDayOver = true, scanError = null) }
 
   private fun forgetDayEnd() {
     midnightRead?.cancel()
@@ -357,7 +363,7 @@ class HandoverViewModel(
     val isDayOver = dayEndsAt?.let { elapsedRealtime() >= it } == true
     when {
       isDayOver -> {
-        _uiState.update { it.copy(isDayOver = true) }
+        endDay()
         readServerToday()
       }
       state.serverToday == null -> if (!state.isOffline) readServerToday()

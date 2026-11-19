@@ -1472,6 +1472,47 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun aScanRefusedAfterMidnightKeepsItsMessage() {
+    // Sent just before midnight, it reaches the server on the next day, which refuses it.
+    val gate = CompletableDeferred<Unit>()
+    handoverRepository.gate = gate
+    handoverRepository.scanFailure = ScanRefusedException()
+    val vm = readyToScan()
+    vm.onCodeScanned("secret-code")
+
+    rentalRepository.serverNow = noonOn(pickupDay.plusDays(1))
+    testDispatcher.scheduler.advanceTimeBy(HALF_A_DAY_MS + 1)
+    assertFalse(vm.uiState.value.isPickupDay)
+    assertTrue(vm.uiState.value.isSendingScan)
+
+    gate.complete(Unit)
+    assertEquals(ScanError.REFUSED, vm.uiState.value.scanError)
+    assertFalse(vm.uiState.value.canScan)
+  }
+
+  @Test
+  fun midnightClearsTheDaysScanMessage() {
+    // A message from the pickup day would otherwise keep the card on the next day.
+    val vm = readyToScan()
+    vm.onCodeScanned("not-the-code")
+    assertEquals(ScanError.WRONG_CODE, vm.uiState.value.scanError)
+
+    rentalRepository.serverNow = noonOn(pickupDay.plusDays(1))
+    testDispatcher.scheduler.advanceTimeBy(HALF_A_DAY_MS + 1)
+    assertNull(vm.uiState.value.scanError)
+  }
+
+  @Test
+  fun midnightNoticedAfterASleepAlsoClearsTheScanMessage() {
+    val vm = readyToScan()
+    vm.onCodeScanned("not-the-code")
+
+    elapsed += HALF_A_DAY_MS + 1 // the phone slept past midnight
+    vm.retryServerToday() // the screen comes back
+    assertNull(vm.uiState.value.scanError)
+  }
+
+  @Test
   fun aScanIsIgnoredWhenScanCannotBePressed() {
     handoverRepository.photos = photos(2)
     viewModel().onCodeScanned("secret-code") // 2 photos only
