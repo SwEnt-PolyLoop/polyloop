@@ -154,7 +154,7 @@ class ListingDetailScreenTest {
 
   @Test
   fun longTitleIsCutBehindSeeMore() {
-    setContent(listing.copy(title = "Camping tent for two people ".repeat(3).trim()))
+    setContent(listing.copy(title = "Camping tent for two people ".repeat(4).trim()))
 
     composeTestRule
         .onNodeWithTag(C.Tag.listing_detail_title_toggle)
