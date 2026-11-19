@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.handover
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,10 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -42,9 +45,6 @@ import com.swent.polyloop.ui.theme.PolyLoopTheme
 import com.swent.polyloop.ui.theme.PositiveGreen
 import java.time.Instant
 import java.time.ZoneId
-
-// Before and after photos are larger than the condition photos: 3 per row, as in Figma 17b.
-private const val CHECK_PHOTOS_PER_ROW = 3
 
 /**
  * The lender's check of the returned item (Figma 17b): the header, that the return was scanned,
@@ -153,7 +153,7 @@ private fun ReturnScannedCard() {
 }
 
 /**
- * "Before and after": the lender's pickup photos, then their return photos, 3 per row; a spinner
+ * "Before and after": the lender's pickup photos, then their return photos, 4 per row; a spinner
  * until both are read, or an error with Retry when they could not be loaded.
  */
 @Composable
@@ -230,7 +230,6 @@ private fun PhotoSection(
         photos.map { photo ->
           { PhotoTile(photo, zone, onClick = { onPhotoClick(photo.id) }, tag = photoTag) }
         },
-        perRow = CHECK_PHOTOS_PER_ROW,
     )
   }
 }
@@ -256,9 +255,11 @@ private fun CheckButtons(
         fontWeight = FontWeight.Bold,
     )
     val name = uiState.otherPersonName
+    val shape = RoundedCornerShape(dimensionResource(R.dimen.handover_check_button_corner))
     Button(
         onClick = onItemFine,
         enabled = uiState.canSendCheck,
+        shape = shape,
         modifier = Modifier.fillMaxWidth().testTag(C.Tag.handover_item_fine_button),
     ) {
       CheckButtonContent(
@@ -273,9 +274,16 @@ private fun CheckButtons(
         C.Tag.handover_item_fine_not_available,
         Modifier.align(Alignment.CenterHorizontally),
     )
+    val damageColor = MaterialTheme.colorScheme.secondary
     OutlinedButton(
         onClick = onFlagDamage,
         enabled = uiState.canSendCheck,
+        shape = shape,
+        border =
+            if (uiState.canSendCheck)
+                BorderStroke(dimensionResource(R.dimen.handover_check_button_border), damageColor)
+            else ButtonDefaults.outlinedButtonBorder(enabled = false),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = damageColor),
         modifier = Modifier.fillMaxWidth().testTag(C.Tag.handover_flag_damage_button),
     ) {
       CheckButtonContent(
@@ -326,8 +334,8 @@ private fun CheckButtonContent(title: String, detail: String, isSending: Boolean
       modifier =
           Modifier.padding(vertical = dimensionResource(R.dimen.handover_check_button_padding)),
   ) {
-    Text(text = title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-    Text(text = detail, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+    Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    Text(text = detail, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
   }
 }
 
