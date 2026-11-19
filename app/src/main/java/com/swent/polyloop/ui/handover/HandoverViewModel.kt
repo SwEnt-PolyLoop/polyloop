@@ -56,7 +56,8 @@ data class FailedPhoto(val uri: String, val phase: HandoverPhase)
  * @property returnDate the rental's last day, from which the item can be returned.
  * @property serverToday today by the server's clock, read only when photos are taken in [phase];
  *   null until it is read, when it is unknown (the server was not reached since the phone booted),
- *   and from midnight on once the rental no longer takes photos.
+ *   and from midnight on once the rental no longer takes photos. A pickup done keeps its day, which
+ *   is not read again.
  * @property isReadingServerToday true while [serverToday] is being read, so the screen can tell a
  *   read still running from an unknown day.
  * @property isDayOver true once the end of [serverToday] is noticed (at midnight, or when the
@@ -206,7 +207,7 @@ data class HandoverUiState(
  * screen left open does not keep yesterday; [elapsedRealtime] (the time since boot, sleep included)
  * tells [retryServerToday] whether that midnight passed while the phone slept, which stops the
  * wait. [deletePhoto] deletes a photo file: once it is uploaded or refused, when its shot failed,
- * or when a photo that failed to upload can no longer be sent.
+ * or when a photo that failed to upload can no longer be sent or the screen is left.
  */
 class HandoverViewModel(
     private val rentalId: String,
@@ -233,6 +234,9 @@ class HandoverViewModel(
 
   // When the server's day shown ends, in [elapsedRealtime] time; null while the day is unknown.
   private var dayEndsAt: Long? = null
+
+  // True once the pickup was shown, kept by a reload so a pickup done stays on screen after it.
+  private var showedPickup = false
 
   init {
     viewModelScope.launch {
@@ -282,15 +286,17 @@ class HandoverViewModel(
 
   /**
    * Waits until [dayEndsAt], then reads the day again; a rental that no longer takes photos needs
-   * no day, so it is forgotten instead, and read again if photos are taken again. [delay] stops
-   * while the phone sleeps, so a sleep shifts the wait: [retryServerToday] starts it again with the
-   * time really left when the screen comes back.
+   * no day, so it is forgotten instead, and read again if photos are taken again. A pickup done
+   * keeps its day, so the screen still shows it as done, not as a pickup on another day. [delay]
+   * stops while the phone sleeps, so a sleep shifts the wait: [retryServerToday] starts it again
+   * with the time really left when the screen comes back.
    */
   private fun waitForDayEnd() {
     val endsAt = dayEndsAt ?: return
     midnightRead?.cancel()
     midnightRead = viewModelScope.launch {
       delay(endsAt - elapsedRealtime())
+      if (_uiState.value.isPickedUp) return@launch
       if (_uiState.value.phase != null) {
         _uiState.update { it.copy(isDayOver = true) }
         readServerToday()
@@ -312,11 +318,12 @@ class HandoverViewModel(
    * phone slept, which stops the wait for it. A day not over yet is waited for again with the time
    * really left, which a sleep shifted. Called when the screen comes back to the front, and from
    * "Retry" on the note. An unknown day is not read offline, where coming back online reads it; a
-   * day that is over is, as [serverClock] works it out from its last answer.
+   * day that is over is, as [serverClock] works it out from its last answer. A pickup done keeps
+   * its day (see [waitForDayEnd]).
    */
   fun retryServerToday() {
     val state = _uiState.value
-    if (state.phase == null) return
+    if (state.phase == null || state.isPickedUp) return
     val isDayOver = dayEndsAt?.let { elapsedRealtime() >= it } == true
     when {
       isDayOver -> {
@@ -457,13 +464,14 @@ class HandoverViewModel(
   /**
    * Shows [rental] as seen by [uid], keeping the photos and the upload, and follows other photos
    * and reads another code when its status changed the phase shown. A pickup shown when the rental
-   * is picked up stays on screen, marked [HandoverUiState.isPickedUp]. A photo that failed to
-   * upload and can no longer be sent is deleted.
+   * is picked up stays on screen, marked [HandoverUiState.isPickedUp], even after a reload. A photo
+   * that failed to upload and can no longer be sent is deleted.
    */
   private fun showRental(rental: Rental, uid: String) {
     val shown = _uiState.value
-    val pickedUp = shown.phase == HandoverPhase.PICKUP && rental.status in PICKED_UP
+    val pickedUp = showedPickup && rental.status in PICKED_UP
     val phase = if (pickedUp) HandoverPhase.PICKUP else HandoverPhase.fromStatus(rental.status)
+    if (phase == HandoverPhase.PICKUP) showedPickup = true
     val isLender = uid == rental.ownerId
     val phaseChanged = phase != shown.phase
     _uiState.update {
@@ -491,7 +499,8 @@ class HandoverViewModel(
       // cancels it too, so this matters when no phase is shown any more.
       codeJob?.cancel()
       followPhotos(phase)
-      if (phase != null) loadCode(phase, _uiState.value.showsCode)
+      // The server makes no return code yet, so only the pickup's is read.
+      if (phase == HandoverPhase.PICKUP) loadCode(phase, _uiState.value.showsCode)
       // Read after the rental is shown, not awaited with it: the Function can take seconds on a
       // cold start. Only a rental that takes photos needs the day, read when its phase is first
       // shown and kept on later changes; an unknown day is read again by retryServerToday, not on
@@ -515,6 +524,11 @@ class HandoverViewModel(
         failedPhoto = it.failedPhoto,
         isSendingScan = it.isSendingScan,
     )
+  }
+
+  /** Deletes the file of the photo waiting for a retry: once the screen is left, it is not sent. */
+  override fun onCleared() {
+    _uiState.value.failedPhotoUri?.let(deletePhoto)
   }
 
   /** Follows the photos of [phase], none if it is null, and clears the ones shown before. */
