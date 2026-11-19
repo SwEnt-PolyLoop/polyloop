@@ -35,7 +35,7 @@ function disputeUpdated(
 }
 
 describe("draftLlmProposal", () => {
-  it("listens to updates of every dispute and is retried", () => {
+  it("listens to updates of every dispute, is retried, and has time for the model", () => {
     const endpoint = draftLlmProposal.__endpoint;
 
     expect(endpoint.eventTrigger?.eventType).toBe("google.cloud.firestore.document.v1.updated");
@@ -43,14 +43,26 @@ describe("draftLlmProposal", () => {
       document: "disputes/{rentalId}",
     });
     expect(endpoint.eventTrigger?.retry).toBe(true);
+    expect(endpoint.timeoutSeconds).toBe(300);
   });
 
-  it("passes the dispute before and after the update", async () => {
+  it("passes the dispute before and after the update, with no model configured yet", async () => {
     const before = { stage: "SETTLE" };
     const after = { stage: "LLM_PROPOSAL", llmProposal: { status: "PENDING", attempt: 1 } };
 
     await draftLlmProposal.run(disputeUpdated("rental-1", before, after));
 
-    expect(drafted).toHaveBeenCalledWith(expect.anything(), "rental-1", before, after);
+    expect(drafted).toHaveBeenCalledWith(expect.anything(), "rental-1", before, after, {
+      advisor: null,
+      expired: false,
+    });
+  });
+
+  it("marks an event older than a day as expired", async () => {
+    const dayAndAMinuteAgo = new Date(Date.now() - (24 * 60 + 1) * 60 * 1000);
+
+    await draftLlmProposal.run(disputeUpdated("rental-1", {}, {}, dayAndAMinuteAgo));
+
+    expect(drafted.mock.calls[0][4].expired).toBe(true);
   });
 });
