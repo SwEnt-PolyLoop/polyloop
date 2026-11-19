@@ -202,8 +202,8 @@ class BrowseViewModel(
 
   /**
    * This state with the [loaded] listings sorted by distance from the [position], and their
-   * distance texts. The sort is stable and the listings without a distance come last, so ties keep
-   * the repository's order; `search` is stable too, so equal matches keep the distance order.
+   * distances in meters. The sort is stable and the listings without a distance come last, so ties
+   * keep the repository's order; `search` is stable too, so equal matches keep the distance order.
    */
   private fun BrowseUiState.withLoadedListings(): BrowseUiState {
     val here = position

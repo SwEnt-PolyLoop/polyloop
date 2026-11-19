@@ -81,8 +81,9 @@ fun BrowseScreen(
     hasLocationPermission: (Context) -> Boolean = ::hasCoarseLocationPermission,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-  // Ask for the coarse location once, when Browse is shown and it is not granted yet; the answer,
-  // granted or not, makes the ViewModel read the position again. A refusal leaves no distances.
+  // Ask for the coarse location when Browse opens and it is not granted, not again after a refusal
+  // while it stays in the back stack (`locationPermissionAsked`). The answer and each resume read
+  // the position again (LifecycleResumeEffect below); a refusal leaves no distances.
   val context = LocalContext.current
   val locationPermissionLauncher =
       rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {

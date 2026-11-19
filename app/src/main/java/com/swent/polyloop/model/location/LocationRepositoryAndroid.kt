@@ -22,8 +22,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * the last known location if it is at most 30 minutes old. It never throws: a missing permission,
  * provider or fix gives null.
  *
- * The logic is kept thin because it depends on the system's location services, which unit tests
- * cannot reproduce.
+ * The last-known fallback is covered by `LocationRepositoryAndroidTest` (Robolectric); only the
+ * fresh-fix path, which needs the real location services, is left untested.
  */
 class LocationRepositoryAndroid(
     private val context: Context,
