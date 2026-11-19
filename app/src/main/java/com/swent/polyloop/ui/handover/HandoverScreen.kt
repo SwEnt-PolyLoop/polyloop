@@ -113,7 +113,7 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
       },
       onCloseCamera = { isCameraOpen = false },
       onCaptureFailed = viewModel::onCaptureFailed,
-      onScan = { scanQrCode(context, viewModel::onCodeScanned) },
+      onScan = { scanQrCode(context, viewModel::onCodeScanned, viewModel::onScannerFailed) },
   )
 }
 

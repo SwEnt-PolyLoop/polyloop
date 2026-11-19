@@ -138,6 +138,8 @@ private fun ColumnScope.ScanMessage(uiState: HandoverUiState, onRetry: () -> Uni
         Message(wrongCodeMessage(uiState.otherPersonName), red)
     uiState.scanError == ScanError.NOT_SENT ->
         Message(stringResource(R.string.handover_scan_not_sent), red)
+    uiState.scanError == ScanError.SCANNER_UNAVAILABLE ->
+        Message(stringResource(R.string.handover_scan_unavailable), red)
   }
 }
 

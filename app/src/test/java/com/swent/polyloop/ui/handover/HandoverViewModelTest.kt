@@ -938,6 +938,26 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun aScannerThatCannotOpenIsReportedAndScanningAgainClearsIt() {
+    val vm = readyToScan()
+    vm.onScannerFailed()
+    assertEquals(ScanError.SCANNER_UNAVAILABLE, vm.uiState.value.scanError)
+    assertTrue(vm.uiState.value.canScan) // the user can try again
+
+    vm.onCodeScanned("secret-code")
+    assertNull(vm.uiState.value.scanError)
+    assertTrue(vm.uiState.value.scanConfirmed)
+  }
+
+  @Test
+  fun aScannerFailureIsIgnoredWhenScanCannotBePressed() {
+    handoverRepository.photos = photos(2)
+    val vm = viewModel()
+    vm.onScannerFailed()
+    assertNull(vm.uiState.value.scanError)
+  }
+
+  @Test
   fun aScanIsIgnoredOnceConfirmed() {
     val vm = readyToScan()
     vm.onCodeScanned("secret-code")

@@ -129,6 +129,13 @@ class ScanCodeCardTest {
   }
 
   @Test
+  fun aScannerThatCannotOpenSaysSoAndTheButtonStaysOn() {
+    setContent(ready.copy(scanError = ScanError.SCANNER_UNAVAILABLE))
+    assertMessage("The scanner couldn't open. Try again in a moment.")
+    button().assertIsEnabled()
+  }
+
+  @Test
   fun aRentalThatChangedTurnsTheScanOff() {
     setContent(ready.copy(scanError = ScanError.RENTAL_CHANGED))
     assertMessage(

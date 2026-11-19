@@ -35,6 +35,8 @@ enum class ScanError {
   NOT_SENT,
   /** The rental can no longer take the scan, e.g. it was cancelled meanwhile. */
   RENTAL_CHANGED,
+  /** Google's scanner could not open, e.g. while it is being downloaded; scanning again retries. */
+  SCANNER_UNAVAILABLE,
 }
 
 /**
@@ -265,6 +267,15 @@ class HandoverViewModel(
         it.copy(isSendingScan = false, scanConfirmed = failure == null, scanError = error)
       }
     }
+  }
+
+  /**
+   * Reports that Google's scanner could not open, so "Scan QR code" does not look broken. Ignored
+   * when Scan cannot be pressed (see [HandoverUiState.canScan]).
+   */
+  fun onScannerFailed() {
+    if (!_uiState.value.canScan) return
+    _uiState.update { it.copy(scanError = ScanError.SCANNER_UNAVAILABLE) }
   }
 
   /** Deletes the file the camera prepared for a shot that failed; it was never a photo. */
