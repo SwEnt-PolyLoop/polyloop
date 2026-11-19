@@ -129,6 +129,16 @@ class ScanCodeCardTest {
   }
 
   @Test
+  fun aRefusedScanSaysWhatToCheckWithoutPromisingARetry() {
+    setContent(ready.copy(scanError = ScanError.REFUSED))
+    assertMessage(
+        "The pickup couldn't be confirmed. Check that you have enough PolyPoints for this rental " +
+            "and that today is the pickup day."
+    )
+    button().assertIsEnabled()
+  }
+
+  @Test
   fun aScannerThatCannotOpenSaysSoAndTheButtonStaysOn() {
     setContent(ready.copy(scanError = ScanError.SCANNER_UNAVAILABLE))
     assertMessage("The scanner couldn't open. Try again in a moment.")

@@ -12,6 +12,7 @@ import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.HandoverRepository
 import com.swent.polyloop.model.handover.RentalChangedException
+import com.swent.polyloop.model.handover.ScanRefusedException
 import com.swent.polyloop.model.handover.WrongCodeException
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
@@ -33,6 +34,11 @@ enum class ScanError {
   WRONG_CODE,
   /** The scan could not be sent (e.g. the connection dropped); scanning again sends it again. */
   NOT_SENT,
+  /**
+   * The server refused the scan for a reason it does not name (e.g. not the pickup day by its
+   * clock, or the price cannot be paid); scanning again only helps once that is fixed.
+   */
+  REFUSED,
   /** The rental can no longer take the scan, e.g. it was cancelled meanwhile. */
   RENTAL_CHANGED,
   /** Google's scanner could not open, e.g. while it is being downloaded; scanning again retries. */
@@ -261,6 +267,7 @@ class HandoverViewModel(
             null -> null
             is WrongCodeException -> ScanError.WRONG_CODE
             is RentalChangedException -> ScanError.RENTAL_CHANGED
+            is ScanRefusedException -> ScanError.REFUSED
             else -> ScanError.NOT_SENT
           }
       _uiState.update {

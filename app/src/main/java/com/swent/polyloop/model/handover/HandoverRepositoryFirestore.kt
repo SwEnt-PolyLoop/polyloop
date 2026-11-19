@@ -11,6 +11,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.model.RepositoryProvider
@@ -156,12 +157,19 @@ class HandoverRepositoryFirestore(
     return withFirebaseErrors { Result.success((read() as? String)?.takeIf { it.isNotBlank() }) }
   }
 
-  /** The exception the app expects when [error] is a refusal with a known reason, or null. */
+  /**
+   * The exception the app expects when [error] is a refusal by the server: its own exception for a
+   * known reason, [ScanRefusedException] for any other refusal, or null when the scan did not get
+   * an answer (e.g. the connection dropped), which sending it again may fix.
+   */
   private fun scanRefusal(error: Throwable): Exception? =
       when (refusalReason(error)) {
         WRONG_CODE -> WrongCodeException()
         RENTAL_CHANGED -> RentalChangedException()
-        else -> null
+        else ->
+            ScanRefusedException().takeIf {
+              (error as? FirebaseFunctionsException)?.code in REFUSAL_CODES
+            }
       }
 
   private fun rental(rentalId: String) = db.collection(HandoverFields.RENTALS).document(rentalId)
@@ -176,5 +184,15 @@ class HandoverRepositoryFirestore(
     /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */
     const val WRONG_CODE = "WRONG_CODE"
     const val RENTAL_CHANGED = "RENTAL_CHANGED"
+
+    /** The codes of a refusal by `confirmHandover`'s checks, which sending again would not fix. */
+    val REFUSAL_CODES =
+        setOf(
+            FirebaseFunctionsException.Code.FAILED_PRECONDITION,
+            FirebaseFunctionsException.Code.PERMISSION_DENIED,
+            FirebaseFunctionsException.Code.NOT_FOUND,
+            FirebaseFunctionsException.Code.INVALID_ARGUMENT,
+            FirebaseFunctionsException.Code.UNAUTHENTICATED,
+        )
   }
 }

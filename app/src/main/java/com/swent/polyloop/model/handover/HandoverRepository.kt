@@ -41,7 +41,9 @@ interface HandoverRepository {
    * Sends the [code] the signed-in user scanned in [phase] of [rentalId]; the server checks it and
    * moves the rental on. Succeeds if it was already done. Fails with [WrongCodeException] if the
    * code is not this rental's, with [RentalChangedException] if the rental can no longer take this
-   * scan (e.g. cancelled), or with the cause if nobody is signed in or it cannot be sent.
+   * scan (e.g. cancelled), with [ScanRefusedException] if the server refuses it for another reason
+   * that sending it again would not fix, or with the cause if nobody is signed in or it cannot be
+   * sent (e.g. the connection dropped).
    */
   suspend fun confirmScan(rentalId: String, phase: HandoverPhase, code: String): Result<Unit>
 }
@@ -51,3 +53,10 @@ class WrongCodeException : IllegalArgumentException("This is not the code of thi
 
 /** Thrown when the rental can no longer take the scan, e.g. because it was cancelled meanwhile. */
 class RentalChangedException : IllegalStateException("The rental changed")
+
+/**
+ * Thrown when the server refuses the scan for a reason it does not name, e.g. it is not the pickup
+ * day by the server's clock or the borrower cannot pay the rental price: sending it again as it is
+ * would be refused again.
+ */
+class ScanRefusedException : IllegalStateException("The server refused the scan")

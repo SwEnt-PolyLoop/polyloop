@@ -174,7 +174,8 @@ class HandoverRepositoryFirestoreCodesTest {
   }
 
   @Test
-  fun otherRefusalsAreKeptAsTheyAre() = runTest {
+  fun otherRefusalsAreRefusedScans() = runTest {
+    // E.g. not the pickup day or the price cannot be paid (no reason), or not the borrower.
     for (refusal in
         listOf(
             refusedWith(details = null),
@@ -184,6 +185,23 @@ class HandoverRepositoryFirestoreCodesTest {
                 mapOf("reason" to "WRONG_CODE"),
                 code = FirebaseFunctionsException.Code.PERMISSION_DENIED,
             ),
+            refusedWith(null, code = FirebaseFunctionsException.Code.NOT_FOUND),
+            refusedWith(null, code = FirebaseFunctionsException.Code.INVALID_ARGUMENT),
+            refusedWith(null, code = FirebaseFunctionsException.Code.UNAUTHENTICATED),
+        )) {
+      every { callable.call(any()) } returns Tasks.forException(refusal)
+      assertTrue(scanError() is ScanRefusedException)
+    }
+  }
+
+  @Test
+  fun aScanWithoutAnAnswerIsKeptAsItIs() = runTest {
+    // The connection dropped or the server failed: sending it again may work.
+    for (refusal in
+        listOf(
+            refusedWith(null, code = FirebaseFunctionsException.Code.UNAVAILABLE),
+            refusedWith(null, code = FirebaseFunctionsException.Code.DEADLINE_EXCEEDED),
+            refusedWith(null, code = FirebaseFunctionsException.Code.INTERNAL),
         )) {
       every { callable.call(any()) } returns Tasks.forException(refusal)
       assertSame(refusal, scanError())

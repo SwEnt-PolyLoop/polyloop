@@ -12,6 +12,7 @@ import com.swent.polyloop.model.handover.HandoverCode
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.RentalChangedException
+import com.swent.polyloop.model.handover.ScanRefusedException
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
@@ -905,6 +906,18 @@ class HandoverViewModelTest {
     // Scanning again sends nothing: the server would refuse it the same way.
     vm.onCodeScanned("secret-code")
     assertEquals(1, handoverRepository.scannedCodes.size)
+  }
+
+  @Test
+  fun aScanTheServerRefusesWithoutAReasonIsReportedAsRefused() {
+    handoverRepository.scanFailure = ScanRefusedException()
+    val vm = readyToScan()
+    vm.onCodeScanned("secret-code")
+
+    assertEquals(ScanError.REFUSED, vm.uiState.value.scanError)
+    assertFalse(vm.uiState.value.scanConfirmed)
+    // Not turned off: once the cause is fixed (e.g. PolyPoints added), scanning again can work.
+    assertTrue(vm.uiState.value.canScan)
   }
 
   @Test
