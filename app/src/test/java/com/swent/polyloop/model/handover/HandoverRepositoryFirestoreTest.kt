@@ -95,4 +95,11 @@ class HandoverRepositoryFirestoreTest {
     assertTrue(uploadCancelled)
     verify(exactly = 0) { photoRef.downloadUrl }
   }
+
+  @Test
+  fun confirmReturnOkFailsUntilItsFunctionExists() = runTest {
+    val result = repository.confirmReturnOk("r1")
+
+    assertTrue(result.exceptionOrNull() is UnsupportedOperationException)
+  }
 }

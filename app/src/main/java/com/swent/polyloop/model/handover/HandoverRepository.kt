@@ -44,6 +44,13 @@ interface HandoverRepository {
    * scan (e.g. cancelled), or with the cause if nobody is signed in or it cannot be sent.
    */
   suspend fun confirmScan(rentalId: String, phase: HandoverPhase, code: String): Result<Unit>
+
+  /**
+   * Tells, as the signed-in lender, that the item of the returned rental [rentalId] came back fine:
+   * the whole deposit goes back to the borrower and the rental closes. Fails if nobody is signed
+   * in, the user is not the lender, the rental is not Returned, or it cannot be sent.
+   */
+  suspend fun confirmReturnOk(rentalId: String): Result<Unit>
 }
 
 /** Thrown when the scanned code is not the one of this rental and phase. */
