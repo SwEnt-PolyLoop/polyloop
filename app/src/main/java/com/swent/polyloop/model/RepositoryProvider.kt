@@ -19,6 +19,8 @@ import com.swent.polyloop.model.handover.HandoverRepository
 import com.swent.polyloop.model.handover.HandoverRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
+import com.swent.polyloop.model.location.LocationRepository
+import com.swent.polyloop.model.location.LocationRepositoryAndroid
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.RentalRepository
@@ -49,6 +51,7 @@ object RepositoryProvider {
   private var profile: ProfileRepository? = null
   private var rental: RentalRepository? = null
   private var connectivity: ConnectivityRepository? = null
+  private var location: LocationRepository? = null
   private var handover: HandoverRepository? = null
   private var wallet: WalletRepository? = null
   private var dispute: DisputeRepository? = null
@@ -97,13 +100,15 @@ object RepositoryProvider {
 
   var connectivityRepository: ConnectivityRepository
     get() =
-        connectivity
-            ?: ConnectivityRepositoryAndroid(
-                    checkNotNull(appContext) { "RepositoryProvider.init was not called" }
-                )
-                .also { connectivity = it }
+        connectivity ?: ConnectivityRepositoryAndroid(requireContext()).also { connectivity = it }
     set(value) {
       connectivity = value
+    }
+
+  var locationRepository: LocationRepository
+    get() = location ?: LocationRepositoryAndroid(requireContext()).also { location = it }
+    set(value) {
+      location = value
     }
 
   /**
@@ -115,7 +120,7 @@ object RepositoryProvider {
   var serverClock: ServerClock
     get() =
         clock
-            ?: checkNotNull(appContext) { "RepositoryProvider.init was not called" }
+            ?: requireContext()
                 .let { context ->
                   ServerClock(
                       rentalRepository,
@@ -160,6 +165,9 @@ object RepositoryProvider {
   val storage: FirebaseStorage
     get() = Firebase.storage
 
+  private fun requireContext(): Context =
+      checkNotNull(appContext) { "RepositoryProvider.init was not called" }
+
   /**
    * Forgets every repository and the server clock, so the next access creates the real ones again.
    * Keeps the app context. For tests.
@@ -171,6 +179,7 @@ object RepositoryProvider {
     profile = null
     rental = null
     connectivity = null
+    location = null
     handover = null
     wallet = null
     dispute = null

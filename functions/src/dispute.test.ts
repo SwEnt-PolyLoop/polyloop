@@ -265,7 +265,11 @@ describe("escalateDispute", () => {
     await escalateDispute(db, BORROWER, id, NOW);
 
     const data = await dispute(id);
-    expect(data).toMatchObject({ stage: "LLM_PROPOSAL", escalatedBy: BORROWER });
+    expect(data).toMatchObject({
+      stage: "LLM_PROPOSAL",
+      escalatedBy: BORROWER,
+      llmProposal: { status: "PENDING", attempt: 1 },
+    });
     expect(data?.escalatesAt.toDate()).toEqual(ESCALATES_AT);
     expect((await rental(id))?.status).toBe("DISPUTED");
     expect(await systemMessages(id)).toEqual([

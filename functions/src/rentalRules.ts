@@ -13,6 +13,7 @@ export type RequestErrorCode =
   | "unauthenticated"
   | "permission-denied"
   | "not-found"
+  | "already-exists"
   | "failed-precondition"
   | "internal";
 
@@ -83,6 +84,12 @@ export function conflicts(a: DateRange, b: DateRange): boolean {
     dayNumber(a.start) - BUFFER_DAYS <= dayNumber(b.end) &&
     dayNumber(b.start) <= dayNumber(a.end) + BUFFER_DAYS
   );
+}
+
+/** The valid ranges of a listing's `bookedRanges`; malformed entries are ignored. */
+export function bookedRanges(value: unknown): DateRange[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(readRange).filter((range): range is DateRange => range !== null);
 }
 
 /**

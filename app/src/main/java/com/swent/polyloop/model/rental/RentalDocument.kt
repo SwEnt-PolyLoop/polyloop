@@ -2,14 +2,10 @@
 
 package com.swent.polyloop.model.rental
 
-import com.google.firebase.firestore.FieldValue
-import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.firestore.dateOrNull
 import com.swent.polyloop.model.firestore.enumOrNull
 import com.swent.polyloop.model.firestore.instantOrNull
 import com.swent.polyloop.model.firestore.intOrNull
-import com.swent.polyloop.model.listing.Listing
-import java.time.LocalDate
 
 /** Firestore names for rentals (see "Firestore schema" in docs/ARCHITECTURE.md). */
 internal object RentalFields {
@@ -42,44 +38,6 @@ internal object RentalFields {
   const val CREATED_AT = "createdAt"
   const val LAST_MESSAGE = "lastMessage"
   const val LAST_MESSAGE_AT = "lastMessageAt"
-}
-
-/**
- * The document of a new request from [borrower] to rent [listing] from [startDate] to [endDate].
- * `createdAt` and `lastMessageAt` are the same server timestamp, so every rental shows in the chat
- * list, which sorts by `lastMessageAt`. A blank [ownerName] is stored as "". Requires [endDate] not
- * to be before [startDate].
- */
-internal fun rentalRequestDocument(
-    listing: Listing,
-    ownerName: String,
-    borrower: AuthUser,
-    startDate: LocalDate,
-    endDate: LocalDate,
-): Map<String, Any> {
-  val now = FieldValue.serverTimestamp()
-  return mapOf(
-      RentalFields.LISTING_ID to listing.id,
-      RentalFields.LISTING_TITLE to listing.title,
-      RentalFields.LISTING_PHOTO_URL to listing.photoUrls.firstOrNull().orEmpty(),
-      RentalFields.OWNER_ID to listing.ownerId,
-      RentalFields.OWNER_NAME to ownerName.trim(),
-      RentalFields.BORROWER_ID to borrower.uid,
-      RentalFields.BORROWER_NAME to borrower.name,
-      RentalFields.PARTICIPANTS to listOf(listing.ownerId, borrower.uid),
-      RentalFields.START_DATE to startDate.toString(),
-      RentalFields.END_DATE to endDate.toString(),
-      RentalFields.STATUS to RentalStatus.REQUESTED.name,
-      RentalFields.PRICE_PER_DAY to listing.pricePerDay,
-      RentalFields.TOTAL_PRICE to Rental.totalPrice(listing.pricePerDay, startDate, endDate),
-      RentalFields.PICKUP_AREA to listing.pickupArea,
-      RentalFields.DROP_OFF_AREA to listing.dropOffArea,
-      RentalFields.PICKUP_ADDRESS to "",
-      RentalFields.RETURN_ADDRESS to "",
-      RentalFields.CREATED_AT to now,
-      RentalFields.LAST_MESSAGE to "",
-      RentalFields.LAST_MESSAGE_AT to now,
-  )
 }
 
 /**
