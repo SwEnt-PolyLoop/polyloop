@@ -69,6 +69,7 @@ data class FailedPhoto(val uri: String, val phase: HandoverPhase)
  *   check of a returned item, their return photos.
  * @property pickupPhotos on the lender's check of a returned item, their pickup photos, oldest
  *   first; empty otherwise.
+ * @property isLoadingPhotos true until the photos followed are read for the first time.
  * @property photosFailed true when the photos could not be loaded.
  * @property failedPhoto the photo whose upload failed, kept to try again; null when none did.
  * @property isOffline true while the phone has no connection; no photo can be uploaded then.
@@ -103,6 +104,7 @@ data class HandoverUiState(
     val lateFees: Int = 0,
     val photos: List<HandoverPhoto> = emptyList(),
     val pickupPhotos: List<HandoverPhoto> = emptyList(),
+    val isLoadingPhotos: Boolean = false,
     val photosFailed: Boolean = false,
     val isUploading: Boolean = false,
     val failedPhoto: FailedPhoto? = null,
@@ -238,9 +240,11 @@ class HandoverViewModel(
   private var serverTodayRead: Job? = null
   private var midnightRead: Job? = null
 
-  // The phases whose photos are followed: first the ones in `photos`, then the ones in
-  // `pickupPhotos`.
-  private var shownPhases: List<HandoverPhase> = emptyList()
+  // The phase whose photos are followed, or null when none are or on the lender's check.
+  private var shownPhase: HandoverPhase? = null
+
+  // True while the photos of the lender's check are followed.
+  private var showsCheck = false
 
   // When the server's day shown ends, in [elapsedRealtime] time; null while the day is unknown.
   private var dayEndsAt: Long? = null
@@ -346,7 +350,7 @@ class HandoverViewModel(
   fun retry() {
     val state = _uiState.value
     if (state.loadFailed) return load()
-    if (state.photosFailed) followPhotos(shownPhases)
+    if (state.photosFailed) followPhotos(shownPhase, showsCheck)
     val phase = state.phase ?: return
     if (state.codeFailed) loadCode(phase, state.showsCode)
   }
@@ -434,7 +438,7 @@ class HandoverViewModel(
   private fun load() {
     rentalJob?.cancel()
     codeJob?.cancel()
-    followPhotos(emptyList())
+    followPhotos(null)
     show(HandoverUiState())
     val uid = authRepository.getCurrentUser()?.uid
     if (uid == null) {
@@ -445,7 +449,7 @@ class HandoverViewModel(
       rentalRepository
           .observeRental(rentalId)
           .catch {
-            followPhotos(emptyList())
+            followPhotos(null)
             show(HandoverUiState(isLoading = false, loadFailed = true))
           }
           .collect { rental ->
@@ -454,7 +458,7 @@ class HandoverViewModel(
               // which coming back online loads again, not a deleted rental. Either way the photo
               // waiting for a retry is kept, for a rental that comes back with its phase.
               val isOffline = _uiState.value.isOffline
-              followPhotos(emptyList())
+              followPhotos(null)
               show(
                   HandoverUiState(isLoading = false, loadFailed = isOffline, notFound = !isOffline)
               )
@@ -477,7 +481,6 @@ class HandoverViewModel(
     val phase = if (pickedUp) HandoverPhase.PICKUP else HandoverPhase.fromStatus(rental.status)
     val isLender = uid == rental.ownerId
     val phaseChanged = phase != shown.phase
-    val isReturned = rental.status == RentalStatus.RETURNED
     _uiState.update {
       val updated =
           it.copy(
@@ -490,7 +493,7 @@ class HandoverViewModel(
               phase = phase,
               pickupDate = rental.startDate,
               returnDate = rental.endDate,
-              isReturned = isReturned,
+              isReturned = rental.status == RentalStatus.RETURNED,
               deposit = rental.deposit,
               lateFees = rental.lateFees,
               isPickedUp = pickedUp,
@@ -510,13 +513,8 @@ class HandoverViewModel(
       // each change (a chat message changes the rental too).
       if (phase != null && _uiState.value.serverToday == null) readServerToday()
     }
-    val phases =
-        when {
-          phase != null -> listOf(phase)
-          _uiState.value.isReturnCheck -> listOf(HandoverPhase.RETURN, HandoverPhase.PICKUP)
-          else -> emptyList()
-        }
-    if (phases != shownPhases) followPhotos(phases)
+    val check = _uiState.value.isReturnCheck
+    if (phase != shownPhase || check != showsCheck) followPhotos(phase, check)
   }
 
   /**
@@ -537,25 +535,39 @@ class HandoverViewModel(
   }
 
   /**
-   * Follows the photos of [phases]: the first ones go to `photos`, the second ones, if any, to
-   * `pickupPhotos`. The photos shown before are cleared.
+   * Follows the photos of [phase], or with [check] those of the lender's check of a returned item:
+   * the pickup photos in `pickupPhotos` and the return photos in `photos`. None are followed when
+   * [phase] is null and [check] is false. The photos shown before are cleared.
    */
-  private fun followPhotos(phases: List<HandoverPhase>) {
+  private fun followPhotos(phase: HandoverPhase?, check: Boolean = false) {
     photosJob?.cancel()
-    shownPhases = phases
+    shownPhase = phase
+    showsCheck = check
+    val phases =
+        if (check) listOf(HandoverPhase.RETURN, HandoverPhase.PICKUP) else listOfNotNull(phase)
     _uiState.update {
-      it.copy(photos = emptyList(), pickupPhotos = emptyList(), photosFailed = false)
+      it.copy(
+          photos = emptyList(),
+          pickupPhotos = emptyList(),
+          isLoadingPhotos = phases.isNotEmpty(),
+          photosFailed = false,
+      )
     }
     if (phases.isEmpty()) return
     photosJob = viewModelScope.launch {
-      phases.forEachIndexed { index, phase ->
+      val read = mutableSetOf<HandoverPhase>()
+      phases.forEach { shown ->
         launch {
           handoverRepository
-              .observeMyPhotos(rentalId, phase)
-              .catch { _uiState.update { it.copy(photosFailed = true) } }
+              .observeMyPhotos(rentalId, shown)
+              .catch { _uiState.update { it.copy(photosFailed = true, isLoadingPhotos = false) } }
               .collect { photos ->
+                read += shown
                 _uiState.update {
-                  if (index == 0) it.copy(photos = photos) else it.copy(pickupPhotos = photos)
+                  val withPhotos =
+                      if (check && shown == HandoverPhase.PICKUP) it.copy(pickupPhotos = photos)
+                      else it.copy(photos = photos)
+                  withPhotos.copy(isLoadingPhotos = read.size < phases.size)
                 }
               }
         }

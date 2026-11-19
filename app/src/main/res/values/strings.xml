@@ -574,12 +574,11 @@
     <string name="handover_code_picked_up_no_name">Picked up · the rental has started</string>
     <!-- The lender's check of the returned item (Figma 17b) -->
     <string name="handover_return_scanned">Return scanned</string>
-    <string name="handover_deposit_stays_held">The deposit stays held until you decide.</string>
     <string name="handover_before_after">Before and after</string>
     <string name="handover_no_photos">No photos</string>
     <!-- The borrower once the return is scanned, while the lender checks the item -->
-    <string name="handover_waiting_check">The item is being checked against the pickup photos. The deposit is released once %1$s confirms everything is fine.</string>
-    <string name="handover_waiting_check_no_name">The item is being checked against the pickup photos. The deposit is released once the lender confirms everything is fine.</string>
+    <string name="handover_waiting_check">The return was scanned. %1$s now checks the item against the pickup photos.</string>
+    <string name="handover_waiting_check_no_name">The return was scanned. The lender now checks the item against the pickup photos.</string>
 
     <!-- Review request: the lender's answer to a request. -->
     <string name="review_request_title">Review request</string>

@@ -158,12 +158,6 @@ class HandoverViewModelTest {
         }
   }
 
-  /** Signs in as the lender, for the repositories too. */
-  private fun signInAsLender() {
-    authRepository.signedInUser = AuthUser(uid = "owner", email = "mara@epfl.ch", name = "Mara")
-    handoverRepository.currentUid = "owner"
-  }
-
   /**
    * The rentals of [base] but [observeRental] follows [live], so a test can change the status, and
    * fails while [error] is set, as a listener that breaks.
@@ -570,7 +564,7 @@ class HandoverViewModelTest {
     assertEquals(listOf(HandoverPhase.RETURN), vm.uiState.value.photos.map { it.phase }.distinct())
 
     live.live.value = active.copy(status = RentalStatus.RETURNED)
-    assertTrue(vm.uiState.value.isReturned)
+    assertNull(vm.uiState.value.phase)
     assertEquals(emptyList<HandoverPhoto>(), vm.uiState.value.photos)
 
     live.live.value = null
@@ -721,47 +715,6 @@ class HandoverViewModelTest {
     handoverRepository.failure = RuntimeException("would be reported if read")
 
     assertFalse(viewModel().uiState.value.photosFailed)
-  }
-
-  @Test
-  fun onlyAReturnedRentalIsMarkedReturned() {
-    useStatus(RentalStatus.RETURNED)
-    val returned = viewModel().uiState.value
-    assertNull(returned.phase)
-    assertTrue(returned.isReturned)
-
-    useStatus(RentalStatus.CLOSED)
-    val closed = viewModel().uiState.value
-    assertNull(closed.phase)
-    assertFalse(closed.isReturned)
-  }
-
-  @Test
-  fun theLenderChecksTheirPickupAndReturnPhotosOfAReturnedItem() {
-    useStatus(RentalStatus.RETURNED)
-    signInAsLender()
-    handoverRepository.photos =
-        photos(3, takenBy = "owner") +
-            photos(4, takenBy = "owner", phase = HandoverPhase.RETURN) +
-            photos(5, phase = HandoverPhase.RETURN)
-    val state = viewModel().uiState.value
-
-    assertTrue(state.isReturnCheck)
-    assertEquals(3, state.pickupPhotos.size)
-    assertEquals(4, state.photos.size)
-    assertEquals(listOf(HandoverPhase.RETURN), state.photos.map { it.phase }.distinct())
-    assertFalse(state.canAddPhoto)
-  }
-
-  @Test
-  fun theBorrowerOfAReturnedItemOnlyWaitsAndReadsNoPhotos() {
-    useStatus(RentalStatus.RETURNED)
-    handoverRepository.photos = photos(3)
-    val state = viewModel().uiState.value
-
-    assertTrue(state.isReturned)
-    assertFalse(state.isReturnCheck)
-    assertEquals(emptyList<HandoverPhoto>(), state.photos)
   }
 
   // ---------- adding photos ----------
@@ -984,6 +937,12 @@ class HandoverViewModelTest {
 
   // ---------- the lender's check ----------
 
+  /** Signs in as the lender, for the repositories too. */
+  private fun signInAsLender() {
+    authRepository.signedInUser = AuthUser(uid = "owner", email = "lender@epfl.ch", name = "Lender")
+    handoverRepository.currentUid = "owner"
+  }
+
   /** The ViewModel of the returned rental, seen by its lender. */
   private fun lenderCheck(): HandoverViewModel {
     useStatus(RentalStatus.RETURNED)
@@ -991,13 +950,90 @@ class HandoverViewModelTest {
     return viewModel()
   }
 
+  /** The lender's pickup and return photos, plus the borrower's return photos, never shown. */
+  private fun checkPhotos() =
+      photos(3, takenBy = "owner") +
+          photos(4, takenBy = "owner", phase = HandoverPhase.RETURN) +
+          photos(5, phase = HandoverPhase.RETURN)
+
+  @Test
+  fun onlyAReturnedRentalIsMarkedReturned() {
+    useStatus(RentalStatus.RETURNED)
+    assertTrue(viewModel().uiState.value.isReturned)
+    useStatus(RentalStatus.CLOSED)
+    assertFalse(viewModel().uiState.value.isReturned)
+  }
+
+  @Test
+  fun theLenderChecksTheirPickupAndReturnPhotosOfAReturnedItem() {
+    handoverRepository.photos = checkPhotos()
+    val state = lenderCheck().uiState.value
+
+    assertTrue(state.isReturnCheck)
+    assertFalse(state.isLoadingPhotos)
+    assertEquals(3, state.pickupPhotos.size)
+    assertEquals(listOf(HandoverPhase.PICKUP), state.pickupPhotos.map { it.phase }.distinct())
+    assertEquals(4, state.photos.size)
+    assertEquals(listOf(HandoverPhase.RETURN), state.photos.map { it.phase }.distinct())
+    assertFalse(state.canAddPhoto)
+  }
+
+  @Test
+  fun theLenderMovesToTheCheckLiveOnceTheReturnIsScanned() {
+    val live = LiveRental(rental.copy(status = RentalStatus.ACTIVE), rentalRepository)
+    signInAsLender()
+    handoverRepository.photos = checkPhotos()
+    val vm = viewModel(rentals = live)
+    assertFalse(vm.uiState.value.isReturnCheck)
+    assertEquals(emptyList<HandoverPhoto>(), vm.uiState.value.pickupPhotos)
+
+    live.live.value = rental.copy(status = RentalStatus.RETURNED)
+    val state = vm.uiState.value
+    assertTrue(state.isReturnCheck)
+    assertEquals(3, state.pickupPhotos.size)
+    assertEquals(4, state.photos.size)
+  }
+
+  @Test
+  fun theBorrowerOfAReturnedItemOnlyWaitsAndReadsNoPhotos() {
+    useStatus(RentalStatus.RETURNED)
+    handoverRepository.photos = checkPhotos()
+    val state = viewModel().uiState.value
+
+    assertTrue(state.isReturned)
+    assertFalse(state.isReturnCheck)
+    assertFalse(state.isLoadingPhotos)
+    assertEquals(emptyList<HandoverPhoto>(), state.photos)
+  }
+
+  @Test
+  fun theChecksPhotosAreLoadingUntilBothPhasesAreRead() {
+    useStatus(RentalStatus.RETURNED)
+    signInAsLender()
+    handoverRepository.photos = checkPhotos()
+    val pickup = MutableSharedFlow<List<HandoverPhoto>>(replay = 1)
+    // The return photos are read at once, the pickup ones only when the test sends them.
+    val slowPickup =
+        object : HandoverRepository by handoverRepository {
+          override fun observeMyPhotos(rentalId: String, phase: HandoverPhase) =
+              if (phase == HandoverPhase.PICKUP) pickup
+              else handoverRepository.observeMyPhotos(rentalId, phase)
+        }
+    val vm = viewModel(handover = slowPickup)
+    assertTrue(vm.uiState.value.isLoadingPhotos)
+    assertEquals(4, vm.uiState.value.photos.size)
+
+    pickup.tryEmit(emptyList())
+    assertFalse(vm.uiState.value.isLoadingPhotos)
+  }
+
   @Test
   fun photosThatFailedOnTheLendersCheckAreRetriedForBothPhases() {
     handoverRepository.failure = RuntimeException("down")
-    handoverRepository.photos =
-        photos(3, takenBy = "owner") + photos(4, takenBy = "owner", phase = HandoverPhase.RETURN)
+    handoverRepository.photos = checkPhotos()
     val vm = lenderCheck()
     assertTrue(vm.uiState.value.photosFailed)
+    assertFalse(vm.uiState.value.isLoadingPhotos)
 
     handoverRepository.failure = null
     vm.retry()

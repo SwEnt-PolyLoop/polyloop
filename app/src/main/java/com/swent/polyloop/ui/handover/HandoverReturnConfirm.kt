@@ -8,18 +8,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,7 +27,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhase
@@ -55,7 +52,42 @@ internal fun ReturnCheckContent(
     onPhotoClick: (id: String) -> Unit,
     onRetryPhotos: () -> Unit,
 ) {
-  Column(modifier = Modifier.fillMaxSize().testTag(C.Tag.handover_return_check)) {
+  ReturnedScaffold(uiState, Modifier.testTag(C.Tag.handover_return_check)) {
+    ReturnScannedCard()
+    BeforeAfterCard(uiState, zone, onPhotoClick, onRetryPhotos)
+  }
+}
+
+/**
+ * What the borrower sees once the return is scanned: the header, then that the lender checks the
+ * item against the pickup photos, and the deposit footer.
+ */
+@Composable
+internal fun WaitingForCheckContent(uiState: HandoverUiState) {
+  ReturnedScaffold(uiState) {
+    HandoverCard {
+      Text(
+          text =
+              if (uiState.otherPersonName.isBlank()) {
+                stringResource(R.string.handover_waiting_check_no_name)
+              } else {
+                stringResource(R.string.handover_waiting_check, uiState.otherPersonName)
+              },
+          style = MaterialTheme.typography.bodyLarge,
+          modifier = Modifier.testTag(C.Tag.handover_waiting_check),
+      )
+    }
+  }
+}
+
+/** The header and [content] scrolling over the deposit footer pinned at the bottom. */
+@Composable
+private fun ReturnedScaffold(
+    uiState: HandoverUiState,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+  Column(modifier = modifier.fillMaxSize()) {
     Column(
         modifier =
             Modifier.weight(1f)
@@ -65,38 +97,18 @@ internal fun ReturnCheckContent(
             Arrangement.spacedBy(dimensionResource(R.dimen.handover_check_spacing)),
     ) {
       HandoverHeader(uiState)
-      ReturnScannedCard()
-      BeforeAfterCard(uiState, zone, onPhotoClick, onRetryPhotos)
-    }
-    DepositFooter(uiState.deposit, uiState.depositHeld, isLender = true)
-  }
-}
-
-/** A white card with rounded corners holding [content] in a column. */
-@Composable
-private fun CheckCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-  Surface(
-      shape = RoundedCornerShape(dimensionResource(R.dimen.handover_check_card_corner)),
-      color = MaterialTheme.colorScheme.surface,
-      modifier = modifier.fillMaxWidth(),
-  ) {
-    Column(
-        modifier = Modifier.padding(dimensionResource(R.dimen.handover_check_card_padding)),
-        verticalArrangement =
-            Arrangement.spacedBy(dimensionResource(R.dimen.handover_check_card_spacing)),
-    ) {
       content()
     }
+    DepositFooter(uiState.deposit, uiState.depositHeld, uiState.isLender)
   }
 }
 
 /**
- * A green check with "Return scanned" and "The deposit stays held until you decide.". The time of
- * the scan is not shown until rentals store it.
+ * A green check with "Return scanned". The time of the scan is not shown until rentals store it.
  */
 @Composable
 private fun ReturnScannedCard() {
-  CheckCard {
+  HandoverCard {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement =
@@ -112,26 +124,19 @@ private fun ReturnScannedCard() {
           Icon(Icons.Default.Check, contentDescription = null)
         }
       }
-      Column {
-        Text(
-            text = stringResource(R.string.handover_return_scanned),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.testTag(C.Tag.handover_return_scanned),
-        )
-        Text(
-            text = stringResource(R.string.handover_deposit_stays_held),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
+      Text(
+          text = stringResource(R.string.handover_return_scanned),
+          style = MaterialTheme.typography.titleSmall,
+          fontWeight = FontWeight.Bold,
+          modifier = Modifier.testTag(C.Tag.handover_return_scanned),
+      )
     }
   }
 }
 
 /**
- * "Before and after": the lender's pickup photos, then their return photos, 3 per row, or an error
- * with Retry when they could not be loaded.
+ * "Before and after": the lender's pickup photos, then their return photos, 3 per row; a spinner
+ * until both are read, or an error with Retry when they could not be loaded.
  */
 @Composable
 private fun BeforeAfterCard(
@@ -140,42 +145,39 @@ private fun BeforeAfterCard(
     onPhotoClick: (id: String) -> Unit,
     onRetryPhotos: () -> Unit,
 ) {
-  CheckCard {
+  HandoverCard {
     Text(
         text = stringResource(R.string.handover_before_after),
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
     )
-    if (uiState.photosFailed) {
-      Text(
-          text = stringResource(R.string.handover_photos_error),
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.error,
-          modifier = Modifier.testTag(C.Tag.handover_photos_error),
-      )
-      OutlinedButton(
-          onClick = onRetryPhotos,
-          modifier = Modifier.testTag(C.Tag.handover_photos_retry_button),
-      ) {
-        Text(stringResource(R.string.handover_retry))
+    when {
+      uiState.photosFailed -> PhotosLoadError(onRetryPhotos)
+      // "No photos" before they are read would tell the lender they took none.
+      uiState.isLoadingPhotos ->
+          CircularProgressIndicator(
+              modifier =
+                  Modifier.align(Alignment.CenterHorizontally)
+                      .testTag(C.Tag.handover_check_photos_loading)
+          )
+      else -> {
+        PhotoSection(
+            R.string.handover_pickup_title,
+            uiState.pickupPhotos,
+            zone,
+            onPhotoClick,
+            C.Tag.handover_before_photo,
+            C.Tag.handover_no_before_photos,
+        )
+        PhotoSection(
+            R.string.handover_return_title,
+            uiState.photos,
+            zone,
+            onPhotoClick,
+            C.Tag.handover_after_photo,
+            C.Tag.handover_no_after_photos,
+        )
       }
-    } else {
-      PhotoSection(
-          R.string.handover_pickup_title,
-          uiState.pickupPhotos,
-          zone,
-          onPhotoClick,
-          C.Tag.handover_before_photo,
-          C.Tag.handover_no_before_photos,
-      )
-      PhotoSection(
-          R.string.handover_return_title,
-          uiState.photos,
-          zone,
-          onPhotoClick,
-          C.Tag.handover_after_photo,
-          C.Tag.handover_no_after_photos,
-      )
     }
   }
 }
@@ -215,25 +217,6 @@ private fun PhotoSection(
   }
 }
 
-/**
- * What the borrower sees once the return is scanned: the lender, [lenderName], checks the item
- * before the deposit is released.
- */
-@Composable
-internal fun WaitingForCheck(lenderName: String, modifier: Modifier = Modifier) {
-  Text(
-      text =
-          if (lenderName.isBlank()) stringResource(R.string.handover_waiting_check_no_name)
-          else stringResource(R.string.handover_waiting_check, lenderName),
-      style = MaterialTheme.typography.bodyLarge,
-      textAlign = TextAlign.Center,
-      modifier =
-          modifier
-              .padding(dimensionResource(R.dimen.handover_check_padding))
-              .testTag(C.Tag.handover_waiting_check),
-  )
-}
-
 @Preview(showBackground = true)
 @Composable
 private fun ReturnCheckPreview() {
@@ -246,7 +229,7 @@ private fun ReturnCheckPreview() {
                 isLoading = false,
                 isLender = true,
                 itemTitle = "Camping tent, 2 people",
-                otherPersonName = "Loca",
+                otherPersonName = "Borrower",
                 isReturned = true,
                 deposit = 150,
                 photos = photos(HandoverPhase.RETURN),

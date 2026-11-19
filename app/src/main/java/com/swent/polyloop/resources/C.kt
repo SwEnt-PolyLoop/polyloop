@@ -327,6 +327,7 @@ object C {
     const val handover_code_picked_up = "handover_code_picked_up"
     const val handover_return_check = "handover_return_check"
     const val handover_return_scanned = "handover_return_scanned"
+    const val handover_check_photos_loading = "handover_check_photos_loading"
     const val handover_before_photo = "handover_before_photo"
     const val handover_after_photo = "handover_after_photo"
     const val handover_no_before_photos = "handover_no_before_photos"

@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -48,12 +49,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -180,8 +183,7 @@ fun HandoverContent(
                 onPhotoClick = { enlargedId = it },
                 onRetryPhotos = onRetry,
             )
-        uiState.isReturned ->
-            WaitingForCheck(uiState.otherPersonName, Modifier.align(Alignment.Center))
+        uiState.isReturned -> WaitingForCheckContent(uiState)
         uiState.phase == null ->
             CenteredMessage(
                 R.string.handover_nothing,
@@ -378,53 +380,80 @@ private fun PhotosCard(
       if (uiState.failedPhotoUri != null) 0 else emptyTileCount(shownCount, uiState.isHandoverDay)
   val emptyTiles: List<@Composable () -> Unit> =
       List(cameraTileCount) { { EmptyTile(enabled = uiState.canAddPhoto, onClick = onAddPhoto) } }
-  Surface(
-      shape = RoundedCornerShape(16.dp),
-      color = MaterialTheme.colorScheme.surface,
-      modifier = Modifier.fillMaxWidth().testTag(C.Tag.handover_photos_card),
+  HandoverCard(
+      modifier = Modifier.testTag(C.Tag.handover_photos_card),
+      spacing = dimensionResource(R.dimen.handover_photos_card_spacing),
   ) {
-    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-            text = stringResource(R.string.handover_photos_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.testTag(C.Tag.handover_photos_title),
-        )
-        Text(
-            text =
-                stringResource(
-                    R.string.handover_photos_range,
-                    HandoverPhoto.MIN_PHOTOS,
-                    HandoverPhoto.MAX_PHOTOS,
-                ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.testTag(C.Tag.handover_photos_range),
-        )
-      }
-      if (uiState.photosFailed) {
-        Text(
-            text = stringResource(R.string.handover_photos_error),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.testTag(C.Tag.handover_photos_error),
-        )
-        OutlinedButton(
-            onClick = onRetryPhotos,
-            modifier = Modifier.testTag(C.Tag.handover_photos_retry_button),
-        ) {
-          Text(stringResource(R.string.handover_retry))
-        }
-      } else {
-        TileGrid(photoTiles + pendingTiles + emptyTiles)
-        if (uiState.isHandoverDay) PhotosStatus(uiState.photosNeeded, uiState.phase)
-      }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+          text = stringResource(R.string.handover_photos_title),
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+          modifier = Modifier.testTag(C.Tag.handover_photos_title),
+      )
+      Text(
+          text =
+              stringResource(
+                  R.string.handover_photos_range,
+                  HandoverPhoto.MIN_PHOTOS,
+                  HandoverPhoto.MAX_PHOTOS,
+              ),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.testTag(C.Tag.handover_photos_range),
+      )
     }
+    if (uiState.photosFailed) {
+      PhotosLoadError(onRetryPhotos)
+    } else {
+      TileGrid(photoTiles + pendingTiles + emptyTiles)
+      if (uiState.isHandoverDay) PhotosStatus(uiState.photosNeeded, uiState.phase)
+    }
+  }
+}
+
+/**
+ * A white card with rounded corners holding [content] in a column, its rows [spacing] apart: the
+ * photos card here, and the cards of the return check.
+ */
+@Composable
+internal fun HandoverCard(
+    modifier: Modifier = Modifier,
+    spacing: Dp = dimensionResource(R.dimen.handover_card_spacing),
+    content: @Composable ColumnScope.() -> Unit,
+) {
+  Surface(
+      shape = RoundedCornerShape(dimensionResource(R.dimen.handover_card_corner)),
+      color = MaterialTheme.colorScheme.surface,
+      modifier = modifier.fillMaxWidth(),
+  ) {
+    Column(
+        modifier = Modifier.padding(dimensionResource(R.dimen.handover_card_padding)),
+        verticalArrangement = Arrangement.spacedBy(spacing),
+    ) {
+      content()
+    }
+  }
+}
+
+/** "The photos could not be loaded." in red, then a Retry button calling [onRetry]. */
+@Composable
+internal fun PhotosLoadError(onRetry: () -> Unit) {
+  Text(
+      text = stringResource(R.string.handover_photos_error),
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.error,
+      modifier = Modifier.testTag(C.Tag.handover_photos_error),
+  )
+  OutlinedButton(
+      onClick = onRetry,
+      modifier = Modifier.testTag(C.Tag.handover_photos_retry_button),
+  ) {
+    Text(stringResource(R.string.handover_retry))
   }
 }
 

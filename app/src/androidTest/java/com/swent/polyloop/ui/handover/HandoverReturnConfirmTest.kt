@@ -2,14 +2,12 @@
 
 package com.swent.polyloop.ui.handover
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -47,7 +45,7 @@ class HandoverReturnConfirmTest {
           isLoading = false,
           isLender = true,
           itemTitle = "Camping tent",
-          otherPersonName = "Loca",
+          otherPersonName = "Borrower",
           isReturned = true,
           deposit = 80,
           pickupPhotos = photos(3, HandoverPhase.PICKUP),
@@ -56,11 +54,7 @@ class HandoverReturnConfirmTest {
 
   private var retries = 0
 
-  // The state shown; a test can change it after setContent and the screen follows.
-  private var uiState by mutableStateOf(check)
-
-  private fun setContent(initial: HandoverUiState) {
-    uiState = initial
+  private fun setContent(uiState: HandoverUiState) {
     composeTestRule.setContent {
       HandoverContent(
           uiState = uiState,
@@ -89,14 +83,16 @@ class HandoverReturnConfirmTest {
   // ---------- the lender's check ----------
 
   @Test
-  fun theLenderSeesTheScanAndTheirPhotosBeforeAndAfter() {
+  fun theLenderSeesTheScanTheirPhotosBeforeAndAfterAndTheDepositHeld() {
     setContent(check)
 
     text(C.Tag.handover_title, "Return")
-    text(C.Tag.handover_other_person, "from Loca")
+    text(C.Tag.handover_other_person, "from Borrower")
     text(C.Tag.handover_return_scanned, "Return scanned")
     composeTestRule.onAllNodesWithTag(C.Tag.handover_before_photo).assertCountEquals(3)
     composeTestRule.onAllNodesWithTag(C.Tag.handover_after_photo).assertCountEquals(4)
+    text(C.Tag.handover_deposit_label, "Deposit held")
+    text(C.Tag.handover_deposit, "80 PP")
   }
 
   @Test
@@ -104,6 +100,15 @@ class HandoverReturnConfirmTest {
     setContent(check.copy(pickupPhotos = emptyList()))
 
     composeTestRule.onNodeWithTag(C.Tag.handover_no_before_photos).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.handover_no_after_photos).assertDoesNotExist()
+  }
+
+  @Test
+  fun photosStillLoadingShowASpinnerAndNotNoPhotos() {
+    setContent(check.copy(photos = emptyList(), pickupPhotos = emptyList(), isLoadingPhotos = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.handover_check_photos_loading).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.handover_no_before_photos).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.handover_no_after_photos).assertDoesNotExist()
   }
 
@@ -118,16 +123,36 @@ class HandoverReturnConfirmTest {
   }
 
   @Test
-  fun theBorrowerWaitsForTheLendersCheck() {
-    setContent(check.copy(isLender = false, otherPersonName = "Mara"))
+  fun tappingABeforePhotoShowsItFullScreen() {
+    setContent(check)
 
-    composeTestRule
-        .onNodeWithTag(C.Tag.handover_waiting_check)
-        .assertTextEquals(
-            "The item is being checked against the pickup photos. The deposit is released once " +
-                "Mara confirms everything is fine."
-        )
+    composeTestRule.onAllNodesWithTag(C.Tag.handover_before_photo).onFirst().performClick()
+    text(C.Tag.handover_photo_viewer_label, "Pickup · 16:31")
+  }
+
+  // ---------- the borrower waiting ----------
+
+  @Test
+  fun theBorrowerWaitsForTheLendersCheckWithTheirDepositHeld() {
+    setContent(check.copy(isLender = false, otherPersonName = "Lender"))
+
+    text(C.Tag.handover_other_person, "to Lender")
+    text(
+        C.Tag.handover_waiting_check,
+        "The return was scanned. Lender now checks the item against the pickup photos.",
+    )
+    text(C.Tag.handover_deposit_label, "Your deposit, held")
     composeTestRule.onNodeWithTag(C.Tag.handover_return_check).assertDoesNotExist()
+  }
+
+  @Test
+  fun aBorrowerWhoseLenderHasNoNameWaitsForTheLender() {
+    setContent(check.copy(isLender = false, otherPersonName = ""))
+
+    text(
+        C.Tag.handover_waiting_check,
+        "The return was scanned. The lender now checks the item against the pickup photos.",
+    )
   }
 
   // ---------- the whole check, through the ViewModel ----------
@@ -138,9 +163,9 @@ class HandoverReturnConfirmTest {
           listingId = "listing1",
           listingTitle = "Camping tent",
           ownerId = "owner",
-          ownerName = "Mara",
+          ownerName = "Lender",
           borrowerId = "borrower",
-          borrowerName = "Loca",
+          borrowerName = "Borrower",
           startDate = returnDay.minusDays(2),
           endDate = returnDay,
           status = RentalStatus.RETURNED,
@@ -158,14 +183,14 @@ class HandoverReturnConfirmTest {
         rental.id,
         rentals,
         handovers,
-        FakeAuthRepository(signedInUser = AuthUser("owner", "mara@epfl.ch", "Mara")),
+        FakeAuthRepository(signedInUser = AuthUser("owner", "lender@epfl.ch", "Lender")),
         FakeConnectivityRepository(),
         ServerClock(rentals, InMemoryServerClockStore(), bootCount = { 0 }),
     )
   }
 
   @Test
-  fun theLenderOfAReturnedItemSeesOnlyTheirOwnPhotos() {
+  fun aReturnedRentalOpensTheLendersCheckFromTheViewModel() {
     val handovers = FakeHandoverRepository(currentUid = "owner")
     handovers.photos =
         photos(3, HandoverPhase.PICKUP).map { StoredPhoto(rental.id, "owner", it) } +
@@ -173,6 +198,7 @@ class HandoverReturnConfirmTest {
     val viewModel = lenderViewModel(handovers)
     composeTestRule.setContent { HandoverScreen(viewModel) }
 
+    composeTestRule.onNodeWithTag(C.Tag.handover_return_check).assertIsDisplayed()
     composeTestRule.onAllNodesWithTag(C.Tag.handover_before_photo).assertCountEquals(3)
     composeTestRule.onNodeWithTag(C.Tag.handover_no_after_photos).assertExists()
   }
