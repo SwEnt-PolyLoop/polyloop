@@ -575,6 +575,26 @@
     <!-- Under the QR code while offline, e.g. "Once Mara has scanned, you're done. …" -->
     <string name="handover_code_offline_note">Once %1$s has scanned, you\'re done. This updates when you\'re back online.</string>
     <string name="handover_code_offline_note_no_name">Once they have scanned, you\'re done. This updates when you\'re back online.</string>
+    <!-- The card where the person receiving the item scans the QR code, e.g. "Scan Loca's code" -->
+    <string name="handover_scan_title">Scan %1$s\'s code</string>
+    <string name="handover_scan_title_lender">Scan the lender\'s code</string>
+    <string name="handover_scan_title_borrower">Scan the borrower\'s code</string>
+    <string name="handover_scan_hint">Scanning confirms you received the item and starts the rental.</string>
+    <string name="handover_scan_button">Scan QR code</string>
+    <string name="handover_scan_sending">Sending…</string>
+    <plurals name="handover_scan_photos_missing">
+        <item quantity="one">Take %1$d more photo first.</item>
+        <item quantity="other">Take %1$d more photos first.</item>
+    </plurals>
+    <string name="handover_scan_error">Couldn\'t prepare the scan.</string>
+    <!-- Until scans can wait in the upload queue (#467) -->
+    <string name="handover_scan_offline">Scanning offline is coming soon.</string>
+    <string name="handover_scan_wrong_code">This isn\'t the right code. Scan %1$s\'s code on their Handover screen.</string>
+    <string name="handover_scan_wrong_code_no_name">This isn\'t the right code. Scan the code on their Handover screen.</string>
+    <string name="handover_scan_not_sent">The scan couldn\'t be sent. Try again in a moment.</string>
+    <string name="handover_scan_refused">The pickup couldn\'t be confirmed. Check that you have enough PolyPoints for this rental and that today is the pickup day.</string>
+    <string name="handover_scan_unavailable">The scanner couldn\'t open. Try again in a moment.</string>
+    <string name="handover_scan_rental_changed">This rental changed and can\'t be picked up any more. Open the rental to see where it stands.</string>
     <!-- Once the borrower has scanned, e.g. "Picked up by Mara · the rental has started" -->
     <string name="handover_code_picked_up">Picked up by %1$s · the rental has started</string>
     <string name="handover_code_picked_up_no_name">Picked up · the rental has started</string>

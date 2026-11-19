@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
@@ -82,11 +83,13 @@ import java.time.format.DateTimeFormatter
 
 /**
  * The Handover screen of one rental, backed by [viewModel]. An empty tile asks for the camera
- * permission, then opens the in-app camera for one photo, which [viewModel] uploads.
+ * permission, then opens the in-app camera for one photo, which [viewModel] uploads. "Scan QR code"
+ * opens Google's scanner and gives the code read to [viewModel].
  */
 @Composable
 fun HandoverScreen(viewModel: HandoverViewModel) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+  val context = LocalContext.current
   var isCameraOpen by rememberSaveable { mutableStateOf(false) }
   var cameraPermissionGranted by rememberSaveable { mutableStateOf<Boolean?>(null) }
   val cameraPermissionLauncher =
@@ -113,6 +116,7 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
       },
       onCloseCamera = { isCameraOpen = false },
       onCaptureFailed = viewModel::onCaptureFailed,
+      onScan = { scanQrCode(context, viewModel::onCodeScanned, viewModel::onScannerFailed) },
       onItemFine = viewModel::confirmItemFine,
       onFlagDamage = viewModel::flagDamage,
   )
@@ -126,7 +130,8 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
  * "Retry" is tapped under the note asking to connect; photo times are shown in [zone]. While
  * [isCameraOpen], the in-app camera fills the screen for one photo, given to [onPhotoTaken], or to
  * [onCaptureFailed] if the shot fails; [cameraPermissionGranted] false shows how to allow the
- * camera. On the lender's check, [onItemFine] and [onFlagDamage] send their answer.
+ * camera. [onScan] is called when "Scan QR code" is pressed. On the lender's check, [onItemFine]
+ * and [onFlagDamage] send their answer.
  */
 @Composable
 fun HandoverContent(
@@ -141,14 +146,16 @@ fun HandoverContent(
     onPhotoTaken: (uri: String) -> Unit = {},
     onCloseCamera: () -> Unit = {},
     onCaptureFailed: (uri: String) -> Unit = {},
+    onScan: () -> Unit = {},
     onItemFine: () -> Unit = {},
     onFlagDamage: () -> Unit = {},
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
   // The photo shown full screen after a tap, by id; null when none is.
   var enlargedId by rememberSaveable { mutableStateOf<String?>(null) }
-  // Leaving would cancel the upload and lose the photo, so Back waits for it to end.
-  BackHandler(enabled = uiState.isUploading) {}
+  // Leaving would cancel the upload or the scan being sent and lose its result (the server may
+  // still confirm the pickup), so Back waits for it to end.
+  BackHandler(enabled = uiState.isUploading || uiState.isSendingScan) {}
   Column(
       modifier =
           modifier
@@ -216,15 +223,20 @@ fun HandoverContent(
                     onPhotoClick = { enlargedId = it },
                     onRetryPhotos = onRetry,
                 )
-                // Only the pickup has a code for now: the server makes no return code yet. Once its
-                // day is over, the code is no longer shown, even while the new day is read.
+                // Only the pickup has a code for now: the server makes no return code yet. The
+                // person giving the item shows the code; the one receiving it scans. Once the
+                // pickup day is over, neither card is shown, even while the new day is read, except
+                // for a scan sent before midnight, which keeps its card for its answer (the
+                // ViewModel clears older messages at midnight).
                 if (
                     uiState.phase == HandoverPhase.PICKUP &&
-                        uiState.showsCode &&
-                        uiState.isPickupDay &&
-                        !uiState.isDayOver
+                        ((uiState.isPickupDay && !uiState.isDayOver) ||
+                            uiState.isSendingScan ||
+                            uiState.scanConfirmed ||
+                            uiState.scanError != null)
                 ) {
-                  ShowCodeCard(uiState, onRetry)
+                  if (uiState.showsCode) ShowCodeCard(uiState, onRetry)
+                  else ScanCodeCard(uiState, onScan, onRetry)
                 }
                 CameraPermissionMessage(cameraPermissionGranted)
               }
