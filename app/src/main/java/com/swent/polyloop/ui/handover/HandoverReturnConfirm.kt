@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -315,17 +317,22 @@ private fun CheckButtons(
   }
 }
 
-/** A button's [title] above its [detail], or a spinner while its answer [isSending]. */
+/**
+ * A button's [title] above its [detail], or a spinner while its answer [isSending], which screen
+ * readers announce as the answer being sent.
+ */
 @Composable
 private fun CheckButtonContent(title: String, detail: String, isSending: Boolean) {
   if (isSending) {
+    val sending = stringResource(R.string.handover_check_sending)
     CircularProgressIndicator(
         color = LocalContentColor.current,
         strokeWidth = dimensionResource(R.dimen.handover_check_spinner_stroke),
         modifier =
             Modifier.padding(dimensionResource(R.dimen.handover_check_button_padding))
                 .size(dimensionResource(R.dimen.handover_check_spinner_size))
-                .testTag(C.Tag.handover_check_progress),
+                .testTag(C.Tag.handover_check_progress)
+                .semantics { contentDescription = sending },
     )
     return
   }

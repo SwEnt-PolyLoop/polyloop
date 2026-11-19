@@ -1180,6 +1180,19 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun aFailedAnswerKeepsItsErrorWhenTheRentalIsReloaded() {
+    val live = LiveRental(rental.copy(status = RentalStatus.RETURNED), rentalRepository)
+    signInAsLender()
+    val vm = viewModel(rentals = live)
+    disputeRepository.failure = RuntimeException("down")
+
+    vm.flagDamage()
+    live.live.value = rental.copy(status = RentalStatus.RETURNED, lastMessage = "Any news?")
+    assertTrue(vm.uiState.value.checkFailed)
+    assertTrue(vm.uiState.value.canSendCheck)
+  }
+
+  @Test
   fun noAnswerIsSentOfflineByTheBorrowerOrTwice() {
     useStatus(RentalStatus.RETURNED)
     viewModel().confirmItemFine() // the borrower

@@ -572,8 +572,8 @@ class HandoverViewModel(
   /**
    * Shows [state], keeping what is read or followed apart: whether the phone is online, the
    * server's day, the upload running or the photo waiting for a retry, a scan being sent, and the
-   * lender's answer being sent or already sent, so a reload does not lose them and the answer is
-   * never sent twice.
+   * lender's answer being sent, failed or already sent, so a reload (a chat message re-emits the
+   * rental) does not lose them and the answer is never sent twice.
    */
   private fun show(state: HandoverUiState) = _uiState.update {
     state.copy(
@@ -585,6 +585,7 @@ class HandoverViewModel(
         failedPhoto = it.failedPhoto,
         isSendingScan = it.isSendingScan,
         sendingCheck = it.sendingCheck,
+        checkFailed = it.checkFailed,
         checkSent = it.checkSent,
     )
   }

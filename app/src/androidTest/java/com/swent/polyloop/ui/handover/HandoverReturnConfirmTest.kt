@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -184,6 +185,7 @@ class HandoverReturnConfirmTest {
     composeTestRule
         .onNodeWithTag(C.Tag.handover_check_progress, useUnmergedTree = true)
         .assertIsDisplayed()
+        .assertContentDescriptionEquals("Sending your answer")
   }
 
   @Test
