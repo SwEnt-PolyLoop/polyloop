@@ -69,7 +69,8 @@ data class FailedPhoto(val uri: String, val phase: HandoverPhase)
  *   check of a returned item, their return photos.
  * @property pickupPhotos on the lender's check of a returned item, their pickup photos, oldest
  *   first; empty otherwise.
- * @property isLoadingPhotos true until the photos followed are read for the first time.
+ * @property isLoadingPhotos true until the photos followed are read for the first time; only the
+ *   lender's check shows it.
  * @property photosFailed true when the photos could not be loaded.
  * @property failedPhoto the photo whose upload failed, kept to try again; null when none did.
  * @property isOffline true while the phone has no connection; no photo can be uploaded then.
@@ -240,7 +241,7 @@ class HandoverViewModel(
   private var serverTodayRead: Job? = null
   private var midnightRead: Job? = null
 
-  // The phase whose photos are followed, or null when none are or on the lender's check.
+  // The phase whose photos are followed; null when none.
   private var shownPhase: HandoverPhase? = null
 
   // True while the photos of the lender's check are followed.

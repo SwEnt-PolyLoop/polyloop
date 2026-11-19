@@ -25,7 +25,7 @@
     <dimen name="handover_card_padding">16dp</dimen>
     <dimen name="handover_card_spacing">8dp</dimen>
     <dimen name="handover_photos_card_spacing">12dp</dimen>
-    <!-- Handover: the lender's check of the returned item -->
+    <!-- Handover: the returned item, the lender's check and the borrower's wait -->
     <dimen name="handover_check_padding">16dp</dimen>
     <dimen name="handover_check_spacing">16dp</dimen>
     <dimen name="handover_check_icon_spacing">12dp</dimen>

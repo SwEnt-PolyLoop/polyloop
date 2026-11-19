@@ -41,9 +41,9 @@ import java.time.ZoneId
 private const val CHECK_PHOTOS_PER_ROW = 3
 
 /**
- * The lender's check of the returned item (Figma 17b): the return was scanned, and their pickup and
- * return photos side by side. Tapping a photo gives its id to [onPhotoClick]; [onRetryPhotos] loads
- * the photos again after they failed to load.
+ * The lender's check of the returned item (Figma 17b): the header, that the return was scanned, and
+ * their pickup and return photos side by side, over the deposit footer. Tapping a photo gives its
+ * id to [onPhotoClick]; [onRetryPhotos] loads the photos again after they failed to load.
  */
 @Composable
 internal fun ReturnCheckContent(
