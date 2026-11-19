@@ -224,6 +224,23 @@ class ScanCodeCardTest {
   }
 
   @Test
+  fun aScanSentAtMidnightKeepsItsCardUntilTheAnswer() {
+    // The day ends while the scan is sent: the card stays, then shows the answer.
+    setContent(ready.copy(isSendingScan = true, isDayOver = true))
+    composeTestRule.onNodeWithText("Sending…", useUnmergedTree = true).assertIsDisplayed()
+    uiState = uiState.copy(serverToday = LocalDate.of(2026, 10, 7), isDayOver = false)
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Sending…", useUnmergedTree = true).assertIsDisplayed()
+    uiState = uiState.copy(isSendingScan = false, scanConfirmed = true)
+    node(C.Tag.handover_scan_confirmed)
+        .performScrollTo()
+        .assertTextEquals("Picked up · the rental has started")
+    // Without a scan, the next day has no card.
+    uiState = uiState.copy(scanConfirmed = false)
+    node(C.Tag.handover_scan_card).assertDoesNotExist()
+  }
+
+  @Test
   fun aPickupSeenFromTheServerAlsoShowsPickedUp() {
     // No scan from this phone (scanConfirmed is false): the rental became ACTIVE on the server.
     setContent(ready.copy(isPickedUp = true))

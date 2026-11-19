@@ -361,7 +361,7 @@ class HandoverScreenTest {
   }
 
   @Test
-  fun backIsBlockedOnlyWhileAPhotoUploads() {
+  fun backIsBlockedWhileAPhotoUploads() {
     var backs = 0
     lateinit var backDispatcher: OnBackPressedDispatcher
     uiState = pickup.copy(isUploading = true)
