@@ -77,6 +77,7 @@ class ChatScreenTest {
   private var retries = 0
   private var rentalDetailsClicks = 0
   private var pickupClicks = 0
+  private var reviewRequestClicks = 0
 
   // The state shown; a test can change it after setContent and the screen follows.
   private var shown by mutableStateOf(loaded)
@@ -93,6 +94,7 @@ class ChatScreenTest {
             onRentalDetailsClick = { rentalDetailsClicks++ },
             now = now,
             onStartPickupClick = { pickupClicks++ },
+            onReviewRequestClick = { reviewRequestClicks++ },
         )
       }
     }
@@ -140,6 +142,41 @@ class ChatScreenTest {
     height = 400.dp // as when the keyboard opens
 
     composeTestRule.onNodeWithTag(C.Tag.chat_message_ + "n14").assertIsDisplayed()
+  }
+
+  // ---------- review request ----------
+
+  @Test
+  fun theLenderOfARequestWithNoOfferIsLedToReviewRequest() {
+    setContent(loaded.copy(canReviewRequest = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_review_request_bar).assertIsDisplayed()
+    composeTestRule
+        .onNodeWithTag(C.Tag.chat_review_request_button)
+        .assertTextEquals(context.getString(R.string.my_rentals_review_request))
+        .performClick()
+    assertEquals(1, reviewRequestClicks)
+  }
+
+  @Test
+  fun theReviewRequestBarIsHiddenOtherwiseAndWhileLoading() {
+    var state by mutableStateOf(loaded)
+    composeTestRule.setContent {
+      PolyLoopTheme {
+        ChatContent(
+            uiState = state,
+            onDraftChange = {},
+            onSend = {},
+            onRetry = {},
+            onRentalDetailsClick = {},
+            now = now,
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag(C.Tag.chat_review_request_bar).assertDoesNotExist()
+
+    state = ChatUiState(canReviewRequest = true)
+    composeTestRule.onNodeWithTag(C.Tag.chat_review_request_bar).assertDoesNotExist()
   }
 
   // ---------- pickup ----------

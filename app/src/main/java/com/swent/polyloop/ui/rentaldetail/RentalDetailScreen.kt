@@ -76,9 +76,10 @@ import java.util.Locale
 /**
  * The Rental detail screen, showing the rental loaded by [viewModel]. [onChatClick] opens the
  * rental's chat, [onPersonClick] the other person's profile, [onStartPickupClick] the pickup
- * (Handover) of an accepted rental, [onStartReturnClick] the return (Handover) of an active one and
- * [onViewDisputeClick] the dispute of a disputed one. Confirming a cancel calls
- * [RentalDetailViewModel.cancel]. The app's top bar is drawn by the navigation scaffold, not here.
+ * (Handover) of an accepted rental, [onStartReturnClick] the return (Handover) of an active one,
+ * [onViewDisputeClick] the dispute of a disputed one and [onReviewRequestClick] Review request, for
+ * the lender of a request with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel].
+ * The app's top bar is drawn by the navigation scaffold, not here.
  */
 @Composable
 fun RentalDetailScreen(
@@ -88,6 +89,7 @@ fun RentalDetailScreen(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
+    onReviewRequestClick: () -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   // Reads the server's day again each time the screen comes back (e.g. from Handover), so a screen
@@ -104,6 +106,7 @@ fun RentalDetailScreen(
       onStartReturnClick = onStartReturnClick,
       onViewDisputeClick = onViewDisputeClick,
       onCancelClick = viewModel::cancel,
+      onReviewRequestClick = onReviewRequestClick,
   )
 }
 
@@ -112,7 +115,8 @@ fun RentalDetailScreen(
  * message, a placeholder for a status not built yet, or the Requested, Accepted, Active or Disputed
  * rental, depending on [uiState]. An Accepted rental has "Start Pickup" ([onStartPickupClick])
  * pinned at the bottom, an Active one "Start Return" ([onStartReturnClick]) and a Disputed one
- * "View Dispute" ([onViewDisputeClick]). A Requested or Accepted rental has a cancel row (see
+ * "View Dispute" ([onViewDisputeClick]); a request with no offer has "Review request"
+ * ([onReviewRequestClick]) for its lender. A Requested or Accepted rental has a cancel row (see
  * [CancelRow]) whose button opens a confirm sheet; "Yes" there calls [onCancelClick]. [today] and
  * [zone] decide how dates are written (e.g. whether the year is shown); tests pass fixed values so
  * their expected texts do not depend on the day they run. [today] is the phone's date, so it is
@@ -133,6 +137,7 @@ fun RentalDetailContent(
     onViewDisputeClick: () -> Unit,
     onCancelClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onReviewRequestClick: () -> Unit = {},
     today: LocalDate = LocalDate.now(),
     zone: ZoneId = ZoneId.systemDefault(),
     locale: Locale = LocalConfiguration.current.locales[0],
@@ -257,6 +262,7 @@ fun RentalDetailContent(
             onStartPickupClick = onStartPickupClick,
             onStartReturnClick = onStartReturnClick,
             onViewDisputeClick = onViewDisputeClick,
+            onReviewRequestClick = onReviewRequestClick,
         )
         if (isCancelSheetOpen && uiState.canCancel) {
           CancelConfirmSheet(
@@ -274,9 +280,10 @@ fun RentalDetailContent(
 
 /**
  * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "Start
- * Return" once active, "View Dispute" once disputed, and nothing for a request. Start Pickup opens
- * on the pickup day and Start Return on the return day, both by the server's date (see
- * [ServerDayButton]); before that day, the day it opens is written in [locale].
+ * Return" once active, "View Dispute" once disputed, and, for the lender of a request with no
+ * offer, "Review request"; nothing otherwise for a request. Start Pickup opens on the pickup day
+ * and Start Return on the return day, both by the server's date (see [ServerDayButton]); before
+ * that day, the day it opens is written in [locale].
  */
 @Composable
 private fun ActionBar(
@@ -286,6 +293,7 @@ private fun ActionBar(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
+    onReviewRequestClick: () -> Unit,
 ) {
   val start = uiState.startDate
   val end = uiState.endDate
@@ -334,6 +342,16 @@ private fun ActionBar(
               enabled = true,
               onClick = onViewDisputeClick,
           )
+        }
+    RentalStatus.REQUESTED ->
+        if (uiState.canReviewRequest) {
+          ActionBarSurface {
+            ActionButton(
+                text = stringResource(R.string.my_rentals_review_request),
+                enabled = true,
+                onClick = onReviewRequestClick,
+            )
+          }
         }
     else -> Unit
   }

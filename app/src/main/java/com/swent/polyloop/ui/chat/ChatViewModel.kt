@@ -105,7 +105,9 @@ data class ChatOffer(
  * [pickupDate] is the rental's first day while it is accepted, and null otherwise. [serverToday] is
  * today by the server's clock, read only for an accepted rental, and null until it is read or when
  * it is unknown (the server was not reached since the phone booted). The screen shows "Start
- * pickup" when they are the same day ([isPickupDay]).
+ * pickup" when they are the same day ([isPickupDay]). [canReviewRequest] is true for the lender of
+ * a request that has no offer yet: the screen then offers to open Review request, where it is
+ * answered.
  */
 data class ChatUiState(
     val header: ChatHeader? = null,
@@ -122,6 +124,7 @@ data class ChatUiState(
     val isOffline: Boolean = false,
     val pickupDate: LocalDate? = null,
     val serverToday: LocalDate? = null,
+    val canReviewRequest: Boolean = false,
 ) {
   /**
    * True on the pickup day by the server's clock, never by the phone's, whose date the user can
@@ -364,10 +367,11 @@ class ChatViewModel(
   }
 
   /**
-   * Follows the offer and the pickup date of the rental. Without them the conversation still works,
-   * so a read error only hides the card and the pickup. The form closes if the offer it answers is
-   * gone or expires. Once the rental is accepted, today is read from the server for Start pickup,
-   * once, so an unknown day is not asked again at every change of the rental.
+   * Follows the offer, the pickup date and whether the user can review the request. Without them
+   * the conversation still works, so a read error only hides the card, the pickup and the review
+   * request bar. The form closes if the offer it answers is gone or expires. Once the rental is
+   * accepted, today is read from the server for Start pickup, once, so an unknown day is not asked
+   * again at every change of the rental.
    */
   private suspend fun observeOffer(uid: String) {
     var serverTodayAsked = false
@@ -390,6 +394,7 @@ class ChatViewModel(
                 offer = offer,
                 isCountering = it.isCountering && offer?.canCounter == true,
                 pickupDate = rental?.startDate?.takeIf { rental.status == RentalStatus.ACCEPTED },
+                canReviewRequest = rental?.isUnansweredRequestOf(uid) == true,
             )
           }
           if (rental?.status == RentalStatus.ACCEPTED && !serverTodayAsked) {
@@ -430,6 +435,10 @@ class ChatViewModel(
   }
 
   private companion object {
+    /** True if [uid] lends this rental and it is a request with no offer yet. */
+    fun Rental.isUnansweredRequestOf(uid: String): Boolean =
+        ownerId == uid && status == RentalStatus.REQUESTED && offer == null
+
     /** The offer of this rental for the user [uid], who lends the rentals [lent], at [now]. */
     fun Rental.toChatOffer(uid: String, lent: List<Rental>, now: Instant): ChatOffer? = offer?.let {
       ChatOffer(
