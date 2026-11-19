@@ -20,4 +20,11 @@
     <dimen name="dispute_split_thumb_border">3dp</dimen>
     <dimen name="dispute_percent_extra_width">2dp</dimen>
     <dimen name="dispute_percent_underline">1dp</dimen>
+    <!-- Exact meeting point with its Navigate button (Rental detail) -->
+    <dimen name="navigable_address_pin_size">20dp</dimen>
+    <dimen name="navigable_address_spacing">8dp</dimen>
+    <dimen name="navigate_button_padding_horizontal">12dp</dimen>
+    <dimen name="navigate_button_padding_vertical">4dp</dimen>
+    <dimen name="navigate_button_icon_size">18dp</dimen>
+    <dimen name="navigate_button_icon_spacing">6dp</dimen>
 </resources>

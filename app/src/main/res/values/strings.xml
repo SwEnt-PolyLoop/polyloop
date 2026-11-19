@@ -33,6 +33,8 @@
     <string name="listing_card_price">%1$d PP</string>
     <string name="listing_card_per_day">/ day</string>
     <string name="listing_card_location">%1$s · %2$s</string>
+    <string name="distance_meters">%1$d m</string>
+    <string name="distance_kilometers">%1$s km</string>
 
     <!-- Listing detail -->
     <!-- Under a long text cut after a few lines (the listing description): shows it whole, then cuts it again. -->
@@ -382,6 +384,8 @@
     <string name="rental_detail_pickup_point_label">PICKUP POINT</string>
     <string name="rental_detail_return_address">Drop-off: %1$s</string>
     <string name="rental_detail_address_placeholder">Address not known yet</string>
+    <string name="rental_detail_navigate">Navigate</string>
+    <string name="rental_detail_navigate_failed">Could not open the directions.</string>
     <string name="rental_detail_details_title">Details</string>
     <string name="rental_detail_dates_label">Dates</string>
     <string name="rental_detail_return_label">Return</string>
@@ -538,6 +542,24 @@
     <string name="handover_deposit_amount">%1$d PP</string>
     <!-- The deposit on Handover when it is not known (stored as 0) -->
     <string name="handover_deposit_unknown">—</string>
+    <!-- The card where the person giving the item shows the QR code, e.g. "Show this code to Mara" -->
+    <string name="handover_show_code_title">Show this code to %1$s</string>
+    <string name="handover_show_code_title_borrower">Show this code to the borrower</string>
+    <string name="handover_show_code_title_lender">Show this code to the lender</string>
+    <string name="handover_show_code_hint">They scan it to confirm they received the item.</string>
+    <plurals name="handover_show_code_photos_missing">
+        <item quantity="one">Take %1$d more photo to show your code.</item>
+        <item quantity="other">Take %1$d more photos to show your code.</item>
+    </plurals>
+    <string name="handover_code_description">Your handover QR code</string>
+    <string name="handover_code_no_copy">Connect to the internet once to prepare the pickup.</string>
+    <string name="handover_code_error">Couldn\'t load your code.</string>
+    <!-- Under the QR code while offline, e.g. "Once Mara has scanned, you're done. …" -->
+    <string name="handover_code_offline_note">Once %1$s has scanned, you\'re done. This updates when you\'re back online.</string>
+    <string name="handover_code_offline_note_no_name">Once they have scanned, you\'re done. This updates when you\'re back online.</string>
+    <!-- Once the borrower has scanned, e.g. "Picked up by Mara · the rental has started" -->
+    <string name="handover_code_picked_up">Picked up by %1$s · the rental has started</string>
+    <string name="handover_code_picked_up_no_name">Picked up · the rental has started</string>
 
     <!-- Review request: the lender's answer to a request. -->
     <string name="review_request_title">Review request</string>

@@ -11,6 +11,14 @@ export const SETTLE = "SETTLE";
 export const LLM_PROPOSAL = "LLM_PROPOSAL";
 
 /**
+ * The states of the LLM proposal, as stored in `disputes/{rentalId}.llmProposal.status`: waiting
+ * for the LLM, ready for the parties to answer, or failed (see "Disputes" in docs/ARCHITECTURE.md).
+ */
+export const PENDING = "PENDING";
+export const READY = "READY";
+export const FAILED = "FAILED";
+
+/**
  * Why a request lost a race, in the `details` of its `failed-precondition` error. The app reads
  * this reason, never the message.
  */

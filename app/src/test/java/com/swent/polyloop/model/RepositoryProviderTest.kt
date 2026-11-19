@@ -19,6 +19,8 @@ import com.swent.polyloop.model.dispute.FakeDisputeRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository
 import com.swent.polyloop.model.handover.HandoverRepositoryFirestore
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
+import com.swent.polyloop.model.location.FakeLocationRepository
+import com.swent.polyloop.model.location.LocationRepositoryAndroid
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.ProfileRepositoryFirestore
 import com.swent.polyloop.model.rental.FakeRentalRepository
@@ -287,6 +289,38 @@ class RepositoryProviderTest {
     assertEquals("RepositoryProvider.init was not called", error.message)
   }
 
+  // ---------- locationRepository ----------
+
+  @Test
+  fun locationRepositoryDefaultsToAndroidImplementation() {
+    assertTrue(RepositoryProvider.locationRepository is LocationRepositoryAndroid)
+  }
+
+  @Test
+  fun locationRepositoryReturnsSameInstanceOnEveryAccess() {
+    val first = RepositoryProvider.locationRepository
+
+    assertSame(first, RepositoryProvider.locationRepository)
+  }
+
+  @Test
+  fun locationRepositoryReturnsAssignedRepository() {
+    val fake = FakeLocationRepository()
+
+    RepositoryProvider.locationRepository = fake
+
+    assertSame(fake, RepositoryProvider.locationRepository)
+  }
+
+  @Test
+  fun locationRepositoryFailsClearlyWhenInitWasNotCalled() {
+    RepositoryProvider.clearContext()
+
+    val error =
+        assertThrows(IllegalStateException::class.java) { RepositoryProvider.locationRepository }
+    assertEquals("RepositoryProvider.init was not called", error.message)
+  }
+
   // ---------- walletRepository ----------
 
   @Test
@@ -362,6 +396,8 @@ class RepositoryProviderTest {
     RepositoryProvider.profileRepository = FakeProfileRepository()
     RepositoryProvider.rentalRepository = FakeRentalRepository()
     RepositoryProvider.connectivityRepository = FakeConnectivityRepository()
+    val fakeLocation = FakeLocationRepository()
+    RepositoryProvider.locationRepository = fakeLocation
     val fakeWallet = FakeWalletRepository()
     RepositoryProvider.walletRepository = fakeWallet
     RepositoryProvider.handoverRepository = FakeHandoverRepository()
@@ -375,6 +411,8 @@ class RepositoryProviderTest {
     assertTrue(RepositoryProvider.chatRepository is ChatRepositoryFirestore)
     assertTrue(RepositoryProvider.profileRepository is ProfileRepositoryFirestore)
     assertTrue(RepositoryProvider.connectivityRepository is ConnectivityRepositoryAndroid)
+    assertTrue(RepositoryProvider.locationRepository is LocationRepositoryAndroid)
+    assertNotSame(fakeLocation, RepositoryProvider.locationRepository)
     assertTrue(RepositoryProvider.walletRepository is WalletRepositoryFirestore)
     assertNotSame(fakeWallet, RepositoryProvider.walletRepository)
     assertTrue(RepositoryProvider.handoverRepository is HandoverRepositoryFirestore)

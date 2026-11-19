@@ -12,12 +12,10 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
-import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.listingToDocument
-import com.swent.polyloop.model.rental.rentalRequestDocument
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.time.LocalDate
 import java.util.UUID
@@ -86,8 +84,8 @@ class FirestoreRulesTest {
       )
 
   /** A listing of [ownerId], written as an admin. */
-  private fun seedListing(ownerId: String, status: ListingStatus = ListingStatus.PUBLISHED) =
-      listing(ownerId).copy(status = status).also {
+  private fun seedListing(ownerId: String) =
+      listing(ownerId).also {
         FirebaseEmulator.createDocumentAsAdmin("listings/${it.id}", listingToDocument(it))
       }
 
@@ -96,14 +94,29 @@ class FirestoreRulesTest {
   private fun addressesRef(listingId: String) =
       listingRef(listingId).collection("private").document("addresses")
 
-  /** A request from [borrower] for [listing], as RentalRepositoryFirestore writes it. */
+  /** A request from [borrower] for [listing], as the requestRental Cloud Function writes it. */
   private fun request(listing: Listing, borrower: Account): Map<String, Any> =
-      rentalRequestDocument(
-          listing,
-          "Ana",
-          AuthUser(borrower.uid, borrower.email, "Ben"),
-          start,
-          end,
+      mapOf(
+          "listingId" to listing.id,
+          "listingTitle" to listing.title,
+          "listingPhotoUrl" to listing.photoUrls.firstOrNull().orEmpty(),
+          "ownerId" to listing.ownerId,
+          "ownerName" to "Ana",
+          "borrowerId" to borrower.uid,
+          "borrowerName" to "Ben",
+          "participants" to listOf(listing.ownerId, borrower.uid),
+          "startDate" to start.toString(),
+          "endDate" to end.toString(),
+          "status" to "REQUESTED",
+          "pricePerDay" to listing.pricePerDay,
+          "totalPrice" to listing.pricePerDay * 3,
+          "pickupArea" to listing.pickupArea,
+          "dropOffArea" to listing.dropOffArea,
+          "pickupAddress" to "",
+          "returnAddress" to "",
+          "createdAt" to FieldValue.serverTimestamp(),
+          "lastMessage" to "",
+          "lastMessageAt" to FieldValue.serverTimestamp(),
       )
 
   /** A rental between [owner] and [borrower], written as an admin. Returns its reference. */
@@ -137,6 +150,15 @@ class FirestoreRulesTest {
           "sentAt" to FieldValue.serverTimestamp(),
           "type" to type,
       )
+
+  /** The download URL of [uid]'s profile photo in this project's bucket, as Storage gives it. */
+  private fun ownPhotoUrl(
+      uid: String,
+      bucket: String = "polyloop-97543.firebasestorage.app",
+      host: String = "https://firebasestorage.googleapis.com",
+  ) =
+      "$host/v0/b/$bucket/o/users%2F$uid%2Fprofile.jpg" +
+          "?alt=media&token=0a1b2c3d-4e5f-6789-abcd-ef0123456789"
 
   /** Runs [block] and fails unless the rules refuse it. */
   private suspend fun assertDenied(block: suspend () -> Unit) {
@@ -203,15 +225,121 @@ class FirestoreRulesTest {
         )
         val profile = db.collection("users").document(me.uid)
 
-        profile
-            .update(mapOf("name" to "Benji", "photoUrl" to "https://example.com/ben.jpg"))
-            .await()
+        profile.update(mapOf("name" to "Benji", "photoUrl" to ownPhotoUrl(me.uid))).await()
         assertDenied { profile.update("averageRating", 5.0).await() }
         assertDenied { profile.update("reviewCount", 3).await() }
         assertDenied { profile.update("email", "someone@epfl.ch").await() }
 
         newAccount() // someone else
         assertDenied { profile.update("name", "Hacked").await() }
+      }
+
+  @Test
+  fun userCreatesProfileWithEmptyOrOwnPhotoUrl() =
+      runBlocking<Unit> {
+        val me = newAccount()
+        val profile = db.collection("users").document(me.uid)
+
+        profile.set(mapOf("name" to "Ben", "email" to me.email, "photoUrl" to "")).await()
+        profile
+            .set(mapOf("name" to "Ben", "email" to me.email, "photoUrl" to ownPhotoUrl(me.uid)))
+            .await()
+      }
+
+  @Test
+  fun userCannotCreateProfileWithAnotherPhotoUrl() =
+      runBlocking<Unit> {
+        val other = newAccount()
+        val me = newAccount()
+        val profile = db.collection("users").document(me.uid)
+
+        listOf(
+                ownPhotoUrl(other.uid),
+                ownPhotoUrl(me.uid, bucket = "another-project.firebasestorage.app"),
+                ownPhotoUrl(me.uid, host = "https://example.com"),
+                "https://example.com/ben.jpg",
+            )
+            .forEach { url ->
+              assertDenied {
+                profile.set(mapOf("name" to "Ben", "email" to me.email, "photoUrl" to url)).await()
+              }
+            }
+      }
+
+  @Test
+  fun photoUrlAcceptsProductionAndOwnEmulatorUrlsOnly() =
+      runBlocking<Unit> {
+        val other = newAccount()
+        val me = newAccount()
+        FirebaseEmulator.createDocumentAsAdmin(
+            "users/${me.uid}",
+            mapOf("name" to "Ben", "email" to me.email),
+        )
+        val profile = db.collection("users").document(me.uid)
+        val emulatorHosts =
+            listOf("http://10.0.2.2:9199", "http://localhost:9199", "http://127.0.0.1:9199")
+
+        profile.update("photoUrl", ownPhotoUrl(me.uid)).await()
+        emulatorHosts.forEach { host ->
+          profile
+              .update("photoUrl", ownPhotoUrl(me.uid, bucket = "any-bucket", host = host))
+              .await()
+        }
+
+        listOf(
+                // Another user's photo, on each emulator host.
+                *emulatorHosts
+                    .map { ownPhotoUrl(other.uid, bucket = "any-bucket", host = it) }
+                    .toTypedArray(),
+                // A bucket part with a slash is not one bucket.
+                ownPhotoUrl(me.uid, bucket = "a/b", host = "http://10.0.2.2:9199"),
+                // Another port, other hosts, and the production host with the wrong scheme.
+                ownPhotoUrl(me.uid, host = "http://10.0.2.2:9198"),
+                ownPhotoUrl(me.uid, host = "https://example.com"),
+                ownPhotoUrl(me.uid, host = "http://example.com:9199"),
+                ownPhotoUrl(me.uid, host = "http://firebasestorage.googleapis.com"),
+            )
+            .forEach { url -> assertDenied { profile.update("photoUrl", url).await() } }
+      }
+
+  @Test
+  fun userCannotUpdateTheirPhotoUrlToAnotherUrl() =
+      runBlocking<Unit> {
+        val other = newAccount()
+        val me = newAccount()
+        FirebaseEmulator.createDocumentAsAdmin(
+            "users/${me.uid}",
+            mapOf("name" to "Ben", "email" to me.email),
+        )
+        val profile = db.collection("users").document(me.uid)
+
+        listOf(
+                ownPhotoUrl(other.uid),
+                ownPhotoUrl(me.uid, bucket = "another-project.firebasestorage.app"),
+                ownPhotoUrl(me.uid, host = "https://example.com"),
+                "https://example.com/ben.jpg",
+            )
+            .forEach { url -> assertDenied { profile.update("photoUrl", url).await() } }
+        profile.update("photoUrl", ownPhotoUrl(me.uid)).await()
+        profile.update("photoUrl", "").await()
+      }
+
+  @Test
+  fun userWithAnOldPhotoUrlCanStillChangeTheirName() =
+      runBlocking<Unit> {
+        val me = newAccount()
+        FirebaseEmulator.createDocumentAsAdmin(
+            "users/${me.uid}",
+            mapOf(
+                "name" to "Ben",
+                "email" to me.email,
+                "photoUrl" to "https://example.com/old.jpg",
+            ),
+        )
+        val profile = db.collection("users").document(me.uid)
+
+        profile.update("name", "Benji").await()
+        assertDenied { profile.update("photoUrl", "https://example.com/new.jpg").await() }
       }
 
   // ---------- listings ----------
@@ -403,82 +531,31 @@ class FirestoreRulesTest {
   // ---------- rentals ----------
 
   @Test
-  fun borrowerSendsARequestThatBothParticipantsCanRead() =
+  fun noClientCreatesARentalOnlyRequestRentalDoes() =
       runBlocking<Unit> {
         val owner = newAccount()
         val listing = seedListing(owner.uid)
         val borrower = newAccount()
-        val rental = db.collection("rentals").document()
+        val rentals = db.collection("rentals")
 
-        rental.set(request(listing, borrower)).await()
+        // Even a request matching its listing exactly, as the Cloud Function writes it.
+        assertDenied { rentals.document().set(request(listing, borrower)).await() }
+        signInAs(owner)
+        assertDenied { rentals.document().set(request(listing, borrower)).await() }
+      }
+
+  @Test
+  fun bothParticipantsReadARequestButAStrangerCannot() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid)
 
         assertEquals("REQUESTED", rental.get(Source.SERVER).await().getString("status"))
         signInAs(owner)
-        assertEquals(listing.id, rental.get(Source.SERVER).await().getString("listingId"))
+        assertEquals(borrower.uid, rental.get(Source.SERVER).await().getString("borrowerId"))
         newAccount() // a stranger
         assertDenied { rental.get(Source.SERVER).await() }
-      }
-
-  @Test
-  fun requestThatDoesNotMatchTheListingIsRefused() =
-      runBlocking<Unit> {
-        val owner = newAccount()
-        val listing = seedListing(owner.uid)
-        val borrower = newAccount()
-        val valid = request(listing, borrower)
-        val invalid =
-            listOf(
-                "status" to "ACCEPTED",
-                "totalPrice" to 10, // 3 days Ã— 5 PP is 15
-                "pricePerDay" to 1,
-                "listingTitle" to "Something else",
-                "listingPhotoUrl" to "https://example.com/other.jpg",
-                "pickupArea" to "Geneva",
-                "pickupAddress" to "Route 1",
-                "ownerId" to borrower.uid,
-                "borrowerId" to owner.uid,
-                "participants" to listOf(borrower.uid),
-                "startDate" to "2026-10-31", // before the window
-                "endDate" to "2026-12-01", // after the window
-                "endDate" to "2026-11-01", // before startDate
-                "startDate" to "2 Nov",
-            )
-
-        invalid.forEach { change ->
-          assertDenied { db.collection("rentals").document().set(valid + change).await() }
-        }
-        assertDenied { db.collection("rentals").document().set(valid + ("deposit" to 50)).await() }
-      }
-
-  @Test
-  fun requestForAListingWithoutPhotosCopiesAnEmptyPhoto() =
-      runBlocking<Unit> {
-        val owner = newAccount()
-        // A listing from before the photo rules, which has none.
-        val listing = listing(owner.uid).copy(photoUrls = emptyList())
-        FirebaseEmulator.createDocumentAsAdmin("listings/${listing.id}", listingToDocument(listing))
-        val borrower = newAccount()
-        val valid = request(listing, borrower)
-
-        assertDenied {
-          db.collection("rentals")
-              .document()
-              .set(valid + ("listingPhotoUrl" to "https://example.com/0.jpg"))
-              .await()
-        }
-        db.collection("rentals").document().set(valid).await()
-      }
-
-  @Test
-  fun requestForAnUnpublishedOrOwnListingIsRefused() =
-      runBlocking<Unit> {
-        val owner = newAccount()
-        val draft = seedListing(owner.uid, ListingStatus.DRAFT)
-        val own = seedListing(owner.uid)
-
-        assertDenied { db.collection("rentals").document().set(request(own, owner)).await() }
-        val borrower = newAccount()
-        assertDenied { db.collection("rentals").document().set(request(draft, borrower)).await() }
       }
 
   @Test
@@ -598,27 +675,6 @@ class FirestoreRulesTest {
       }
 
   @Test
-  fun aNewRequestCannotCarryAnOfferOrADeposit() =
-      runBlocking<Unit> {
-        val owner = newAccount()
-        val listing = seedListing(owner.uid)
-        val borrower = newAccount()
-        val rentals = db.collection("rentals")
-
-        assertDenied {
-          rentals
-              .document()
-              .set(request(listing, borrower) + ("offer" to mapOf("amount" to 1)))
-              .await()
-        }
-        assertDenied {
-          rentals.document().set(request(listing, borrower) + ("deposit" to 1)).await()
-        }
-
-        rentals.document().set(request(listing, borrower)).await() // the same request without them
-      }
-
-  @Test
   fun noClientReadsOrWritesTheAddressesOfAnOffer() =
       runBlocking<Unit> {
         val owner = newAccount()
@@ -638,6 +694,9 @@ class FirestoreRulesTest {
 
   // ---------- handover photos ----------
 
+  /** The id of a condition photo: the slot [n] of [uid] in [phase]. */
+  private fun slot(uid: String, n: Int, phase: String = "PICKUP") = "${uid}_${phase}_$n"
+
   private fun photo(takenBy: String, phase: String = "PICKUP") =
       mapOf(
           "takenBy" to takenBy,
@@ -653,24 +712,74 @@ class FirestoreRulesTest {
         val borrower = newAccount()
         val photos = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
 
-        val mine = photos.document()
+        val mine = photos.document(slot(borrower.uid, 0))
         mine.set(photo(borrower.uid)).await()
-        assertDenied { photos.document().set(photo(owner.uid)).await() } // someone else's
+        // Someone else's.
+        assertDenied { photos.document(slot(owner.uid, 0)).set(photo(owner.uid)).await() }
         assertDenied {
-          photos.document().set(photo(borrower.uid) + ("takenAt" to Timestamp(5_000, 0))).await()
+          photos
+              .document(slot(borrower.uid, 1))
+              .set(photo(borrower.uid) + ("takenAt" to Timestamp(5_000, 0)))
+              .await()
         }
-        assertDenied { photos.document().set(photo(borrower.uid) + ("url" to 5)).await() }
-        assertDenied { photos.document().set(photo(borrower.uid) + ("extra" to 1)).await() }
+        assertDenied {
+          photos.document(slot(borrower.uid, 1)).set(photo(borrower.uid) + ("url" to 5)).await()
+        }
+        assertDenied {
+          photos.document(slot(borrower.uid, 1)).set(photo(borrower.uid) + ("extra" to 1)).await()
+        }
         assertDenied { mine.update("url", "https://example.com/other.jpg").await() }
         assertDenied { mine.delete().await() }
 
         signInAs(owner)
-        photos.document().set(photo(owner.uid)).await()
+        photos.document(slot(owner.uid, 0)).set(photo(owner.uid)).await()
         assertEquals(2, photos.get(Source.SERVER).await().size())
 
         val stranger = newAccount()
         assertDenied { photos.get(Source.SERVER).await() }
-        assertDenied { photos.document().set(photo(stranger.uid)).await() }
+        assertDenied { photos.document(slot(stranger.uid, 0)).set(photo(stranger.uid)).await() }
+      }
+
+  @Test
+  fun aPersonAddsAtMost20PickupPhotosOneInEachSlot() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val photos = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
+
+        repeat(20) { photos.document(slot(borrower.uid, it)).set(photo(borrower.uid)).await() }
+
+        // The 21st has no slot.
+        assertDenied { photos.document(slot(borrower.uid, 20)).set(photo(borrower.uid)).await() }
+        assertEquals(20, photos.get(Source.SERVER).await().size())
+        // A slot is written once: a photo is never replaced.
+        assertDenied { photos.document(slot(borrower.uid, 19)).set(photo(borrower.uid)).await() }
+      }
+
+  @Test
+  fun pickupPhotoIdsMustBeTheUsersOwnSlot() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val photos = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
+
+        listOf(
+                "random-${UUID.randomUUID()}",
+                slot(owner.uid, 0), // another user's uid, even though the other participant
+                slot(borrower.uid, 0, phase = "RETURN"), // not the photo's phase
+                slot(borrower.uid, 10) + "0", // 10 is a slot, 100 is not
+                "${borrower.uid}_PICKUP_01",
+                "${borrower.uid}_PICKUP_-1",
+                "${borrower.uid}_PICKUP_",
+                "x${slot(borrower.uid, 0)}",
+            )
+            .forEach { id -> assertDenied { photos.document(id).set(photo(borrower.uid)).await() } }
+        // A RETURN photo in a PICKUP slot, and the other way round.
+        assertDenied {
+          photos.document(slot(borrower.uid, 0)).set(photo(borrower.uid, "RETURN")).await()
+        }
+        photos.document(slot(borrower.uid, 0)).set(photo(borrower.uid)).await()
+        photos.document(slot(borrower.uid, 10)).set(photo(borrower.uid)).await()
       }
 
   @Test
@@ -682,9 +791,95 @@ class FirestoreRulesTest {
         val active = seedRental(owner.uid, borrower.uid, status = "ACTIVE").collection("photos")
         val requested = seedRental(owner.uid, borrower.uid).collection("photos")
 
-        assertDenied { accepted.document().set(photo(borrower.uid, phase = "RETURN")).await() }
-        assertDenied { active.document().set(photo(borrower.uid)).await() } // pickup is over
-        assertDenied { requested.document().set(photo(borrower.uid)).await() }
+        assertDenied {
+          accepted
+              .document(slot(borrower.uid, 0, phase = "RETURN"))
+              .set(photo(borrower.uid, phase = "RETURN"))
+              .await()
+        }
+        // Pickup is over.
+        assertDenied { active.document(slot(borrower.uid, 0)).set(photo(borrower.uid)).await() }
+        assertDenied { requested.document(slot(borrower.uid, 0)).set(photo(borrower.uid)).await() }
+      }
+
+  // ---------- handover codes ----------
+
+  /** The code of [phase] for [rental], written as an admin (only Cloud Functions write it). */
+  private fun seedCode(rental: DocumentReference, phase: String): DocumentReference {
+    val code = rental.collection("handoverCodes").document(phase)
+    FirebaseEmulator.createDocumentAsAdmin(code.path, mapOf("code" to "secret-$phase"))
+    return code
+  }
+
+  @Test
+  fun onlyTheLenderReadsThePickupCode() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val code = seedCode(seedRental(owner.uid, borrower.uid, status = "ACCEPTED"), "PICKUP")
+
+        // borrower is signed in: they get only the fingerprint, never the code
+        assertDenied { code.get(Source.SERVER).await() }
+        newAccount()
+        assertDenied { code.get(Source.SERVER).await() } // a stranger
+
+        signInAs(owner)
+        assertEquals("secret-PICKUP", code.get(Source.SERVER).await().getString("code"))
+      }
+
+  @Test
+  fun onlyTheBorrowerReadsTheReturnCode() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val code = seedCode(seedRental(owner.uid, borrower.uid, status = "ACTIVE"), "RETURN")
+
+        assertEquals("secret-RETURN", code.get(Source.SERVER).await().getString("code"))
+
+        signInAs(owner)
+        assertDenied { code.get(Source.SERVER).await() }
+      }
+
+  @Test
+  fun aCodeNotMadeYetReadsAsMissingForTheLender() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid, status = "ACCEPTED")
+
+        signInAs(owner)
+        assertFalse(
+            rental
+                .collection("handoverCodes")
+                .document("PICKUP")
+                .get(Source.SERVER)
+                .await()
+                .exists()
+        )
+        // Any other phase is nobody's.
+        assertDenied {
+          rental.collection("handoverCodes").document("OTHER").get(Source.SERVER).await()
+        }
+      }
+
+  @Test
+  fun noClientWritesACodeOrItsFingerprint() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        val rental = seedRental(owner.uid, borrower.uid, status = "ACCEPTED")
+        val pickup = seedCode(rental, "PICKUP")
+        val returnCode = rental.collection("handoverCodes").document("RETURN")
+
+        for (account in listOf(borrower, owner)) {
+          signInAs(account)
+          assertDenied { pickup.set(mapOf("code" to "mine")).await() }
+          assertDenied { pickup.update("code", "mine").await() }
+          assertDenied { pickup.delete().await() }
+          assertDenied { returnCode.set(mapOf("code" to "mine")).await() }
+          assertDenied { rental.update("pickupCodeHash", "0".repeat(64)).await() }
+          assertDenied { rental.update("returnCodeHash", "0".repeat(64)).await() }
+        }
       }
 
   // ---------- wallets ----------

@@ -198,6 +198,7 @@ fun HandoverContent(
                     onPhotoClick = { enlargedId = it },
                     onRetryPhotos = onRetry,
                 )
+                if (uiState.showsCode && uiState.isPickupDay) ShowCodeCard(uiState, onRetry)
                 CameraPermissionMessage(cameraPermissionGranted)
               }
               DepositFooter(uiState.deposit, uiState.isLender)

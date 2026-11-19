@@ -107,10 +107,15 @@ class ProfileRepositoryFirestoreEmulatorTest {
           mapOf("name" to "John", "email" to email, "averageRating" to 4.5, "reviewCount" to 2),
       )
 
-      repository.updateProfile(uid, "Johnny", "https://example.com/john.jpg").getOrThrow()
+      // The rules accept only the user's own photo URL (or ""): the one a real upload to the
+      // Storage emulator returns, used as it comes back.
+      val photoUrl =
+          repository.uploadProfilePhoto(uid, photoFile(byteArrayOf(1, 2, 3))).getOrThrow()
+
+      repository.updateProfile(uid, "Johnny", photoUrl).getOrThrow()
 
       assertEquals(
-          UserProfile(uid, "Johnny", email, "https://example.com/john.jpg", 4.5, 2),
+          UserProfile(uid, "Johnny", email, photoUrl, 4.5, 2),
           repository.getProfile(uid).getOrThrow(),
       )
     }

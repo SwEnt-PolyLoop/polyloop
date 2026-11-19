@@ -3,6 +3,7 @@
 package com.swent.polyloop.e2e
 
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.Source
@@ -16,11 +17,13 @@ import com.swent.polyloop.model.rental.RentalFields
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.navigation.Screen
+import com.swent.polyloop.utils.FakeUriHandler
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,7 +33,7 @@ import org.junit.runner.RunWith
 class BorrowerEndToEndTest : EndToEndTestBase() {
 
   @Test
-  fun browseFindsAListingAndSendsARequest() {
+  fun browseFindsAListingAndPricesARequest() {
     seedProfile(lenderId, LENDER_NAME)
     val listing = seedListing()
     seedWallet(signInWithoutTheUi(), BALANCE)
@@ -74,7 +77,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     composeTestRule.onNodeWithTag(C.Tag.date_picker_error).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).assertIsNotEnabled()
 
-    // Two days instead: both picked, priced at two days; sending opens the new rental's chat.
+    // Two days instead: both picked and priced at two days.
     pickDay(firstDay.plusDays(1))
     composeTestRule.onNodeWithTag(C.Tag.date_picker_error).assertAbsent()
     composeTestRule.onNodeWithTag(C.Tag.datePickerDay(firstDay)).assertIsSelected()
@@ -84,14 +87,17 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
         .onNodeWithTag(C.Tag.date_picker_summary_total)
         .assertTextEquals(context.getString(R.string.listing_card_price, 2 * PRICE_PER_DAY))
     // The picker shows the borrower's wallet balance, which covers the price: Send request is
-    // enabled.
+    // enabled. Sending calls the requestRental Cloud Function, which the CI does not run; the
+    // Function is tested in functions/src, and the screens after a request in
+    // aSentRequestShowsInMyRentalsAndTheChatList.
     composeTestRule
         .onNodeWithTag(C.Tag.date_picker_balance)
         .assertTextEquals(context.getString(R.string.listing_card_price, BALANCE))
-    composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
-    waitForText(C.Tag.chat_header_item, listing.title)
-    assertRoute(Screen.Chat)
-    pressBack()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).assertIsEnabled()
+    // A real Back key, which the sheet's own window receives and handles by closing itself.
+    Espresso.pressBack()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertAbsent()
     assertRoute(Screen.ListingDetail)
 
     // The lender card opens the lender's profile; Back returns to the listing.
@@ -103,7 +109,7 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
   }
 
   @Test
-  fun bookedDaysAreGreyedAndDatesBookedMeanwhileAreRefusedThenFreeDatesAreSent() {
+  fun bookedDaysAreGreyedAndDatesBookedMeanwhileAreRefused() {
     seedProfile(lenderId, LENDER_NAME)
     val booked = BookedRange(firstDay.plusDays(4), firstDay.plusDays(5))
     val listing = seedListing(to = firstDay.plusDays(LAST_TEST_DAY), bookedRanges = listOf(booked))
@@ -145,13 +151,11 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     }
     assertTrue("A request was sent for booked days", sent.isEmpty)
 
-    // Free days after the booking go through: the request is sent and its chat opens.
+    // Picking free days clears the message. Sending them calls the requestRental Cloud Function,
+    // which the CI does not run; the Function is tested in functions/src.
     val retryStart = booked.end.plusDays(2)
     pickDays(retryStart, retryStart.plusDays(1))
     composeTestRule.onNodeWithTag(C.Tag.date_picker_send_error).assertAbsent()
-    composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
-    waitForText(C.Tag.chat_header_item, listing.title)
-    assertRoute(Screen.Chat)
   }
 
   @Test
@@ -273,6 +277,60 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
     assertRoute(Screen.RentalDetail)
   }
 
+  @Test
+  fun navigateGivesTheDirectionsToThePickupAndTriesAgainAfterAFailure() {
+    seedProfile(lenderId, LENDER_NAME)
+    val listing = seedListing()
+    val uid = signInWithoutTheUi()
+    val rentalId =
+        seedRental(
+            listing,
+            uid,
+            USER_NAME,
+            LENDER_NAME,
+            firstDay,
+            firstDay.plusDays(1),
+            RentalStatus.ACCEPTED,
+            // Copied onto the rental on acceptance, as the Function that accepts it does.
+            extra =
+                mapOf(
+                    RentalFields.PICKUP_ADDRESS to PICKUP_ADDRESS,
+                    RentalFields.RETURN_ADDRESS to RETURN_ADDRESS,
+                ),
+        )
+    // The first link fails, as on a phone where no app can open it; the next one opens.
+    val uriHandler = FakeUriHandler(failures = 1)
+    setApp(uriHandler)
+
+    // My rentals: the accepted rental opens its Rental detail, with the exact pickup address.
+    openFromMenu(Screen.MyRentals)
+    composeTestRule.onNodeWithTag(C.Tag.my_rentals_tab_borrowing).performClick()
+    val row = C.Tag.my_rentals_row_ + rentalId
+    waitForTag(row)
+    composeTestRule.onNodeWithTag(row).performClick()
+    waitForText(C.Tag.rental_detail_pickup_address, PICKUP_ADDRESS)
+    assertRoute(Screen.RentalDetail)
+
+    // The first tap fails and says so; the second opens the directions and clears the error.
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_pickup_navigate)
+        .performScrollTo()
+        .performClick()
+    waitForText(
+        C.Tag.rental_detail_pickup_navigate_error,
+        context.getString(R.string.rental_detail_navigate_failed),
+    )
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate).performClick()
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_pickup_navigate_error).assertDoesNotExist()
+    assertEquals(
+        listOf(
+            "https://www.google.com/maps/dir/?api=1&destination=" +
+                "Rue%20du%20Lac%2012%2C%20Ecublens"
+        ),
+        uriHandler.opened,
+    )
+  }
+
   /** Searches [listing] on Browse, opens it and opens the date picker of its Request button. */
   private fun openRequestPicker(listing: Listing) {
     val card = C.Tag.listing_card_ + listing.id
@@ -306,6 +364,9 @@ class BorrowerEndToEndTest : EndToEndTestBase() {
 
   private companion object {
     const val OFFER = 80
+
+    const val PICKUP_ADDRESS = "Rue du Lac 12, Ecublens"
+    const val RETURN_ADDRESS = "Avenue de la Gare 45, Renens"
 
     // Far more than the requests cost (a few days at PRICE_PER_DAY).
     const val BALANCE = 100
