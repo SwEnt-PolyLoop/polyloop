@@ -15,6 +15,7 @@ import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.HandoverRepository
 import com.swent.polyloop.model.handover.RentalChangedException
+import com.swent.polyloop.model.handover.ScanRefusedException
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
@@ -1209,6 +1210,64 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun aCodeThatFailedIsReadAgainWhenBackOnline() {
+    // Offline with no copy on the phone: the read fails.
+    connectivity.setOnline(false)
+    handoverRepository.codeFailure = RuntimeException("no copy offline")
+    handoverRepository.photos = photos(3)
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.codeFailed)
+
+    handoverRepository.codeFailure = null
+    connectivity.setOnline(true)
+
+    assertFalse(vm.uiState.value.codeFailed)
+    assertEquals(HandoverCode.fingerprint("secret-code"), vm.uiState.value.codeFingerprint)
+    assertTrue(vm.uiState.value.canScan)
+  }
+
+  @Test
+  fun theLendersCodeIsReadAgainWhenBackOnline() {
+    connectivity.setOnline(false)
+    handoverRepository.codeFailure = RuntimeException("no copy offline")
+    handoverRepository.photos = photos(3, takenBy = "owner")
+    signInLender()
+    val vm = viewModel()
+    assertTrue(vm.uiState.value.codeFailed)
+
+    handoverRepository.codeFailure = null
+    connectivity.setOnline(true)
+
+    assertEquals("secret-code", vm.uiState.value.code)
+    assertTrue(vm.uiState.value.canShowCode)
+  }
+
+  @Test
+  fun aCodeAlreadyReadIsNotReadAgainWhenBackOnline() {
+    handoverRepository.photos = photos(3, takenBy = "owner")
+    signInLender()
+    val vm = viewModel()
+    handoverRepository.code = "changed-since"
+
+    connectivity.setOnline(false)
+    connectivity.setOnline(true)
+
+    assertEquals("secret-code", vm.uiState.value.code)
+  }
+
+  @Test
+  fun goingOfflineDoesNotReadTheCodeAgain() {
+    handoverRepository.codeFailure = RuntimeException("down")
+    handoverRepository.photos = photos(3)
+    val vm = viewModel()
+    handoverRepository.codeFailure = null
+
+    connectivity.setOnline(false)
+
+    assertTrue(vm.uiState.value.codeFailed)
+  }
+
+  @Test
   fun aCodeThatCannotBeReadIsReportedAndCanBeRetried() {
     handoverRepository.codeFailure = RuntimeException("down")
     handoverRepository.photos = photos(3)
@@ -1373,13 +1432,29 @@ class HandoverViewModelTest {
   }
 
   @Test
-  fun aRentalThatChangedIsReported() {
+  fun aRentalThatChangedIsReportedAndTurnsTheScanOff() {
     handoverRepository.scanFailure = RentalChangedException()
     val vm = readyToScan()
     vm.onCodeScanned("secret-code")
 
     assertEquals(ScanError.RENTAL_CHANGED, vm.uiState.value.scanError)
     assertFalse(vm.uiState.value.scanConfirmed)
+    assertFalse(vm.uiState.value.canScan)
+    // Scanning again sends nothing: the server would refuse it the same way.
+    vm.onCodeScanned("secret-code")
+    assertEquals(1, handoverRepository.scannedCodes.size)
+  }
+
+  @Test
+  fun aScanTheServerRefusesWithoutAReasonIsReportedAsRefused() {
+    handoverRepository.scanFailure = ScanRefusedException()
+    val vm = readyToScan()
+    vm.onCodeScanned("secret-code")
+
+    assertEquals(ScanError.REFUSED, vm.uiState.value.scanError)
+    assertFalse(vm.uiState.value.scanConfirmed)
+    // Not turned off: once the cause is fixed (e.g. PolyPoints added), scanning again can work.
+    assertTrue(vm.uiState.value.canScan)
   }
 
   @Test
@@ -1397,6 +1472,47 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun aScanRefusedAfterMidnightKeepsItsMessage() {
+    // Sent just before midnight, it reaches the server on the next day, which refuses it.
+    val gate = CompletableDeferred<Unit>()
+    handoverRepository.gate = gate
+    handoverRepository.scanFailure = ScanRefusedException()
+    val vm = readyToScan()
+    vm.onCodeScanned("secret-code")
+
+    rentalRepository.serverNow = noonOn(pickupDay.plusDays(1))
+    testDispatcher.scheduler.advanceTimeBy(HALF_A_DAY_MS + 1)
+    assertFalse(vm.uiState.value.isPickupDay)
+    assertTrue(vm.uiState.value.isSendingScan)
+
+    gate.complete(Unit)
+    assertEquals(ScanError.REFUSED, vm.uiState.value.scanError)
+    assertFalse(vm.uiState.value.canScan)
+  }
+
+  @Test
+  fun midnightClearsTheDaysScanMessage() {
+    // A message from the pickup day would otherwise keep the card on the next day.
+    val vm = readyToScan()
+    vm.onCodeScanned("not-the-code")
+    assertEquals(ScanError.WRONG_CODE, vm.uiState.value.scanError)
+
+    rentalRepository.serverNow = noonOn(pickupDay.plusDays(1))
+    testDispatcher.scheduler.advanceTimeBy(HALF_A_DAY_MS + 1)
+    assertNull(vm.uiState.value.scanError)
+  }
+
+  @Test
+  fun midnightNoticedAfterASleepAlsoClearsTheScanMessage() {
+    val vm = readyToScan()
+    vm.onCodeScanned("not-the-code")
+
+    elapsed += HALF_A_DAY_MS + 1 // the phone slept past midnight
+    vm.retryServerToday() // the screen comes back
+    assertNull(vm.uiState.value.scanError)
+  }
+
+  @Test
   fun aScanIsIgnoredWhenScanCannotBePressed() {
     handoverRepository.photos = photos(2)
     viewModel().onCodeScanned("secret-code") // 2 photos only
@@ -1410,6 +1526,26 @@ class HandoverViewModelTest {
     viewModel().onCodeScanned("secret-code") // offline
 
     assertTrue(handoverRepository.scannedCodes.isEmpty())
+  }
+
+  @Test
+  fun aScannerThatCannotOpenIsReportedAndScanningAgainClearsIt() {
+    val vm = readyToScan()
+    vm.onScannerFailed()
+    assertEquals(ScanError.SCANNER_UNAVAILABLE, vm.uiState.value.scanError)
+    assertTrue(vm.uiState.value.canScan) // the user can try again
+
+    vm.onCodeScanned("secret-code")
+    assertNull(vm.uiState.value.scanError)
+    assertTrue(vm.uiState.value.scanConfirmed)
+  }
+
+  @Test
+  fun aScannerFailureIsIgnoredWhenScanCannotBePressed() {
+    handoverRepository.photos = photos(2)
+    val vm = viewModel()
+    vm.onScannerFailed()
+    assertNull(vm.uiState.value.scanError)
   }
 
   @Test

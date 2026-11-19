@@ -12,6 +12,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.firestore
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageException
 import com.google.firebase.storage.StorageReference
@@ -229,7 +230,12 @@ class HandoverRepositoryFirestore(
       code: String,
   ): Result<Unit> {
     val data = mapOf("rentalId" to rentalId, "phase" to phase.name, "code" to code)
-    val result = callCloudFunction(functions(), CONFIRM_HANDOVER, data)
+    // Back waits for the answer, and a stalled call would only fail after about 70 s, so stop
+    // waiting sooner. Sending it again is safe: a pickup already confirmed changes nothing.
+    val result =
+        withTimeoutOrNull(SCAN_TIMEOUT_MS) {
+          callCloudFunction(functions(), CONFIRM_HANDOVER, data)
+        } ?: return Result.failure(TimeoutException("Scan not sent in time"))
     return result.exceptionOrNull()?.let(::scanRefusal)?.let { Result.failure(it) } ?: result
   }
 
@@ -245,12 +251,19 @@ class HandoverRepositoryFirestore(
     return withFirebaseErrors { Result.success((read() as? String)?.takeIf { it.isNotBlank() }) }
   }
 
-  /** The exception the app expects when [error] is a refusal with a known reason, or null. */
+  /**
+   * The exception the app expects when [error] is a refusal by the server: its own exception for a
+   * known reason, [ScanRefusedException] for any other refusal, or null when the scan did not get
+   * an answer (e.g. the connection dropped), which sending it again may fix.
+   */
   private fun scanRefusal(error: Throwable): Exception? =
       when (refusalReason(error)) {
         WRONG_CODE -> WrongCodeException()
         RENTAL_CHANGED -> RentalChangedException()
-        else -> null
+        else ->
+            ScanRefusedException().takeIf {
+              (error as? FirebaseFunctionsException)?.code in REFUSAL_CODES
+            }
       }
 
   private fun rental(rentalId: String) = db.collection(HandoverFields.RENTALS).document(rentalId)
@@ -265,10 +278,21 @@ class HandoverRepositoryFirestore(
      * The server has just answered when the metadata is read, so a long wait only delays the error.
      */
     const val METADATA_TIMEOUT_MS = 10_000L
+    const val SCAN_TIMEOUT_MS = 30_000L
     const val CONFIRM_HANDOVER = "confirmHandover"
 
     /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */
     const val WRONG_CODE = "WRONG_CODE"
     const val RENTAL_CHANGED = "RENTAL_CHANGED"
+
+    /** The codes of a refusal by `confirmHandover`'s checks, which sending again would not fix. */
+    val REFUSAL_CODES =
+        setOf(
+            FirebaseFunctionsException.Code.FAILED_PRECONDITION,
+            FirebaseFunctionsException.Code.PERMISSION_DENIED,
+            FirebaseFunctionsException.Code.NOT_FOUND,
+            FirebaseFunctionsException.Code.INVALID_ARGUMENT,
+            FirebaseFunctionsException.Code.UNAUTHENTICATED,
+        )
   }
 }

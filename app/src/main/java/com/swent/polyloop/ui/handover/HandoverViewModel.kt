@@ -13,6 +13,7 @@ import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.HandoverRepository
 import com.swent.polyloop.model.handover.RentalChangedException
+import com.swent.polyloop.model.handover.ScanRefusedException
 import com.swent.polyloop.model.handover.WrongCodeException
 import com.swent.polyloop.model.rental.Rental
 import com.swent.polyloop.model.rental.RentalRepository
@@ -37,8 +38,15 @@ enum class ScanError {
   WRONG_CODE,
   /** The scan could not be sent (e.g. the connection dropped); scanning again sends it again. */
   NOT_SENT,
+  /**
+   * The server refused the scan for a reason it does not name (e.g. not the pickup day by its
+   * clock, or the price cannot be paid); scanning again only helps once that is fixed.
+   */
+  REFUSED,
   /** The rental can no longer take the scan, e.g. it was cancelled meanwhile. */
   RENTAL_CHANGED,
+  /** Google's scanner could not open, e.g. while it is being downloaded; scanning again retries. */
+  SCANNER_UNAVAILABLE,
 }
 
 /** The photo at [uri] whose upload failed, taken in [phase], the only phase it can be sent in. */
@@ -80,7 +88,7 @@ data class FailedPhoto(val uri: String, val phase: HandoverPhase)
  * @property codeFingerprint the fingerprint of the code the user scans, when they scan; null until
  *   read.
  * @property codeFailed true when the code or its fingerprint could not be read, or does not exist
- *   yet; [HandoverViewModel.retry] reads it again.
+ *   yet; [HandoverViewModel.retry] reads it again, and so does the phone coming back online.
  * @property isSendingScan true while a scanned code is being sent to the server.
  * @property scanConfirmed true once the server confirmed the scan.
  * @property scanError why the last scan was not confirmed, or null.
@@ -189,7 +197,8 @@ data class HandoverUiState(
   /**
    * True when "Scan QR code" can be pressed: on the handover day and not past its end, once the
    * user has 3 photos and the fingerprint, online until scans can wait in the upload queue, and not
-   * while a scan is being sent or once one is confirmed.
+   * while a scan is being sent, once one is confirmed or the rental is picked up, or once the
+   * server said the rental changed.
    */
   val canScan: Boolean
     get() =
@@ -202,6 +211,7 @@ data class HandoverUiState(
             !isOffline &&
             !isSendingScan &&
             !scanConfirmed &&
+            scanError != ScanError.RENTAL_CHANGED &&
             !isPickedUp
 
   /** True when the lender checks the returned item; the borrower only waits for them. */
@@ -266,6 +276,10 @@ class HandoverViewModel(
           retryServerToday()
         }
         wasOnline = online
+        // Back online: a code that could not be read (e.g. no copy on the phone) is read again,
+        // so nobody has to press Retry.
+        val state = _uiState.value
+        if (online && state.codeFailed) state.phase?.let { loadCode(it, state.showsCode) }
       }
     }
     load()
@@ -314,7 +328,7 @@ class HandoverViewModel(
       delay(endsAt - elapsedRealtime())
       if (_uiState.value.isPickedUp) return@launch
       if (_uiState.value.phase != null) {
-        _uiState.update { it.copy(isDayOver = true) }
+        endDay()
         readServerToday()
       } else {
         dayEndsAt = null
@@ -322,6 +336,12 @@ class HandoverViewModel(
       }
     }
   }
+
+  /**
+   * Marks the day as over. A scan message from that day goes with it, so a message shown afterwards
+   * can only be the answer to a scan still being sent at midnight, which the screen keeps showing.
+   */
+  private fun endDay() = _uiState.update { it.copy(isDayOver = true, scanError = null) }
 
   private fun forgetDayEnd() {
     midnightRead?.cancel()
@@ -343,7 +363,7 @@ class HandoverViewModel(
     val isDayOver = dayEndsAt?.let { elapsedRealtime() >= it } == true
     when {
       isDayOver -> {
-        _uiState.update { it.copy(isDayOver = true) }
+        endDay()
         readServerToday()
       }
       state.serverToday == null -> if (!state.isOffline) readServerToday()
@@ -399,12 +419,22 @@ class HandoverViewModel(
             null -> null
             is WrongCodeException -> ScanError.WRONG_CODE
             is RentalChangedException -> ScanError.RENTAL_CHANGED
+            is ScanRefusedException -> ScanError.REFUSED
             else -> ScanError.NOT_SENT
           }
       _uiState.update {
         it.copy(isSendingScan = false, scanConfirmed = failure == null, scanError = error)
       }
     }
+  }
+
+  /**
+   * Reports that Google's scanner could not open, so "Scan QR code" does not look broken. Ignored
+   * when Scan cannot be pressed (see [HandoverUiState.canScan]).
+   */
+  fun onScannerFailed() {
+    if (!_uiState.value.canScan) return
+    _uiState.update { it.copy(scanError = ScanError.SCANNER_UNAVAILABLE) }
   }
 
   /** Deletes the file the camera prepared for a shot that failed; it was never a photo. */

@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.handover
 
+import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.CollectionReference
@@ -17,6 +18,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -174,7 +176,8 @@ class HandoverRepositoryFirestoreCodesTest {
   }
 
   @Test
-  fun otherRefusalsAreKeptAsTheyAre() = runTest {
+  fun otherRefusalsAreRefusedScans() = runTest {
+    // E.g. not the pickup day or the price cannot be paid (no reason), or not the borrower.
     for (refusal in
         listOf(
             refusedWith(details = null),
@@ -184,9 +187,36 @@ class HandoverRepositoryFirestoreCodesTest {
                 mapOf("reason" to "WRONG_CODE"),
                 code = FirebaseFunctionsException.Code.PERMISSION_DENIED,
             ),
+            refusedWith(null, code = FirebaseFunctionsException.Code.NOT_FOUND),
+            refusedWith(null, code = FirebaseFunctionsException.Code.INVALID_ARGUMENT),
+            refusedWith(null, code = FirebaseFunctionsException.Code.UNAUTHENTICATED),
+        )) {
+      every { callable.call(any()) } returns Tasks.forException(refusal)
+      assertTrue(scanError() is ScanRefusedException)
+    }
+  }
+
+  @Test
+  fun aScanWithoutAnAnswerIsKeptAsItIs() = runTest {
+    // The connection dropped or the server failed: sending it again may work.
+    for (refusal in
+        listOf(
+            refusedWith(null, code = FirebaseFunctionsException.Code.UNAVAILABLE),
+            refusedWith(null, code = FirebaseFunctionsException.Code.DEADLINE_EXCEEDED),
+            refusedWith(null, code = FirebaseFunctionsException.Code.INTERNAL),
         )) {
       every { callable.call(any()) } returns Tasks.forException(refusal)
       assertSame(refusal, scanError())
     }
+  }
+
+  @Test
+  fun aScanWithoutAnAnswerIn30SecondsIsNotSent() = runTest {
+    // A stalled connection: the call never ends. The virtual clock skips the 30 s wait.
+    every { callable.call(any()) } returns TaskCompletionSource<HttpsCallableResult>().task
+    val started = testScheduler.currentTime
+
+    assertTrue(scanError() is TimeoutException)
+    assertEquals(30_000L, testScheduler.currentTime - started)
   }
 }
