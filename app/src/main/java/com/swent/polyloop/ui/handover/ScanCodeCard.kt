@@ -101,8 +101,9 @@ private fun ScanButton(enabled: Boolean, isSending: Boolean, onClick: () -> Unit
 }
 
 /**
- * Under the button: what is missing first, then a problem with the code, then the last scan's
- * error. Nothing when the button can simply be pressed.
+ * Under the button: what is missing first, then a code that could not be read, a rental that
+ * changed, offline, and last the scan's error (a wrong code, a scan not sent or refused, or a
+ * scanner that could not open). Nothing when the button can simply be pressed.
  */
 @Composable
 private fun ColumnScope.ScanMessage(uiState: HandoverUiState, onRetry: () -> Unit) {
@@ -171,7 +172,7 @@ private fun Confirmed() {
         modifier = Modifier.size(20.dp),
     )
     Text(
-        text = stringResource(R.string.handover_scan_confirmed),
+        text = stringResource(R.string.handover_code_picked_up_no_name),
         style = MaterialTheme.typography.bodyLarge,
         fontWeight = FontWeight.Medium,
         color = PositiveGreen,

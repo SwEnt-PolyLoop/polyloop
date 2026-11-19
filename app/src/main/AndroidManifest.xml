@@ -24,7 +24,7 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="${mapsApiKey}" />
         <!-- The QR scanner lives in Google Play services and is otherwise downloaded on its first
-             use; asking for it at install lets a borrower scan at a pickup with no internet -->
+             use; asking for it at install (Play Store installs) saves that wait at the pickup -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="barcode_ui" />

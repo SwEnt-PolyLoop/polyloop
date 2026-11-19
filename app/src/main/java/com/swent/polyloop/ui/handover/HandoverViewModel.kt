@@ -68,7 +68,7 @@ enum class ScanError {
  * @property codeFingerprint the fingerprint of the code the user scans, when they scan; null until
  *   read.
  * @property codeFailed true when the code or its fingerprint could not be read, or does not exist
- *   yet; [HandoverViewModel.retry] reads it again.
+ *   yet; [HandoverViewModel.retry] reads it again, and so does the phone coming back online.
  * @property isSendingScan true while a scanned code is being sent to the server.
  * @property scanConfirmed true once the server confirmed the scan.
  * @property scanError why the last scan was not confirmed, or null.
