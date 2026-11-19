@@ -50,6 +50,7 @@ object C {
     const val listing_detail_photo_ = "listing_detail_photo_"
     const val listing_detail_photo_badge = "listing_detail_photo_badge"
     const val listing_detail_title = "listing_detail_title"
+    const val listing_detail_title_toggle = "listing_detail_title_toggle"
     const val listing_detail_price = "listing_detail_price"
     const val listing_detail_description = "listing_detail_description"
     const val listing_detail_description_toggle = "listing_detail_description_toggle"

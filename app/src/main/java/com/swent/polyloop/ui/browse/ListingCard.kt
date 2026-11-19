@@ -30,13 +30,23 @@ import com.swent.polyloop.ui.components.PriceText
 import java.text.NumberFormat
 import java.util.Locale
 
+/** The most lines a title takes on a card in the Browse list; Listing detail shows it whole. */
+const val CARD_TITLE_MAX_LINES = 2
+
 /**
  * One listing in the Browse list: its first photo, the title, the price per day and the distance
- * with the pickup area. The distance is [distanceMeters], shown as "350 m" or "1.2 km" with the
- * decimal separator of the current language. Without one (the position or the pickup point is
- * unknown), the line shows only the pickup area, or nothing when that is blank too. With
- * [singleLineText], the title and the location are cut to one line with "…", so every card has the
- * same height, as in the row of cards under the Browse map; the line is then kept even when empty.
+ * with the pickup area. A long title is cut after [CARD_TITLE_MAX_LINES] lines with "…". The
+ * distance is [distanceMeters], shown as "350 m" or "1.2 km" with the decimal separator of the
+ * current language. Without one (the position or the pickup point is unknown), the line shows only
+ * the pickup area, or nothing when that is blank too. With [singleLineText], the title and the
+ * location are cut to one line with "…", so every card has the same height, as in the row of cards
+ * under the Browse map; the line is then kept even when empty.
+ *
+ * @param listing the listing shown.
+ * @param distanceMeters the distance from the user in meters, or null when it is unknown.
+ * @param modifier applied to the card.
+ * @param singleLineText true to cut the title and the location to one line each.
+ * @param onClick called when the card is tapped.
  */
 @Composable
 fun ListingCard(
@@ -80,7 +90,7 @@ fun ListingCard(
         Text(
             text = listing.title,
             style = MaterialTheme.typography.titleMedium,
-            maxLines = maxLines,
+            maxLines = if (singleLineText) 1 else CARD_TITLE_MAX_LINES,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.testTag(C.Tag.listing_card_title),
         )
