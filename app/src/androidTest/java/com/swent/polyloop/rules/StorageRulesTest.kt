@@ -350,6 +350,21 @@ class StorageRulesTest {
       }
 
   @Test
+  fun returnPhotosAreAddedWhileTheRentalIsActiveOrOverdueOnly() =
+      runBlocking<Unit> {
+        // A late item is given back the same way; once returned, the photos are taken.
+        val returnSlot = slotName(ownerUid, 0, phase = "RETURN")
+        val active = seedRental("someone-else", status = "ACTIVE")
+        pickupPhoto(active, returnSlot).putBytes(bytes, jpeg).await()
+        val overdue = seedRental("someone-else", status = "OVERDUE")
+        pickupPhoto(overdue, returnSlot).putBytes(bytes, jpeg).await()
+        val returned = seedRental("someone-else", status = "RETURNED")
+        assertDenied { pickupPhoto(returned, returnSlot).putBytes(bytes, jpeg).await() }
+        // A pickup slot is not taken once the item is out.
+        assertDenied { pickupPhoto(active).putBytes(bytes, jpeg).await() }
+      }
+
+  @Test
   fun pickupPhotosMustBeImagesUnder10Mb() =
       runBlocking<Unit> {
         val rentalId = seedRental("someone-else")

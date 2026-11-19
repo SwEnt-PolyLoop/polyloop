@@ -115,8 +115,8 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
 
 /**
  * The Handover screen drawn from [uiState]: a spinner while loading, an error with Retry, a missing
- * rental, a rental that takes no photos, or the pickup itself. [onAddPhoto] is called when an empty
- * photo tile is tapped, [onRetryUpload] when the photo that failed to upload is, and
+ * rental, a rental that takes no photos, the pickup or the return. [onAddPhoto] is called when an
+ * empty photo tile is tapped, [onRetryUpload] when the photo that failed to upload is, and
  * [onRetryServerToday] when "Retry" is tapped under the note asking to connect; photo times are
  * shown in [zone]. While [isCameraOpen], the in-app camera fills the screen for one photo, given to
  * [onPhotoTaken], or to [onCaptureFailed] if the shot fails; [cameraPermissionGranted] false shows
@@ -187,8 +187,8 @@ fun HandoverContent(
               ) {
                 HandoverHeader(uiState)
                 // Nothing while the server's day is read: asking to connect would be wrong online.
-                if (!uiState.isPickupDay && !uiState.isReadingServerToday) {
-                  NotPickupDayNote(uiState, onRetryServerToday)
+                if (!uiState.isHandoverDay && !uiState.isReadingServerToday) {
+                  NotHandoverDayNote(uiState, onRetryServerToday)
                 }
                 PhotosCard(
                     uiState,
@@ -198,10 +198,19 @@ fun HandoverContent(
                     onPhotoClick = { enlargedId = it },
                     onRetryPhotos = onRetry,
                 )
-                if (uiState.showsCode && uiState.isPickupDay) ShowCodeCard(uiState, onRetry)
+                // Only the pickup has a code for now: the server makes no return code yet. Once its
+                // day is over, the code is no longer shown, even while the new day is read.
+                if (
+                    uiState.phase == HandoverPhase.PICKUP &&
+                        uiState.showsCode &&
+                        uiState.isPickupDay &&
+                        !uiState.isDayOver
+                ) {
+                  ShowCodeCard(uiState, onRetry)
+                }
                 CameraPermissionMessage(cameraPermissionGranted)
               }
-              DepositFooter(uiState.deposit, uiState.isLender)
+              DepositFooter(uiState.deposit, uiState.depositHeld, uiState.isLender)
             }
       }
     }
@@ -239,7 +248,7 @@ private fun CenteredMessage(@StringRes text: Int, tag: String, modifier: Modifie
   )
 }
 
-/** "Pickup" with the role pill on the same row, then the item and the other person. */
+/** "Pickup" or "Return" with the role pill on the same row, then the item and the other person. */
 @Composable
 private fun HandoverHeader(uiState: HandoverUiState) {
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -248,7 +257,11 @@ private fun HandoverHeader(uiState: HandoverUiState) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       Text(
-          text = stringResource(R.string.handover_pickup_title),
+          text =
+              stringResource(
+                  if (uiState.phase == HandoverPhase.PICKUP) R.string.handover_pickup_title
+                  else R.string.handover_return_title
+              ),
           style = MaterialTheme.typography.headlineSmall,
           fontWeight = FontWeight.Bold,
           modifier = Modifier.testTag(C.Tag.handover_title),
@@ -261,7 +274,12 @@ private fun HandoverHeader(uiState: HandoverUiState) {
         modifier = Modifier.testTag(C.Tag.handover_item),
     )
     Text(
-        text = otherPersonLine(uiState.isLender, uiState.otherPersonName),
+        text =
+            otherPersonLine(
+                isLender = uiState.isLender,
+                isPickup = uiState.phase == HandoverPhase.PICKUP,
+                name = uiState.otherPersonName,
+            ),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.testTag(C.Tag.handover_other_person),
@@ -291,15 +309,24 @@ private fun RolePill(isLender: Boolean) {
   }
 }
 
-/** "with Loca" for the lender, "from Mara" for the borrower, or a placeholder for a blank name. */
+/**
+ * Who the item goes to or comes from: at pickup "with <borrower>" for the lender and "from
+ * <lender>" for the borrower, at return "from <borrower>" for the lender and "to <lender>" for the
+ * borrower, or the other person's role for a blank name.
+ */
 @Composable
-private fun otherPersonLine(isLender: Boolean, name: String): String =
-    when {
-      name.isBlank() && isLender -> stringResource(R.string.handover_with_the_borrower)
-      name.isBlank() -> stringResource(R.string.handover_from_the_lender)
-      isLender -> stringResource(R.string.handover_with, name)
-      else -> stringResource(R.string.handover_from, name)
-    }
+private fun otherPersonLine(isLender: Boolean, isPickup: Boolean, name: String): String {
+  val known = name.isNotBlank()
+  return when {
+    isPickup && isLender && known -> stringResource(R.string.handover_with, name)
+    isPickup && isLender -> stringResource(R.string.handover_with_the_borrower)
+    !isPickup && !isLender && known -> stringResource(R.string.handover_to, name)
+    !isPickup && !isLender -> stringResource(R.string.handover_to_the_lender)
+    known -> stringResource(R.string.handover_from, name)
+    isLender -> stringResource(R.string.handover_from_the_borrower)
+    else -> stringResource(R.string.handover_from_the_lender)
+  }
+}
 
 private val TILE_CORNER = 12.dp
 private const val TILES_PER_ROW = 4
@@ -307,11 +334,11 @@ private val PHOTO_TIME = DateTimeFormatter.ofPattern("HH:mm")
 
 /**
  * How many dashed camera tiles follow the [shownCount] photos (uploaded, uploading or failed):
- * enough to reach the 3 needed, and at least one while another photo fits. None outside the pickup
- * day, when no photo can be added.
+ * enough to reach the 3 needed, and at least one while another photo fits. None outside the
+ * handover day, when no photo can be added.
  */
-internal fun emptyTileCount(shownCount: Int, isPickupDay: Boolean): Int =
-    if (!isPickupDay || shownCount >= HandoverPhoto.MAX_PHOTOS) 0
+internal fun emptyTileCount(shownCount: Int, isHandoverDay: Boolean): Int =
+    if (!isHandoverDay || shownCount >= HandoverPhoto.MAX_PHOTOS) 0
     else maxOf(HandoverPhoto.MIN_PHOTOS - shownCount, 1)
 
 /**
@@ -338,7 +365,7 @@ private fun PhotosCard(
   val shownCount = photoTiles.size + pendingTiles.size
   // No camera tile while a photo has failed: it must be uploaded again before the next one.
   val cameraTileCount =
-      if (uiState.failedPhotoUri != null) 0 else emptyTileCount(shownCount, uiState.isPickupDay)
+      if (uiState.failedPhotoUri != null) 0 else emptyTileCount(shownCount, uiState.isHandoverDay)
   val emptyTiles: List<@Composable () -> Unit> =
       List(cameraTileCount) { { EmptyTile(enabled = uiState.canAddPhoto, onClick = onAddPhoto) } }
   Surface(
@@ -385,15 +412,18 @@ private fun PhotosCard(
         }
       } else {
         TileGrid(photoTiles + pendingTiles + emptyTiles)
-        if (uiState.isPickupDay) PhotosStatus(uiState.photosNeeded)
+        if (uiState.isHandoverDay) PhotosStatus(uiState.photosNeeded, uiState.phase)
       }
     }
   }
 }
 
-/** A green check with "Pickup photos done", or a red warning with how many photos are missing. */
+/**
+ * A green check with "Pickup photos done" or "Return photos done" ([phase]), or a red warning with
+ * how many photos are missing.
+ */
 @Composable
-private fun PhotosStatus(photosNeeded: Int) {
+private fun PhotosStatus(photosNeeded: Int, phase: HandoverPhase?) {
   val done = photosNeeded == 0
   val color = if (done) PositiveGreen else MaterialTheme.colorScheme.error
   Row(
@@ -408,7 +438,11 @@ private fun PhotosStatus(photosNeeded: Int) {
     )
     Text(
         text =
-            if (done) stringResource(R.string.handover_photos_done)
+            if (done)
+                stringResource(
+                    if (phase == HandoverPhase.PICKUP) R.string.handover_photos_done
+                    else R.string.handover_return_photos_done
+                )
             else
                 pluralStringResource(R.plurals.handover_photos_missing, photosNeeded, photosNeeded),
         style = MaterialTheme.typography.bodyMedium,
@@ -419,39 +453,68 @@ private fun PhotosStatus(photosNeeded: Int) {
 }
 
 /**
- * "Pickup is on 15 Oct": photos can only be taken on that day, by the server's clock. When the
- * server's day is unknown, asks to connect instead of falling back on the phone's date, with
- * "Retry" ([onRetryServerToday]) in case the server failed to answer while online; it is disabled
- * offline, where coming back online reads the day.
+ * "Pickup is on 15 Oct", or "Return is on 18 Oct" before the return day: photos can only be taken
+ * on the pickup day, and from the return day on, by the server's clock. When the server's day is
+ * unknown, asks to connect instead of falling back on the phone's date, with "Retry"
+ * ([onRetryServerToday]) in case the server failed to answer while online; it is disabled offline,
+ * where coming back online reads the day.
  */
 @Composable
-private fun NotPickupDayNote(uiState: HandoverUiState, onRetryServerToday: () -> Unit) {
-  val pickupDate = uiState.pickupDate
-  val serverToday = uiState.serverToday
-  val (text, tag) =
-      if (serverToday == null) {
-        stringResource(R.string.handover_pickup_needs_connection) to
-            C.Tag.handover_pickup_needs_connection
-      } else {
-        stringResource(R.string.handover_not_pickup_day, pickupDate?.let { formatDay(it) } ?: "") to
-            C.Tag.handover_not_pickup_day
-      }
+private fun NotHandoverDayNote(uiState: HandoverUiState, onRetryServerToday: () -> Unit) {
+  val note = if (uiState.phase == HandoverPhase.PICKUP) PICKUP_DAY_NOTE else RETURN_DAY_NOTE
+  val isDayUnknown = uiState.serverToday == null
+  val day = note.day(uiState)
   Text(
-      text = text,
+      text =
+          if (isDayUnknown) stringResource(note.needsConnection)
+          else stringResource(note.notTheDay, day?.let { formatDay(it) } ?: ""),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.testTag(tag),
+      modifier = Modifier.testTag(if (isDayUnknown) note.needsConnectionTag else note.notTheDayTag),
   )
-  if (serverToday == null) {
+  if (isDayUnknown) {
     OutlinedButton(
         onClick = onRetryServerToday,
         enabled = !uiState.isOffline,
-        modifier = Modifier.testTag(C.Tag.handover_pickup_day_retry),
+        modifier = Modifier.testTag(note.retryTag),
     ) {
       Text(stringResource(R.string.handover_retry))
     }
   }
 }
+
+/**
+ * The texts and tags of [NotHandoverDayNote] for one phase: [notTheDay] names the [day] photos can
+ * be taken on, [needsConnection] asks to connect when the server's day is unknown.
+ */
+private class DayNote(
+    val day: (HandoverUiState) -> LocalDate?,
+    @StringRes val notTheDay: Int,
+    val notTheDayTag: String,
+    @StringRes val needsConnection: Int,
+    val needsConnectionTag: String,
+    val retryTag: String,
+)
+
+private val PICKUP_DAY_NOTE =
+    DayNote(
+        { it.pickupDate },
+        R.string.handover_not_pickup_day,
+        C.Tag.handover_not_pickup_day,
+        R.string.handover_pickup_needs_connection,
+        C.Tag.handover_pickup_needs_connection,
+        C.Tag.handover_pickup_day_retry,
+    )
+
+private val RETURN_DAY_NOTE =
+    DayNote(
+        { it.returnDate },
+        R.string.handover_not_return_day,
+        C.Tag.handover_not_return_day,
+        R.string.handover_return_needs_connection,
+        C.Tag.handover_return_needs_connection,
+        C.Tag.handover_return_day_retry,
+    )
 
 /** The tile of the photo being uploaded: a spinner in a dashed tile. */
 @Composable
@@ -514,7 +577,12 @@ private fun PhotoTile(photo: HandoverPhoto, zone: ZoneId, onClick: () -> Unit) {
   ) {
     ListingPhoto(
         url = photo.url,
-        contentDescription = stringResource(R.string.handover_photo_description, time),
+        contentDescription =
+            stringResource(
+                if (photo.phase == HandoverPhase.PICKUP) R.string.handover_photo_description
+                else R.string.handover_return_photo_description,
+                time,
+            ),
         modifier = Modifier.fillMaxSize(),
     )
     Text(
@@ -551,12 +619,17 @@ private fun EmptyTile(enabled: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * [photo] full screen on black, whole (not cropped), with "Pickup · 14:02"; ✕ or Back closes it.
+ * [photo] full screen on black, whole (not cropped), with "Pickup · 14:02" or "Return · 16:31"; ✕
+ * or Back closes it.
  */
 @Composable
 private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit) {
   val label =
-      stringResource(R.string.handover_photo_label, PHOTO_TIME.format(photo.takenAt.atZone(zone)))
+      stringResource(
+          if (photo.phase == HandoverPhase.PICKUP) R.string.handover_photo_label
+          else R.string.handover_return_photo_label,
+          PHOTO_TIME.format(photo.takenAt.atZone(zone)),
+      )
   Dialog(
       onDismissRequest = onClose,
       properties =
@@ -603,11 +676,12 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
 /**
  * The deposit held since acceptance, pinned under the scrolling content, then its amount (Figma
  * frames 14 to 17). [isLender] picks the label: true for the lender ("Deposit held"), false for the
- * borrower ("Your deposit, held"). A [deposit] of 0 shows "—": an accepted deposit is at least 1,
- * so 0 means it is not known.
+ * borrower ("Your deposit, held"). The amount is [held], what is left once late fees are taken from
+ * [deposit]. A [deposit] of 0 shows "—": an accepted deposit is at least 1, so 0 means it is not
+ * known.
  */
 @Composable
-private fun DepositFooter(deposit: Int, isLender: Boolean) {
+private fun DepositFooter(deposit: Int, held: Int, isLender: Boolean) {
   Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -626,7 +700,7 @@ private fun DepositFooter(deposit: Int, isLender: Boolean) {
       )
       Text(
           text =
-              if (deposit > 0) stringResource(R.string.handover_deposit_amount, deposit)
+              if (deposit > 0) stringResource(R.string.handover_deposit_amount, held)
               else stringResource(R.string.handover_deposit_unknown),
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
