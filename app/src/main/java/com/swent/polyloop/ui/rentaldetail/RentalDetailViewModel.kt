@@ -57,6 +57,8 @@ import kotlinx.coroutines.launch
  * the screen can tell a read still running from an unknown date; a re-read of a known day leaves it
  * false. [isCancelling] is true while a cancel is being sent, and [cancelError] is non-null when
  * the last one failed (blank when the failure carried no message, like [errorMsg]).
+ * [liveUpdatesStopped] is true once following the rental failed, until the next load: the offer is
+ * then hidden because it may be out of date, so a missing offer no longer means there is none.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -86,8 +88,16 @@ data class RentalDetailUiState(
     val isReadingServerToday: Boolean = false,
     val isCancelling: Boolean = false,
     val cancelError: String? = null,
+    val liveUpdatesStopped: Boolean = false,
 ) {
   // Computed rather than stored, so they can never go out of sync with the fields they come from.
+
+  /**
+   * True for the lender of a request with no offer yet, who answers it on Review request. False
+   * while the live updates are stopped: the offer is hidden then, not known to be missing.
+   */
+  val canReviewRequest: Boolean
+    get() = isLender && status == RentalStatus.REQUESTED && offer == null && !liveUpdatesStopped
 
   /**
    * The last day an accepted rental can be cancelled, the day before pickup. Null for any other
@@ -171,9 +181,6 @@ class RentalDetailViewModel(
   // The listing whose read failed, so it is read again on reconnection; null once read (a missing
   // listing counts as read).
   private var failedListingId: String? = null
-  // True once the live updates of the rental failed and stopped, until the next load restarts them;
-  // [cancel] then reads the rental again to show its result.
-  private var liveUpdatesStopped = false
   // Asks to check the offer's expiry again by [clock], when the screen comes back.
   private val offerRechecks = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -243,7 +250,7 @@ class RentalDetailViewModel(
       // updates had stopped would nothing show the Cancelled rental, leaving the screen on
       // Requested or Accepted with no sign that it worked; reading the rental again then shows it
       // as it is now (the placeholder) and restarts the live updates.
-      if (error == null && liveUpdatesStopped) load()
+      if (error == null && _uiState.value.liveUpdatesStopped) load()
     }
   }
 
@@ -305,8 +312,11 @@ class RentalDetailViewModel(
     // A re-read still running would otherwise land its result after the reload.
     listingReread?.cancel()
     failedListingId = null
-    liveUpdatesStopped = false
-    _uiState.update { it.copy(isLoading = true, errorMsg = null, notFound = false) }
+    // The next load restarts the live updates; [cancel] reads the rental again while they are
+    // stopped, to show its result.
+    _uiState.update {
+      it.copy(isLoading = true, errorMsg = null, notFound = false, liveUpdatesStopped = false)
+    }
     loading = viewModelScope.launch {
       val rental =
           rentalRepository.getRental(rentalId).getOrElse { e ->
@@ -405,8 +415,7 @@ class RentalDetailViewModel(
     rentalRepository
         .observeRental(rentalId)
         .catch {
-          liveUpdatesStopped = true
-          _uiState.update { it.copy(offer = null, isOfferMine = false) }
+          _uiState.update { it.copy(offer = null, isOfferMine = false, liveUpdatesStopped = true) }
         }
         .collect { live ->
           when {

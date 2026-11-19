@@ -55,8 +55,7 @@ class FakeHandoverRepository(
   val confirmedReturns = mutableListOf<String>()
 
   override fun observeMyPhotos(rentalId: String, phase: HandoverPhase): Flow<List<HandoverPhoto>> {
-    val error =
-        failure ?: IllegalStateException("Nobody is signed in").takeIf { currentUid == null }
+    val error = failure ?: IllegalStateException(NOT_SIGNED_IN).takeIf { currentUid == null }
     if (error != null) return flow { throw error }
     return stored.map { all ->
       all.filter { it.rentalId == rentalId && it.takenBy == currentUid && it.photo.phase == phase }
@@ -75,7 +74,7 @@ class FakeHandoverRepository(
     failure?.let {
       return Result.failure(it)
     }
-    val uid = currentUid ?: return Result.failure(IllegalStateException("Nobody is signed in"))
+    val uid = currentUid ?: return Result.failure(IllegalStateException(NOT_SIGNED_IN))
     // As the real repository: the id is the lowest free slot of the user, and nothing is added
     // when all are used. A photo with another id, such as a random one, uses no slot. The slot is
     // picked inside update, which retries on a concurrent change, so two calls at once never get
@@ -131,7 +130,7 @@ class FakeHandoverRepository(
     scannedCodes += code
     gate?.await()
     return when {
-      currentUid == null -> Result.failure(IllegalStateException("Nobody is signed in"))
+      currentUid == null -> Result.failure(IllegalStateException(NOT_SIGNED_IN))
       code != this.code -> Result.failure(WrongCodeException())
       else -> scanFailure?.let { Result.failure(it) } ?: Result.success(Unit)
     }
@@ -141,7 +140,7 @@ class FakeHandoverRepository(
     codeFailure?.let {
       return Result.failure(it)
     }
-    if (currentUid == null) return Result.failure(IllegalStateException("Nobody is signed in"))
+    if (currentUid == null) return Result.failure(IllegalStateException(NOT_SIGNED_IN))
     return Result.success(read())
   }
 
@@ -151,8 +150,11 @@ class FakeHandoverRepository(
     confirmFailure?.let {
       return Result.failure(it)
     }
-    if (currentUid == null) return Result.failure(IllegalStateException("Nobody is signed in"))
+    if (currentUid == null) return Result.failure(IllegalStateException(NOT_SIGNED_IN))
     confirmedReturns += rentalId
     return Result.success(Unit)
   }
 }
+
+/** The error of every call made while nobody is signed in. */
+private const val NOT_SIGNED_IN = "Nobody is signed in"
