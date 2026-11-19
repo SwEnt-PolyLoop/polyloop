@@ -230,7 +230,12 @@ class HandoverRepositoryFirestore(
       code: String,
   ): Result<Unit> {
     val data = mapOf("rentalId" to rentalId, "phase" to phase.name, "code" to code)
-    val result = callCloudFunction(functions(), CONFIRM_HANDOVER, data)
+    // Back waits for the answer, and a stalled call would only fail after about 70 s, so stop
+    // waiting sooner. Sending it again is safe: a pickup already confirmed changes nothing.
+    val result =
+        withTimeoutOrNull(SCAN_TIMEOUT_MS) {
+          callCloudFunction(functions(), CONFIRM_HANDOVER, data)
+        } ?: return Result.failure(TimeoutException("Scan not sent in time"))
     return result.exceptionOrNull()?.let(::scanRefusal)?.let { Result.failure(it) } ?: result
   }
 
@@ -273,6 +278,7 @@ class HandoverRepositoryFirestore(
      * The server has just answered when the metadata is read, so a long wait only delays the error.
      */
     const val METADATA_TIMEOUT_MS = 10_000L
+    const val SCAN_TIMEOUT_MS = 30_000L
     const val CONFIRM_HANDOVER = "confirmHandover"
 
     /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */

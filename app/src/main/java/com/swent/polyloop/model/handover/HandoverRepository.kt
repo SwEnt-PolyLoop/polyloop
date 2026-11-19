@@ -43,7 +43,7 @@ interface HandoverRepository {
    * code is not this rental's, with [RentalChangedException] if the rental can no longer take this
    * scan (e.g. cancelled), with [ScanRefusedException] if the server refuses it for another reason
    * that sending it again would not fix, or with the cause if nobody is signed in or it cannot be
-   * sent (e.g. the connection dropped).
+   * sent (e.g. the connection dropped, or no answer came within 30 seconds: a TimeoutException).
    */
   suspend fun confirmScan(rentalId: String, phase: HandoverPhase, code: String): Result<Unit>
 }
