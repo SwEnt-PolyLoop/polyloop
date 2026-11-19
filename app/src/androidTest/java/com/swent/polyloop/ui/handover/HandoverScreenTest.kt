@@ -361,6 +361,27 @@ class HandoverScreenTest {
   }
 
   @Test
+  fun backIsBlockedWhileTheScanIsSent() {
+    var backs = 0
+    lateinit var backDispatcher: OnBackPressedDispatcher
+    uiState = pickup.copy(isLender = false, isSendingScan = true)
+    composeTestRule.setContent {
+      backDispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
+      BackHandler { backs++ } // stands for the navigation, which would leave the screen
+      HandoverContent(uiState = uiState, onRetry = {}, onAddPhoto = {}, onRetryUpload = {})
+    }
+
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    composeTestRule.runOnIdle { assertEquals(0, backs) }
+
+    // Once the server answered (here with a wrong code), Back leaves again.
+    uiState = uiState.copy(isSendingScan = false, scanError = ScanError.WRONG_CODE)
+    composeTestRule.waitForIdle()
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    composeTestRule.runOnIdle { assertEquals(1, backs) }
+  }
+
+  @Test
   fun aCameraTileOpensTheCameraOnlyWhenAPhotoCanBeAdded() {
     setContent(pickup.copy(isUploading = true))
     assertAbsent(C.Tag.offline_banner)

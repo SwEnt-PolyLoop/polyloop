@@ -144,8 +144,9 @@ fun HandoverContent(
 ) {
   // The photo shown full screen after a tap, by id; null when none is.
   var enlargedId by rememberSaveable { mutableStateOf<String?>(null) }
-  // Leaving would cancel the upload and lose the photo, so Back waits for it to end.
-  BackHandler(enabled = uiState.isUploading) {}
+  // Leaving would cancel the upload or the scan being sent and lose its result (the server may
+  // still confirm the pickup), so Back waits for it to end.
+  BackHandler(enabled = uiState.isUploading || uiState.isSendingScan) {}
   Column(
       modifier =
           modifier
