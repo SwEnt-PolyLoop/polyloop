@@ -180,9 +180,10 @@ One Handover screen covers both pickup and return, and adapts to the phase and t
     - At return, the borrower shows the code and the lender scans it.
 - The scan button stays disabled until 3 photos are taken. Likewise, the QR code shows only once the person showing it has 3 photos. Both need the pickup day.
 - The QR holds a secret code for this rental and phase, not just the rental's id, so a scan proves the two people met. The scanning phone checks the code itself: a wrong code is refused on the spot and nothing is sent. Until the upload queue exists, scanning needs a connection; afterwards the check works offline too. The code to show is kept on the phone once Handover was opened online, so a lender who opens it for the first time with no connection has no QR; a background fetch will remove this limit later.
-- After the return scan, the lender sees the pickup and return photos side by side, with two buttons:
+- After the return scan (the rental is Returned), the lender sees “Return scanned” (its time once rentals store it), then “Before and after”: their own pickup photos above their own return photos, 4 per row, with a spinner until they are read (“No photos” for a phase without any). The screen shows no button yet; these two are not built:
     - “Item is fine” releases the full deposit to the borrower.
     - “Flag damage” opens a dispute and keeps the deposit held.
+- The borrower of a Returned rental sees the header, “The return was scanned. [Lender] now checks the item against the pickup photos.” and the deposit footer.
 - A footer showing the deposit held since acceptance: “Deposit held” for the lender, “Your deposit, held” for the borrower, then what is left of it once late fees are taken, or “—” when it is stored as 0 and so not known. Nothing releases it yet, so “Item is fine” and “Flag damage” do not move it.
 - Offline: photos and scans go into the local upload queue and sync on reconnect. The server trusts the app's order and accepts a scan even if its photos are still uploading. Until the queue exists, the offline banner shows and no photo can be taken: the camera tiles are disabled. The return's note “Return photos done. They upload when you're back online.” (Figma 16) comes with the queue, as no photo is taken offline before it.
 
