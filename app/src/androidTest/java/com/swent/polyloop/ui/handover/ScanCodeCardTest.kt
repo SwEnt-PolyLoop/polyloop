@@ -2,6 +2,9 @@
 
 package com.swent.polyloop.ui.handover
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -46,8 +49,11 @@ class ScanCodeCardTest {
 
   private var scans = 0
   private var retries = 0
+  // Shown by setContent; changing it redraws the card, so one test can go through several states.
+  private var uiState by mutableStateOf(ready)
 
-  private fun setContent(uiState: HandoverUiState) {
+  private fun setContent(state: HandoverUiState) {
+    uiState = state
     composeTestRule.setContent {
       HandoverContent(
           uiState = uiState,
@@ -76,6 +82,27 @@ class ScanCodeCardTest {
   }
 
   @Test
+  fun theButtonFollowsCanScan() {
+    // Whether each state can scan is tested in HandoverViewModelTest; here, only the wiring.
+    val states =
+        listOf(
+            ready,
+            ready.copy(photos = photos(1)),
+            ready.copy(isSendingScan = true),
+            ready.copy(scanError = ScanError.WRONG_CODE),
+            ready.copy(scanError = ScanError.RENTAL_CHANGED),
+            ready.copy(isOffline = true),
+            ready.copy(codeFingerprint = null, codeFailed = true),
+        )
+    setContent(ready)
+    for (state in states) {
+      uiState = state
+      composeTestRule.waitForIdle()
+      if (state.canScan) button().assertIsEnabled() else button().assertIsNotEnabled()
+    }
+  }
+
+  @Test
   fun aBlankNameIsReplacedByTheRole() {
     setContent(ready.copy(otherPersonName = ""))
     node(C.Tag.handover_scan_title).assertTextEquals("Scan the lender's code")
@@ -91,7 +118,6 @@ class ScanCodeCardTest {
   @Test
   fun theScanWaitsForThreePhotos() {
     setContent(ready.copy(photos = photos(1)))
-    button().assertIsNotEnabled()
     assertMessage("Take 2 more photos first.")
   }
 
@@ -102,17 +128,15 @@ class ScanCodeCardTest {
   }
 
   @Test
-  fun whileSendingTheButtonShowsSendingAndIsOff() {
+  fun whileSendingTheButtonShowsSending() {
     setContent(ready.copy(isSendingScan = true))
-    button().assertIsNotEnabled()
     composeTestRule.onNodeWithText("Sending…", useUnmergedTree = true).assertIsDisplayed()
   }
 
   @Test
-  fun aWrongCodeNamesTheLenderAndTheButtonStaysOn() {
+  fun aWrongCodeNamesTheLender() {
     setContent(ready.copy(scanError = ScanError.WRONG_CODE))
     assertMessage("This isn't the right code. Scan Loca's code on their Handover screen.")
-    button().assertIsEnabled()
   }
 
   @Test
@@ -122,56 +146,49 @@ class ScanCodeCardTest {
   }
 
   @Test
-  fun aScanNotSentCanBeScannedAgain() {
+  fun aScanNotSentAsksToTryAgain() {
     setContent(ready.copy(scanError = ScanError.NOT_SENT))
     assertMessage("The scan couldn't be sent. Try again in a moment.")
-    button().assertIsEnabled()
   }
 
   @Test
-  fun aRefusedScanSaysWhatToCheckWithoutPromisingARetry() {
+  fun aRefusedScanSaysWhatToCheck() {
     setContent(ready.copy(scanError = ScanError.REFUSED))
     assertMessage(
         "The pickup couldn't be confirmed. Check that you have enough PolyPoints for this rental " +
             "and that today is the pickup day."
     )
-    button().assertIsEnabled()
   }
 
   @Test
-  fun aScannerThatCannotOpenSaysSoAndTheButtonStaysOn() {
+  fun aScannerThatCannotOpenSaysSo() {
     setContent(ready.copy(scanError = ScanError.SCANNER_UNAVAILABLE))
     assertMessage("The scanner couldn't open. Try again in a moment.")
-    button().assertIsEnabled()
   }
 
   @Test
-  fun aRentalThatChangedTurnsTheScanOff() {
+  fun aRentalThatChangedSaysWhereToLook() {
     setContent(ready.copy(scanError = ScanError.RENTAL_CHANGED))
     assertMessage(
         "This rental changed and can't be picked up any more. Open the rental to see where it stands."
     )
-    button().assertIsNotEnabled()
   }
 
   @Test
-  fun offlineTheScanWaitsForTheConnection() {
+  fun offlineSaysScanningIsComingSoon() {
     setContent(ready.copy(isOffline = true))
-    button().assertIsNotEnabled()
     assertMessage("Scanning offline is coming soon.")
   }
 
   @Test
   fun offlineWithoutACopyAsksToConnectOnce() {
     setContent(ready.copy(isOffline = true, codeFingerprint = null, codeFailed = true))
-    button().assertIsNotEnabled()
     assertMessage("Connect to the internet once to prepare the pickup.")
   }
 
   @Test
   fun aFingerprintThatFailedOnlineCanBeRetried() {
     setContent(ready.copy(codeFingerprint = null, codeFailed = true))
-    button().assertIsNotEnabled()
     assertMessage("Couldn't prepare the scan.")
     node(C.Tag.handover_scan_retry_button).performScrollTo().performClick()
     assertEquals(1, retries)
