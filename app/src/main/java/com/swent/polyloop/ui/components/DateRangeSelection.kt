@@ -104,9 +104,16 @@ fun DateRangeSelection.onTap(
 }
 
 /**
- * True if a borrower could pick [start]..[end] in the request picker: tapping [start] then [end]
- * gives exactly that range. So both days are selectable, [end] is not before [start], no booked or
- * buffer day lies between them, and the day after [end] is free and inside [window].
+ * The first day a rental can start when it is requested on [today]: tomorrow. `requestRental`
+ * refuses a request starting today, since the lender could no longer make an offer for it.
+ */
+fun firstRequestDay(today: LocalDate): LocalDate = today.plusDays(1)
+
+/**
+ * True if a borrower could pick [start]..[end] in the request picker on [today]: tapping [start]
+ * then [end] gives exactly that range. So both days are selectable (the first one from
+ * [firstRequestDay]), [end] is not before [start], no booked or buffer day lies between them, and
+ * the day after [end] is free and inside [window].
  */
 fun isRequestable(
     start: LocalDate,
@@ -116,8 +123,8 @@ fun isRequestable(
     today: LocalDate,
 ): Boolean =
     DateRangeSelection()
-        .onTap(start, window, disabledDates, today, requireBufferDay = true)
-        .onTap(end, window, disabledDates, today, requireBufferDay = true) ==
+        .onTap(start, window, disabledDates, firstRequestDay(today), requireBufferDay = true)
+        .onTap(end, window, disabledDates, firstRequestDay(today), requireBufferDay = true) ==
         DateRangeSelection(start = start, end = end)
 
 /** The first day that can be picked, or null if there is none. */

@@ -9,6 +9,7 @@ import {
 } from "firebase-admin/firestore";
 import {
   LLM_PROPOSAL,
+  PENDING,
   PROPOSAL_CHANGED,
   SETTLE,
   STAGE_CHANGED,
@@ -31,6 +32,9 @@ const DISPUTED = "DISPUTED";
  * block every write to the dispute, and from making each change heavy for both phones listening.
  */
 export const MAX_PROPOSALS = 500;
+
+/** The attempt number of the LLM proposal created when a dispute escalates. */
+export const FIRST_ATTEMPT = 1;
 
 /** A split proposed by one party, as stored in `disputes/{rentalId}.proposals`. */
 interface StoredProposal {
@@ -262,7 +266,9 @@ export async function escalateIfOverdue(
 
 /**
  * Moves a dispute on to the LLM proposal, with [escalatedBy] (null when it moved on by itself) and
- * a SYSTEM message in the rental's chat. Runs inside the caller's transaction, after its reads.
+ * a SYSTEM message in the rental's chat. The LLM proposal is created waiting, as its first attempt,
+ * in the same write: that new attempt is what starts `draftLlmProposal`, and the app shows the
+ * waiting state at once. Runs inside the caller's transaction, after its reads.
  */
 function moveToLlmProposal(
   tx: Transaction,
@@ -270,7 +276,11 @@ function moveToLlmProposal(
   rentalRef: DocumentReference,
   escalatedBy: string | null,
 ): void {
-  tx.update(disputeRef, { stage: LLM_PROPOSAL, escalatedBy });
+  tx.update(disputeRef, {
+    stage: LLM_PROPOSAL,
+    escalatedBy,
+    llmProposal: { status: PENDING, attempt: FIRST_ATTEMPT },
+  });
   const text =
     escalatedBy === null
       ? "No agreement after 30 days · waiting for the LLM proposal"

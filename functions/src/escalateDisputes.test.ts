@@ -80,7 +80,11 @@ describe("escalateOverdueDisputes", () => {
 
     expect(await escalateOverdueDisputes(db, NOW)).toEqual({ done: 1, failed: 0 });
 
-    expect((await ref.get()).data()).toMatchObject({ stage: "LLM_PROPOSAL", escalatedBy: null });
+    expect((await ref.get()).data()).toMatchObject({
+      stage: "LLM_PROPOSAL",
+      escalatedBy: null,
+      llmProposal: { status: "PENDING", attempt: 1 },
+    });
     expect(await messages(ref)).toEqual([
       "No agreement after 30 days · waiting for the LLM proposal",
     ]);

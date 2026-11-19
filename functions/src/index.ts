@@ -11,6 +11,7 @@ initializeApp();
 
 export { deleteExpiredSignUpsEvery5Minutes } from "./deleteExpiredSignUps";
 export { geocodeListingAddresses } from "./geocodeListingAddresses";
+export { requestRental } from "./requestRental";
 export { makeOffer } from "./makeOffer";
 export { respondToOffer } from "./respondToOffer";
 export { declineRequest } from "./declineRequest";
@@ -24,3 +25,4 @@ export { acceptSplit } from "./acceptSplit";
 export { escalateDispute } from "./escalateDispute";
 export { escalateDisputes } from "./escalateDisputes";
 export { confirmHandover } from "./confirmHandover";
+export { draftLlmProposal } from "./draftLlmProposal";

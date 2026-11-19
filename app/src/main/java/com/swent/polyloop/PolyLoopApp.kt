@@ -182,6 +182,7 @@ private fun PolyLoopScaffold(
                         RepositoryProvider.listingRepository,
                         RepositoryProvider.authRepository,
                         RepositoryProvider.connectivityRepository,
+                        RepositoryProvider.locationRepository,
                     )
             )
         BrowseScreen(

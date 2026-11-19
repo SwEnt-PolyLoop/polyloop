@@ -3,6 +3,8 @@
 package com.swent.polyloop.ui.handover
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
@@ -612,6 +614,36 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun aPickupDoneStaysOnScreenAfterAReload() {
+    val live = liveRental()
+    val vm = viewModel(rentals = live)
+
+    // The listener breaks, the rental is picked up meanwhile, and Retry follows it again.
+    live.error.value = RuntimeException("listener broke")
+    live.live.value = rental.copy(status = RentalStatus.ACTIVE)
+    live.error.value = null
+    vm.retry()
+
+    assertEquals(HandoverPhase.PICKUP, vm.uiState.value.phase)
+    assertTrue(vm.uiState.value.isPickedUp)
+  }
+
+  @Test
+  fun aPickupDoneKeepsItsDayAtMidnightAndAfterASleep() {
+    val vm = viewModel()
+    rentalRepository.setStatus(rental.id, RentalStatus.ACTIVE)
+    rentalRepository.serverNow = noonOn(pickupDay.plusDays(1))
+
+    testDispatcher.scheduler.advanceTimeBy(HALF_A_DAY_MS + 1)
+    elapsed += 2 * HALF_A_DAY_MS
+    vm.retryServerToday() // the screen comes back after a sleep past the next midnight
+
+    assertEquals(pickupDay, vm.uiState.value.serverToday)
+    assertFalse(vm.uiState.value.isDayOver)
+    assertEquals(1, rentalRepository.serverNowCalls)
+  }
+
+  @Test
   fun aLaterStatusKeepsThePickupDone() {
     val vm = viewModel()
     rentalRepository.setStatus(rental.id, RentalStatus.ACTIVE)
@@ -753,6 +785,23 @@ class HandoverViewModelTest {
     vm.addPhoto("file1")
     assertEquals(HandoverPhase.RETURN, handoverRepository.photos.single().photo.phase)
     assertEquals(1, vm.uiState.value.photos.size)
+  }
+
+  @Test
+  fun leavingTheScreenDeletesThePhotoWaitingForARetry() {
+    val store = ViewModelStore()
+    val factory =
+        object : ViewModelProvider.Factory {
+          @Suppress("UNCHECKED_CAST")
+          override fun <T : ViewModel> create(modelClass: Class<T>): T = viewModel() as T
+        }
+    val vm = ViewModelProvider(store, factory)[HandoverViewModel::class.java]
+    handoverRepository.failure = RuntimeException("offline")
+    vm.addPhoto("file1")
+    assertEquals(emptyList<String>(), deleted)
+
+    store.clear()
+    assertEquals(listOf("file1"), deleted)
   }
 
   @Test
@@ -1297,7 +1346,7 @@ class HandoverViewModelTest {
   }
 
   @Test
-  fun aCodeStillReadForThePickupDoesNotLandInTheReturn() {
+  fun aCodeStillReadForThePickupDoesNotLandOnceTheRentalIsCancelled() {
     val lateFingerprint = CompletableDeferred<Unit>()
     val handover =
         object : HandoverRepository by handoverRepository {
@@ -1312,16 +1361,24 @@ class HandoverViewModelTest {
     val live = liveRental()
     val vm = viewModel(rentals = live, handover = handover)
 
-    // The listener breaks while the pickup's fingerprint is read, and the rental is picked up.
-    live.error.value = RuntimeException("listener broke")
-    live.live.value = rental.copy(status = RentalStatus.ACTIVE)
-    live.error.value = null
-    vm.retry()
-    assertEquals(HandoverPhase.RETURN, vm.uiState.value.phase)
+    live.live.value = rental.copy(status = RentalStatus.CANCELLED)
+    assertNull(vm.uiState.value.phase)
 
     lateFingerprint.complete(Unit)
     assertFalse(vm.uiState.value.codeFailed)
-    assertEquals("secret-code", vm.uiState.value.code) // the borrower shows the code at return
+  }
+
+  @Test
+  fun noCodeIsReadAtReturnYet() {
+    useStatus(RentalStatus.ACTIVE)
+    rentalRepository.serverNow = noonOn(returnDay)
+    handoverRepository.codeFailure = RuntimeException("would be reported if read")
+    val vm = viewModel()
+    vm.retry()
+
+    assertEquals(HandoverPhase.RETURN, vm.uiState.value.phase)
+    assertFalse(vm.uiState.value.codeFailed)
+    assertNull(vm.uiState.value.codeFingerprint)
   }
 
   @Test

@@ -68,6 +68,9 @@ import java.time.LocalDate
 /** Height of the pickup area, whether it shows the map or its placeholder. */
 private val PICKUP_AREA_HEIGHT = 120.dp
 
+/** How many lines a long title shows before it is cut behind "See more". */
+private const val TITLE_COLLAPSED_LINES = 2
+
 /**
  * The Listing detail screen, showing the listing loaded by [viewModel]. Once a request is sent,
  * [onRequestSent] opens the new rental's chat. The app's top bar is drawn by the navigation
@@ -221,11 +224,12 @@ private fun ListingDetailLoaded(
     ) {
       PhotoPager(photoUrls = listing.photoUrls)
       Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
+        ExpandableText(
             text = listing.title,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
             modifier = Modifier.testTag(C.Tag.listing_detail_title),
+            collapsedLines = TITLE_COLLAPSED_LINES,
+            toggleTag = C.Tag.listing_detail_title_toggle,
         )
         PriceText(
             pricePerDay = listing.pricePerDay,

@@ -72,16 +72,31 @@ service firebase.storage {
       allow delete: if isVerifiedEpfl() && request.auth.uid == uid;
     }
 
-    // Pickup photos, uploaded by HandoverRepositoryFirestore while the rental is Accepted. Only its
-    // two participants read and add them; nobody replaces or deletes one, since they are evidence.
+    // Condition photos, uploaded by HandoverRepositoryFirestore: pickup photos while the rental is
+    // Accepted, return photos while it is Active or Overdue. Only its two participants read and add
+    // them; nobody replaces or deletes one, since they are evidence. The file is named after its
+    // Firestore document, the uploader's slot {uid}_{phase}_{0..19}.jpg (#428), so a person cannot
+    // add more than 20 per phase.
     match /rentals/{rentalId}/photos/{photo} {
       allow read: if isParticipant(rentalId);
 
       allow create: if isParticipant(rentalId)
+          && isOwnSlotForTheStatus(rentalId, photo)
           && resource == null // no file there yet: create alone also let a photo be replaced
-          && firestore.get(rentalDoc(rentalId)).data.status == 'ACCEPTED'
           && request.resource.size < 10 * 1024 * 1024
           && request.resource.contentType.matches('image/.*');
+
+      // The uploader's own slot of a phase the rental's status takes photos in: PICKUP while it is
+      // Accepted, RETURN while it is Active or Overdue.
+      function isOwnSlotForTheStatus(rentalId, photo) {
+        let status = firestore.get(rentalDoc(rentalId)).data.status;
+        return (isOwnSlot(photo, 'PICKUP') && status == 'ACCEPTED')
+            || (isOwnSlot(photo, 'RETURN') && status in ['ACTIVE', 'OVERDUE']);
+      }
+
+      function isOwnSlot(photo, phase) {
+        return photo.matches(request.auth.uid + '_' + phase + '_([0-9]|1[0-9])[.]jpg');
+      }
 
       function rentalDoc(rentalId) {
         return /databases/(default)/documents/rentals/$(rentalId);
