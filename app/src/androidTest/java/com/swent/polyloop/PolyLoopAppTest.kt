@@ -2,6 +2,7 @@
 
 package com.swent.polyloop
 
+import android.Manifest
 import android.net.Uri
 import android.view.View
 import androidx.activity.OnBackPressedDispatcher
@@ -31,6 +32,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.rule.GrantPermissionRule
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.auth.AuthError
 import com.swent.polyloop.model.auth.AuthRepository
@@ -78,6 +80,10 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class PolyLoopAppTest {
+
+  // Browse asks for the coarse location when it is not granted; granted here, no dialog opens.
+  @get:Rule(order = 0)
+  val locationPermissionRule = GrantPermissionRule.grant(Manifest.permission.ACCESS_COARSE_LOCATION)
 
   @get:Rule val composeTestRule = createComposeRule()
 

@@ -33,6 +33,8 @@
     <string name="listing_card_price">%1$d PP</string>
     <string name="listing_card_per_day">/ day</string>
     <string name="listing_card_location">%1$s · %2$s</string>
+    <string name="distance_meters">%1$d m</string>
+    <string name="distance_kilometers">%1$s km</string>
 
     <!-- Listing detail -->
     <!-- Under a long text cut after a few lines (the listing description): shows it whole, then cuts it again. -->
