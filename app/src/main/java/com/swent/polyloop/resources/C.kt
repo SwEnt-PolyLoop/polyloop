@@ -338,6 +338,7 @@ object C {
     const val handover_flag_damage_not_available = "handover_flag_damage_not_available"
     const val handover_check_progress = "handover_check_progress"
     const val handover_check_error = "handover_check_error"
+    const val handover_check_sent = "handover_check_sent"
     const val handover_waiting_check = "handover_waiting_check"
 
     const val top_bar = "top_bar"

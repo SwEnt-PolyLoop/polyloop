@@ -3,6 +3,7 @@
 package com.swent.polyloop.model.dispute
 
 import java.io.IOException
+import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -162,6 +163,29 @@ class FakeDisputeRepositoryTest {
 
     assertTrue(result.exceptionOrNull() is StageChangedException)
     assertEquals(DisputeStage.LLM_PROPOSAL, repository.current().stage)
+  }
+
+  @Test
+  fun openDisputeStartsDirectSettlementFor30Days() = runTest {
+    val repository = FakeDisputeRepository(currentUid = { uid }, clock = { now })
+
+    assertTrue(repository.openDispute("rental").isSuccess)
+
+    assertEquals(
+        Dispute("rental", DisputeStage.SETTLE, emptyList(), now.plus(Duration.ofDays(30))),
+        repository.current(),
+    )
+  }
+
+  @Test
+  fun openDisputeFailsWhenTheRentalHasOneOrNobodyIsSignedIn() = runTest {
+    val repository = repository()
+    assertTrue(repository.openDispute("rental").isFailure)
+    assertEquals(open, repository.current())
+
+    uid = null
+    assertTrue(repository.openDispute("other").isFailure)
+    assertNull(repository.observeDispute("other").first())
   }
 
   @Test

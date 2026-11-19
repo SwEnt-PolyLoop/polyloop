@@ -61,7 +61,6 @@ class HandoverReturnConfirmTest {
           photos = photos(4, HandoverPhase.RETURN),
       )
 
-  private var itemFine = 0
   private var damageFlagged = 0
   private var retries = 0
 
@@ -72,7 +71,6 @@ class HandoverReturnConfirmTest {
           onRetry = { retries++ },
           onAddPhoto = {},
           onRetryUpload = {},
-          onItemFine = { itemFine++ },
           onFlagDamage = { damageFlagged++ },
           zone = ZoneOffset.UTC,
       )
@@ -154,16 +152,24 @@ class HandoverReturnConfirmTest {
   }
 
   @Test
-  fun eachButtonSendsItsAnswer() {
+  fun flagDamageSendsItsAnswer() {
     setContent(check)
 
-    composeTestRule.onNodeWithTag(C.Tag.handover_item_fine_button).performScrollTo().performClick()
     composeTestRule
         .onNodeWithTag(C.Tag.handover_flag_damage_button)
         .performScrollTo()
         .performClick()
-    assertEquals(1, itemFine)
     assertEquals(1, damageFlagged)
+  }
+
+  @Test
+  fun withoutTheBorrowersNameItemIsFineReleasesTheDepositToTheBorrower() {
+    setContent(check.copy(otherPersonName = ""))
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.handover_item_fine_button)
+        .performScrollTo()
+        .assert(hasText("Releases the full deposit to the borrower"))
   }
 
   @Test
@@ -274,17 +280,22 @@ class HandoverReturnConfirmTest {
   }
 
   @Test
-  fun theLenderRetriesAFailedAnswerThenBothButtonsStayDisabled() {
-    val handovers = FakeHandoverRepository(currentUid = "owner", failure = RuntimeException("down"))
+  fun theLenderRetriesAFailedAnswerThenSeesItSentAndBothButtonsDisabled() {
+    val handovers =
+        FakeHandoverRepository(currentUid = "owner", confirmFailure = RuntimeException("down"))
+    handovers.photos = photos(3, HandoverPhase.PICKUP).map { StoredPhoto(rental.id, "owner", it) }
     composeTestRule.setContent { HandoverScreen(lenderViewModel(handovers)) }
+    composeTestRule.onAllNodesWithTag(C.Tag.handover_before_photo).assertCountEquals(3)
 
     composeTestRule.onNodeWithTag(C.Tag.handover_item_fine_button).performScrollTo().performClick()
     composeTestRule.onNodeWithTag(C.Tag.handover_check_error).performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.handover_check_sent).assertDoesNotExist()
     composeTestRule.runOnIdle { assertEquals(emptyList<String>(), handovers.confirmedReturns) }
 
-    handovers.failure = null
+    handovers.confirmFailure = null
     composeTestRule.onNodeWithTag(C.Tag.handover_item_fine_button).performScrollTo().performClick()
     composeTestRule.onNodeWithTag(C.Tag.handover_check_error).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.handover_check_sent).performScrollTo().assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.handover_item_fine_button).assertIsNotEnabled()
     composeTestRule.onNodeWithTag(C.Tag.handover_flag_damage_button).assertIsNotEnabled()
     composeTestRule.runOnIdle { assertEquals(listOf(rental.id), handovers.confirmedReturns) }

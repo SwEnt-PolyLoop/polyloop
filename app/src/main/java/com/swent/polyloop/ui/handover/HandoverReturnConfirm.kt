@@ -238,7 +238,7 @@ private fun PhotoSection(
 /**
  * "Is the item in the same condition?", then "Item is fine" and "Flag damage", each with what it
  * does and "Not available yet" under it, as both fail until their Cloud Functions exist; the one
- * being sent shows a spinner, and an error shows under them if it failed.
+ * being sent shows a spinner, then a line under them says whether it was sent or failed.
  */
 @Composable
 private fun CheckButtons(
@@ -294,6 +294,14 @@ private fun CheckButtons(
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.error,
           modifier = Modifier.testTag(C.Tag.handover_check_error),
+      )
+    }
+    if (uiState.checkSent != null) {
+      Text(
+          text = stringResource(R.string.handover_check_sent),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.testTag(C.Tag.handover_check_sent),
       )
     }
   }
