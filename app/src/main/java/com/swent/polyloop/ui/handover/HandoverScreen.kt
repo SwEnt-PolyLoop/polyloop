@@ -117,6 +117,8 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
       onCloseCamera = { isCameraOpen = false },
       onCaptureFailed = viewModel::onCaptureFailed,
       onScan = { scanQrCode(context, viewModel::onCodeScanned, viewModel::onScannerFailed) },
+      onItemFine = viewModel::confirmItemFine,
+      onFlagDamage = viewModel::flagDamage,
   )
 }
 
@@ -128,7 +130,8 @@ fun HandoverScreen(viewModel: HandoverViewModel) {
  * "Retry" is tapped under the note asking to connect; photo times are shown in [zone]. While
  * [isCameraOpen], the in-app camera fills the screen for one photo, given to [onPhotoTaken], or to
  * [onCaptureFailed] if the shot fails; [cameraPermissionGranted] false shows how to allow the
- * camera. [onScan] is called when "Scan QR code" is pressed.
+ * camera. [onScan] is called when "Scan QR code" is pressed. On the lender's check, [onItemFine]
+ * and [onFlagDamage] send their answer.
  */
 @Composable
 fun HandoverContent(
@@ -144,6 +147,8 @@ fun HandoverContent(
     onCloseCamera: () -> Unit = {},
     onCaptureFailed: (uri: String) -> Unit = {},
     onScan: () -> Unit = {},
+    onItemFine: () -> Unit = {},
+    onFlagDamage: () -> Unit = {},
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
   // The photo shown full screen after a tap, by id; null when none is.
@@ -188,6 +193,8 @@ fun HandoverContent(
                 zone,
                 onPhotoClick = { enlargedId = it },
                 onRetryPhotos = onRetry,
+                onItemFine = onItemFine,
+                onFlagDamage = onFlagDamage,
             )
         uiState.isReturned -> WaitingForCheckContent(uiState)
         uiState.phase == null ->

@@ -46,6 +46,13 @@ interface HandoverRepository {
    * sent (e.g. the connection dropped, or no answer came within 30 seconds: a TimeoutException).
    */
   suspend fun confirmScan(rentalId: String, phase: HandoverPhase, code: String): Result<Unit>
+
+  /**
+   * Tells, as the signed-in lender, that the item of the returned rental [rentalId] came back fine:
+   * the whole deposit goes back to the borrower and the rental closes. Fails if nobody is signed
+   * in, the user is not the lender, the rental is not Returned, or it cannot be sent.
+   */
+  suspend fun confirmReturnOk(rentalId: String): Result<Unit>
 }
 
 /** Thrown when the scanned code is not the one of this rental and phase. */

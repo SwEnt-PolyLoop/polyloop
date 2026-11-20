@@ -600,8 +600,19 @@
     <string name="handover_code_picked_up_no_name">Picked up · the rental has started</string>
     <!-- The lender's check of the returned item (Figma 17b) -->
     <string name="handover_return_scanned">Return scanned</string>
+    <string name="handover_deposit_stays_held">The deposit stays held until you decide.</string>
     <string name="handover_before_after">Before and after</string>
     <string name="handover_no_photos">No photos</string>
+    <string name="handover_same_condition">Is the item in the same condition?</string>
+    <string name="handover_item_fine">Item is fine</string>
+    <!-- Under "Item is fine", e.g. "Releases the full deposit to Mara" -->
+    <string name="handover_item_fine_detail">Releases the full deposit to %1$s</string>
+    <string name="handover_item_fine_detail_no_name">Releases the full deposit to the borrower</string>
+    <string name="handover_flag_damage">Flag damage</string>
+    <string name="handover_flag_damage_detail">Opens a dispute, deposit stays held</string>
+    <string name="handover_check_sending">Sending your answer</string>
+    <string name="handover_check_failed">Could not send your answer. Try again.</string>
+    <string name="handover_check_sent">Your answer was sent.</string>
     <!-- The borrower once the return is scanned, while the lender checks the item -->
     <string name="handover_waiting_check">The return was scanned. %1$s now checks the item against the pickup photos.</string>
     <string name="handover_waiting_check_no_name">The return was scanned. The lender now checks the item against the pickup photos.</string>

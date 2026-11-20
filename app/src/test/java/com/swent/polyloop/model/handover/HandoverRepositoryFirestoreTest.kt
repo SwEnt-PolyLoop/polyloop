@@ -308,4 +308,11 @@ class HandoverRepositoryFirestoreTest {
     assertEquals(HandoverPhoto.MAX_PHOTOS, uploadedPaths.toSet().size)
     assertEquals(HandoverPhoto.MAX_PHOTOS, uploadedPaths.size)
   }
+
+  @Test
+  fun confirmReturnOkFailsUntilItsFunctionExists() = runTest {
+    val result = repository.confirmReturnOk("r1")
+
+    assertTrue(result.exceptionOrNull() is UnsupportedOperationException)
+  }
 }

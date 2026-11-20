@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModelStore
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
+import com.swent.polyloop.model.dispute.DisputeStage
+import com.swent.polyloop.model.dispute.FakeDisputeRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository
 import com.swent.polyloop.model.handover.FakeHandoverRepository.StoredPhoto
 import com.swent.polyloop.model.handover.HandoverCode
@@ -74,6 +76,7 @@ class HandoverViewModelTest {
 
   private lateinit var rentalRepository: FakeRentalRepository
   private lateinit var handoverRepository: FakeHandoverRepository
+  private lateinit var disputeRepository: FakeDisputeRepository
   private lateinit var authRepository: FakeAuthRepository
   private lateinit var connectivity: FakeConnectivityRepository
   private val deleted = mutableListOf<String>()
@@ -95,6 +98,11 @@ class HandoverViewModelTest {
     rentalRepository.serverNow = noonOn(pickupDay)
     handoverRepository = FakeHandoverRepository(currentUid = "borrower")
     authRepository = FakeAuthRepository(signedInUser = borrower)
+    disputeRepository =
+        FakeDisputeRepository(
+            currentUid = { authRepository.getCurrentUser()?.uid },
+            clock = { Instant.parse("2026-10-08T17:00:00Z") },
+        )
     connectivity = FakeConnectivityRepository()
   }
 
@@ -113,6 +121,7 @@ class HandoverViewModelTest {
           id,
           rentals,
           handover,
+          disputeRepository,
           authRepository,
           connectivity,
           serverClock(repository),
@@ -1052,6 +1061,7 @@ class HandoverViewModelTest {
 
     assertTrue(state.isReturned)
     assertFalse(state.isReturnCheck)
+    assertFalse(state.canSendCheck)
     assertFalse(state.isLoadingPhotos)
     assertEquals(emptyList<HandoverPhoto>(), state.photos)
   }
@@ -1078,6 +1088,67 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun itemIsFineShowsItsSpinnerThenIsSent() {
+    val gate = CompletableDeferred<Unit>()
+    handoverRepository.gate = gate
+    val vm = lenderCheck()
+    assertTrue(vm.uiState.value.canSendCheck)
+
+    vm.confirmItemFine()
+    assertEquals(ReturnCheck.ITEM_FINE, vm.uiState.value.sendingCheck)
+    assertFalse(vm.uiState.value.canSendCheck)
+    vm.flagDamage() // ignored while the first answer is sent
+    assertEquals(emptyList<Any>(), disputeRepository.disputes)
+
+    gate.complete(Unit)
+    assertNull(vm.uiState.value.sendingCheck)
+    assertEquals(ReturnCheck.ITEM_FINE, vm.uiState.value.checkSent)
+    assertEquals(listOf(rental.id), handoverRepository.confirmedReturns)
+  }
+
+  @Test
+  fun theCheckStaysWithItsPhotosWhileItsAnswerIsSentEvenIfTheRentalMovesOn() {
+    val live = LiveRental(rental.copy(status = RentalStatus.RETURNED), rentalRepository)
+    signInAsLender()
+    handoverRepository.photos = photos(3, takenBy = "owner")
+    val gate = CompletableDeferred<Unit>()
+    handoverRepository.gate = gate
+    val vm = viewModel(rentals = live)
+
+    vm.confirmItemFine()
+    live.live.value = rental.copy(status = RentalStatus.CLOSED) // before the answer's result
+    assertTrue(vm.uiState.value.isReturnCheck)
+    assertEquals(3, vm.uiState.value.pickupPhotos.size)
+
+    gate.complete(Unit)
+    assertTrue(vm.uiState.value.isReturnCheck)
+    assertEquals(ReturnCheck.ITEM_FINE, vm.uiState.value.checkSent)
+  }
+
+  @Test
+  fun aRentalReloadedWhileTheAnswerIsSentLetsNoSecondAnswerGo() {
+    val live = LiveRental(rental.copy(status = RentalStatus.RETURNED), rentalRepository)
+    signInAsLender()
+    val gate = CompletableDeferred<Unit>()
+    handoverRepository.gate = gate
+    val vm = viewModel(rentals = live)
+
+    vm.confirmItemFine()
+    live.error.value = RuntimeException("listener broke")
+    assertTrue(vm.uiState.value.loadFailed)
+    assertEquals(ReturnCheck.ITEM_FINE, vm.uiState.value.sendingCheck)
+
+    live.error.value = null
+    vm.retry()
+    assertFalse(vm.uiState.value.canSendCheck)
+    vm.flagDamage() // the first answer is still being sent
+    assertEquals(emptyList<Any>(), disputeRepository.disputes)
+
+    gate.complete(Unit)
+    assertEquals(ReturnCheck.ITEM_FINE, vm.uiState.value.checkSent)
+  }
+
+  @Test
   fun photosThatFailedOnTheLendersCheckAreRetriedForBothPhases() {
     handoverRepository.failure = RuntimeException("down")
     handoverRepository.photos = checkPhotos()
@@ -1092,6 +1163,53 @@ class HandoverViewModelTest {
     assertEquals(4, vm.uiState.value.photos.size)
   }
 
+  @Test
+  fun aFailedAnswerShowsAnErrorAndAnotherCanBeSent() {
+    val vm = lenderCheck()
+    disputeRepository.failure = RuntimeException("down")
+
+    vm.flagDamage()
+    assertTrue(vm.uiState.value.checkFailed)
+    assertNull(vm.uiState.value.checkSent)
+    assertTrue(vm.uiState.value.canSendCheck)
+
+    disputeRepository.failure = null
+    vm.flagDamage()
+    assertFalse(vm.uiState.value.checkFailed)
+    assertEquals(ReturnCheck.DAMAGE_FLAGGED, vm.uiState.value.checkSent)
+    assertEquals(DisputeStage.SETTLE, disputeRepository.disputes.single().stage)
+  }
+
+  @Test
+  fun aFailedAnswerKeepsItsErrorWhenTheRentalIsReloaded() {
+    val live = LiveRental(rental.copy(status = RentalStatus.RETURNED), rentalRepository)
+    signInAsLender()
+    val vm = viewModel(rentals = live)
+    disputeRepository.failure = RuntimeException("down")
+
+    vm.flagDamage()
+    live.live.value = rental.copy(status = RentalStatus.RETURNED, lastMessage = "Any news?")
+    assertTrue(vm.uiState.value.checkFailed)
+    assertTrue(vm.uiState.value.canSendCheck)
+  }
+
+  @Test
+  fun noAnswerIsSentOfflineByTheBorrowerOrTwice() {
+    useStatus(RentalStatus.RETURNED)
+    viewModel().confirmItemFine() // the borrower
+
+    val vm = lenderCheck()
+    connectivity.setOnline(false)
+    vm.confirmItemFine()
+    assertEquals(emptyList<String>(), handoverRepository.confirmedReturns)
+
+    connectivity.setOnline(true)
+    vm.confirmItemFine()
+    vm.flagDamage() // already answered
+    assertEquals(listOf(rental.id), handoverRepository.confirmedReturns)
+    assertEquals(emptyList<Any>(), disputeRepository.disputes)
+  }
+
   // ---------- factory ----------
 
   private fun factory() =
@@ -1099,6 +1217,7 @@ class HandoverViewModelTest {
           rental.id,
           rentalRepository,
           handoverRepository,
+          disputeRepository,
           authRepository,
           connectivity,
           serverClock(rentalRepository),

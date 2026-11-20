@@ -268,6 +268,10 @@ class HandoverRepositoryFirestore(
 
   private fun rental(rentalId: String) = db.collection(HandoverFields.RENTALS).document(rentalId)
 
+  /** Always fails for now: the Cloud Function that releases the deposit does not exist yet. */
+  override suspend fun confirmReturnOk(rentalId: String): Result<Unit> =
+      Result.failure(UnsupportedOperationException("Confirming a return is not available yet"))
+
   private fun photos(rentalId: String) =
       db.collection(HandoverFields.RENTALS).document(rentalId).collection(HandoverFields.PHOTOS)
 

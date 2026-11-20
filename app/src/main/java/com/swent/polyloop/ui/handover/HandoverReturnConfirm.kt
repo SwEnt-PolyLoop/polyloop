@@ -3,21 +3,28 @@
 package com.swent.polyloop.ui.handover
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,21 +33,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.NotAvailableYet
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import com.swent.polyloop.ui.theme.PositiveGreen
 import java.time.Instant
 import java.time.ZoneId
 
 /**
- * The lender's check of the returned item (Figma 17b): the header, that the return was scanned, and
- * their pickup and return photos side by side, over the deposit footer. Tapping a photo gives its
- * id to [onPhotoClick]; [onRetryPhotos] loads the photos again after they failed to load.
+ * The lender's check of the returned item (Figma 17b): the header, that the return was scanned,
+ * their pickup and return photos side by side, and "Item is fine" or "Flag damage", given to
+ * [onItemFine] and [onFlagDamage], over the deposit footer. Tapping a photo gives its id to
+ * [onPhotoClick]; [onRetryPhotos] loads the photos again after they failed to load.
  */
 @Composable
 internal fun ReturnCheckContent(
@@ -48,10 +60,13 @@ internal fun ReturnCheckContent(
     zone: ZoneId,
     onPhotoClick: (id: String) -> Unit,
     onRetryPhotos: () -> Unit,
+    onItemFine: () -> Unit,
+    onFlagDamage: () -> Unit,
 ) {
   ReturnedScaffold(uiState, Modifier.testTag(C.Tag.handover_return_check)) {
     ReturnScannedCard()
     BeforeAfterCard(uiState, zone, onPhotoClick, onRetryPhotos)
+    CheckButtons(uiState, onItemFine, onFlagDamage)
   }
 }
 
@@ -101,7 +116,8 @@ private fun ReturnedScaffold(
 }
 
 /**
- * A green check with "Return scanned". The time of the scan is not shown until rentals store it.
+ * A green check with "Return scanned" and "The deposit stays held until you decide.". The time of
+ * the scan is not shown until rentals store it.
  */
 @Composable
 private fun ReturnScannedCard() {
@@ -121,12 +137,19 @@ private fun ReturnScannedCard() {
           Icon(Icons.Default.Check, contentDescription = null)
         }
       }
-      Text(
-          text = stringResource(R.string.handover_return_scanned),
-          style = MaterialTheme.typography.titleSmall,
-          fontWeight = FontWeight.Bold,
-          modifier = Modifier.testTag(C.Tag.handover_return_scanned),
-      )
+      Column {
+        Text(
+            text = stringResource(R.string.handover_return_scanned),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.testTag(C.Tag.handover_return_scanned),
+        )
+        Text(
+            text = stringResource(R.string.handover_deposit_stays_held),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
     }
   }
 }
@@ -210,6 +233,116 @@ private fun PhotoSection(
           { PhotoTile(photo, zone, onClick = { onPhotoClick(photo.id) }, tag = photoTag) }
         },
     )
+  }
+}
+
+/**
+ * "Is the item in the same condition?", then "Item is fine" and "Flag damage", each with what it
+ * does and "Not available yet" under it, as both fail until their Cloud Functions exist; the one
+ * being sent shows a spinner, then a line under them says whether it was sent or failed.
+ */
+@Composable
+private fun CheckButtons(
+    uiState: HandoverUiState,
+    onItemFine: () -> Unit,
+    onFlagDamage: () -> Unit,
+) {
+  Column(
+      verticalArrangement =
+          Arrangement.spacedBy(dimensionResource(R.dimen.handover_check_button_spacing))
+  ) {
+    Text(
+        text = stringResource(R.string.handover_same_condition),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+    )
+    val name = uiState.otherPersonName
+    val shape = RoundedCornerShape(dimensionResource(R.dimen.handover_check_button_corner))
+    Button(
+        onClick = onItemFine,
+        enabled = uiState.canSendCheck,
+        shape = shape,
+        modifier = Modifier.fillMaxWidth().testTag(C.Tag.handover_item_fine_button),
+    ) {
+      CheckButtonContent(
+          title = stringResource(R.string.handover_item_fine),
+          detail =
+              if (name.isBlank()) stringResource(R.string.handover_item_fine_detail_no_name)
+              else stringResource(R.string.handover_item_fine_detail, name),
+          isSending = uiState.sendingCheck == ReturnCheck.ITEM_FINE,
+      )
+    }
+    NotAvailableYet(
+        C.Tag.handover_item_fine_not_available,
+        Modifier.align(Alignment.CenterHorizontally),
+    )
+    val damageColor = MaterialTheme.colorScheme.secondary
+    OutlinedButton(
+        onClick = onFlagDamage,
+        enabled = uiState.canSendCheck,
+        shape = shape,
+        border =
+            if (uiState.canSendCheck)
+                BorderStroke(dimensionResource(R.dimen.handover_check_button_border), damageColor)
+            else ButtonDefaults.outlinedButtonBorder(enabled = false),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = damageColor),
+        modifier = Modifier.fillMaxWidth().testTag(C.Tag.handover_flag_damage_button),
+    ) {
+      CheckButtonContent(
+          title = stringResource(R.string.handover_flag_damage),
+          detail = stringResource(R.string.handover_flag_damage_detail),
+          isSending = uiState.sendingCheck == ReturnCheck.DAMAGE_FLAGGED,
+      )
+    }
+    NotAvailableYet(
+        C.Tag.handover_flag_damage_not_available,
+        Modifier.align(Alignment.CenterHorizontally),
+    )
+    if (uiState.checkFailed) {
+      Text(
+          text = stringResource(R.string.handover_check_failed),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.error,
+          modifier = Modifier.testTag(C.Tag.handover_check_error),
+      )
+    }
+    if (uiState.checkSent != null) {
+      Text(
+          text = stringResource(R.string.handover_check_sent),
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.testTag(C.Tag.handover_check_sent),
+      )
+    }
+  }
+}
+
+/**
+ * A button's [title] above its [detail], or a spinner while its answer [isSending], which screen
+ * readers announce as the answer being sent.
+ */
+@Composable
+private fun CheckButtonContent(title: String, detail: String, isSending: Boolean) {
+  if (isSending) {
+    val sending = stringResource(R.string.handover_check_sending)
+    CircularProgressIndicator(
+        color = LocalContentColor.current,
+        strokeWidth = dimensionResource(R.dimen.handover_check_spinner_stroke),
+        modifier =
+            Modifier.padding(dimensionResource(R.dimen.handover_check_button_padding))
+                .size(dimensionResource(R.dimen.handover_check_spinner_size))
+                .testTag(C.Tag.handover_check_progress)
+                .semantics { contentDescription = sending },
+    )
+    return
+  }
+  Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      modifier =
+          Modifier.padding(vertical = dimensionResource(R.dimen.handover_check_button_padding)),
+  ) {
+    Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    Text(text = detail, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
   }
 }
 

@@ -345,6 +345,13 @@ object C {
     const val handover_after_photo = "handover_after_photo"
     const val handover_no_before_photos = "handover_no_before_photos"
     const val handover_no_after_photos = "handover_no_after_photos"
+    const val handover_item_fine_button = "handover_item_fine_button"
+    const val handover_flag_damage_button = "handover_flag_damage_button"
+    const val handover_item_fine_not_available = "handover_item_fine_not_available"
+    const val handover_flag_damage_not_available = "handover_flag_damage_not_available"
+    const val handover_check_progress = "handover_check_progress"
+    const val handover_check_error = "handover_check_error"
+    const val handover_check_sent = "handover_check_sent"
     const val handover_waiting_check = "handover_waiting_check"
 
     const val top_bar = "top_bar"

@@ -12,14 +12,16 @@ import kotlinx.coroutines.flow.update
 
 /**
  * In-memory [HandoverRepository] for tests and previews; the app itself never uses it. Tests set
- * [photos] to make [observeMyPhotos] emit, like Firestore would.
+ * [photos] to make [observeMyPhotos] emit, like Firestore would, and read [confirmedReturns] to see
+ * what the lender confirmed.
  */
 class FakeHandoverRepository(
     // The signed-in user; null when nobody is signed in.
     var currentUid: String? = "u1",
     // When set, the flow and addPhoto fail with this error.
     var failure: Throwable? = null,
-    // When set, addPhoto waits until it is completed, so tests can see the "uploading" state.
+    // When set, addPhoto, confirmScan and confirmReturnOk wait until it is completed, so tests can
+    // see them run.
     var gate: CompletableDeferred<Unit>? = null,
     // The time given to the next photo added.
     var now: Instant = Instant.parse("2026-10-13T15:00:00Z"),
@@ -27,6 +29,8 @@ class FakeHandoverRepository(
     var code: String? = "secret-code",
     // When set, getCodeToShow and getCodeFingerprint fail with this error.
     var codeFailure: Throwable? = null,
+    // When set, confirmReturnOk fails with this error.
+    var confirmFailure: Throwable? = null,
     // When set, confirmScan fails with this error once the code is right.
     var scanFailure: Throwable? = null,
 ) : HandoverRepository {
@@ -46,6 +50,9 @@ class FakeHandoverRepository(
   // How many times addPhoto was called, including the calls that failed.
   var addPhotoCalls = 0
     private set
+
+  // The rentals confirmReturnOk succeeded for, in order.
+  val confirmedReturns = mutableListOf<String>()
 
   override fun observeMyPhotos(rentalId: String, phase: HandoverPhase): Flow<List<HandoverPhoto>> {
     val error = failure ?: IllegalStateException(NOT_SIGNED_IN).takeIf { currentUid == null }
@@ -135,6 +142,17 @@ class FakeHandoverRepository(
     }
     if (currentUid == null) return Result.failure(IllegalStateException(NOT_SIGNED_IN))
     return Result.success(read())
+  }
+
+  // Only records the call: the rental's status is not changed, as the Cloud Function would.
+  override suspend fun confirmReturnOk(rentalId: String): Result<Unit> {
+    gate?.await()
+    confirmFailure?.let {
+      return Result.failure(it)
+    }
+    if (currentUid == null) return Result.failure(IllegalStateException(NOT_SIGNED_IN))
+    confirmedReturns += rentalId
+    return Result.success(Unit)
   }
 }
 
