@@ -1179,35 +1179,3 @@ private fun RentalDetailDisputedPreview() {
     }
   }
 }
-
-@Preview(showBackground = true)
-@Composable
-private fun RentalDetailCancelledPreview() {
-  PolyLoopTheme {
-    Column {
-      PolyLoopTopBar(onMenuClick = {}, onProfileClick = {})
-      RentalDetailContent(
-          uiState =
-              RentalDetailUiState(
-                  itemTitle = "Ski helmet, size M",
-                  status = RentalStatus.CANCELLED,
-                  startDate = LocalDate.of(2026, 10, 1),
-                  endDate = LocalDate.of(2026, 10, 8),
-                  rentalPrice = 120,
-                  deposit = 60,
-                  cancelledAt = Instant.parse("2026-09-30T10:00:00Z"),
-                  otherPerson =
-                      OtherPerson(uid = "lea", name = "Léa", averageRating = 4.6, reviewCount = 5),
-              ),
-          onRetry = {},
-          onChatClick = {},
-          onPersonClick = {},
-          onStartPickupClick = {},
-          onStartReturnClick = {},
-          onViewDisputeClick = {},
-          onCancelClick = {},
-          today = LocalDate.of(2026, 10, 2),
-      )
-    }
-  }
-}
