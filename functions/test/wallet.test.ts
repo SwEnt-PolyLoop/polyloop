@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
-import { hasTransaction, readWallet, writeWallet } from "./wallet";
+import { hasTransaction, readWallet, writeWallet } from "../src/wallet";
 
 // The helpers run inside a transaction, so they are tested on the Firestore emulator.
 let db: Firestore;
