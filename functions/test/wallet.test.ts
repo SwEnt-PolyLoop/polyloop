@@ -3,7 +3,14 @@
 import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
-import { hasTransaction, readWallet, writeWallet } from "../src/wallet";
+import {
+  depositReleaseRowId,
+  hasTransaction,
+  readWallet,
+  writeDepositRelease,
+  writeWallet,
+} from "../src/wallet";
+import { RequestError } from "../src/rentalRules";
 
 // The helpers run inside a transaction, so they are tested on the Firestore emulator.
 let db: Firestore;
@@ -51,5 +58,44 @@ describe("writeWallet", () => {
     expect(saved.data()).toMatchObject({ type: "RECHARGE", amount: 5, itemTitle: "" });
     expect(saved.get("date").toMillis()).toBeGreaterThan(0);
     expect(await db.runTransaction((tx) => hasTransaction(tx, db, uid, row.id))).toBe(true);
+  });
+});
+
+describe("writeDepositRelease", () => {
+  it("gives the deposit back to available and adds one DEPOSIT_RELEASED row", async () => {
+    const uid = randomUUID();
+    const rentalId = randomUUID();
+    await db.collection("wallets").doc(uid).set({ available: 20, heldAsDeposits: 90, heldForRentals: 4 });
+
+    await db.runTransaction(async (tx) => {
+      const wallet = await readWallet(tx, db, uid);
+      writeDepositRelease(tx, db, uid, wallet, 60, rentalId, "Camera");
+    });
+
+    expect((await db.collection("wallets").doc(uid).get()).data()).toEqual({
+      available: 80,
+      heldAsDeposits: 30,
+      heldForRentals: 4,
+    });
+    const rows = await db.collection("wallets").doc(uid).collection("transactions").get();
+    expect(rows.docs.map((row) => row.id)).toEqual([depositReleaseRowId(rentalId)]);
+    expect(rows.docs[0].data()).toMatchObject({ type: "DEPOSIT_RELEASED", amount: 60, itemTitle: "Camera" });
+    expect(rows.docs[0].get("date").toMillis()).toBeGreaterThan(0);
+  });
+
+  it("refuses to release more than heldAsDeposits and writes nothing", async () => {
+    const uid = randomUUID();
+    const before = { available: 20, heldAsDeposits: 59, heldForRentals: 0 };
+    await db.collection("wallets").doc(uid).set(before);
+
+    const release = db.runTransaction(async (tx) => {
+      const wallet = await readWallet(tx, db, uid);
+      writeDepositRelease(tx, db, uid, wallet, 60, randomUUID(), "Camera");
+    });
+
+    await expect(release).rejects.toBeInstanceOf(RequestError);
+    await expect(release).rejects.toMatchObject({ code: "internal" });
+    expect((await db.collection("wallets").doc(uid).get()).data()).toEqual(before);
+    expect((await db.collection("wallets").doc(uid).collection("transactions").get()).empty).toBe(true);
   });
 });

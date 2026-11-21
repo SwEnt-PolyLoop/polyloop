@@ -8,7 +8,8 @@ import { RequestError } from "./rentalRules";
  * PolyPoints (see "Firestore schema" in docs/ARCHITECTURE.md): `wallets/{uid}` holds the balances,
  * and `wallets/{uid}/transactions/{id}` the history. Only Cloud Functions write them. As in every
  * Firestore transaction, read first (`readWallet`, `hasTransaction`), check (`requireFunds`), then
- * write (`writeWallet`, or `writeDepositHold` for a deposit, whose row id is `depositRowId`).
+ * write (`writeWallet`, or `writeDepositHold` and `writeDepositRelease` for a deposit, whose row ids
+ * are `depositRowId` and `depositReleaseRowId`).
  */
 
 /** The balances of a wallet, in whole PolyPoints. */
@@ -149,6 +150,59 @@ export function writeDepositHold(
       heldAsDeposits: wallet.heldAsDeposits + deposit,
     },
     { id: depositRowId(rentalId), type: DEPOSIT_HELD, amount: -deposit, itemTitle },
+  );
+}
+
+/** The `type` of the history row of a deposit given back to the borrower. */
+const DEPOSIT_RELEASED = "DEPOSIT_RELEASED";
+
+/**
+ * The id of the history row of a rental's deposit release. Like `deposit_held_<rentalId>`, a fixed
+ * id makes the release idempotent: a caller that finds the row knows the deposit is already back.
+ */
+export function depositReleaseRowId(rentalId: string): string {
+  return `deposit_released_${rentalId}`;
+}
+
+/**
+ * Write step of a deposit release, inside the caller's transaction after its reads:
+ * `heldAsDeposits -= deposit`, `available += deposit`, and the `DEPOSIT_RELEASED` row
+ * `deposit_released_<rentalId>` with the amount `+deposit`. The caller checks before, with
+ * `hasTransaction`, that the row does not exist yet.
+ *
+ * @param tx the transaction to write in.
+ * @param db the Firestore database.
+ * @param borrowerId the owner of the wallet.
+ * @param wallet the borrower's wallet, as read in the same transaction.
+ * @param deposit the amount to release.
+ * @param rentalId the rental the deposit belongs to.
+ * @param itemTitle the title of the item, or "".
+ * @throws RequestError `internal` when `heldAsDeposits` is below [deposit]; nothing is written.
+ */
+export function writeDepositRelease(
+  tx: Transaction,
+  db: Firestore,
+  borrowerId: string,
+  wallet: Wallet,
+  deposit: number,
+  rentalId: string,
+  itemTitle: string,
+): void {
+  // The deposit was held when the offer was accepted, so less held means the stored data is broken;
+  // releasing anyway would create PolyPoints out of nothing.
+  if (wallet.heldAsDeposits < deposit) {
+    throw new RequestError("internal", "The held deposit does not cover the release.");
+  }
+  writeWallet(
+    tx,
+    db,
+    borrowerId,
+    {
+      ...wallet,
+      available: wallet.available + deposit,
+      heldAsDeposits: wallet.heldAsDeposits - deposit,
+    },
+    { id: depositReleaseRowId(rentalId), type: DEPOSIT_RELEASED, amount: deposit, itemTitle },
   );
 }
 
