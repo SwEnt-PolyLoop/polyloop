@@ -120,10 +120,10 @@ fun RentalDetailScreen(
  * details and the person card: no stage strip, meeting point, cancel row or bottom button. A
  * Requested or Accepted rental has a cancel row (see [CancelRow]) whose button opens a confirm
  * sheet; "Yes" there calls [onCancelClick]. [today] and [zone] decide how dates are written (e.g.
- * whether the year is shown, and the day of a cancel date); tests pass fixed values so
- * their expected texts do not depend on the day they run. [today] is the phone's date, so it is
- * only used to write dates: Start Pickup, Start Return and the cancel window of an accepted rental
- * go by [RentalDetailUiState.serverToday] instead, and stay grey while
+ * whether the year is shown, and the day of a cancel date); tests pass fixed values so their
+ * expected texts do not depend on the day they run. [today] is the phone's date, so it is only used
+ * to write dates: Start Pickup, Start Return and the cancel window of an accepted rental go by
+ * [RentalDetailUiState.serverToday] instead, and stay grey while
  * [RentalDetailUiState.isReadingServerToday]. A request has no cancel window. [locale] decides the
  * language of the month and weekday names; tests pass a fixed one so their expected dates do not
  * depend on the device's language.
@@ -639,9 +639,9 @@ private fun offerBody(offer: DepositOffer, isMine: Boolean, zone: ZoneId, locale
  * "—". A disputed rental shows the dates without the return day, the price as paid, the deposit as
  * held and the late fees, even when they are 0 (Figma frame 13.09). An active rental shows the
  * dates, the "Return by" day, the price as paid and the deposit as held, without late fees (Figma
- * frame 13.02-active). A cancelled rental shows the dates, the price as returned and the deposit
- * as released, with no deposit row when it is 0 (Figma frame 13.07-cancelled). The dates are
- * written in [locale].
+ * frame 13.02-active). A cancelled rental shows the dates, the price as returned and the deposit as
+ * released, with no deposit row when it is 0 (Figma frame 13.07-cancelled). The dates are written
+ * in [locale].
  */
 @Composable
 private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: Locale) {
@@ -693,7 +693,8 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: 
           valueTag = C.Tag.rental_detail_price,
       )
       // A rental cancelled while requested had no deposit yet. Once accepted, 0 would mean unknown
-      // ("—" above), but a cancelled rental has no deposit left to show either way, so the row goes.
+      // ("—" above), but a cancelled rental has no deposit left to show either way, so the row
+      // goes.
       if (isCancelled && uiState.deposit > 0) {
         InfoRow(
             label = stringResource(R.string.rental_detail_accepted_deposit_label),

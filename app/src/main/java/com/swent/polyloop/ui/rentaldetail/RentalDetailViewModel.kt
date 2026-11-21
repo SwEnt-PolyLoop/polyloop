@@ -36,31 +36,31 @@ import kotlinx.coroutines.launch
  * message, and the screen then shows a generic text. [notFound] is true when there is no such
  * rental. [isSupported] is false for a status the screen does not handle yet (anything but
  * Requested, Accepted, Active, Disputed and Cancelled): only [itemTitle] is then set, for the
- * placeholder.
- * [isLender] is true when the signed-in user owns the item. [sentAt] is when the request was sent,
- * [endDate] the return day and [rentalPrice] the total price in PolyPoints. [suggestedDeposit] is
- * the listing's item value in PolyPoints, or null when the listing is missing or could not be read.
- * [pickupArea] is the name copied on the rental, or the listing's if the request was sent before
- * the listing was geocoded. [pickupPoint] is the listing's public point, or null when the listing
- * is missing, could not be read or is not geocoded yet. [otherPerson] is the borrower for the
- * lender and the owner for the borrower. [isOffline] is true while the phone has no connection; the
- * screen then shows the pickup area of a request as a placeholder instead of the map. [offer] is
- * the deposit offer waiting for an answer, if any, [isOfferMine] is true when the signed-in user
- * wrote it, and [isOfferExpired] once it has expired by the phone's clock, even before the hourly
- * `expireOffers` job removes it. [deposit] is the accepted amount in PolyPoints, and
- * [pickupAddress] and [returnAddress] are the exact addresses, set once the rental is accepted.
+ * placeholder. [isLender] is true when the signed-in user owns the item. [sentAt] is when the
+ * request was sent, [endDate] the return day and [rentalPrice] the total price in PolyPoints.
+ * [suggestedDeposit] is the listing's item value in PolyPoints, or null when the listing is missing
+ * or could not be read. [pickupArea] is the name copied on the rental, or the listing's if the
+ * request was sent before the listing was geocoded. [pickupPoint] is the listing's public point, or
+ * null when the listing is missing, could not be read or is not geocoded yet. [otherPerson] is the
+ * borrower for the lender and the owner for the borrower. [isOffline] is true while the phone has
+ * no connection; the screen then shows the pickup area of a request as a placeholder instead of the
+ * map. [offer] is the deposit offer waiting for an answer, if any, [isOfferMine] is true when the
+ * signed-in user wrote it, and [isOfferExpired] once it has expired by the phone's clock, even
+ * before the hourly `expireOffers` job removes it. [deposit] is the accepted amount in PolyPoints,
+ * and [pickupAddress] and [returnAddress] are the exact addresses, set once the rental is accepted.
  * [lateFees] is the total taken from the deposit for a late return, in PolyPoints, and 0 when the
  * return was never late. [cancelledAt] is when the rental was cancelled, null when unknown (not
- * cancelled, or cancelled before the field existed). [serverToday] is today by the server's clock, which Start Pickup, Start
- * Return and the cancel window of an accepted rental go by: read only for an accepted or active
- * rental, again each time the screen comes back (so a screen left open across days does not keep an
- * old day), and null until it is read or when it is unknown (the server was not reached since the
- * phone booted). [isReadingServerToday] is true while it is being read with no day known yet, so
- * the screen can tell a read still running from an unknown date; a re-read of a known day leaves it
- * false. [isCancelling] is true while a cancel is being sent, and [cancelError] is non-null when
- * the last one failed (blank when the failure carried no message, like [errorMsg]).
- * [liveUpdatesStopped] is true once following the rental failed, until the next load: the offer is
- * then hidden because it may be out of date, so a missing offer no longer means there is none.
+ * cancelled, or cancelled before the field existed). [serverToday] is today by the server's clock,
+ * which Start Pickup, Start Return and the cancel window of an accepted rental go by: read only for
+ * an accepted or active rental, again each time the screen comes back (so a screen left open across
+ * days does not keep an old day), and null until it is read or when it is unknown (the server was
+ * not reached since the phone booted). [isReadingServerToday] is true while it is being read with
+ * no day known yet, so the screen can tell a read still running from an unknown date; a re-read of
+ * a known day leaves it false. [isCancelling] is true while a cancel is being sent, and
+ * [cancelError] is non-null when the last one failed (blank when the failure carried no message,
+ * like [errorMsg]). [liveUpdatesStopped] is true once following the rental failed, until the next
+ * load: the offer is then hidden because it may be out of date, so a missing offer no longer means
+ * there is none.
  */
 data class RentalDetailUiState(
     val isLoading: Boolean = false,
@@ -152,17 +152,18 @@ data class OtherPerson(
 
 /**
  * Shows one rental as seen by the signed-in user. Requested, Accepted, Active, Disputed and
- * Cancelled are handled so far. The rental is read once, then followed, so that the offer and an acceptance show
- * without a reload. It follows the network status from [connectivityRepository], so the screen
- * knows when to replace the map. For an accepted or active rental, it reads today from
+ * Cancelled are handled so far. The rental is read once, then followed, so that the offer and an
+ * acceptance show without a reload. It follows the network status from [connectivityRepository], so
+ * the screen knows when to replace the map. For an accepted or active rental, it reads today from
  * [serverClock], so that Start Pickup, Start Return and the cancel window of an accepted rental do
  * not go by the phone's date, which the user can change; a request has no deadline, so it does not
- * need that date, and neither does a cancelled one. The screen shows without waiting for it. [cancel] asks the server to cancel a
- * requested or accepted rental. The date is read again each time the screen comes back
- * ([onScreenResumed]), and an unknown date when the phone comes back online. A requested rental
- * whose listing could not be read (e.g. opened offline, listing not cached) reads it again when the
- * phone comes back online, to fill the suggested deposit and the map point. The offer shows as
- * expired once it expires by [clock], checked again each time the screen comes back.
+ * need that date, and neither does a cancelled one. The screen shows without waiting for it.
+ * [cancel] asks the server to cancel a requested or accepted rental. The date is read again each
+ * time the screen comes back ([onScreenResumed]), and an unknown date when the phone comes back
+ * online. A requested rental whose listing could not be read (e.g. opened offline, listing not
+ * cached) reads it again when the phone comes back online, to fill the suggested deposit and the
+ * map point. The offer shows as expired once it expires by [clock], checked again each time the
+ * screen comes back.
  */
 class RentalDetailViewModel(
     private val rentalId: String,
@@ -237,9 +238,9 @@ class RentalDetailViewModel(
    * Cancels the rental, if [RentalDetailUiState.canCancel]; otherwise does nothing. It does not set
    * the status itself: the rental is followed live, so it turns Cancelled once the Cloud Function
    * has run, and a call that failed never shows as Cancelled. After a success it loads the rental
-   * again only when the live updates had stopped (see below); either way, the screen then shows
-   * the Cancelled state. A failure sets
-   * [RentalDetailUiState.cancelError], which the next attempt clears.
+   * again only when the live updates had stopped (see below); either way, the screen then shows the
+   * Cancelled state. A failure sets [RentalDetailUiState.cancelError], which the next attempt
+   * clears.
    */
   fun cancel() {
     if (!_uiState.value.canCancel) return
