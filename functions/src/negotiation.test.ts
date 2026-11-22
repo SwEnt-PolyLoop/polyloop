@@ -467,13 +467,15 @@ describe("respondToOffer: the pickup code", () => {
     expect((await rental(id))?.pickupCodeHash).toBe(codeFingerprint(code));
   });
 
-  it("makes only the pickup code: the return one is left to the return", async () => {
+  it("makes the return code too, different from the pickup one", async () => {
     const id = await offered(await listing());
 
     await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, NOW);
 
-    expect((await db.doc(`rentals/${id}/handoverCodes/RETURN`).get()).exists).toBe(false);
-    expect((await rental(id))?.returnCodeHash).toBeUndefined();
+    const code = (await db.doc(`rentals/${id}/handoverCodes/RETURN`).get()).get("code");
+    expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(code).not.toBe((await pickupCode(id))?.code);
+    expect((await rental(id))?.returnCodeHash).toBe(codeFingerprint(code));
   });
 
   it("gives each rental its own code", async () => {
