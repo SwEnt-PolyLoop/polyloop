@@ -467,4 +467,39 @@ describe("refusing a return", () => {
       await expectNotReturned(id, status);
     }
   });
+
+  it("refuses a scan before the last day, with no reason", async () => {
+    const who = people();
+    const id = await out(who);
+
+    // 23:30 in Zurich on 2 December, the day before the last one.
+    const error = await confirmReturn(
+      db,
+      who.lender,
+      returnScan(id),
+      new Date("2026-12-02T22:30:00Z"),
+    ).catch((e) => e);
+
+    expect(error).toMatchObject({ code: "failed-precondition" });
+    expect(error.details).toBeUndefined();
+    await expectNotReturned(id);
+  });
+
+  it("lets only the lender confirm, not the borrower or a stranger", async () => {
+    const who = people();
+    const id = await out(who);
+
+    for (const caller of [who.borrower, "stranger-uid"]) {
+      await expect(
+        confirmReturn(db, caller, returnScan(id), RETURN_NOW),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+    }
+    await expectNotReturned(id);
+  });
+
+  it("refuses a rental that does not exist", async () => {
+    await expect(
+      confirmReturn(db, "lender-uid", returnScan("no-such-rental"), RETURN_NOW),
+    ).rejects.toMatchObject({ code: "not-found" });
+  });
 });
