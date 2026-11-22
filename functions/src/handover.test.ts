@@ -3,6 +3,7 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { RENTAL_CHANGED, WRONG_CODE, confirmPickup } from "./handover";
+import { codeFingerprint } from "./handoverCode";
 import { hasSeenLastMessage } from "./testing/readTimes";
 import {
   People,
@@ -54,8 +55,10 @@ async function accepted(who: People, fields: object = {}): Promise<string> {
 const scan = (rentalId: string, code = CODE) => ({ rentalId, code });
 
 const rentalData = async (id: string) => (await db.doc(`rentals/${id}`).get()).data();
-const codeExists = async (id: string) =>
-  (await db.doc(`rentals/${id}/handoverCodes/PICKUP`).get()).exists;
+const codeOf = async (id: string, phase: string) =>
+  (await db.doc(`rentals/${id}/handoverCodes/${phase}`).get()).get("code");
+const codeExists = async (id: string, phase = "PICKUP") =>
+  (await db.doc(`rentals/${id}/handoverCodes/${phase}`).get()).exists;
 const messages = async (id: string) =>
   (await db.collection(`rentals/${id}/messages`).get()).docs.map((doc) => doc.data());
 
@@ -99,6 +102,28 @@ describe("confirming the pickup", () => {
     await confirmPickup(db, who.borrower, scan(id), new Date("2026-11-30T23:30:00Z"));
 
     expect((await rentalData(id))?.status).toBe("ACTIVE");
+  });
+
+  it("makes the return code of a rental accepted before it existed", async () => {
+    const who = people();
+    const id = await accepted(who);
+
+    await confirmPickup(db, who.borrower, scan(id), NOW);
+
+    const code = await codeOf(id, "RETURN");
+    expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect((await rentalData(id))?.returnCodeHash).toBe(codeFingerprint(code));
+  });
+
+  it("keeps the return code made at acceptance", async () => {
+    const who = people();
+    const id = await accepted(who, { returnCodeHash: "return-fingerprint" });
+    await db.doc(`rentals/${id}/handoverCodes/RETURN`).set({ code: "return-code" });
+
+    await confirmPickup(db, who.borrower, scan(id), NOW);
+
+    expect(await codeOf(id, "RETURN")).toBe("return-code");
+    expect((await rentalData(id))?.returnCodeHash).toBe("return-fingerprint");
   });
 
   it("succeeds and changes nothing once the rental was picked up", async () => {

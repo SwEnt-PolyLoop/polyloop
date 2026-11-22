@@ -1,7 +1,7 @@
 // Made with Claude.
 
 import { FieldValue, Firestore } from "firebase-admin/firestore";
-import { HANDOVER_CODES, isSameCode } from "./handoverCode";
+import { HANDOVER_CODES, isSameCode, writeNewHandoverCode } from "./handoverCode";
 import { writeWithSystemMessage } from "./negotiation";
 import {
   PAID_STATUSES,
@@ -56,7 +56,8 @@ export function parseHandoverScan(data: unknown): PickupScan {
  * was already picked up, the call succeeds and changes nothing (a second scan, or one sent twice);
  * otherwise the rental is ACCEPTED, today in Zurich at [now] is its first day, the code is the one
  * the lender's phone shows, and the price is held. The server trusts the app's order: the photos
- * are not checked.
+ * are not checked. A rental accepted before the return code existed gets it here, in the same
+ * transaction, so it can still be given back.
  *
  * @throws RequestError `not-found`; `permission-denied` (not the borrower); `failed-precondition`
  *   with the reason `RENTAL_CHANGED` (no longer ACCEPTED, e.g. cancelled) or `WRONG_CODE`, or with
@@ -71,6 +72,7 @@ export async function confirmPickup(
 ): Promise<void> {
   const rentalRef = db.collection("rentals").doc(scan.rentalId);
   const codeRef = rentalRef.collection(HANDOVER_CODES).doc("PICKUP");
+  const returnCodeRef = rentalRef.collection(HANDOVER_CODES).doc("RETURN");
   await db.runTransaction(async (tx) => {
     const rental = (await tx.get(rentalRef)).data();
     if (!rental) {
@@ -99,6 +101,7 @@ export async function confirmPickup(
     const payment = (await isLenderPaid(tx, db, parties, scan.rentalId))
       ? null
       : await readLenderPayment(tx, db, rental, parties);
+    const hasReturnCode = (await tx.get(returnCodeRef)).exists;
     tx.delete(codeRef);
     writeWithSystemMessage(
       tx,
@@ -108,6 +111,7 @@ export async function confirmPickup(
         status: "ACTIVE",
         pickedUpAt: FieldValue.serverTimestamp(),
         pickupCodeHash: FieldValue.delete(),
+        ...(hasReturnCode ? {} : writeNewHandoverCode(tx, rentalRef, "RETURN")),
       },
       callerId,
     );
