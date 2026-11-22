@@ -396,4 +396,28 @@ describe("confirming the return", () => {
       expect(await messages(id)).toEqual([]);
     }
   });
+
+  it("confirms once when the same scan is sent again", async () => {
+    const who = people();
+    const id = await out(who);
+
+    await confirmReturn(db, who.lender, returnScan(id), RETURN_NOW);
+    await confirmReturn(db, who.lender, returnScan(id), RETURN_NOW);
+
+    expect((await rentalData(id))?.status).toBe("RETURNED");
+    expect(await messages(id)).toHaveLength(1);
+  });
+
+  it("confirms once when two scans arrive at the same time", async () => {
+    const who = people();
+    const id = await out(who);
+
+    await Promise.all([
+      confirmReturn(db, who.lender, returnScan(id), RETURN_NOW),
+      confirmReturn(db, who.lender, returnScan(id), RETURN_NOW),
+    ]);
+
+    expect((await rentalData(id))?.status).toBe("RETURNED");
+    expect(await messages(id)).toHaveLength(1);
+  }, 15000);
 });
