@@ -5,6 +5,7 @@ import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { codeFingerprint } from "./handoverCode";
 import {
   RENTAL_CHANGED,
+  RETURNED_STATUSES,
   WRONG_CODE,
   confirmPickup,
   confirmReturn,
@@ -370,6 +371,29 @@ describe("confirming the return", () => {
       await confirmReturn(db, who.lender, returnScan(id), new Date("2026-12-05T12:00:00Z"));
 
       expect((await rentalData(id))?.status).toBe("RETURNED");
+    }
+  });
+
+  it("is on the last day in Zurich, even when it is still the day before in UTC", async () => {
+    const who = people();
+    const id = await out(who);
+
+    // 00:30 in Zurich on 3 December is 23:30 UTC on 2 December.
+    await confirmReturn(db, who.lender, returnScan(id), new Date("2026-12-02T23:30:00Z"));
+
+    expect((await rentalData(id))?.status).toBe("RETURNED");
+  });
+
+  it("succeeds and changes nothing once the rental was returned", async () => {
+    const who = people();
+    for (const status of RETURNED_STATUSES) {
+      const id = await newRental(who, status, { endDate: LAST_DAY });
+
+      // Even with no code left, or a wrong one: the return already happened.
+      await confirmReturn(db, who.lender, returnScan(id, "anything"), RETURN_NOW);
+
+      expect((await rentalData(id))?.status).toBe(status);
+      expect(await messages(id)).toEqual([]);
     }
   });
 });
