@@ -2,8 +2,13 @@
 
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
-import { RENTAL_CHANGED, WRONG_CODE, confirmPickup } from "./handover";
 import { codeFingerprint } from "./handoverCode";
+import {
+  RENTAL_CHANGED,
+  WRONG_CODE,
+  confirmPickup,
+  confirmReturn,
+} from "./handover";
 import { hasSeenLastMessage } from "./testing/readTimes";
 import {
   People,
@@ -296,5 +301,75 @@ describe("refusing a pickup", () => {
     await expect(
       confirmPickup(db, "borrower-uid", scan("no-such-rental"), NOW),
     ).rejects.toMatchObject({ code: "not-found" });
+  });
+});
+
+// 10:00 in Zurich on the rental's last day, the first return day.
+const RETURN_NOW = new Date("2026-12-03T09:00:00Z");
+const LAST_DAY = "2026-12-03";
+const RETURN_CODE = "Rt7_w-1AbCdEfGhIjKlMnOpQrStUvWxYz9876543210";
+
+/**
+ * An ACTIVE rental whose last day is today, overridden by [fields], with its return code, and the
+ * borrower's 40 PP deposit held.
+ */
+async function out(who: People, fields: object = {}): Promise<string> {
+  await fund(who.borrower, { available: 60, heldAsDeposits: 40 });
+  const id = await newRental(who, "ACTIVE", {
+    startDate: PICKUP_DAY,
+    endDate: LAST_DAY,
+    returnCodeHash: "return-fingerprint",
+    ...fields,
+  });
+  await db.doc(`rentals/${id}/handoverCodes/RETURN`).set({ code: RETURN_CODE });
+  return id;
+}
+
+const returnScan = (rentalId: string, code = RETURN_CODE) => ({ rentalId, code });
+
+describe("confirming the return", () => {
+  it("makes the rental returned, says so in the chat and uses the code up", async () => {
+    const who = people();
+    const id = await out(who);
+
+    await confirmReturn(db, who.lender, returnScan(id), RETURN_NOW);
+
+    const data = await rentalData(id);
+    expect(data?.status).toBe("RETURNED");
+    expect(data?.returnedAt.toMillis()).toBeGreaterThan(0);
+    expect(data?.returnCodeHash).toBeUndefined();
+    expect(data?.lastMessage).toBe("Returned · waiting for the lender's check");
+    expect(await codeExists(id, "RETURN")).toBe(false);
+    expect(await messages(id)).toEqual([
+      expect.objectContaining({
+        text: "Returned · waiting for the lender's check",
+        type: "SYSTEM",
+        senderId: "",
+      }),
+    ]);
+    // The lender scanned: no red dot for them; the borrower has news.
+    expect(hasSeenLastMessage(data, who.lender)).toBe(true);
+    expect(hasSeenLastMessage(data, who.borrower)).toBe(false);
+  });
+
+  it("moves no money: the deposit stays held for the lender's check", async () => {
+    const who = people();
+    const id = await out(who);
+
+    await confirmReturn(db, who.lender, returnScan(id), RETURN_NOW);
+
+    expect(await wallet(who.borrower)).toEqual({ available: 60, heldAsDeposits: 40 });
+    expect(await wallet(who.lender)).toBeUndefined();
+  });
+
+  it("takes back a late item, on a later day", async () => {
+    const who = people();
+    for (const status of ["ACTIVE", "OVERDUE"]) {
+      const id = await out(who, { status });
+
+      await confirmReturn(db, who.lender, returnScan(id), new Date("2026-12-05T12:00:00Z"));
+
+      expect((await rentalData(id))?.status).toBe("RETURNED");
+    }
   });
 });
