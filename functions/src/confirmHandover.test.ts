@@ -49,6 +49,19 @@ describe("confirmHandover", () => {
     expect(await wallet(who.lender)).toMatchObject({ available: 15 });
   });
 
+  it("confirms the return the lender scanned", async () => {
+    const who = people();
+    const id = await rental(who, "ACTIVE", { endDate: zurichDay(new Date()) });
+    await db.doc(`rentals/${id}/handoverCodes/RETURN`).set({ code: CODE });
+
+    const result = await confirmHandover.run(
+      asUser(who.lender, { rentalId: id, phase: "RETURN", code: CODE }),
+    );
+
+    expect(result).toEqual({});
+    expect(await status(id)).toBe("RETURNED");
+  });
+
   it("gives the app the reason of a refusal it tells apart", async () => {
     const { who, id } = await readyToScan();
 
@@ -62,13 +75,12 @@ describe("confirmHandover", () => {
     ).rejects.toMatchObject({ code: "failed-precondition", details: { reason: "RENTAL_CHANGED" } });
   });
 
-  it("refuses an input that is not a pickup scan, changing nothing", async () => {
+  it("refuses an input that is not a handover scan, changing nothing", async () => {
     const { who, id } = await readyToScan();
     const inputs = [
       { phase: "PICKUP", code: CODE }, // no rentalId
       { rentalId: " ", phase: "PICKUP", code: CODE },
       { rentalId: id, code: CODE }, // no phase
-      { rentalId: id, phase: "RETURN", code: CODE }, // not yet
       { rentalId: id, phase: "pickup", code: CODE },
       { rentalId: id, phase: "PICKUP" }, // no code
       { rentalId: id, phase: "PICKUP", code: "" },
