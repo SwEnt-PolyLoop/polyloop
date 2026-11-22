@@ -443,9 +443,19 @@ describe("respondToOffer: accepting", () => {
   });
 });
 
-describe("respondToOffer: the pickup code", () => {
+describe("respondToOffer: the handover codes", () => {
   async function pickupCode(id: string) {
     return (await db.doc(`rentals/${id}/handoverCodes/PICKUP`).get()).data();
+  }
+
+  /** Expects [id] to have no handover code, nor any fingerprint. */
+  async function expectNoCodes(id: string): Promise<void> {
+    for (const phase of ["PICKUP", "RETURN"]) {
+      expect((await db.doc(`rentals/${id}/handoverCodes/${phase}`).get()).exists).toBe(false);
+    }
+    const data = await rental(id);
+    expect(data?.pickupCodeHash).toBeUndefined();
+    expect(data?.returnCodeHash).toBeUndefined();
   }
 
   it("makes the pickup code on acceptance, with its fingerprint on the rental", async () => {
@@ -497,8 +507,7 @@ describe("respondToOffer: the pickup code", () => {
       respondToOffer(db, borrower, { rentalId: id, action: "ACCEPT" }, NOW),
     ).rejects.toMatchObject({ code: "failed-precondition" });
 
-    expect(await pickupCode(id)).toBeUndefined();
-    expect((await rental(id))?.pickupCodeHash).toBeUndefined();
+    await expectNoCodes(id);
   });
 
   it("makes no code when the offer is declined or countered", async () => {
@@ -518,8 +527,8 @@ describe("respondToOffer: the pickup code", () => {
       NOW,
     );
 
-    expect(await pickupCode(declined)).toBeUndefined();
-    expect(await pickupCode(counteredId)).toBeUndefined();
+    await expectNoCodes(declined);
+    await expectNoCodes(counteredId);
   });
 });
 

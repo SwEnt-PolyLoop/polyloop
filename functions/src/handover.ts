@@ -99,7 +99,6 @@ export async function confirmPickup(
 ): Promise<void> {
   const rentalRef = db.collection("rentals").doc(scan.rentalId);
   const codeRef = rentalRef.collection(HANDOVER_CODES).doc("PICKUP");
-  const returnCodeRef = rentalRef.collection(HANDOVER_CODES).doc("RETURN");
   await db.runTransaction(async (tx) => {
     const rental = (await tx.get(rentalRef)).data();
     if (!rental) {
@@ -128,7 +127,9 @@ export async function confirmPickup(
     const payment = (await isLenderPaid(tx, db, parties, scan.rentalId))
       ? null
       : await readLenderPayment(tx, db, rental, parties);
-    const hasReturnCode = (await tx.get(returnCodeRef)).exists;
+    // The return code and its fingerprint are always written together, so a rental with no return
+    // fingerprint has no return code: it was accepted before the return code existed.
+    const hasReturnCode = typeof rental[CODE_HASH_FIELDS.RETURN] === "string";
     tx.delete(codeRef);
     writeWithSystemMessage(
       tx,
@@ -137,7 +138,7 @@ export async function confirmPickup(
       {
         status: "ACTIVE",
         pickedUpAt: FieldValue.serverTimestamp(),
-        pickupCodeHash: FieldValue.delete(),
+        [CODE_HASH_FIELDS.PICKUP]: FieldValue.delete(),
         ...(hasReturnCode ? {} : writeNewHandoverCode(tx, rentalRef, "RETURN")),
       },
       callerId,
