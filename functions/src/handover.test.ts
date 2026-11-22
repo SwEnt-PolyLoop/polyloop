@@ -328,6 +328,16 @@ async function out(who: People, fields: object = {}): Promise<string> {
 
 const returnScan = (rentalId: string, code = RETURN_CODE) => ({ rentalId, code });
 
+/** Expects [id] untouched: still [status], with its return code, and no message. */
+async function expectNotReturned(id: string, status = "ACTIVE"): Promise<void> {
+  const data = await rentalData(id);
+  expect(data?.status).toBe(status);
+  expect(data?.returnedAt).toBeUndefined();
+  expect(data?.returnCodeHash).toBe("return-fingerprint");
+  expect(await codeExists(id, "RETURN")).toBe(true);
+  expect(await messages(id)).toEqual([]);
+}
+
 describe("confirming the return", () => {
   it("makes the rental returned, says so in the chat and uses the code up", async () => {
     const who = people();
@@ -420,4 +430,41 @@ describe("confirming the return", () => {
     expect((await rentalData(id))?.status).toBe("RETURNED");
     expect(await messages(id)).toHaveLength(1);
   }, 15000);
+});
+
+describe("refusing a return", () => {
+  it("refuses a wrong code with WRONG_CODE, changing nothing", async () => {
+    const who = people();
+    const id = await out(who);
+
+    for (const code of ["wrong", CODE, RETURN_CODE.slice(1), `${RETURN_CODE} `]) {
+      await expect(
+        confirmReturn(db, who.lender, returnScan(id, code), RETURN_NOW),
+      ).rejects.toMatchObject({ code: "failed-precondition", details: { reason: WRONG_CODE } });
+    }
+    await expectNotReturned(id);
+  });
+
+  it("refuses any code when the rental has none", async () => {
+    const who = people();
+    const id = await out(who);
+    await db.doc(`rentals/${id}/handoverCodes/RETURN`).delete();
+
+    await expect(
+      confirmReturn(db, who.lender, returnScan(id), RETURN_NOW),
+    ).rejects.toMatchObject({ details: { reason: WRONG_CODE } });
+    expect((await rentalData(id))?.status).toBe("ACTIVE");
+  });
+
+  it("refuses a rental that is not out with RENTAL_CHANGED", async () => {
+    const who = people();
+    for (const status of ["ACCEPTED", "LOST", "CANCELLED"]) {
+      const id = await out(who, { status });
+
+      await expect(
+        confirmReturn(db, who.lender, returnScan(id), RETURN_NOW),
+      ).rejects.toMatchObject({ code: "failed-precondition", details: { reason: RENTAL_CHANGED } });
+      await expectNotReturned(id, status);
+    }
+  });
 });
