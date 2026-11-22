@@ -9,6 +9,7 @@ import {
   WRONG_CODE,
   confirmPickup,
   confirmReturn,
+  isReturnDay,
 } from "./handover";
 import { hasSeenLastMessage } from "./testing/readTimes";
 import {
@@ -501,5 +502,19 @@ describe("refusing a return", () => {
     await expect(
       confirmReturn(db, "lender-uid", returnScan("no-such-rental"), RETURN_NOW),
     ).rejects.toMatchObject({ code: "not-found" });
+  });
+});
+
+describe("isReturnDay", () => {
+  it("is the last day and every day after it", () => {
+    expect(isReturnDay("2026-12-02", LAST_DAY)).toBe(false);
+    expect(isReturnDay("2026-12-03", LAST_DAY)).toBe(true);
+    expect(isReturnDay("2027-01-10", LAST_DAY)).toBe(true);
+  });
+
+  it("is never true for a last day that is not a date", () => {
+    for (const endDate of [undefined, "", "1", "2026-13-01", 20261203]) {
+      expect(isReturnDay("2026-12-03", endDate)).toBe(false);
+    }
   });
 });
