@@ -12,6 +12,7 @@ import {
   PENDING,
   PROPOSAL_CHANGED,
   SETTLE,
+  SETTLE_DAYS,
   STAGE_CHANGED,
   SplitInput,
 } from "./disputeRules";
@@ -283,7 +284,7 @@ function moveToLlmProposal(
   });
   const text =
     escalatedBy === null
-      ? "No agreement after 30 days · waiting for the LLM proposal"
+      ? `No agreement after ${SETTLE_DAYS} days · waiting for the LLM proposal`
       : "Dispute escalated · waiting for the LLM proposal";
   writeWithSystemMessage(tx, rentalRef, text, {}, escalatedBy);
 }

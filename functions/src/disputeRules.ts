@@ -11,6 +11,12 @@ export const SETTLE = "SETTLE";
 export const LLM_PROPOSAL = "LLM_PROPOSAL";
 
 /**
+ * How many days a dispute stays in direct settlement before it escalates by itself to the LLM
+ * proposal: `escalatesAt` is set this long after the dispute opens.
+ */
+export const SETTLE_DAYS = 30;
+
+/**
  * The states of the LLM proposal, as stored in `disputes/{rentalId}.llmProposal.status`: waiting
  * for the LLM, ready for the parties to answer, or failed (see "Disputes" in docs/ARCHITECTURE.md).
  */
