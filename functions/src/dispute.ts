@@ -101,7 +101,8 @@ export async function proposeSplit(
  * Accepts the latest proposal of the dispute of [input.rentalId], in one transaction: the dispute
  * is settled and the rental CLOSED, with the split in the chat. [input.lenderPercent] is the split
  * the caller saw, so a proposal changed meanwhile is never accepted. In the same transaction the
- * held deposit, less the late fees, is split between the two wallets (see [settle]). Once `escalatesAt` has passed, the dispute escalates instead (see [inDirectSettlement]).
+ * held deposit, less the late fees, is split between the two wallets (see [settle]). Once
+ * `escalatesAt` has passed, the dispute escalates instead (see [inDirectSettlement]).
  *
  * @param db the Firestore database.
  * @param callerId the participant accepting, who must not be the latest proposal's author.
