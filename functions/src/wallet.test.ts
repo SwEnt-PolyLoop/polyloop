@@ -3,7 +3,16 @@
 import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
-import { hasTransaction, readWallet, writeWallet } from "./wallet";
+import {
+  DepositShares,
+  depositToSettle,
+  hasTransaction,
+  readDepositSettlement,
+  readWallet,
+  writeDepositSettlement,
+  writeWallet,
+} from "./wallet";
+import { fund, people, rows, wallet } from "./testing/walletFixtures";
 
 // The helpers run inside a transaction, so they are tested on the Firestore emulator.
 let db: Firestore;
@@ -51,5 +60,136 @@ describe("writeWallet", () => {
     expect(saved.data()).toMatchObject({ type: "RECHARGE", amount: 5, itemTitle: "" });
     expect(saved.get("date").toMillis()).toBeGreaterThan(0);
     expect(await db.runTransaction((tx) => hasTransaction(tx, db, uid, row.id))).toBe(true);
+  });
+});
+
+describe("depositToSettle", () => {
+  it("takes the late fees off the deposit and never goes below 0", () => {
+    expect(depositToSettle({ deposit: 40 })).toBe(40);
+    expect(depositToSettle({ deposit: 40, lateFees: 12 })).toBe(28);
+    expect(depositToSettle({ deposit: 40, lateFees: 55 })).toBe(0);
+  });
+
+  it("reads a missing or invalid deposit or late fees as 0", () => {
+    expect(depositToSettle({})).toBe(0);
+    expect(depositToSettle({ deposit: "40", lateFees: 5 })).toBe(0);
+    expect(depositToSettle({ deposit: 40, lateFees: -5 })).toBe(40);
+    expect(depositToSettle({ deposit: 40, lateFees: 1.5 })).toBe(40);
+  });
+});
+
+describe("deposit settlement", () => {
+  /** A borrower holding [held] PP as deposit, with the hold row unless [hold] is false. */
+  async function heldDeposit(held: number, hold = true) {
+    const who = people();
+    const rentalId = randomUUID();
+    await fund(who.borrower, { available: 10, heldAsDeposits: held, heldForRentals: 0 });
+    await fund(who.lender, { available: 5, heldAsDeposits: 0, heldForRentals: 0 });
+    if (hold) {
+      await db
+        .collection("wallets")
+        .doc(who.borrower)
+        .collection("transactions")
+        .doc(`deposit_held_${rentalId}`)
+        .set({ type: "DEPOSIT_HELD", amount: -held, itemTitle: "Tent" });
+    }
+    const parties = { borrowerId: who.borrower, lenderId: who.lender };
+    return { who, rentalId, parties };
+  }
+
+  /** Reads then writes one settlement in its own transaction, as acceptSplit does. */
+  function settle(
+    d: Awaited<ReturnType<typeof heldDeposit>>,
+    shares: DepositShares,
+    release = false,
+  ) {
+    return db.runTransaction(async (tx) => {
+      const state = await readDepositSettlement(tx, db, d.parties, d.rentalId);
+      writeDepositSettlement(tx, db, d.parties, d.rentalId, "Tent", state, shares, release);
+    });
+  }
+
+  it("releases the whole deposit to the borrower on a clean return", async () => {
+    const d = await heldDeposit(40);
+
+    await settle(d, { lender: 0, borrower: 40 }, true);
+
+    expect(await wallet(d.who.borrower)).toEqual({ available: 50, heldAsDeposits: 0, heldForRentals: 0 });
+    expect(await wallet(d.who.lender)).toMatchObject({ available: 5 });
+    expect(await rows(d.who.borrower)).toContainEqual(
+      expect.objectContaining({
+        id: `deposit_released_${d.rentalId}`,
+        type: "DEPOSIT_RELEASED",
+        amount: 40,
+        itemTitle: "Tent",
+      }),
+    );
+    expect(await rows(d.who.lender)).toEqual([]);
+  });
+
+  it("splits it with a row for each side, the borrower's share rounded down", async () => {
+    const d = await heldDeposit(33);
+
+    await settle(d, { lender: 17, borrower: 16 });
+
+    expect(await wallet(d.who.borrower)).toMatchObject({ available: 26, heldAsDeposits: 0 });
+    expect(await wallet(d.who.lender)).toMatchObject({ available: 22 });
+    expect(await rows(d.who.lender)).toEqual([
+      expect.objectContaining({ id: `deposit_split_${d.rentalId}`, type: "DEPOSIT_SPLIT", amount: 17 }),
+    ]);
+    expect(await rows(d.who.borrower)).toContainEqual(
+      expect.objectContaining({ id: `deposit_split_${d.rentalId}`, type: "DEPOSIT_SPLIT", amount: 16 }),
+    );
+  });
+
+  it("writes no row for a share of 0", async () => {
+    const all = await heldDeposit(40);
+    await settle(all, { lender: 40, borrower: 0 });
+    expect(await wallet(all.who.lender)).toMatchObject({ available: 45 });
+    expect(await rows(all.who.borrower)).toHaveLength(1); // only the hold row
+    expect(await wallet(all.who.borrower)).toMatchObject({ available: 10, heldAsDeposits: 0 });
+
+    const none = await heldDeposit(40);
+    await settle(none, { lender: 0, borrower: 40 });
+    expect(await rows(none.who.lender)).toEqual([]);
+    expect(await wallet(none.who.borrower)).toMatchObject({ available: 50 });
+  });
+
+  it("changes nothing the second time, even when two run together", async () => {
+    const d = await heldDeposit(40);
+
+    await Promise.all([settle(d, { lender: 10, borrower: 30 }), settle(d, { lender: 10, borrower: 30 })]);
+    await settle(d, { lender: 10, borrower: 30 });
+
+    expect(await wallet(d.who.borrower)).toMatchObject({ available: 40, heldAsDeposits: 0 });
+    expect(await wallet(d.who.lender)).toMatchObject({ available: 15 });
+    expect(await rows(d.who.lender)).toHaveLength(1);
+  });
+
+  it("moves nothing when no deposit was held", async () => {
+    const d = await heldDeposit(40, false);
+
+    await settle(d, { lender: 10, borrower: 30 });
+
+    expect(await wallet(d.who.borrower)).toMatchObject({ available: 10, heldAsDeposits: 40 });
+    expect(await rows(d.who.borrower)).toEqual([]);
+    expect(await rows(d.who.lender)).toEqual([]);
+  });
+
+  it("moves nothing when there is nothing to settle", async () => {
+    const d = await heldDeposit(40);
+
+    await settle(d, { lender: 0, borrower: 0 });
+
+    expect(await wallet(d.who.borrower)).toMatchObject({ available: 10, heldAsDeposits: 40 });
+  });
+
+  it("refuses with internal and writes nothing when the held deposits are below the amount", async () => {
+    const d = await heldDeposit(20);
+
+    await expect(settle(d, { lender: 10, borrower: 30 })).rejects.toMatchObject({ code: "internal" });
+
+    expect(await wallet(d.who.borrower)).toMatchObject({ available: 10, heldAsDeposits: 20 });
+    expect(await wallet(d.who.lender)).toMatchObject({ available: 5 });
   });
 });

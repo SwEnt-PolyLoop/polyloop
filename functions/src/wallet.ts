@@ -1,6 +1,12 @@
 // Made with Claude.
 
-import { FieldValue, Firestore, DocumentReference, Transaction } from "firebase-admin/firestore";
+import {
+  DocumentData,
+  DocumentReference,
+  FieldValue,
+  Firestore,
+  Transaction,
+} from "firebase-admin/firestore";
 import { RequestError } from "./rentalRules";
 
 /**
@@ -150,6 +156,140 @@ export function writeDepositHold(
     },
     { id: depositRowId(rentalId), type: DEPOSIT_HELD, amount: -deposit, itemTitle },
   );
+}
+
+/** The `type` of the history row of a deposit given back whole after a clean return. */
+const DEPOSIT_RELEASED = "DEPOSIT_RELEASED";
+/** The `type` of the history row of a deposit shared by a split. */
+const DEPOSIT_SPLIT = "DEPOSIT_SPLIT";
+
+/** The borrower and the lender of a rental, whose wallets a settlement moves. */
+export interface SettlementParties {
+  borrowerId: string;
+  lenderId: string;
+}
+
+/** What a settlement reads, inside the caller's transaction (see [readDepositSettlement]). */
+export interface DepositSettlement {
+  borrower: Wallet;
+  lender: Wallet;
+  /** Whether the borrower's `deposit_held_<rentalId>` row exists: a deposit was really held. */
+  held: boolean;
+  /** Whether the deposit was already released or split. */
+  settled: boolean;
+}
+
+/** How a settled deposit is shared, in whole PolyPoints. */
+export interface DepositShares {
+  lender: number;
+  borrower: number;
+}
+
+/**
+ * The amount of a rental's deposit left to settle: `deposit - lateFees`, each read as 0 when
+ * missing or not a whole number from 0 up, and never below 0. The late-fee job takes the fees from
+ * the held deposit and pays the lender itself, so they are not paid again at settlement.
+ */
+export function depositToSettle(rental: DocumentData): number {
+  return Math.max(0, amountOrZero(rental.deposit) - amountOrZero(rental.lateFees));
+}
+
+/**
+ * Read step of a deposit settlement, inside the caller's transaction before its writes: both
+ * wallets, whether the deposit was held, and whether it was already settled. Settled means the
+ * borrower's released or split row exists, or the lender's split row does, so no new field is
+ * needed and a second settlement changes nothing.
+ */
+export async function readDepositSettlement(
+  tx: Transaction,
+  db: Firestore,
+  parties: SettlementParties,
+  rentalId: string,
+): Promise<DepositSettlement> {
+  const { borrowerId, lenderId } = parties;
+  const [borrower, lender, held, released, borrowerSplit, lenderSplit] = await Promise.all([
+    readWallet(tx, db, borrowerId),
+    readWallet(tx, db, lenderId),
+    hasTransaction(tx, db, borrowerId, depositRowId(rentalId)),
+    hasTransaction(tx, db, borrowerId, releasedRowId(rentalId)),
+    hasTransaction(tx, db, borrowerId, splitRowId(rentalId)),
+    hasTransaction(tx, db, lenderId, splitRowId(rentalId)),
+  ]);
+  return { borrower, lender, held, settled: released || borrowerSplit || lenderSplit };
+}
+
+/**
+ * Write step of a deposit settlement, inside the caller's transaction after its reads: the
+ * borrower's `heldAsDeposits` goes down by the whole amount, and each share goes to its owner's
+ * `available`. A clean return ([release]) gives everything to the borrower, with a
+ * `DEPOSIT_RELEASED` row `deposit_released_<rentalId>`; a split gives each side that receives
+ * PolyPoints a `DEPOSIT_SPLIT` row `deposit_split_<rentalId>`, and none for a share of 0.
+ * Nothing moves when no deposit was held (a rental from before deposits were held), when it was
+ * already settled, or when there is nothing to settle.
+ *
+ * @param tx the transaction to write in.
+ * @param db the Firestore database.
+ * @param parties the borrower and the lender.
+ * @param rentalId the rental the deposit belongs to.
+ * @param itemTitle the title of the item, or "".
+ * @param state what [readDepositSettlement] read in the same transaction.
+ * @param shares the lender's and the borrower's shares, adding up to the amount to settle.
+ * @param release true for a clean return, when the borrower gets everything back.
+ * @throws RequestError `internal` when the borrower's `heldAsDeposits` is below the amount: the
+ *   data is broken, and nothing is written.
+ */
+export function writeDepositSettlement(
+  tx: Transaction,
+  db: Firestore,
+  parties: SettlementParties,
+  rentalId: string,
+  itemTitle: string,
+  state: DepositSettlement,
+  shares: DepositShares,
+  release = false,
+): void {
+  const amount = shares.lender + shares.borrower;
+  if (!state.held || state.settled || amount <= 0) return;
+  if (state.borrower.heldAsDeposits < amount) {
+    throw new RequestError("internal", "The borrower's held deposits do not cover the deposit.");
+  }
+  const borrowerRow =
+    shares.borrower > 0
+      ? {
+          id: release ? releasedRowId(rentalId) : splitRowId(rentalId),
+          type: release ? DEPOSIT_RELEASED : DEPOSIT_SPLIT,
+          amount: shares.borrower,
+          itemTitle,
+        }
+      : undefined;
+  writeWallet(
+    tx,
+    db,
+    parties.borrowerId,
+    {
+      ...state.borrower,
+      available: state.borrower.available + shares.borrower,
+      heldAsDeposits: state.borrower.heldAsDeposits - amount,
+    },
+    borrowerRow,
+  );
+  if (shares.lender > 0) {
+    writeWallet(
+      tx,
+      db,
+      parties.lenderId,
+      { ...state.lender, available: state.lender.available + shares.lender },
+      { id: splitRowId(rentalId), type: DEPOSIT_SPLIT, amount: shares.lender, itemTitle },
+    );
+  }
+}
+
+function releasedRowId(rentalId: string): string {
+  return `deposit_released_${rentalId}`;
+}
+
+function splitRowId(rentalId: string): string {
+  return `deposit_split_${rentalId}`;
 }
 
 function walletRef(db: Firestore, uid: string): DocumentReference {
