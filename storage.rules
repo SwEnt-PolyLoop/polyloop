@@ -87,11 +87,20 @@ service firebase.storage {
           && request.resource.contentType.matches('image/.*');
 
       // The uploader's own slot of a phase the rental's status takes photos in: PICKUP while it is
-      // Accepted, RETURN while it is Active or Overdue.
+      // Accepted, RETURN while it is Active or Overdue. A pickup photo taken offline may be sent
+      // after the pickup scan (pickedUpAt), by the upload queue (#511): its slot stays open for a
+      // day after the scan. Storage cannot see when the photo was taken; the Firestore rules check
+      // it on the photo's document.
       function isOwnSlotForTheStatus(rentalId, photo) {
-        let status = firestore.get(rentalDoc(rentalId)).data.status;
-        return (isOwnSlot(photo, 'PICKUP') && status == 'ACCEPTED')
-            || (isOwnSlot(photo, 'RETURN') && status in ['ACTIVE', 'OVERDUE']);
+        let rental = firestore.get(rentalDoc(rentalId)).data;
+        return (isOwnSlot(photo, 'PICKUP')
+                && (rental.status == 'ACCEPTED' || isJustPickedUp(rental)))
+            || (isOwnSlot(photo, 'RETURN') && rental.status in ['ACTIVE', 'OVERDUE']);
+      }
+
+      function isJustPickedUp(rental) {
+        return 'pickedUpAt' in rental
+            && request.time < rental.pickedUpAt + duration.value(1, 'd');
       }
 
       function isOwnSlot(photo, phase) {

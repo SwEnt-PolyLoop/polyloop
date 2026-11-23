@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.storage.StorageException
 import com.google.firebase.storage.StorageReference
@@ -272,13 +273,21 @@ class StorageRulesTest {
   private fun pickupPhoto(rentalId: String, name: String = slotName(ownerUid, 0)) =
       Firebase.storage.reference.child("rentals/$rentalId/photos/$name")
 
-  /** A rental between the owner and [borrowerUid], written as an admin. Returns its id. */
-  private fun seedRental(borrowerUid: String, status: String = "ACCEPTED") =
+  /**
+   * A rental between the owner and [borrowerUid], written as an admin, picked up at [pickedUpAt] if
+   * given. Returns its id.
+   */
+  private fun seedRental(
+      borrowerUid: String,
+      status: String = "ACCEPTED",
+      pickedUpAt: Timestamp? = null,
+  ) =
       "rental-${UUID.randomUUID()}"
           .also {
+            val rental = mapOf("participants" to listOf(ownerUid, borrowerUid), "status" to status)
             FirebaseEmulator.createDocumentAsAdmin(
                 "rentals/$it",
-                mapOf("participants" to listOf(ownerUid, borrowerUid), "status" to status),
+                if (pickedUpAt == null) rental else rental + ("pickedUpAt" to pickedUpAt),
             )
           }
 
@@ -362,6 +371,16 @@ class StorageRulesTest {
         assertDenied { pickupPhoto(returned, returnSlot).putBytes(bytes, jpeg).await() }
         // A pickup slot is not taken once the item is out.
         assertDenied { pickupPhoto(active).putBytes(bytes, jpeg).await() }
+      }
+
+  @Test
+  fun aPickupPhotoTakenOfflineIsStillUploadedUpToADayAfterTheScan() =
+      runBlocking<Unit> {
+        fun hoursAgo(hours: Long) = Timestamp(Timestamp.now().seconds - hours * 3600, 0)
+        val justPickedUp = seedRental("someone-else", "ACTIVE", pickedUpAt = hoursAgo(1))
+        pickupPhoto(justPickedUp).putBytes(bytes, jpeg).await()
+        val pickedUpLongAgo = seedRental("someone-else", "ACTIVE", pickedUpAt = hoursAgo(25))
+        assertDenied { pickupPhoto(pickedUpLongAgo).putBytes(bytes, jpeg).await() }
       }
 
   @Test
