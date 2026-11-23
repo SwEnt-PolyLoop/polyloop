@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -68,6 +69,7 @@ class WalletViewModelTest {
     assertNull(state.history)
     assertNull(state.errorMsg)
     assertFalse(state.isOffline)
+    assertFalse(state.isUnreachable)
     assertEquals(RechargeStatus.IDLE, state.rechargeStatus)
     assertNull(state.rechargeAmount)
     assertNull(state.rechargeNewBalance)
@@ -558,6 +560,165 @@ class WalletViewModelTest {
     assertEquals(RechargeStatus.DONE, state.rechargeStatus)
     assertEquals(60, state.rechargeNewBalance)
     assertNull(state.wallet)
+  }
+
+  // ---------- unreachable: online, but the server never confirms ----------
+
+  private val unreachableAfterMs = 10_000L
+
+  @Test
+  fun beforeTheTimeoutAnUnconfirmedWalletIsStillLoadingAndNotUnreachable() = runTest {
+    val (viewModel, _) = controlledViewModel()
+
+    advanceTimeBy(unreachableAfterMs - 1)
+    runCurrent()
+
+    val state = viewModel.uiState.value
+    assertTrue(state.isLoading)
+    assertFalse(state.isUnreachable)
+  }
+
+  @Test
+  fun afterTheTimeoutAnUnconfirmedWalletIsUnreachableButNotOffline() = runTest {
+    val (viewModel, _) = controlledViewModel()
+
+    advanceTimeBy(unreachableAfterMs)
+    runCurrent()
+
+    val state = viewModel.uiState.value
+    assertTrue(state.isUnreachable)
+    assertFalse(state.isOffline)
+    assertNull(state.wallet)
+    assertNull(state.history)
+    assertNull(state.errorMsg)
+  }
+
+  @Test
+  fun aSnapshotAfterTheTimeoutShowsTheRealValuesAndLeavesTheUnreachableState() = runTest {
+    val (viewModel, controlled) = controlledViewModel()
+    advanceTimeBy(unreachableAfterMs)
+    runCurrent()
+
+    controlled.walletFlow.emit(Wallet(available = 70))
+    controlled.historyFlow.emit(listOf(tx("tx-1", noon)))
+
+    val state = viewModel.uiState.value
+    assertFalse(state.isUnreachable)
+    assertFalse(state.isLoading)
+    assertEquals(Wallet(available = 70), state.wallet)
+    assertEquals(listOf(tx("tx-1", noon)), state.history)
+  }
+
+  @Test
+  fun anUnknownHistoryNextToAKnownWalletIsUnreachableAndTheWalletIsKept() = runTest {
+    val (viewModel, controlled) = controlledViewModel()
+    controlled.walletFlow.emit(Wallet(available = 70))
+
+    advanceTimeBy(unreachableAfterMs)
+    runCurrent()
+
+    val state = viewModel.uiState.value
+    assertTrue(state.isUnreachable)
+    assertEquals(Wallet(available = 70), state.wallet)
+    assertNull(state.history)
+  }
+
+  @Test
+  fun theTimeoutNeverReplacesAWalletAndHistoryThatAreAlreadyKnown() = runTest {
+    val (viewModel, controlled) = controlledViewModel()
+    controlled.walletFlow.emit(Wallet(available = 70))
+    controlled.historyFlow.emit(emptyList())
+
+    advanceTimeBy(unreachableAfterMs * 2)
+    runCurrent()
+
+    val state = viewModel.uiState.value
+    assertFalse(state.isUnreachable)
+    assertEquals(Wallet(available = 70), state.wallet)
+    assertEquals(emptyList<WalletTransaction>(), state.history)
+  }
+
+  @Test
+  fun anErrorIsNotTurnedIntoUnreachableByTheTimeout() = runTest {
+    wallets.failure = IllegalStateException("unreadable")
+    val viewModel = viewModel()
+
+    advanceTimeBy(unreachableAfterMs * 2)
+    runCurrent()
+
+    val state = viewModel.uiState.value
+    assertFalse(state.isUnreachable)
+    assertEquals("", state.errorMsg)
+  }
+
+  @Test
+  fun retryRestartsTheTimeout() = runTest {
+    val (viewModel, _) = controlledViewModel()
+    advanceTimeBy(unreachableAfterMs - 1000)
+
+    viewModel.retry()
+    advanceTimeBy(unreachableAfterMs - 1)
+    runCurrent()
+
+    assertFalse(viewModel.uiState.value.isUnreachable)
+
+    advanceTimeBy(1)
+    runCurrent()
+
+    assertTrue(viewModel.uiState.value.isUnreachable)
+  }
+
+  @Test
+  fun retryLeavesTheUnreachableStateUntilTheNextTimeout() = runTest {
+    val (viewModel, _) = controlledViewModel()
+    advanceTimeBy(unreachableAfterMs)
+    runCurrent()
+
+    viewModel.retry()
+
+    assertFalse(viewModel.uiState.value.isUnreachable)
+    assertTrue(viewModel.uiState.value.isLoading)
+  }
+
+  @Test
+  fun rechargeWhileUnreachableSendsNothingAndEndsInAnError() = runTest {
+    val (viewModel, _) = controlledViewModel()
+    advanceTimeBy(unreachableAfterMs)
+    runCurrent()
+
+    viewModel.recharge(30)
+
+    val state = viewModel.uiState.value
+    assertEquals(RechargeStatus.ERROR, state.rechargeStatus)
+    assertEquals(30, state.rechargeAmount)
+    assertTrue(wallets.recharges.isEmpty())
+  }
+
+  @Test
+  fun rechargeWorksAgainOnceTheServerAnswersAfterBeingUnreachable() = runTest {
+    val (viewModel, controlled) = controlledViewModel()
+    advanceTimeBy(unreachableAfterMs)
+    runCurrent()
+    controlled.walletFlow.emit(Wallet(available = 70))
+    controlled.historyFlow.emit(emptyList())
+
+    viewModel.recharge(30)
+
+    assertEquals(RechargeStatus.DONE, viewModel.uiState.value.rechargeStatus)
+  }
+
+  @Test
+  fun offlineWithAnUnconfirmedWalletStaysOfflineAndAKnownWalletIsKept() = runTest {
+    connectivity.setOnline(false)
+    val (viewModel, controlled) = controlledViewModel()
+    controlled.walletFlow.emit(Wallet(available = 70))
+
+    advanceTimeBy(unreachableAfterMs)
+    runCurrent()
+
+    val state = viewModel.uiState.value
+    assertTrue(state.isOffline)
+    assertEquals(Wallet(available = 70), state.wallet)
   }
 
   private class OtherViewModel : ViewModel()
