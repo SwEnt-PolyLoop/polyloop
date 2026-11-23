@@ -77,8 +77,9 @@ import java.util.Locale
  * The Rental detail screen, showing the rental loaded by [viewModel]. [onChatClick] opens the
  * rental's chat, [onPersonClick] the other person's profile, [onStartPickupClick] the pickup
  * (Handover) of an accepted rental, [onStartReturnClick] the return (Handover) of an active one,
- * [onViewDisputeClick] the dispute of a disputed one and [onReviewRequestClick] Review request, for
- * the lender of a request with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel].
+ * [onViewDisputeClick] the dispute of a disputed one, [onCheckItemClick] Listing detail for the
+ * listing of a returned one, and [onReviewRequestClick] Review request, for the lender of a request
+ * with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel].
  * The app's top bar is drawn by the navigation scaffold, not here.
  */
 @Composable
@@ -89,6 +90,7 @@ fun RentalDetailScreen(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
+    onCheckItemClick: (listingId: String) -> Unit,
     onReviewRequestClick: () -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -105,6 +107,7 @@ fun RentalDetailScreen(
       onStartPickupClick = onStartPickupClick,
       onStartReturnClick = onStartReturnClick,
       onViewDisputeClick = onViewDisputeClick,
+      onCheckItemClick = onCheckItemClick,
       onCancelClick = viewModel::cancel,
       onReviewRequestClick = onReviewRequestClick,
   )
@@ -117,9 +120,9 @@ fun RentalDetailScreen(
  * ([onStartPickupClick]) pinned at the bottom, an Active one "Start Return" ([onStartReturnClick])
  * and a Disputed one "View Dispute" ([onViewDisputeClick]); a request with no offer has "Review
  * request" ([onReviewRequestClick]) for its lender. A Returned rental has its stage strip, status,
- * details and the person card, with no meeting point or cancel row. A Cancelled rental has only its
- * status, its details and the person card: no stage strip, meeting point, cancel row or bottom
- * button. A Requested or Accepted rental has a cancel row (see [CancelRow]) whose button opens a
+ * details, the person card and "Check the item" ([onCheckItemClick], with its listing's id), with
+ * no meeting point or cancel row. A Cancelled rental has only its status, its details and the
+ * person card: no stage strip, meeting point, cancel row or bottom button. A Requested or Accepted rental has a cancel row (see [CancelRow]) whose button opens a
  * confirm sheet; "Yes" there calls [onCancelClick]. [today] and [zone] decide how dates are written
  * (e.g. whether the year is shown, and the day of a cancel or return date); tests pass fixed values
  * so their expected texts do not depend on the day they run. [today] is the phone's date, so it is
@@ -138,6 +141,7 @@ fun RentalDetailContent(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
+    onCheckItemClick: (listingId: String) -> Unit,
     onCancelClick: () -> Unit,
     modifier: Modifier = Modifier,
     onReviewRequestClick: () -> Unit = {},
@@ -269,6 +273,7 @@ fun RentalDetailContent(
             onStartPickupClick = onStartPickupClick,
             onStartReturnClick = onStartReturnClick,
             onViewDisputeClick = onViewDisputeClick,
+            onCheckItemClick = onCheckItemClick,
             onReviewRequestClick = onReviewRequestClick,
         )
         if (isCancelSheetOpen && uiState.canCancel) {
@@ -287,8 +292,9 @@ fun RentalDetailContent(
 
 /**
  * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "Start
- * Return" once active, "View Dispute" once disputed, and, for the lender of a request with no
- * offer, "Review request"; nothing otherwise for a request. Start Pickup opens on the pickup day
+ * Return" once active, "Check the item" once returned ([onCheckItemClick], with the listing's id;
+ * not shown when it is blank), "View Dispute" once disputed, and, for the lender of a request with
+ * no offer, "Review request"; nothing otherwise for a request. Start Pickup opens on the pickup day
  * and Start Return on the return day, both by the server's date (see [ServerDayButton]); before
  * that day, the day it opens is written in [locale].
  */
@@ -300,6 +306,7 @@ private fun ActionBar(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
+    onCheckItemClick: (listingId: String) -> Unit,
     onReviewRequestClick: () -> Unit,
 ) {
   val start = uiState.startDate
@@ -349,6 +356,20 @@ private fun ActionBar(
               enabled = true,
               onClick = onViewDisputeClick,
           )
+        }
+    RentalStatus.RETURNED ->
+        // Listing detail tells the owner apart by itself (its isOwnListing), so no role is passed:
+        // the borrower gets "Request dates" there and the lender, on their own listing, does not.
+        // Never disabled, offline included, as Listing detail shows its own offline state. The
+        // lender's real check of the item ("Item is fine" / "Flag damage") comes later.
+        if (uiState.listingId.isNotBlank()) {
+          ActionBarSurface {
+            ActionButton(
+                text = stringResource(R.string.rental_detail_check_item),
+                enabled = true,
+                onClick = { onCheckItemClick(uiState.listingId) },
+            )
+          }
         }
     RentalStatus.REQUESTED ->
         if (uiState.canReviewRequest) {
@@ -1163,6 +1184,7 @@ private fun RentalDetailContentPreview() {
           onStartPickupClick = {},
           onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCheckItemClick = {},
           onCancelClick = {},
           today = LocalDate.of(2026, 9, 28),
       )
@@ -1194,6 +1216,7 @@ private fun RentalDetailDisputedPreview() {
           onStartPickupClick = {},
           onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCheckItemClick = {},
           onCancelClick = {},
           today = LocalDate.of(2026, 10, 12),
       )
@@ -1210,6 +1233,7 @@ private fun RentalDetailReturnedPreview() {
       RentalDetailContent(
           uiState =
               RentalDetailUiState(
+                  listingId = "helmet",
                   itemTitle = "Ski helmet, size M",
                   status = RentalStatus.RETURNED,
                   startDate = LocalDate.of(2026, 10, 1),
@@ -1227,6 +1251,7 @@ private fun RentalDetailReturnedPreview() {
           onStartPickupClick = {},
           onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCheckItemClick = {},
           onCancelClick = {},
           today = LocalDate.of(2026, 10, 9),
       )

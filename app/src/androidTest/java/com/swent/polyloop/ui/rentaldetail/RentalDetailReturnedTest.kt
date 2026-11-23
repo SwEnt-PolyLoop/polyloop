@@ -55,18 +55,23 @@ class RentalDetailReturnedTest {
       )
 
   private var chatClicks = 0
+  private val checkItemClicks = mutableListOf<String>()
+  // Every callback but Chat and "Check the item", which must not be called by the bottom button.
+  private val otherClicks = mutableListOf<String>()
 
   private fun setContent(state: RentalDetailUiState = returned) {
     composeTestRule.setContent {
       RentalDetailContent(
           uiState = state,
-          onRetry = {},
+          onRetry = { otherClicks += "retry" },
           onChatClick = { chatClicks++ },
-          onPersonClick = {},
-          onStartPickupClick = {},
-          onStartReturnClick = {},
-          onViewDisputeClick = {},
-          onCancelClick = {},
+          onPersonClick = { otherClicks += "person" },
+          onStartPickupClick = { otherClicks += "startPickup" },
+          onStartReturnClick = { otherClicks += "startReturn" },
+          onViewDisputeClick = { otherClicks += "viewDispute" },
+          onCheckItemClick = { checkItemClicks += it },
+          onCancelClick = { otherClicks += "cancel" },
+          onReviewRequestClick = { otherClicks += "reviewRequest" },
           today = LocalDate.of(2026, 10, 9),
           zone = ZoneId.of("Europe/Zurich"),
           // English is fixed so the expected dates pass on an emulator in any language.
@@ -197,8 +202,38 @@ class RentalDetailReturnedTest {
   }
 
   @Test
-  fun thereIsNoBottomButtonYet() {
-    setContent()
+  fun checkTheItemIsEnabledForTheBorrowerAndOpensTheListing() {
+    assertCheckTheItemOpensTheListing(returned)
+  }
+
+  @Test
+  fun checkTheItemIsEnabledForTheLenderAndOpensTheListing() {
+    assertCheckTheItemOpensTheListing(returned.copy(isLender = true))
+  }
+
+  @Test
+  fun checkTheItemStaysEnabledOffline() {
+    assertCheckTheItemOpensTheListing(returned.copy(isOffline = true))
+  }
+
+  private fun assertCheckTheItemOpensTheListing(state: RentalDetailUiState) {
+    setContent(state)
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_action_button)
+        .assertIsDisplayed()
+        .assertIsEnabled()
+        .assertTextEquals(context.getString(R.string.rental_detail_check_item))
+        .performClick()
+
+    assertEquals(listOf("l1"), checkItemClicks)
+    assertEquals(emptyList<String>(), otherClicks)
+    assertEquals(0, chatClicks)
+  }
+
+  @Test
+  fun thereIsNoCheckTheItemWithoutAListingId() {
+    setContent(returned.copy(listingId = ""))
 
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).assertDoesNotExist()
   }

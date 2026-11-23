@@ -53,6 +53,7 @@ class RentalDetailOfferTest {
           onStartPickupClick = {},
           onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCheckItemClick = {},
           onCancelClick = {},
           today = LocalDate.of(2026, 10, 1),
           zone = ZoneOffset.UTC,

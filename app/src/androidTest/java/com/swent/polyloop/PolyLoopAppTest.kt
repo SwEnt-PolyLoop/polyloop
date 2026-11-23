@@ -331,6 +331,7 @@ class PolyLoopAppTest {
           Screen.ChatList -> C.Tag.chat_list_screen
           Screen.Chat -> C.Tag.chat_screen
           Screen.RentalDetail -> C.Tag.rental_detail_screen
+          Screen.ListingDetail -> C.Tag.listing_detail_screen
           Screen.Handover -> C.Tag.handover_screen
           Screen.Dispute -> C.Tag.dispute_screen
           Screen.ReviewRequest -> C.Tag.review_request_screen
@@ -806,16 +807,20 @@ class PolyLoopAppTest {
   }
 
   /**
-   * Opens Rental detail on [shown], signed in as its borrower, and taps its action button. The
-   * server's time is [serverNow], or the fake's default when null.
+   * Opens Rental detail on [shown], signed in as [signedIn] (its borrower by default), and taps its
+   * action button. The server's time is [serverNow], or the fake's default when null.
    */
-  private fun tapActionButtonOnRentalDetail(shown: Rental, serverNow: Instant? = null) {
+  private fun tapActionButtonOnRentalDetail(
+      shown: Rental,
+      serverNow: Instant? = null,
+      signedIn: AuthUser = AuthUser("uid", "john@epfl.ch", "John Doe"),
+  ) {
     useRentals(
         FakeRentalRepository(rentals = listOf(shown)).also { fake ->
           serverNow?.let { fake.serverNow = it }
         }
     )
-    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    currentUser = signedIn
     setApp()
     composeTestRule.runOnUiThread {
       NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(shown.id))
@@ -1014,6 +1019,72 @@ class PolyLoopAppTest {
     doubleTap(C.Tag.rental_detail_action_button)
 
     assertEquals(1, handoversOnTheBackStack())
+  }
+
+  private val returnedRental = rental.copy(status = RentalStatus.RETURNED)
+
+  /** Asserts that Listing detail is on screen, opened on [listingId]. */
+  private fun assertListingDetailOpenedOn(listingId: String) {
+    assertCurrentScreen(Screen.ListingDetail)
+    assertEquals(
+        listingId,
+        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_LISTING_ID),
+    )
+  }
+
+  @Test
+  fun checkTheItemOnAReturnedRentalOpensTheListingWithRequestDatesForTheBorrower() {
+    tapActionButtonOnRentalDetail(returnedRental)
+
+    assertListingDetailOpenedOn(returnedRental.listingId)
+    waitForTag(C.Tag.listing_detail_request_button)
+  }
+
+  @Test
+  fun checkTheItemOnAReturnedRentalOpensTheLendersOwnListingWithoutRequestDates() {
+    tapActionButtonOnRentalDetail(
+        returnedRental,
+        signedIn = AuthUser(listing.ownerId, "owner@epfl.ch", "Owner"),
+    )
+
+    assertListingDetailOpenedOn(returnedRental.listingId)
+    // Once the listing is shown, Listing detail has decided whether it is the user's own.
+    waitForTag(C.Tag.listing_detail_title)
+    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).assertDoesNotExist()
+  }
+
+  @Test
+  fun backFromTheListingOpenedByCheckTheItemReturnsToRentalDetail() {
+    tapActionButtonOnRentalDetail(returnedRental)
+    assertListingDetailOpenedOn(returnedRental.listingId)
+
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+
+    assertCurrentScreen(
+        Screen.RentalDetail,
+        shownRoute = Screen.RentalDetail.createRoute(returnedRental.id),
+    )
+  }
+
+  @Test
+  fun aDoubleTapOnCheckTheItemOpensOneListingDetail() {
+    useRentals(FakeRentalRepository(rentals = listOf(returnedRental)))
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+
+    doubleTap(C.Tag.rental_detail_action_button)
+
+    assertEquals(
+        1,
+        composeTestRule.runOnIdle {
+          navController.currentBackStack.value.count {
+            it.destination.route == Screen.ListingDetail.route
+          }
+        },
+    )
   }
 
   @Test

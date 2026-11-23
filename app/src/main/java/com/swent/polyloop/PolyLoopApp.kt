@@ -337,6 +337,12 @@ private fun PolyLoopScaffold(
               }
             },
             onViewDisputeClick = { navController.navigate(Screen.Dispute.createRoute(rentalId)) },
+            // Single top: a fast double tap opens the listing once. Back returns here.
+            onCheckItemClick = { listingId ->
+              navController.navigate(Screen.ListingDetail.createRoute(listingId)) {
+                launchSingleTop = true
+              }
+            },
             onReviewRequestClick = {
               navController.navigate(Screen.ReviewRequest.createRoute(rentalId)) {
                 launchSingleTop = true

@@ -62,6 +62,7 @@ class RentalDetailCancelledTest {
           onStartPickupClick = {},
           onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCheckItemClick = {},
           onCancelClick = {},
           today = LocalDate.of(2026, 10, 2),
           zone = ZoneId.of("Europe/Zurich"),
