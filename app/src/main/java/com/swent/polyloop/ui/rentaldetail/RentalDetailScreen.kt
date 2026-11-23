@@ -1224,38 +1224,3 @@ private fun RentalDetailDisputedPreview() {
     }
   }
 }
-
-@Preview(showBackground = true)
-@Composable
-private fun RentalDetailReturnedPreview() {
-  PolyLoopTheme {
-    Column {
-      PolyLoopTopBar(onMenuClick = {}, onProfileClick = {})
-      RentalDetailContent(
-          uiState =
-              RentalDetailUiState(
-                  listingId = "helmet",
-                  itemTitle = "Ski helmet, size M",
-                  status = RentalStatus.RETURNED,
-                  startDate = LocalDate.of(2026, 10, 1),
-                  endDate = LocalDate.of(2026, 10, 8),
-                  rentalPrice = 120,
-                  deposit = 60,
-                  lateFees = 17,
-                  returnedAt = Instant.parse("2026-10-08T15:00:00Z"),
-                  otherPerson =
-                      OtherPerson(uid = "lea", name = "Léa", averageRating = 4.6, reviewCount = 5),
-              ),
-          onRetry = {},
-          onChatClick = {},
-          onPersonClick = {},
-          onStartPickupClick = {},
-          onStartReturnClick = {},
-          onViewDisputeClick = {},
-          onCheckItemClick = {},
-          onCancelClick = {},
-          today = LocalDate.of(2026, 10, 9),
-      )
-    }
-  }
-}
