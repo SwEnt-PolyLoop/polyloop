@@ -93,6 +93,16 @@ export function bookedRanges(value: unknown): DateRange[] {
 }
 
 /**
+ * A listing's `bookedRanges` once [range] is booked too: its valid ranges and [range], sorted by
+ * first day. Booked ranges never overlap, so the last one also ends last; the Security Rules, which
+ * cannot loop over a list, read only that one to lock the listing (docs/ARCHITECTURE.md, "Security
+ * rules"). Malformed entries, ignored everywhere, are left out.
+ */
+export function withBooking(stored: unknown, range: DateRange): DateRange[] {
+  return [...bookedRanges(stored), range].sort((a, b) => dayNumber(a.start) - dayNumber(b.start));
+}
+
+/**
  * Reads a stored date range (`{start, end}`, as in `bookedRanges`), or returns null if it is not
  * one. A range whose end is before its start is refused too.
  */

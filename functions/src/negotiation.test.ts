@@ -230,6 +230,17 @@ describe("respondToOffer: accepting", () => {
     expect(listingData?.bookedRanges).toEqual([{ start: "2026-12-01", end: "2026-12-03" }]);
   });
 
+  it("keeps the booked ranges sorted by first day when an earlier one is accepted", async () => {
+    const later = { start: "2027-01-10", end: "2027-01-12" };
+    const listingId = await listing([later]);
+    const id = await offered(listingId);
+
+    await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, NOW);
+
+    const listingData = (await db.collection("listings").doc(listingId).get()).data();
+    expect(listingData?.bookedRanges).toEqual([{ start: "2026-12-01", end: "2026-12-03" }, later]);
+  });
+
   it("holds the deposit in the borrower's wallet, with one history row", async () => {
     const id = await offered(await listing());
     const borrower = await borrowerOf(id);

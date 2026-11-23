@@ -16,6 +16,7 @@ import {
   readRange,
   requirePerson,
   requireVerifiedEpfl,
+  withBooking,
 } from "./rentalRules";
 
 /** Runs [fn] and returns the RequestError code it throws, or "other" for any other error. */
@@ -83,6 +84,34 @@ describe("readRange", () => {
     expect(readRange({ start: "2026-11-12", end: "2026-11-10" })).toBeNull();
     expect(readRange({ start: "2026-11-10" })).toBeNull();
     expect(readRange("2026-11-10")).toBeNull();
+  });
+});
+
+describe("withBooking", () => {
+  const december = { start: "2026-12-01", end: "2026-12-03" };
+  const january = { start: "2027-01-10", end: "2027-01-12" };
+
+  it("adds the first booking of a listing with none, or with no list at all", () => {
+    expect(withBooking([], december)).toEqual([december]);
+    expect(withBooking(undefined, december)).toEqual([december]);
+  });
+
+  it("puts a booking that starts earlier before the later ones, so the last one ends last", () => {
+    const november = { start: "2026-11-20", end: "2026-11-22" };
+
+    expect(withBooking([december, january], november)).toEqual([november, december, january]);
+    expect(withBooking([november, january], december)).toEqual([november, december, january]);
+    expect(withBooking([november, december], january)).toEqual([november, december, january]);
+  });
+
+  it("sorts a list stored out of order, and leaves out malformed entries", () => {
+    const november = { start: "2026-11-20", end: "2026-11-22" };
+
+    expect(withBooking([january, "malformed", november], december)).toEqual([
+      november,
+      december,
+      january,
+    ]);
   });
 });
 
