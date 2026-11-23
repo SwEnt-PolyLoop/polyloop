@@ -15,6 +15,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -139,17 +140,14 @@ class HandoverReturnConfirmTest {
   }
 
   @Test
-  fun bothButtonsSayTheyAreNotAvailableYet() {
+  fun onlyItemIsFineSaysItIsNotAvailableYet() {
     setContent(check)
 
     composeTestRule
         .onNodeWithTag(C.Tag.handover_item_fine_not_available)
         .performScrollTo()
         .assertTextEquals("Not available yet")
-    composeTestRule
-        .onNodeWithTag(C.Tag.handover_flag_damage_not_available)
-        .performScrollTo()
-        .assertTextEquals("Not available yet")
+    composeTestRule.onAllNodesWithText("Not available yet").assertCountEquals(1)
   }
 
   @Test
