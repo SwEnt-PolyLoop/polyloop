@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.model.dispute
 
+import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
@@ -14,18 +15,19 @@ import kotlinx.coroutines.flow.map
  * `main` so that unit tests, Compose tests and `@Preview`s can all share it.
  *
  * Holds the disputes in memory and plays the part of the Cloud Functions: accepting settles the
- * dispute, and escalating moves it on from direct settlement to the LLM proposal. Each call acts as
- * the user [currentUid] gives at that moment (tests usually read it from a `FakeAuthRepository`),
- * and fails when it gives null. Like the Functions, a call made once a dispute's
- * [Dispute.escalatesAt] has passed moves it on as if by itself, then fails with
- * [StageChangedException]. Like `acceptSplit`, accepting checks that the split is still the one on
- * the table before checking its author, so a split the user replaced meanwhile, even with their
- * own, fails with [ProposalChangedException]. Unlike the Functions, it does not check that the user
- * is one of the rental's participants, nor the cap on the number of proposals. When [failure] is
- * set, every call fails with it; an observer throws it when it subscribes or at the next change.
- * When [gate] is set, the suspending calls wait for it to complete, so tests can see a request in
- * progress. [clock] gives the current time, and the time of new proposals, agreements and
- * escalations.
+ * dispute, escalating moves it on from direct settlement to the LLM proposal, and opening one
+ * starts it in direct settlement. Each call acts as the user [currentUid] gives at that moment
+ * (tests usually read it from a `FakeAuthRepository`), and fails when it gives null. Like the
+ * Functions, a call made once a dispute's [Dispute.escalatesAt] has passed moves it on as if by
+ * itself, then fails with [StageChangedException]. Like `acceptSplit`, accepting checks that the
+ * split is still the one on the table before checking its author, so a split the user replaced
+ * meanwhile, even with their own, fails with [ProposalChangedException]. Unlike the Functions, it
+ * does not check that the user is one of the rental's participants, nor the cap on the number of
+ * proposals, and it opens a dispute without checking that the user is the lender or that the rental
+ * is Returned, since it does not read rentals. When [failure] is set, every call fails with it; an
+ * observer throws it when it subscribes or at the next change. When [gate] is set, the suspending
+ * calls wait for it to complete, so tests can see a request in progress. [clock] gives the current
+ * time, and the time of new proposals, agreements and escalations.
  */
 class FakeDisputeRepository(
     disputes: List<Dispute> = emptyList(),
@@ -82,6 +84,22 @@ class FakeDisputeRepository(
       }
 
   /**
+   * Opens a dispute in direct settlement, with no proposal, escalating [SETTLE_DAYS] from now.
+   * Fails if nobody is signed in or the rental has a dispute already.
+   */
+  override suspend fun openDispute(rentalId: String): Result<Unit> {
+    gate?.await()
+    failure?.let {
+      return Result.failure(it)
+    }
+    return runCatching {
+      checkNotNull(currentUid()) { "Nobody is signed in" }
+      check(stored.value[rentalId] == null) { "Rental $rentalId has a dispute already" }
+      put(Dispute(rentalId, DisputeStage.SETTLE, emptyList(), clock().plus(SETTLE_DAYS)))
+    }
+  }
+
+  /**
    * Applies [update], as the current user, to the dispute of [rentalId] while it is still in direct
    * settlement, or fails like the Cloud Functions would. Past its [Dispute.escalatesAt], the
    * dispute moves on by itself instead and the call fails with [StageChangedException].
@@ -105,5 +123,10 @@ class FakeDisputeRepository(
       }
       put(update(dispute, uid))
     }
+  }
+
+  private companion object {
+    // Direct settlement escalates by itself after 30 days without agreement.
+    val SETTLE_DAYS: Duration = Duration.ofDays(30)
   }
 }

@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -32,6 +33,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.auth.AuthError
@@ -548,6 +550,7 @@ class PolyLoopAppTest {
             clock = { Instant.parse("2026-10-01T10:00:00Z") },
         )
     useRentals(rentals)
+    seedConversation(rentals.rentals.single())
     setAppSignedIn()
     openFromMenu(Screen.MyRentals)
     waitForTag(C.Tag.my_rentals_tab_lending)
@@ -569,9 +572,9 @@ class PolyLoopAppTest {
     )
   }
 
-  @Test
-  fun sendOfferOpensTheChatAndBackSkipsTheForm() {
-    openReviewRequest()
+  /** Fills both addresses on Review request and sends the offer. */
+  private fun sendOfferOnReviewRequest() {
+    waitForTag(C.Tag.review_request_send)
     composeTestRule
         .onNodeWithTag(C.Tag.review_request_pickup)
         .performScrollTo()
@@ -580,8 +583,111 @@ class PolyLoopAppTest {
         .onNodeWithTag(C.Tag.review_request_return)
         .performScrollTo()
         .performTextReplacement("Rue de Lausanne 10")
-
     composeTestRule.onNodeWithTag(C.Tag.review_request_send).performClick()
+  }
+
+  /** Gives [request] its conversation, so that its chat loads. */
+  private fun seedConversation(request: Rental) {
+    chatRepository.conversations =
+        listOf(
+            Conversation(
+                request.id,
+                request.listingTitle,
+                request.ownerId,
+                request.ownerName,
+                request.borrowerId,
+                request.borrowerName,
+                "",
+                request.createdAt,
+                request.status,
+                request.startDate,
+                request.endDate,
+            )
+        )
+  }
+
+  /** Signs in [me] as the lender of a request with no offer, then opens [route] for it. */
+  private fun openAsLender(route: String) {
+    val request =
+        rental.copy(ownerId = me.uid, borrowerId = "user-1", status = RentalStatus.REQUESTED)
+    useRentals(
+        FakeRentalRepository(
+            rentals = listOf(request),
+            // Before the rental's first day, or the offer is refused.
+            clock = { Instant.parse("2026-10-01T10:00:00Z") },
+        )
+    )
+    seedConversation(request)
+    setAppSignedIn()
+    composeTestRule.runOnUiThread { NavigationActions(navController).navigateTo(route) }
+    composeTestRule.waitForIdle()
+  }
+
+  @Test
+  fun anOfferSentFromTheChatsBarGoesBackToThatChat() {
+    openAsLender(Screen.Chat.createRoute(rental.id))
+    val chatEntry = currentEntryId()
+    waitForTag(C.Tag.chat_review_request_button)
+    composeTestRule.onNodeWithTag(C.Tag.chat_review_request_button).performClick()
+    assertCurrentScreen(Screen.ReviewRequest)
+
+    sendOfferOnReviewRequest()
+
+    waitForTag(C.Tag.chat_screen)
+    assertCurrentScreen(Screen.Chat)
+    // The same chat, not a second copy on top of the form.
+    assertEquals(chatEntry, currentEntryId())
+  }
+
+  @Test
+  fun aDoubleTapOnTheChatsBarOpensOneForm() {
+    openAsLender(Screen.Chat.createRoute(rental.id))
+
+    doubleTap(C.Tag.chat_review_request_button)
+
+    assertCurrentScreen(Screen.ReviewRequest)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.Chat)
+  }
+
+  @Test
+  fun reviewRequestOnRentalDetailOpensTheFormThenTheChat() {
+    openAsLender(Screen.RentalDetail.createRoute(rental.id))
+    waitForTag(C.Tag.rental_detail_action_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).performClick()
+    assertCurrentScreen(Screen.ReviewRequest, Screen.ReviewRequest.createRoute(rental.id))
+
+    sendOfferOnReviewRequest()
+
+    waitForTag(C.Tag.chat_screen)
+    assertCurrentScreen(Screen.Chat)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.RentalDetail)
+  }
+
+  @Test
+  fun theChatsBarGoesBackToTheFormTheChatWasOpenedFrom() {
+    openReviewRequest()
+    val formEntry = currentEntryId()
+    // The chat link on the borrower's card.
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_chat_button).performScrollTo().performClick()
+    waitForTag(C.Tag.chat_review_request_button)
+
+    composeTestRule.onNodeWithTag(C.Tag.chat_review_request_button).performClick()
+
+    assertCurrentScreen(Screen.ReviewRequest)
+    assertEquals(formEntry, currentEntryId())
+    sendOfferOnReviewRequest()
+    waitForTag(C.Tag.chat_screen)
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+    assertCurrentScreen(Screen.MyRentals)
+  }
+
+  @Test
+  fun sendOfferOpensTheChatAndBackSkipsTheForm() {
+    openReviewRequest()
+
+    sendOfferOnReviewRequest()
 
     waitForTag(C.Tag.chat_screen)
     assertCurrentScreen(Screen.Chat)
@@ -783,12 +889,27 @@ class PolyLoopAppTest {
   }
 
   @Test
-  fun cancelRequestThenYesCancelsTheRentalAndShowsThePlaceholder() {
+  fun cancelRequestThenYesShowsTheRentalAsCancelled() {
     val rentals = openTheCancelSheetOfARequest()
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
 
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_yes).performClick()
 
-    waitForTag(C.Tag.rental_detail_unsupported)
+    // The headline's day is not checked: the fake stamps the real time as the cancel date.
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodes(
+              hasTestTag(C.Tag.rental_detail_status) and
+                  hasText(context.getString(R.string.rental_status_cancelled)),
+              useUnmergedTree = true,
+          )
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_status_body, useUnmergedTree = true)
+        .assertTextEquals(context.getString(R.string.rental_detail_cancelled_body_no_deposit))
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_unsupported).assertDoesNotExist()
     assertEquals(
         RentalStatus.CANCELLED,
         runBlocking { rentals.getRental(rental.id).getOrThrow()?.status },

@@ -77,10 +77,17 @@ class ShowCodeCardTest {
   }
 
   @Test
-  fun atReturnTheBorrowerShowsTheCodeToTheLender() {
-    setContent(ready.copy(isLender = false, phase = HandoverPhase.RETURN, otherPersonName = ""))
-    node(C.Tag.handover_code_title).assertTextEquals("Show this code to the lender")
-    node(C.Tag.handover_qr_code).assertExists()
+  fun atReturnNoCodeCardIsShownUntilTheServerMakesAReturnCode() {
+    // Even on the pickup day (a one-day rental), the borrower has no return code to show yet.
+    setContent(ready.copy(isLender = false, phase = HandoverPhase.RETURN))
+    node(C.Tag.handover_code_card).assertDoesNotExist()
+  }
+
+  @Test
+  fun noCodeCardOnceThePickupDayIsOver() {
+    // Midnight passed: the day is still shown while it is read again, but the code is not.
+    setContent(ready.copy(isDayOver = true))
+    node(C.Tag.handover_code_card).assertDoesNotExist()
   }
 
   @Test

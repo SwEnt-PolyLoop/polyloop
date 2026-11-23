@@ -288,7 +288,7 @@ class RentalDetailViewModelCancelTest {
   // ---------- cancel() ----------
 
   @Test
-  fun cancelCallsTheRepositoryOnceAndTheLiveRentalShowsThePlaceholder() {
+  fun cancelCallsTheRepositoryOnceAndTheLiveRentalShowsAsCancelled() {
     val vm = viewModel(request)
     val gate = CompletableDeferred<Unit>()
     rentals.gate = gate
@@ -304,13 +304,14 @@ class RentalDetailViewModelCancelTest {
 
     val state = vm.uiState.value
     assertEquals(RentalStatus.CANCELLED, rentals.rentals.single().status)
-    assertFalse(state.isSupported)
+    assertTrue(state.isSupported)
+    assertEquals(RentalStatus.CANCELLED, state.status)
     assertFalse(state.isCancelling)
     assertNull(state.cancelError)
   }
 
   @Test
-  fun aSuccessfulCancelShowsThePlaceholderEvenWhenTheLiveUpdatesHadStopped() {
+  fun aSuccessfulCancelShowsTheRentalAsCancelledEvenWhenTheLiveUpdatesHadStopped() {
     val vm = viewModel(request, liveFails = true)
     // The rental read once stays on screen after the live updates fail.
     assertEquals(RentalStatus.REQUESTED, vm.uiState.value.status)
@@ -319,7 +320,8 @@ class RentalDetailViewModelCancelTest {
 
     val state = vm.uiState.value
     assertEquals(RentalStatus.CANCELLED, rentals.rentals.single().status)
-    assertFalse(state.isSupported)
+    assertTrue(state.isSupported)
+    assertEquals(RentalStatus.CANCELLED, state.status)
     assertFalse(state.isCancelling)
     assertNull(state.cancelError)
     // Read once on opening, and again after the cancel, as nothing followed it any more.
@@ -337,7 +339,8 @@ class RentalDetailViewModelCancelTest {
     vm.cancel()
     watching.cancel()
 
-    assertFalse(vm.uiState.value.isSupported)
+    assertTrue(vm.uiState.value.isSupported)
+    assertEquals(RentalStatus.CANCELLED, vm.uiState.value.status)
     assertEquals(1, getRentalCalls)
     assertFalse(true in loadingSeen)
   }
@@ -350,7 +353,8 @@ class RentalDetailViewModelCancelTest {
     vm.cancel()
 
     val state = vm.uiState.value
-    assertFalse(state.isSupported)
+    assertTrue(state.isSupported)
+    assertEquals(RentalStatus.CANCELLED, state.status)
     assertNull(state.errorMsg)
   }
 
@@ -361,7 +365,8 @@ class RentalDetailViewModelCancelTest {
     vm.cancel()
 
     assertEquals(RentalStatus.CANCELLED, rentals.rentals.single().status)
-    assertFalse(vm.uiState.value.isSupported)
+    assertTrue(vm.uiState.value.isSupported)
+    assertEquals(RentalStatus.CANCELLED, vm.uiState.value.status)
   }
 
   @Test

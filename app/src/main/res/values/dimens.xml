@@ -27,4 +27,20 @@
     <dimen name="navigate_button_padding_vertical">4dp</dimen>
     <dimen name="navigate_button_icon_size">18dp</dimen>
     <dimen name="navigate_button_icon_spacing">6dp</dimen>
+    <!-- Handover: the cards of the photos and of the lender's check -->
+    <dimen name="handover_card_corner">16dp</dimen>
+    <dimen name="handover_card_padding">16dp</dimen>
+    <dimen name="handover_card_spacing">8dp</dimen>
+    <dimen name="handover_photos_card_spacing">12dp</dimen>
+    <!-- Handover: the returned item, the lender's check and the borrower's wait -->
+    <dimen name="handover_check_padding">16dp</dimen>
+    <dimen name="handover_check_spacing">16dp</dimen>
+    <dimen name="handover_check_icon_spacing">12dp</dimen>
+    <dimen name="handover_check_icon_size">40dp</dimen>
+    <dimen name="handover_check_button_spacing">8dp</dimen>
+    <dimen name="handover_check_button_padding">6dp</dimen>
+    <dimen name="handover_check_button_corner">12dp</dimen>
+    <dimen name="handover_check_button_border">1dp</dimen>
+    <dimen name="handover_check_spinner_size">24dp</dimen>
+    <dimen name="handover_check_spinner_stroke">2dp</dimen>
 </resources>

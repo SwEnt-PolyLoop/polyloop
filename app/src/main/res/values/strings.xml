@@ -325,6 +325,8 @@
     <!-- The bar under the chat header on the pickup day (Figma frame 19.16). -->
     <string name="chat_pickup_today">Pickup is today</string>
     <string name="chat_pickup_hint">Meet and take your photos.</string>
+    <string name="chat_review_request_title">New request</string>
+    <string name="chat_review_request_hint">Send a deposit offer or decline it.</string>
     <string name="chat_start_pickup">Start pickup</string>
     <!-- The deposit offer card in the chat. -->
     <string name="chat_offer_title">Deposit offer</string>
@@ -435,6 +437,17 @@
     <string name="rental_detail_return_available_on">Return will be available on %1$s</string>
     <!-- Under the disabled Start Return button when the server's date is unknown -->
     <string name="rental_detail_return_needs_connection">Connect to the internet to check the return day.</string>
+    <!-- The headline of a cancelled rental, e.g. "Cancelled 30 Sep" -->
+    <string name="rental_detail_cancelled_headline">Cancelled %1$s</string>
+    <!-- The headline of a cancelled rental whose cancel date is not known -->
+    <string name="rental_detail_cancelled_headline_no_date">Cancelled</string>
+    <string name="rental_detail_cancelled_body">Cancelled before pickup, so the rental price and the deposit are given back.</string>
+    <!-- The body of a cancelled rental that had no deposit (cancelled while requested) -->
+    <string name="rental_detail_cancelled_body_no_deposit">Cancelled before pickup, so the rental price is given back.</string>
+    <!-- The total rental price of a cancelled rental, e.g. "120 PP · returned" -->
+    <string name="rental_detail_price_returned">%1$d PP · returned</string>
+    <!-- The deposit of a cancelled rental, e.g. "60 PP · released" -->
+    <string name="rental_detail_deposit_released">%1$d PP · released</string>
 
     <!-- Dispute -->
     <string name="dispute_title">Dispute</string>
@@ -509,20 +522,30 @@
     <string name="handover_not_found">This rental no longer exists.</string>
     <string name="handover_nothing">Nothing to hand over right now.</string>
     <string name="handover_pickup_title">Pickup</string>
+    <string name="handover_return_title">Return</string>
     <string name="handover_you_lend">You lend</string>
     <string name="handover_you_borrow">You borrow</string>
-    <!-- The other person on Handover: "with Loca" for the lender, "from Mara" for the borrower -->
+    <!-- The other person on Handover, by name: at pickup "with <borrower>" for the lender and
+         "from <lender>" for the borrower; at return the lender also uses "from <borrower>" -->
     <string name="handover_with">with %1$s</string>
     <string name="handover_from">from %1$s</string>
     <string name="handover_with_the_borrower">with the borrower</string>
     <string name="handover_from_the_lender">from the lender</string>
+    <!-- At return, for the lender, when the borrower has no name -->
+    <string name="handover_from_the_borrower">from the borrower</string>
+    <!-- At return, for the borrower: "to <lender>", or "to the lender" without a name -->
+    <string name="handover_to">to %1$s</string>
+    <string name="handover_to_the_lender">to the lender</string>
     <string name="handover_photos_title">Condition photos</string>
     <!-- The number of photos each person takes, e.g. "3–20 photos" -->
     <string name="handover_photos_range">%1$d–%2$d photos</string>
     <!-- Read by screen readers for a pickup photo, e.g. "Pickup photo, 14:02" -->
     <string name="handover_photo_description">Pickup photo, %1$s</string>
+    <!-- Read by screen readers for a return photo, e.g. "Return photo, 16:31" -->
+    <string name="handover_return_photo_description">Return photo, %1$s</string>
     <string name="handover_take_photo">Take a photo</string>
     <string name="handover_photos_done">Pickup photos done</string>
+    <string name="handover_return_photos_done">Return photos done</string>
     <plurals name="handover_photos_missing">
         <item quantity="one">Take %1$d more photo</item>
         <item quantity="other">Take %1$d more photos</item>
@@ -533,8 +556,14 @@
     <string name="handover_not_pickup_day">Pickup is on %1$s</string>
     <!-- Shown on Handover instead when the server's date is unknown -->
     <string name="handover_pickup_needs_connection">Connect to the internet to check the pickup day.</string>
+    <!-- Shown on Handover before the return day, e.g. "Return is on 18 Oct" -->
+    <string name="handover_not_return_day">Return is on %1$s</string>
+    <!-- Shown on Handover instead, at return, when the server's date is unknown -->
+    <string name="handover_return_needs_connection">Connect to the internet to check the return day.</string>
     <!-- Under a pickup photo shown full screen, e.g. "Pickup · 14:02" -->
     <string name="handover_photo_label">Pickup · %1$s</string>
+    <!-- Under a return photo shown full screen, e.g. "Return · 16:31" -->
+    <string name="handover_return_photo_label">Return · %1$s</string>
     <string name="handover_close_photo">Close the photo</string>
     <string name="handover_deposit_held_lender">Deposit held</string>
     <string name="handover_deposit_held_borrower">Your deposit, held</string>
@@ -557,9 +586,47 @@
     <!-- Under the QR code while offline, e.g. "Once Mara has scanned, you're done. …" -->
     <string name="handover_code_offline_note">Once %1$s has scanned, you\'re done. This updates when you\'re back online.</string>
     <string name="handover_code_offline_note_no_name">Once they have scanned, you\'re done. This updates when you\'re back online.</string>
+    <!-- The card where the person receiving the item scans the QR code, e.g. "Scan Loca's code" -->
+    <string name="handover_scan_title">Scan %1$s\'s code</string>
+    <string name="handover_scan_title_lender">Scan the lender\'s code</string>
+    <string name="handover_scan_title_borrower">Scan the borrower\'s code</string>
+    <string name="handover_scan_hint">Scanning confirms you received the item and starts the rental.</string>
+    <string name="handover_scan_button">Scan QR code</string>
+    <string name="handover_scan_sending">Sending…</string>
+    <plurals name="handover_scan_photos_missing">
+        <item quantity="one">Take %1$d more photo first.</item>
+        <item quantity="other">Take %1$d more photos first.</item>
+    </plurals>
+    <string name="handover_scan_error">Couldn\'t prepare the scan.</string>
+    <!-- Until scans can wait in the upload queue (#467) -->
+    <string name="handover_scan_offline">Scanning offline is coming soon.</string>
+    <string name="handover_scan_wrong_code">This isn\'t the right code. Scan %1$s\'s code on their Handover screen.</string>
+    <string name="handover_scan_wrong_code_no_name">This isn\'t the right code. Scan the code on their Handover screen.</string>
+    <string name="handover_scan_not_sent">The scan couldn\'t be sent. Try again in a moment.</string>
+    <string name="handover_scan_refused">The pickup couldn\'t be confirmed. Check that you have enough PolyPoints for this rental and that today is the pickup day.</string>
+    <string name="handover_scan_unavailable">The scanner couldn\'t open. Try again in a moment.</string>
+    <string name="handover_scan_rental_changed">This rental changed and can\'t be picked up any more. Open the rental to see where it stands.</string>
     <!-- Once the borrower has scanned, e.g. "Picked up by Mara · the rental has started" -->
     <string name="handover_code_picked_up">Picked up by %1$s · the rental has started</string>
     <string name="handover_code_picked_up_no_name">Picked up · the rental has started</string>
+    <!-- The lender's check of the returned item (Figma 17b) -->
+    <string name="handover_return_scanned">Return scanned</string>
+    <string name="handover_deposit_stays_held">The deposit stays held until you decide.</string>
+    <string name="handover_before_after">Before and after</string>
+    <string name="handover_no_photos">No photos</string>
+    <string name="handover_same_condition">Is the item in the same condition?</string>
+    <string name="handover_item_fine">Item is fine</string>
+    <!-- Under "Item is fine", e.g. "Releases the full deposit to Mara" -->
+    <string name="handover_item_fine_detail">Releases the full deposit to %1$s</string>
+    <string name="handover_item_fine_detail_no_name">Releases the full deposit to the borrower</string>
+    <string name="handover_flag_damage">Flag damage</string>
+    <string name="handover_flag_damage_detail">Opens a dispute, deposit stays held</string>
+    <string name="handover_check_sending">Sending your answer</string>
+    <string name="handover_check_failed">Could not send your answer. Try again.</string>
+    <string name="handover_check_sent">Your answer was sent.</string>
+    <!-- The borrower once the return is scanned, while the lender checks the item -->
+    <string name="handover_waiting_check">The return was scanned. %1$s now checks the item against the pickup photos.</string>
+    <string name="handover_waiting_check_no_name">The return was scanned. The lender now checks the item against the pickup photos.</string>
 
     <!-- Review request: the lender's answer to a request. -->
     <string name="review_request_title">Review request</string>

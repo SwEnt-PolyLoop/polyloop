@@ -255,4 +255,20 @@ class FakeHandoverRepositoryTest {
 
     assertEquals("rounds out of 100 that did not keep the cap exactly", 0, badRounds)
   }
+
+  @Test
+  fun confirmingAReturnRecordsItsRental() = runTest {
+    val repository = FakeHandoverRepository()
+    assertTrue(repository.confirmReturnOk("r1").isSuccess)
+    assertEquals(listOf("r1"), repository.confirmedReturns)
+  }
+
+  @Test
+  fun confirmingAReturnFailsWithTheConfirmFailureOrWhenNobodyIsSignedIn() = runTest {
+    val refused = FakeHandoverRepository(confirmFailure = IOException("offline"))
+    assertTrue(refused.confirmReturnOk("r1").exceptionOrNull() is IOException)
+    val signedOut = FakeHandoverRepository(currentUid = null)
+    assertTrue(signedOut.confirmReturnOk("r1").exceptionOrNull() is IllegalStateException)
+    assertEquals(emptyList<String>(), refused.confirmedReturns + signedOut.confirmedReturns)
+  }
 }

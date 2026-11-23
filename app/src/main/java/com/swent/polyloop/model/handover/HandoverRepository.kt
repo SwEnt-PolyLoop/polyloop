@@ -18,7 +18,7 @@ interface HandoverRepository {
    * Uploads the photo file at [photoUri] as the signed-in user's photo of [rentalId] in [phase].
    * Fails with an [IllegalArgumentException] if [rentalId] is invalid, an [IllegalStateException]
    * if nobody is signed in, or the cause if it cannot be saved (e.g. offline, or the rental is not
-   * Accepted).
+   * in [phase]'s status: Accepted at pickup, Active or Overdue at return).
    */
   suspend fun addPhoto(rentalId: String, phase: HandoverPhase, photoUri: String): Result<Unit>
 
@@ -41,9 +41,18 @@ interface HandoverRepository {
    * Sends the [code] the signed-in user scanned in [phase] of [rentalId]; the server checks it and
    * moves the rental on. Succeeds if it was already done. Fails with [WrongCodeException] if the
    * code is not this rental's, with [RentalChangedException] if the rental can no longer take this
-   * scan (e.g. cancelled), or with the cause if nobody is signed in or it cannot be sent.
+   * scan (e.g. cancelled), with [ScanRefusedException] if the server refuses it for another reason
+   * that sending it again would not fix, or with the cause if nobody is signed in or it cannot be
+   * sent (e.g. the connection dropped, or no answer came within 30 seconds: a TimeoutException).
    */
   suspend fun confirmScan(rentalId: String, phase: HandoverPhase, code: String): Result<Unit>
+
+  /**
+   * Tells, as the signed-in lender, that the item of the returned rental [rentalId] came back fine:
+   * the whole deposit goes back to the borrower and the rental closes. Fails if nobody is signed
+   * in, the user is not the lender, the rental is not Returned, or it cannot be sent.
+   */
+  suspend fun confirmReturnOk(rentalId: String): Result<Unit>
 }
 
 /** Thrown when the scanned code is not the one of this rental and phase. */
@@ -51,3 +60,10 @@ class WrongCodeException : IllegalArgumentException("This is not the code of thi
 
 /** Thrown when the rental can no longer take the scan, e.g. because it was cancelled meanwhile. */
 class RentalChangedException : IllegalStateException("The rental changed")
+
+/**
+ * Thrown when the server refuses the scan for a reason it does not name, e.g. it is not the pickup
+ * day by the server's clock or the borrower cannot pay the rental price: sending it again as it is
+ * would be refused again.
+ */
+class ScanRefusedException : IllegalStateException("The server refused the scan")
