@@ -75,9 +75,9 @@ class DisputeRepositoryFirestoreTest {
   }
 
   @Test
-  fun openDisputeFailsWithoutCallingAnythingUntilItsFunctionExists() = runTest {
-    assertTrue(repository.openDispute("r1").exceptionOrNull() is UnsupportedOperationException)
-    verify(exactly = 0) { functions.getHttpsCallable(any()) }
+  fun openDisputeSendsTheRentalId() = runTest {
+    assertTrue(repository.openDispute("r1").isSuccess)
+    assertCalled("openDispute", mapOf("rentalId" to "r1"))
   }
 
   /** Makes the next call refused with [code] and [details], as an HttpsError from a Function. */
@@ -120,6 +120,13 @@ class DisputeRepositoryFirestoreTest {
       every { callable.call(any()) } returns Tasks.forException(refusal)
       assertSame(refusal, repository.propose("r1", 40).exceptionOrNull())
     }
+  }
+
+  @Test
+  fun aRentalNoLongerReturnedIsAPlainFailureOfOpenDispute() = runTest {
+    val refusal = refusedWith(mapOf("reason" to "RENTAL_CHANGED"))
+
+    assertSame(refusal, repository.openDispute("r1").exceptionOrNull())
   }
 
   // ---------- observeDispute ----------
