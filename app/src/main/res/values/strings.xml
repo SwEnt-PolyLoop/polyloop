@@ -139,6 +139,8 @@
     <string name="wallet_amount_unknown_description">Unknown</string>
     <string name="wallet_unavailable_offline">Your balance is unavailable until your phone is back online.</string>
     <string name="wallet_history_unavailable_offline">Your history is unavailable until your phone is back online.</string>
+    <string name="wallet_unavailable_unreachable">Your balance is unavailable. The server can\'t be reached right now.</string>
+    <string name="wallet_history_unavailable_unreachable">Your history is unavailable. The server can\'t be reached right now.</string>
     <string name="wallet_footer">1 CHF = 1 PolyPoint. PolyPoints can\'t be withdrawn.</string>
     <string name="wallet_error_fallback">Could not load your wallet</string>
     <string name="wallet_retry">Retry</string>
