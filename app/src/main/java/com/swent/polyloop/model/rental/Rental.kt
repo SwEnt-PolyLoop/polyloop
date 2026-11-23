@@ -16,8 +16,8 @@ import java.time.temporal.ChronoUnit
  * rentals and the chat list can show a rental without reading the listing or the profiles.
  *
  * Only Cloud Functions write [cancelledAt] and [returnedAt]. A rental cancelled or returned before
- * its field existed has none, so it is null then, and Rental detail shows "Cancelled" or
- * "Returned" with no date.
+ * its field existed has none, so it is null then, and Rental detail shows "Cancelled" or "Returned"
+ * with no date.
  */
 data class Rental(
     val id: String,

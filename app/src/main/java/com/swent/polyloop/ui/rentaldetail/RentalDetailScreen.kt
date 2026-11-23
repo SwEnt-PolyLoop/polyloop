@@ -79,8 +79,8 @@ import java.util.Locale
  * (Handover) of an accepted rental, [onStartReturnClick] the return (Handover) of an active one,
  * [onViewDisputeClick] the dispute of a disputed one, [onCheckItemClick] Listing detail for the
  * listing of a returned one, and [onReviewRequestClick] Review request, for the lender of a request
- * with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel].
- * The app's top bar is drawn by the navigation scaffold, not here.
+ * with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel]. The app's top bar is
+ * drawn by the navigation scaffold, not here.
  */
 @Composable
 fun RentalDetailScreen(
@@ -122,12 +122,13 @@ fun RentalDetailScreen(
  * request" ([onReviewRequestClick]) for its lender. A Returned rental has its stage strip, status,
  * details, the person card and "Check the item" ([onCheckItemClick], with its listing's id), with
  * no meeting point or cancel row. A Cancelled rental has only its status, its details and the
- * person card: no stage strip, meeting point, cancel row or bottom button. A Requested or Accepted rental has a cancel row (see [CancelRow]) whose button opens a
- * confirm sheet; "Yes" there calls [onCancelClick]. [today] and [zone] decide how dates are written
- * (e.g. whether the year is shown, and the day of a cancel or return date); tests pass fixed values
- * so their expected texts do not depend on the day they run. [today] is the phone's date, so it is
- * only used to write dates: Start Pickup, Start Return and the cancel window of an accepted rental
- * go by [RentalDetailUiState.serverToday] instead, and stay grey while
+ * person card: no stage strip, meeting point, cancel row or bottom button. A Requested or Accepted
+ * rental has a cancel row (see [CancelRow]) whose button opens a confirm sheet; "Yes" there calls
+ * [onCancelClick]. [today] and [zone] decide how dates are written (e.g. whether the year is shown,
+ * and the day of a cancel or return date); tests pass fixed values so their expected texts do not
+ * depend on the day they run. [today] is the phone's date, so it is only used to write dates: Start
+ * Pickup, Start Return and the cancel window of an accepted rental go by
+ * [RentalDetailUiState.serverToday] instead, and stay grey while
  * [RentalDetailUiState.isReadingServerToday]. A request has no cancel window. [locale] decides the
  * language of the month and weekday names; tests pass a fixed one so their expected dates do not
  * depend on the device's language.
@@ -676,9 +677,9 @@ private fun offerBody(offer: DepositOffer, isMine: Boolean, zone: ZoneId, locale
  * (Figma frame 13.01), the offer or the suggested deposit; a held deposit of 0 is unknown and shows
  * "—". A returned or disputed rental shows the dates without the return day, the price as paid, the
  * deposit as held and the late fees, even when they are 0 (Figma frames 13.04-returned and 13.09).
- * An active rental shows the dates, the "Return by" day, the price as paid and the deposit as
- * held, without late fees (Figma frame 13.02-active). A cancelled rental shows the dates, the price
- * as returned and the deposit as released, with no deposit row when it is 0 (Figma frame
+ * An active rental shows the dates, the "Return by" day, the price as paid and the deposit as held,
+ * without late fees (Figma frame 13.02-active). A cancelled rental shows the dates, the price as
+ * returned and the deposit as released, with no deposit row when it is 0 (Figma frame
  * 13.07-cancelled). The dates are written in [locale].
  */
 @Composable
