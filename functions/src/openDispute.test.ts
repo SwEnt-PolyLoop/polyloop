@@ -2,8 +2,13 @@
 
 import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
-import { Firestore, getFirestore } from "firebase-admin/firestore";
-import { openDispute } from "./dispute";
+import { DocumentReference, Firestore, getFirestore } from "firebase-admin/firestore";
+import {
+  escalateIfOverdue,
+  escalateOverdueDisputes,
+  openDispute,
+  proposeSplit,
+} from "./dispute";
 import { hasSeenLastMessage } from "./testing/readTimes";
 
 // The transaction is tested on the emulator; disputeCallables.test.ts checks the callable.
@@ -109,5 +114,61 @@ describe("openDispute", () => {
       expect(await dispute(id)).toBeUndefined();
       expect(await messages(id)).toEqual([]);
     }
+  });
+
+  it("succeeds without a change when the dispute is already open", async () => {
+    const id = await rentalWith("RETURNED");
+    await openDispute(db, LENDER, id, NOW);
+
+    await openDispute(db, LENDER, id, ESCALATES_AT);
+
+    expect((await dispute(id))?.escalatesAt.toDate()).toEqual(ESCALATES_AT);
+    expect(await messages(id)).toHaveLength(1);
+  });
+
+  it("opens one dispute when two calls race", async () => {
+    const id = await rentalWith("RETURNED");
+
+    await Promise.all([openDispute(db, LENDER, id, NOW), openDispute(db, LENDER, id, NOW)]);
+
+    expect((await dispute(id))?.stage).toBe("SETTLE");
+    expect(await messages(id)).toHaveLength(1);
+  });
+});
+
+describe("a dispute opened by openDispute", () => {
+  it("takes proposals, without starting the LLM proposal", async () => {
+    const id = await rentalWith("RETURNED");
+    await openDispute(db, LENDER, id, NOW);
+
+    await proposeSplit(db, LENDER, { rentalId: id, lenderPercent: 70 }, NOW);
+
+    const opened = await dispute(id);
+    expect(opened?.proposals).toMatchObject([{ authorId: LENDER, lenderPercent: 70 }]);
+    expect(opened?.llmProposal).toBeUndefined();
+  });
+
+  it("is escalated by the sweep once the 30 days are up, not before", async () => {
+    const id = await rentalWith("RETURNED");
+    await openDispute(db, LENDER, id, NOW);
+    // The other test files leave their disputes on the shared emulator: the sweep finds them too,
+    // so it records every dispute it would escalate and escalates only this one.
+    const swept: string[] = [];
+    const escalate = (ref: DocumentReference, now: Date) => {
+      swept.push(ref.id);
+      return ref.id === id ? escalateIfOverdue(ref, now) : Promise.resolve(false);
+    };
+
+    await escalateOverdueDisputes(db, new Date(ESCALATES_AT.getTime() - 1), escalate);
+    expect(swept).not.toContain(id);
+    expect((await dispute(id))?.stage).toBe("SETTLE");
+
+    await escalateOverdueDisputes(db, ESCALATES_AT, escalate);
+    expect(swept).toContain(id);
+
+    expect((await dispute(id))?.stage).toBe("LLM_PROPOSAL");
+    expect(await messages(id)).toContain(
+      "No agreement after 30 days · waiting for the LLM proposal",
+    );
   });
 });
