@@ -803,6 +803,36 @@ class FirestoreRulesTest {
       }
 
   @Test
+  fun aPhotoTakenOfflineKeepsItsTimeAndAPickupPhotoMayArriveAfterTheScan() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        // Minutes apart, so a small gap between the phone's and the emulator's clocks never
+        // matters.
+        fun minutesAgo(minutes: Long) = Timestamp(Timestamp.now().seconds - minutes * 60, 0)
+        fun takenAt(time: Timestamp) = photo(borrower.uid) + ("takenAt" to time)
+        val accepted = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
+        val pickedUp = seedRental(owner.uid, borrower.uid, status = "ACTIVE")
+        FirebaseEmulator.updateDocumentAsAdmin(pickedUp.path, mapOf("pickedUpAt" to minutesAgo(10)))
+        val afterScan = pickedUp.collection("photos")
+
+        // Taken offline an hour ago, sent now: it keeps its time.
+        accepted.document(slot(borrower.uid, 0)).set(takenAt(minutesAgo(60))).await()
+        // Dated in the future, or taken more than a day ago.
+        assertDenied {
+          accepted.document(slot(borrower.uid, 1)).set(takenAt(minutesAgo(-60))).await()
+        }
+        assertDenied {
+          accepted.document(slot(borrower.uid, 1)).set(takenAt(minutesAgo(25 * 60))).await()
+        }
+        // Taken before the scan, sent after it; one taken after the scan is refused.
+        afterScan.document(slot(borrower.uid, 0)).set(takenAt(minutesAgo(11))).await()
+        assertDenied {
+          afterScan.document(slot(borrower.uid, 1)).set(takenAt(minutesAgo(9))).await()
+        }
+      }
+
+  @Test
   fun returnPhotosAreAddedOnlyWhileTheRentalIsActiveOrOverdue() =
       runBlocking<Unit> {
         val owner = newAccount()
