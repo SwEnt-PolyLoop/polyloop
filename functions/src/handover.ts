@@ -98,7 +98,7 @@ export async function confirmPickup(
     const parties = requireParties(rental);
     const payment = (await isLenderPaid(tx, db, parties, scan.rentalId))
       ? null
-      : await readLenderPayment(tx, db, rental, parties);
+      : await readLenderPayment(tx, db, rental, parties, scan.rentalId);
     tx.delete(codeRef);
     writeWithSystemMessage(
       tx,
