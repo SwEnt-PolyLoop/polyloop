@@ -16,6 +16,7 @@ import {
   STAGE_CHANGED,
   SplitInput,
 } from "./disputeRules";
+import { RENTAL_CHANGED } from "./handover";
 import { writeWithSystemMessage } from "./negotiation";
 import { RequestError, requireParties } from "./rentalRules";
 import { SweepCounts, runSweep } from "./sweep";
@@ -26,6 +27,10 @@ const DISPUTES = "disputes";
 const RENTALS = "rentals";
 const CLOSED = "CLOSED";
 const DISPUTED = "DISPUTED";
+const RETURNED = "RETURNED";
+
+/** One day, in milliseconds. */
+const DAY_MILLIS = 24 * 60 * 60 * 1000;
 
 /**
  * The most proposals a dispute holds. A real negotiation stays far below it; it only stops a
@@ -161,6 +166,63 @@ export async function escalateDispute(
 ): Promise<void> {
   await inDirectSettlement(db, callerId, rentalId, now, (tx, open) => {
     moveToLlmProposal(tx, open.disputeRef, open.rentalRef, callerId);
+  });
+}
+
+/**
+ * Opens the dispute of [rentalId] when its lender flags damage after the return, in one
+ * transaction: `disputes/{rentalId}` is created in direct settlement, with no proposal and
+ * `escalatesAt` [SETTLE_DAYS] days after [now], and the rental becomes DISPUTED with a SYSTEM
+ * message. The deposit stays held: no wallet is written. The checks run in this order: the rental
+ * exists, the caller is its lender, then, if the dispute already exists, the call succeeds and
+ * changes nothing (whatever the rental's status by now, so an answer lost on the way is harmless);
+ * otherwise the rental must be RETURNED.
+ *
+ * @param db the Firestore database.
+ * @param callerId the participant flagging damage, who must be the rental's lender.
+ * @param rentalId the rental whose item came back damaged.
+ * @param now the current time, from which `escalatesAt` is counted; passed so tests can set it.
+ * @throws RequestError `not-found`; `permission-denied` (not the lender); `failed-precondition`
+ *   with the reason `RENTAL_CHANGED` (no longer RETURNED, e.g. the lender's "Item is fine" won).
+ *   Nothing is written then.
+ */
+export async function openDispute(
+  db: Firestore,
+  callerId: string,
+  rentalId: string,
+  now: Date = new Date(),
+): Promise<void> {
+  const disputeRef = db.collection(DISPUTES).doc(rentalId);
+  const rentalRef = db.collection(RENTALS).doc(rentalId);
+  await db.runTransaction(async (tx) => {
+    const [disputeSnap, rentalSnap] = await Promise.all([tx.get(disputeRef), tx.get(rentalRef)]);
+    const rental = rentalSnap.data();
+    if (!rental) {
+      throw new RequestError("not-found", "This rental does not exist.");
+    }
+    if (callerId !== rental.ownerId) {
+      throw new RequestError("permission-denied", "Only the lender flags damage.");
+    }
+    if (disputeSnap.exists) return;
+    if (rental.status !== RETURNED) {
+      throw new RequestError("failed-precondition", "This rental is no longer returned.", {
+        reason: RENTAL_CHANGED,
+      });
+    }
+    tx.create(disputeRef, {
+      stage: SETTLE,
+      proposals: [],
+      escalatesAt: Timestamp.fromMillis(now.getTime() + SETTLE_DAYS * DAY_MILLIS),
+      escalatedBy: null,
+      agreedAt: null,
+    });
+    writeWithSystemMessage(
+      tx,
+      rentalRef,
+      "Damage flagged · dispute opened",
+      { status: DISPUTED },
+      callerId,
+    );
   });
 }
 
