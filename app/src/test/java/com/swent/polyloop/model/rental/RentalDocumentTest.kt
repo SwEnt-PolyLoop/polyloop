@@ -105,6 +105,33 @@ class RentalDocumentTest {
   }
 
   @Test
+  fun readsTheReturnDate() {
+    val returnedAt = Instant.parse("2026-10-08T16:40:00Z")
+
+    val data = validData + (RentalFields.RETURNED_AT to Timestamp(returnedAt))
+
+    val rental = rentalFromDocument("rental-1", data)
+
+    assertEquals(returnedAt, rental?.returnedAt)
+  }
+
+  @Test
+  fun missingReturnDateReadsAsNull() {
+    val rental = rentalFromDocument("rental-1", validData)
+
+    assertNull(rental?.returnedAt)
+  }
+
+  @Test
+  fun aReturnDateOfTheWrongTypeReadsAsNullAndKeepsTheRental() {
+    val rental =
+        rentalFromDocument("rental-1", validData + (RentalFields.RETURNED_AT to "2026-10-08"))
+
+    assertEquals(expectedRental, rental)
+    assertNull(rental?.returnedAt)
+  }
+
+  @Test
   fun aMalformedOfferReadsAsNoOfferAndKeepsTheRental() {
     val complete =
         mapOf(
