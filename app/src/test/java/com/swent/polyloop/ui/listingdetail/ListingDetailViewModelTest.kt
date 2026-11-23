@@ -13,6 +13,7 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.profile.FakeProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
 import com.swent.polyloop.model.rental.FakeRentalRepository
+import com.swent.polyloop.model.rental.InsufficientFundsException
 import com.swent.polyloop.model.rental.ListingUnavailableException
 import com.swent.polyloop.model.rental.RentalDatesUnavailableException
 import com.swent.polyloop.model.rental.RentalStatus
@@ -370,12 +371,12 @@ class ListingDetailViewModelTest {
     authRepository.signedInUser = null
     val vm = openPickerOn()
     vm.sendRequest(oct6.minusDays(1), oct8) // refused first: shows the dates-taken message
-    assertTrue(vm.uiState.value.datesTaken)
+    assertEquals(RequestRefusal.DATES_TAKEN, vm.uiState.value.refusal)
 
     vm.sendRequest(oct6, oct8)
 
     assertEquals("", vm.uiState.value.sendError)
-    assertFalse(vm.uiState.value.datesTaken)
+    assertNull(vm.uiState.value.refusal)
     assertTrue(rentalRepository.rentals.isEmpty())
   }
 
@@ -440,13 +441,13 @@ class ListingDetailViewModelTest {
 
     val state = vm.uiState.value
     assertTrue(rentalRepository.rentals.isEmpty())
-    assertTrue(state.datesTaken)
+    assertEquals(RequestRefusal.DATES_TAKEN, state.refusal)
     assertEquals(setOf(oct6), state.disabledDates)
     assertTrue(state.isDatePickerOpen)
     assertFalse(state.isSending)
 
     vm.openDatePicker()
-    assertFalse(vm.uiState.value.datesTaken)
+    assertNull(vm.uiState.value.refusal)
   }
 
   @Test
@@ -457,14 +458,14 @@ class ListingDetailViewModelTest {
     vm.sendRequest(oct6, oct8)
 
     vm.clearSendError()
-    assertFalse(vm.uiState.value.datesTaken)
+    assertNull(vm.uiState.value.refusal)
     vm.sendRequest(oct10, oct11)
 
     val state = vm.uiState.value
     assertEquals(1, rentalRepository.rentals.size)
     assertEquals(oct10, rentalRepository.rentals.single().startDate)
     assertEquals(rentalRepository.rentals.single().id, state.sentRentalId)
-    assertFalse(state.datesTaken)
+    assertNull(state.refusal)
     assertNull(state.sendError)
   }
 
@@ -522,7 +523,7 @@ class ListingDetailViewModelTest {
     gate.complete(Unit)
 
     val state = vm.uiState.value
-    assertTrue(state.datesTaken)
+    assertEquals(RequestRefusal.DATES_TAKEN, state.refusal)
     assertEquals(setOf(oct6), state.disabledDates)
     assertTrue(state.isDatePickerOpen)
     assertFalse(state.isSending)
@@ -541,9 +542,35 @@ class ListingDetailViewModelTest {
     gate.complete(Unit)
 
     val state = vm.uiState.value
-    assertTrue(state.datesTaken)
+    assertEquals(RequestRefusal.DATES_TAKEN, state.refusal)
     assertEquals(emptySet<LocalDate>(), state.disabledDates)
     assertNull(state.sendError)
+  }
+
+  @Test
+  fun aBalanceTheServerFindsTooLowKeepsThePickerOpenWithTheBalanceMessage() {
+    rentalRepository.failure = InsufficientFundsException()
+    val vm = openPickerOn()
+
+    vm.sendRequest(oct6, oct8)
+
+    val state = vm.uiState.value
+    assertEquals(RequestRefusal.NOT_ENOUGH_BALANCE, state.refusal)
+    assertTrue(state.isDatePickerOpen)
+    assertFalse(state.isSending)
+    assertNull(state.sendError)
+    assertNull(state.sentRentalId)
+  }
+
+  @Test
+  fun aNewDayPickedAfterABalanceRefusalClearsItsMessage() {
+    rentalRepository.failure = InsufficientFundsException()
+    val vm = openPickerOn()
+    vm.sendRequest(oct6, oct8)
+
+    vm.clearSendError()
+
+    assertNull(vm.uiState.value.refusal)
   }
 
   @Test
@@ -584,7 +611,7 @@ class ListingDetailViewModelTest {
 
     assertTrue(rentalRepository.rentals.isEmpty())
     assertNull(vm.uiState.value.sendError)
-    assertTrue(vm.uiState.value.datesTaken)
+    assertEquals(RequestRefusal.DATES_TAKEN, vm.uiState.value.refusal)
     assertTrue(vm.uiState.value.isDatePickerOpen)
   }
 

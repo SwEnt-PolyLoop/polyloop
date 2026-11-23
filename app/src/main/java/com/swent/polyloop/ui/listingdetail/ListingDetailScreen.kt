@@ -170,8 +170,14 @@ fun ListingDetailContent(
               today = today,
               isSending = uiState.isSending,
               errorMsg =
-                  if (uiState.datesTaken) stringResource(R.string.listing_detail_dates_taken)
-                  else uiState.sendError,
+                  when (uiState.refusal) {
+                    RequestRefusal.DATES_TAKEN ->
+                        stringResource(R.string.listing_detail_dates_taken)
+                    // The same text as the picker's own check, which the server confirmed.
+                    RequestRefusal.NOT_ENOUGH_BALANCE ->
+                        stringResource(R.string.date_picker_not_enough_balance)
+                    null -> uiState.sendError
+                  },
               onDayPicked = onDayPicked,
           )
         }

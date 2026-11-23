@@ -799,7 +799,7 @@ class ListingDetailScreenTest {
                 isDatePickerOpen = true,
                 availableBalance = 120,
                 disabledDates = setOf(oct(10)),
-                datesTaken = true,
+                refusal = RequestRefusal.DATES_TAKEN,
                 sendError = "Network down",
             )
     )
@@ -811,6 +811,26 @@ class ListingDetailScreenTest {
         .onNodeWithTag(C.Tag.date_picker_send_error)
         .performScrollTo()
         .assertTextEquals(context.getString(R.string.listing_detail_dates_taken))
+  }
+
+  @Test
+  fun pickerShowsTheBalanceMessageWhenTheServerRefusesForFunds() {
+    // The wallet read on the phone still covers the price: only the server knew it was too low.
+    setContent(
+        uiState =
+            ListingDetailUiState(
+                listing = listing,
+                isDatePickerOpen = true,
+                availableBalance = 120,
+                refusal = RequestRefusal.NOT_ENOUGH_BALANCE,
+                sendError = "Network down",
+            )
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.date_picker_send_error)
+        .performScrollTo()
+        .assertTextEquals(context.getString(R.string.date_picker_not_enough_balance))
   }
 
   @Test
