@@ -79,7 +79,14 @@ describe("depositToSettle", () => {
 });
 
 describe("deposit settlement", () => {
-  /** A borrower holding [held] PP as deposit, with the hold row unless [hold] is false. */
+  /**
+   * Creates a borrower with 10 PP available and [held] PP held as deposit, a lender with 5 PP, and
+   * the borrower's hold row unless [hold] is false.
+   *
+   * @param held the deposit held in the borrower's wallet.
+   * @param hold whether the `deposit_held_<rentalId>` row exists.
+   * @returns the two people, the rental id and the parties to settle between.
+   */
   async function heldDeposit(held: number, hold = true) {
     const who = people();
     const rentalId = randomUUID();
@@ -97,7 +104,14 @@ describe("deposit settlement", () => {
     return { who, rentalId, parties };
   }
 
-  /** Reads then writes one settlement in its own transaction, as acceptSplit does. */
+  /**
+   * Reads then writes one settlement in its own transaction, as acceptSplit does.
+   *
+   * @param d what [heldDeposit] returned.
+   * @param shares the lender's and the borrower's shares.
+   * @param release true for a clean return.
+   * @returns a promise that fails with the refusal of the write step, if any.
+   */
   function settle(
     d: Awaited<ReturnType<typeof heldDeposit>>,
     shares: DepositShares,

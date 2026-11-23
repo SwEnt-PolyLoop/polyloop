@@ -297,6 +297,15 @@ function moveToLlmProposal(
  * deposit moves to the two wallets (`writeDepositSettlement`), in the same transaction. A rental
  * with no held deposit (from before deposits were held) moves no money. All reads come before the
  * first write.
+ *
+ * @param tx the transaction of the acceptance, after the dispute and rental were read.
+ * @param db the Firestore database.
+ * @param open the dispute and its rental.
+ * @param lenderPercent the accepted split, the lender's share in percent.
+ * @param now the current time, stored as `agreedAt`.
+ * @param acceptedBy the participant accepting, who has seen the system message.
+ * @throws RequestError `internal` when the rental's people are not valid and different, or when
+ *   the borrower's held deposits do not cover the amount. Nothing is written then.
  */
 async function settle(
   tx: Transaction,

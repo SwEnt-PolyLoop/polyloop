@@ -232,8 +232,13 @@ describe("acceptSplit", () => {
 
 describe("acceptSplit and the held deposit", () => {
   /**
-   * A disputed rental of its own people with [deposit] PP held in the borrower's wallet (and its
-   * hold row unless [hold] is false), and the lender's last proposal at [lenderPercent].
+   * A disputed rental of its own people with 33 PP held in the borrower's wallet (and its hold row
+   * unless [hold] is false), and the lender's last proposal at [lenderPercent].
+   *
+   * @param lenderPercent the lender's share in the proposal waiting for the borrower.
+   * @param fields overrides of the rental's fields, such as `lateFees`.
+   * @param hold whether the `deposit_held_<rentalId>` row exists.
+   * @returns the rental id and its people.
    */
   async function heldDispute(lenderPercent: number, fields: object = {}, hold = true) {
     const who = people();
@@ -269,7 +274,14 @@ describe("acceptSplit and the held deposit", () => {
     return { id, who };
   }
 
-  /** Both wallets' available and held deposits, and the rows other than the hold. */
+  /**
+   * Both wallets' available and held deposits, and the rows other than the hold, as
+   * `<row id without the rental>:<amount>`.
+   *
+   * @param who the lender and the borrower.
+   * @param id the rental id.
+   * @returns what the settlement changed, to compare as a whole.
+   */
   async function moved(who: People, id: string) {
     const [borrower, lender] = [await wallet(who.borrower), await wallet(who.lender)];
     const history = async (uid: string) =>

@@ -189,6 +189,9 @@ export interface DepositShares {
  * The amount of a rental's deposit left to settle: `deposit - lateFees`, each read as 0 when
  * missing or not a whole number from 0 up, and never below 0. The late-fee job takes the fees from
  * the held deposit and pays the lender itself, so they are not paid again at settlement.
+ *
+ * @param rental the rental document's data.
+ * @returns the whole PolyPoints left to settle, 0 or more.
  */
 export function depositToSettle(rental: DocumentData): number {
   return Math.max(0, amountOrZero(rental.deposit) - amountOrZero(rental.lateFees));
@@ -199,6 +202,12 @@ export function depositToSettle(rental: DocumentData): number {
  * wallets, whether the deposit was held, and whether it was already settled. Settled means the
  * borrower's released or split row exists, or the lender's split row does, so no new field is
  * needed and a second settlement changes nothing.
+ *
+ * @param tx the transaction to read in.
+ * @param db the Firestore database.
+ * @param parties the borrower and the lender, whose wallets and rows are read.
+ * @param rentalId the rental the deposit belongs to.
+ * @returns both wallets, and whether the deposit was held and already settled.
  */
 export async function readDepositSettlement(
   tx: Transaction,
@@ -284,10 +293,24 @@ export function writeDepositSettlement(
   }
 }
 
+/**
+ * The id of the borrower's history row of a deposit released after a clean return, which makes the
+ * release idempotent.
+ *
+ * @param rentalId the rental the deposit belongs to.
+ * @returns `deposit_released_<rentalId>`.
+ */
 function releasedRowId(rentalId: string): string {
   return `deposit_released_${rentalId}`;
 }
 
+/**
+ * The id of the history row of a split deposit, the same on the borrower's and the lender's side,
+ * which makes the split idempotent.
+ *
+ * @param rentalId the rental the deposit belongs to.
+ * @returns `deposit_split_<rentalId>`.
+ */
 function splitRowId(rentalId: string): string {
   return `deposit_split_${rentalId}`;
 }
