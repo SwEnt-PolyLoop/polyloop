@@ -9,6 +9,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.await
 import androidx.work.workDataOf
 import java.io.File
 import java.time.Instant
@@ -37,9 +38,10 @@ class HandoverUploadQueue(
 
   /**
    * Copies the photo at [photo] and queues it as [slotId] of [rentalId] in [phase], taken at
-   * [takenAt]. Queuing the same slot again changes nothing.
+   * [takenAt]. Queuing the same slot again changes nothing. Returns once the job is saved, so
+   * [observe] lists it from then on.
    */
-  fun enqueue(
+  suspend fun enqueue(
       rentalId: String,
       phase: HandoverPhase,
       slotId: String,
@@ -65,7 +67,7 @@ class HandoverUploadQueue(
             .addTag(SLOT + slotId)
             .addTag(TAKEN_AT + takenAt.toEpochMilli())
             .build()
-    workManager.enqueueUniqueWork("$rentalId/$slotId", ExistingWorkPolicy.KEEP, request)
+    workManager.enqueueUniqueWork("$rentalId/$slotId", ExistingWorkPolicy.KEEP, request).await()
   }
 
   /**
@@ -87,7 +89,8 @@ class HandoverUploadQueue(
 
   private fun Set<String>.tagValue(prefix: String) = firstOrNull {
     it.startsWith(prefix)
-  }?.removePrefix(prefix)
+  }
+      ?.removePrefix(prefix)
 
   private fun queuedFile(rentalId: String, slotId: String) = File(folder, "$rentalId/$slotId.jpg")
 

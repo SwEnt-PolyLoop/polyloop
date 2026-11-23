@@ -8,18 +8,14 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
-import com.google.firebase.firestore.firestore
-import com.google.firebase.storage.StorageException
-import com.google.firebase.storage.storage
-import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.io.File
+import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -83,19 +79,23 @@ class HandoverRepositoryFirestoreEmulatorTest {
     return Uri.fromFile(file).toString()
   }
 
+  /** Adds a pickup photo to [rentalId], taken a minute ago. */
+  private suspend fun addPhoto(rentalId: String, photoUri: String = photoFile()) =
+      repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoUri, Instant.now().minusSeconds(60))
+
   @Test
-  fun anAddedPhotoIsUploadedAndObservedWithItsUrl() = runBlocking {
-    val rentalId = seedRental()
+  fun anAddedPhotoShowsAtOnceAndThenWithItsUrlOnceTheQueueSentIt() =
+      runBlocking<Unit> {
+        val rentalId = seedRental()
 
-    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
+        assertTrue(addPhoto(rentalId).isSuccess)
 
-    val photos =
-        withTimeout(10_000) {
-          repository.observeMyPhotos(rentalId, HandoverPhase.PICKUP).first { it.isNotEmpty() }
-        }
-    assertEquals(HandoverPhase.PICKUP, photos.single().phase)
-    assertTrue(photos.single().url.startsWith("http"))
-  }
+        val photos = repository.observeMyPhotos(rentalId, HandoverPhase.PICKUP)
+        // Waiting in the queue: shown from the phone's copy.
+        assertTrue(photos.first().single().url.startsWith("file:"))
+        // Sent by the queue's job (the emulator is online).
+        withTimeout(20_000) { photos.first { it.singleOrNull()?.url?.startsWith("http") == true } }
+      }
 
   @Test
   fun onlyMyPhotosOfThePhaseAreObservedOldestFirst() = runBlocking {
@@ -114,15 +114,8 @@ class HandoverRepositoryFirestoreEmulatorTest {
   }
 
   @Test
-  fun addPhotoFailsWhenTheRentalIsNotAccepted() = runBlocking {
-    val rentalId = seedRental(status = "REQUESTED")
-
-    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isFailure)
-  }
-
-  @Test
   fun anInvalidIdOrNobodySignedInFails() = runBlocking {
-    val invalid = repository.addPhoto("a/b", HandoverPhase.PICKUP, photoFile())
+    val invalid = addPhoto("a/b")
     assertTrue(invalid.exceptionOrNull() is IllegalArgumentException)
     assertEquals(
         emptyList<HandoverPhoto>(),
@@ -130,7 +123,7 @@ class HandoverRepositoryFirestoreEmulatorTest {
     )
 
     Firebase.auth.signOut()
-    val signedOut = repository.addPhoto(seedRental(), HandoverPhase.PICKUP, photoFile())
+    val signedOut = addPhoto(seedRental())
     assertTrue(signedOut.exceptionOrNull() is IllegalStateException)
     val flowError = runCatching { repository.observeMyPhotos("r1", HandoverPhase.PICKUP).first() }
     assertTrue(flowError.exceptionOrNull() is IllegalStateException)
@@ -146,8 +139,8 @@ class HandoverRepositoryFirestoreEmulatorTest {
   fun addedPhotosTakeTheLowestFreeSlots() = runBlocking {
     val rentalId = seedRental()
 
-    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
-    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
+    assertTrue(addPhoto(rentalId).isSuccess)
+    assertTrue(addPhoto(rentalId).isSuccess)
 
     assertEquals(listOf("${uid}_PICKUP_0", "${uid}_PICKUP_1"), myPhotoIds(rentalId))
   }
@@ -157,7 +150,7 @@ class HandoverRepositoryFirestoreEmulatorTest {
     val rentalId = seedRental()
     seedPhoto(rentalId, uid, "PICKUP", seconds = 1_000) // an old photo, with a random id
 
-    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
+    assertTrue(addPhoto(rentalId).isSuccess)
 
     assertTrue("${uid}_PICKUP_0" in myPhotoIds(rentalId))
   }
@@ -169,7 +162,7 @@ class HandoverRepositoryFirestoreEmulatorTest {
       seedPhoto(rentalId, uid, "PICKUP", seconds = it.toLong(), id = "${uid}_PICKUP_$it")
     }
 
-    val result = repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile())
+    val result = addPhoto(rentalId)
 
     assertTrue(result.exceptionOrNull() is IllegalStateException)
     assertEquals(HandoverPhoto.MAX_PHOTOS, myPhotoIds(rentalId).size)
@@ -179,63 +172,14 @@ class HandoverRepositoryFirestoreEmulatorTest {
   fun photosAddedAtOnceGetDifferentSlots() = runBlocking {
     val rentalId = seedRental()
 
-    val results =
-        List(3) { async { repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()) } }
-            .awaitAll()
+    val results = List(3) { async { addPhoto(rentalId) } }.awaitAll()
 
     assertTrue(results.all { it.isSuccess })
     assertEquals(List(3) { "${uid}_PICKUP_$it" }, myPhotoIds(rentalId))
   }
 
   @Test
-  fun aPhotoWhoseWriteIsStillWaitingToBeSentKeepsItsSlot() = runBlocking {
-    val rentalId = seedRental()
-    Firebase.firestore.disableNetwork().await()
-    try {
-      // Uploaded, but the write is not confirmed, so it stays queued on the phone.
-      assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
-      assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
-
-      assertEquals(listOf("${uid}_PICKUP_0", "${uid}_PICKUP_1"), myPhotoIds(rentalId))
-    } finally {
-      Firebase.firestore.enableNetwork().await()
-    }
-  }
-
-  /** A file in the user's slot [slot] with no document, as an upload whose document was lost. */
-  private fun orphanFile(rentalId: String, slot: Int) = runBlocking {
-    Firebase.storage.reference
-        .child("rentals/$rentalId/photos/${uid}_PICKUP_$slot.jpg")
-        .putFile(Uri.parse(photoFile()), storageMetadata { contentType = "image/jpeg" })
-        .await()
-  }
-
-  @Test
-  fun aSlotWhoseFileExistsWithoutADocumentIsSkipped() = runBlocking {
-    val rentalId = seedRental()
-    orphanFile(rentalId, slot = 0)
-
-    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
-    assertEquals(listOf("${uid}_PICKUP_1"), myPhotoIds(rentalId))
-
-    // Slot 0 is set aside for the rest of the session, so the next photo goes to slot 2.
-    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
-    assertEquals(listOf("${uid}_PICKUP_1", "${uid}_PICKUP_2"), myPhotoIds(rentalId))
-  }
-
-  @Test
-  fun aReallyNotAuthorizedUploadFailsWithoutBurningAnySlot() = runBlocking {
-    val rentalId = seedRental(status = "REQUESTED")
-
-    val refused = repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile())
-
-    assertEquals(
-        StorageException.ERROR_NOT_AUTHORIZED,
-        (refused.exceptionOrNull() as? StorageException)?.errorCode,
-    )
-    // Once the rental is accepted, the first slot is still free: nothing was burned.
-    FirebaseEmulator.updateDocumentAsAdmin("rentals/$rentalId", mapOf("status" to "ACCEPTED"))
-    assertTrue(repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoFile()).isSuccess)
-    assertEquals(listOf("${uid}_PICKUP_0"), myPhotoIds(rentalId))
+  fun confirmReturnOkFailsUntilItsFunctionExists() = runBlocking {
+    assertTrue(repository.confirmReturnOk("r1").exceptionOrNull() is UnsupportedOperationException)
   }
 }
