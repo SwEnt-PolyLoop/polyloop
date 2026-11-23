@@ -5,6 +5,10 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { MAX_PROPOSALS, acceptSplit, escalateDispute, proposeSplit } from "./dispute";
 import { hasSeenLastMessage } from "./testing/readTimes";
+import { People, fund, people, rows, wallet } from "./testing/walletFixtures";
+
+// Firebase loads this ES module to verify tokens, which Jest cannot load; these tests do not sign in.
+jest.mock("jose", () => ({}));
 
 // The transactions are tested on the emulator; the pure rules are in disputeRules.test.ts.
 let db: Firestore;
@@ -166,7 +170,7 @@ describe("acceptSplit", () => {
     expect((await dispute(id))?.agreedAt.toDate()).toEqual(NOW);
     expect(await rental(id)).toMatchObject({
       status: "CLOSED",
-      // No money moves yet: the deposit stays as it was.
+      // The rental keeps its deposit amount; the money moves in the wallets.
       deposit: 33,
       lastMessage: "Dispute settled · 17 PP to the lender, 16 PP back to the borrower",
     });
@@ -223,6 +227,174 @@ describe("acceptSplit", () => {
     expect((await rental(id))?.lastMessage).toBe(
       "Dispute settled · 0 PP to the lender, 0 PP back to the borrower",
     );
+  });
+});
+
+describe("acceptSplit and the held deposit", () => {
+  /**
+   * A disputed rental of its own people with [deposit] PP held in the borrower's wallet (and its
+   * hold row unless [hold] is false), and the lender's last proposal at [lenderPercent].
+   */
+  async function heldDispute(lenderPercent: number, fields: object = {}, hold = true) {
+    const who = people();
+    const id = randomUUID();
+    const deposit = 33;
+    await db.collection("rentals").doc(id).set({
+      ownerId: who.lender,
+      borrowerId: who.borrower,
+      participants: [who.lender, who.borrower],
+      status: "DISPUTED",
+      listingTitle: "Camping tent",
+      deposit,
+      ...fields,
+    });
+    await db
+      .collection("disputes")
+      .doc(id)
+      .set({
+        stage: "SETTLE",
+        proposals: [proposal(who.lender, lenderPercent)],
+        escalatesAt: Timestamp.fromDate(ESCALATES_AT),
+        escalatedBy: null,
+        agreedAt: null,
+      });
+    await fund(who.borrower, { available: 10, heldAsDeposits: deposit, heldForRentals: 0 });
+    await fund(who.lender, { available: 5, heldAsDeposits: 0, heldForRentals: 0 });
+    if (hold) {
+      await db
+        .collection(`wallets/${who.borrower}/transactions`)
+        .doc(`deposit_held_${id}`)
+        .set({ type: "DEPOSIT_HELD", amount: -deposit, itemTitle: "Camping tent" });
+    }
+    return { id, who };
+  }
+
+  /** Both wallets' available and held deposits, and the rows other than the hold. */
+  async function moved(who: People, id: string) {
+    const [borrower, lender] = [await wallet(who.borrower), await wallet(who.lender)];
+    const history = async (uid: string) =>
+      (await rows(uid))
+        .filter((row) => row.id !== `deposit_held_${id}`)
+        .map((row) => `${row.id.replace(`_${id}`, "")}:${(row as { amount?: number }).amount}`);
+    return {
+      borrower: [borrower?.available, borrower?.heldAsDeposits],
+      lender: [lender?.available, lender?.heldAsDeposits],
+      borrowerRows: await history(who.borrower),
+      lenderRows: await history(who.lender),
+    };
+  }
+
+  it("rounds the borrower's share down: 50% of 33 PP is 16 to the borrower, 17 to the lender", async () => {
+    const { id, who } = await heldDispute(50);
+
+    await acceptSplit(db, who.borrower, { rentalId: id, lenderPercent: 50 }, NOW);
+
+    expect(await moved(who, id)).toEqual({
+      borrower: [26, 0],
+      lender: [22, 0],
+      borrowerRows: ["deposit_split:16"],
+      lenderRows: ["deposit_split:17"],
+    });
+    expect(await rows(who.lender)).toEqual([
+      expect.objectContaining({ type: "DEPOSIT_SPLIT", itemTitle: "Camping tent" }),
+    ]);
+  });
+
+  it("gives everything to the lender at 100% and everything back at 0%, with no row for a 0 share", async () => {
+    const all = await heldDispute(100);
+    const none = await heldDispute(0);
+
+    await acceptSplit(db, all.who.borrower, { rentalId: all.id, lenderPercent: 100 }, NOW);
+    await acceptSplit(db, none.who.borrower, { rentalId: none.id, lenderPercent: 0 }, NOW);
+
+    expect(await moved(all.who, all.id)).toEqual({
+      borrower: [10, 0],
+      lender: [38, 0],
+      borrowerRows: [],
+      lenderRows: ["deposit_split:33"],
+    });
+    expect(await moved(none.who, none.id)).toEqual({
+      borrower: [43, 0],
+      lender: [5, 0],
+      borrowerRows: ["deposit_split:33"],
+      lenderRows: [],
+    });
+  });
+
+  it("takes the late fees off the deposit first and does not pay them again", async () => {
+    const { id, who } = await heldDispute(50, { lateFees: 13 });
+    // The late-fee job already took 13 PP from the held deposit and paid the lender.
+    await fund(who.borrower, { available: 10, heldAsDeposits: 20, heldForRentals: 0 });
+    await fund(who.lender, { available: 18, heldAsDeposits: 0, heldForRentals: 0 });
+
+    await acceptSplit(db, who.borrower, { rentalId: id, lenderPercent: 50 }, NOW);
+
+    expect(await moved(who, id)).toMatchObject({
+      borrower: [20, 0],
+      lender: [28, 0],
+      borrowerRows: ["deposit_split:10"],
+      lenderRows: ["deposit_split:10"],
+    });
+    expect((await rental(id))?.lastMessage).toBe(
+      "Dispute settled · 10 PP to the lender, 10 PP back to the borrower",
+    );
+  });
+
+  it("moves nothing when no deposit was held, but still settles the dispute", async () => {
+    const { id, who } = await heldDispute(50, {}, false);
+
+    await acceptSplit(db, who.borrower, { rentalId: id, lenderPercent: 50 }, NOW);
+
+    expect(await moved(who, id)).toEqual({
+      borrower: [10, 33],
+      lender: [5, 0],
+      borrowerRows: [],
+      lenderRows: [],
+    });
+    expect(await rental(id)).toMatchObject({ status: "CLOSED" });
+  });
+
+  it("moves the money once when the same acceptance is sent twice at once", async () => {
+    const { id, who } = await heldDispute(50);
+
+    const results = await Promise.allSettled([
+      acceptSplit(db, who.borrower, { rentalId: id, lenderPercent: 50 }, NOW),
+      acceptSplit(db, who.borrower, { rentalId: id, lenderPercent: 50 }, NOW),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((r) => r.status === "rejected")).toMatchObject({
+      reason: { code: "failed-precondition", details: { reason: "STAGE_CHANGED" } },
+    });
+    expect(await moved(who, id)).toMatchObject({ borrower: [26, 0], lender: [22, 0] });
+    expect(await systemMessages(id)).toHaveLength(1);
+  });
+
+  it("moves nothing for a stranger or for the author of the proposal", async () => {
+    const { id, who } = await heldDispute(50);
+
+    await expect(
+      acceptSplit(db, STRANGER, { rentalId: id, lenderPercent: 50 }, NOW),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      acceptSplit(db, who.lender, { rentalId: id, lenderPercent: 50 }, NOW),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+
+    expect(await moved(who, id)).toMatchObject({ borrower: [10, 33], lender: [5, 0] });
+    expect((await dispute(id))?.agreedAt).toBeNull();
+  });
+
+  it("settles nothing and moves nothing when the held deposits are below the deposit", async () => {
+    const { id, who } = await heldDispute(50);
+    await fund(who.borrower, { available: 10, heldAsDeposits: 5, heldForRentals: 0 });
+
+    await expect(
+      acceptSplit(db, who.borrower, { rentalId: id, lenderPercent: 50 }, NOW),
+    ).rejects.toMatchObject({ code: "internal" });
+
+    expect(await moved(who, id)).toMatchObject({ borrower: [10, 5], lender: [5, 0] });
+    expect((await dispute(id))?.agreedAt).toBeNull();
+    expect((await rental(id))?.status).toBe("DISPUTED");
   });
 });
 

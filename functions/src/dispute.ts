@@ -17,8 +17,10 @@ import {
   splitDeposit,
 } from "./disputeRules";
 import { writeWithSystemMessage } from "./negotiation";
-import { RequestError } from "./rentalRules";
+import { requireParties } from "./payLender";
+import { RequestError, listingTitleOf } from "./rentalRules";
 import { SweepCounts, runSweep } from "./sweep";
+import { depositToSettle, readDepositSettlement, writeDepositSettlement } from "./wallet";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
 const DISPUTES = "disputes";
@@ -98,9 +100,8 @@ export async function proposeSplit(
 /**
  * Accepts the latest proposal of the dispute of [input.rentalId], in one transaction: the dispute
  * is settled and the rental CLOSED, with the split in the chat. [input.lenderPercent] is the split
- * the caller saw, so a proposal changed meanwhile is never accepted. No money moves yet: nothing
- * calls `reserveDeposit` when an offer is accepted, so no deposit is held to release or split.
- * Once `escalatesAt` has passed, the dispute escalates instead (see [inDirectSettlement]).
+ * the caller saw, so a proposal changed meanwhile is never accepted. In the same transaction the
+ * held deposit, less the late fees, is split between the two wallets (see [settle]). Once `escalatesAt` has passed, the dispute escalates instead (see [inDirectSettlement]).
  *
  * @param db the Firestore database.
  * @param callerId the participant accepting, who must not be the latest proposal's author.
@@ -120,7 +121,7 @@ export async function acceptSplit(
   input: SplitInput,
   now: Date = new Date(),
 ): Promise<void> {
-  await inDirectSettlement(db, callerId, input.rentalId, now, (tx, open) => {
+  await inDirectSettlement(db, callerId, input.rentalId, now, async (tx, open) => {
     const latest = latestOf(open.proposals);
     if (!latest) {
       throw new RequestError("failed-precondition", "No proposal is waiting for an answer.");
@@ -133,7 +134,7 @@ export async function acceptSplit(
     if (latest.authorId === callerId) {
       throw new RequestError("permission-denied", "You cannot accept your own proposal.");
     }
-    settle(tx, open, latest.lenderPercent, now, callerId);
+    await settle(tx, db, open, latest.lenderPercent, now, callerId);
   });
 }
 
@@ -183,7 +184,7 @@ async function inDirectSettlement(
   callerId: string,
   rentalId: string,
   now: Date,
-  act: (tx: Transaction, open: OpenDispute) => void,
+  act: (tx: Transaction, open: OpenDispute) => void | Promise<void>,
 ): Promise<void> {
   const escalated = await db.runTransaction(async (tx) => {
     const open = await requireSettlingDispute(tx, db, rentalId, callerId);
@@ -191,7 +192,7 @@ async function inDirectSettlement(
       moveToLlmProposal(tx, open.disputeRef, open.rentalRef, null);
       return true;
     }
-    act(tx, open);
+    await act(tx, open);
     return false;
   });
   if (escalated) throw stageChanged();
@@ -290,17 +291,33 @@ function moveToLlmProposal(
 
 /**
  * Ends a dispute on the split [lenderPercent], accepted by [acceptedBy]: `agreedAt` on the dispute,
- * the rental CLOSED and the shares in the chat. Moving the deposit will be added here once it is
- * really reserved.
+ * the rental CLOSED and the shares in the chat. The shares are those of the deposit left after the
+ * late fees (`depositToSettle`), which the late-fee job already paid to the lender, and the held
+ * deposit moves to the two wallets (`writeDepositSettlement`), in the same transaction. A rental
+ * with no held deposit (from before deposits were held) moves no money. All reads come before the
+ * first write.
  */
-function settle(
+async function settle(
   tx: Transaction,
+  db: Firestore,
   open: OpenDispute,
   lenderPercent: number,
   now: Date,
   acceptedBy: string,
-): void {
-  const { lender, borrower } = splitDeposit(depositOf(open.rental), lenderPercent);
+): Promise<void> {
+  const parties = requireParties(open.rental);
+  const shares = splitDeposit(depositToSettle(open.rental), lenderPercent);
+  const state = await readDepositSettlement(tx, db, parties, open.rentalRef.id);
+  writeDepositSettlement(
+    tx,
+    db,
+    parties,
+    open.rentalRef.id,
+    listingTitleOf(open.rental),
+    state,
+    shares,
+  );
+  const { lender, borrower } = shares;
   tx.update(open.disputeRef, { agreedAt: Timestamp.fromDate(now) });
   writeWithSystemMessage(
     tx,
@@ -365,9 +382,4 @@ function isDue(escalatesAt: unknown, now: Date): boolean {
 /** The proposal on the table: the last one sent, or undefined when nobody has proposed yet. */
 function latestOf(proposals: StoredProposal[]): StoredProposal | undefined {
   return proposals[proposals.length - 1];
-}
-
-/** The rental's accepted deposit, in PolyPoints; a missing one reads as 0, as in the app. */
-function depositOf(rental: DocumentData): number {
-  return typeof rental.deposit === "number" ? rental.deposit : 0;
 }
