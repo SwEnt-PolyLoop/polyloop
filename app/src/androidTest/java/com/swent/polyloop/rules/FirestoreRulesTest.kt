@@ -18,6 +18,7 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.listingToDocument
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
@@ -43,6 +44,9 @@ class FirestoreRulesTest {
 
   private val start = LocalDate.of(2026, 11, 2)
   private val end = LocalDate.of(2026, 11, 4)
+
+  // Today in Zurich, where rental dates are counted.
+  private val today = LocalDate.now(ZoneId.of("Europe/Zurich"))
 
   /** An account the test can sign in as again. */
   private data class Account(val uid: String, val email: String)
@@ -88,6 +92,29 @@ class FirestoreRulesTest {
       listing(ownerId).also {
         FirebaseEmulator.createDocumentAsAdmin("listings/${it.id}", listingToDocument(it))
       }
+
+  /**
+   * A listing of [ownerId] booked on [ranges] (first and last day), oldest first as Cloud Functions
+   * keep them, with its exact addresses, all written as an admin.
+   */
+  private fun seedBookedListing(ownerId: String, vararg ranges: Pair<LocalDate, LocalDate>) =
+      listing(ownerId).also {
+        FirebaseEmulator.createDocumentAsAdmin(
+            "listings/${it.id}",
+            listingToDocument(it) + bookedRanges(*ranges),
+        )
+        FirebaseEmulator.createDocumentAsAdmin(
+            "listings/${it.id}/private/addresses",
+            mapOf("pickup" to "Route 1", "dropOff" to "Avenue 2"),
+        )
+      }
+
+  /** The `bookedRanges` field holding [ranges] (first and last day). */
+  private fun bookedRanges(vararg ranges: Pair<LocalDate, LocalDate>) =
+      mapOf(
+          "bookedRanges" to
+              ranges.map { (first, last) -> mapOf("start" to "$first", "end" to "$last") }
+      )
 
   private fun listingRef(id: String) = db.collection("listings").document(id)
 
@@ -526,6 +553,64 @@ class FirestoreRulesTest {
         signInAs(owner)
         addressesRef(listing.id).delete().await()
         listingRef(listing.id).delete().await()
+      }
+
+  @Test
+  fun ownerCannotEditOrDeleteAListingOrItsAddressesWhileABookingEndsTodayOrLater() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val over = today.minusDays(30) to today.minusDays(28)
+
+        listOf(today.minusDays(2) to today, today.plusDays(5) to today.plusDays(7)).forEach {
+          val listing = seedBookedListing(owner.uid, over, it)
+          val ref = listingRef(listing.id)
+
+          assertDenied { ref.update("title", "Bigger tent").await() }
+          assertDenied { ref.delete().await() }
+          assertDenied { addressesRef(listing.id).update("pickup", "Elsewhere").await() }
+          assertDenied { addressesRef(listing.id).delete().await() }
+          // The owner still reads them.
+          assertEquals("Route 1", addressesRef(listing.id).get(Source.SERVER).await()["pickup"])
+          // Nor writes them again once they are gone.
+          FirebaseEmulator.deleteDocumentAsAdmin(addressesRef(listing.id).path)
+          assertDenied {
+            addressesRef(listing.id).set(mapOf("pickup" to "A", "dropOff" to "B")).await()
+          }
+        }
+      }
+
+  @Test
+  fun ownerEditsAndDeletesAListingWhoseBookingsAreOver() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val listing =
+            seedBookedListing(
+                owner.uid,
+                today.minusDays(30) to today.minusDays(28),
+                today.minusDays(4) to today.minusDays(2),
+            )
+
+        listingRef(listing.id).update("title", "Bigger tent").await()
+        addressesRef(listing.id).update("pickup", "Elsewhere").await()
+        addressesRef(listing.id).delete().await()
+        addressesRef(listing.id).set(mapOf("pickup" to "A", "dropOff" to "B")).await()
+        listingRef(listing.id).delete().await()
+      }
+
+  @Test
+  fun aListingUnlocksWhenItsBookingIsCancelled() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val over = today.minusDays(4) to today.minusDays(2)
+        val listing = seedBookedListing(owner.uid, over, today.plusDays(5) to today.plusDays(7))
+        val ref = listingRef(listing.id)
+        assertDenied { ref.update("title", "Bigger tent").await() }
+
+        // Cancelling the rental removes its range, as cancelRental does.
+        FirebaseEmulator.updateDocumentAsAdmin("listings/${listing.id}", bookedRanges(over))
+        ref.update("title", "Bigger tent").await()
+        addressesRef(listing.id).delete().await()
+        ref.delete().await()
       }
 
   // ---------- rentals ----------

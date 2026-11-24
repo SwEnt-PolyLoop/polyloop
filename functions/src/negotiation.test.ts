@@ -230,6 +230,17 @@ describe("respondToOffer: accepting", () => {
     expect(listingData?.bookedRanges).toEqual([{ start: "2026-12-01", end: "2026-12-03" }]);
   });
 
+  it("keeps the booked ranges sorted by first day when an earlier one is accepted", async () => {
+    const later = { start: "2027-01-10", end: "2027-01-12" };
+    const listingId = await listing([later]);
+    const id = await offered(listingId);
+
+    await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, NOW);
+
+    const listingData = (await db.collection("listings").doc(listingId).get()).data();
+    expect(listingData?.bookedRanges).toEqual([{ start: "2026-12-01", end: "2026-12-03" }, later]);
+  });
+
   it("holds the deposit in the borrower's wallet, with one history row", async () => {
     const id = await offered(await listing());
     const borrower = await borrowerOf(id);
@@ -443,9 +454,19 @@ describe("respondToOffer: accepting", () => {
   });
 });
 
-describe("respondToOffer: the pickup code", () => {
+describe("respondToOffer: the handover codes", () => {
   async function pickupCode(id: string) {
     return (await db.doc(`rentals/${id}/handoverCodes/PICKUP`).get()).data();
+  }
+
+  /** Expects [id] to have no handover code, nor any fingerprint. */
+  async function expectNoCodes(id: string): Promise<void> {
+    for (const phase of ["PICKUP", "RETURN"]) {
+      expect((await db.doc(`rentals/${id}/handoverCodes/${phase}`).get()).exists).toBe(false);
+    }
+    const data = await rental(id);
+    expect(data?.pickupCodeHash).toBeUndefined();
+    expect(data?.returnCodeHash).toBeUndefined();
   }
 
   it("makes the pickup code on acceptance, with its fingerprint on the rental", async () => {
@@ -467,13 +488,15 @@ describe("respondToOffer: the pickup code", () => {
     expect((await rental(id))?.pickupCodeHash).toBe(codeFingerprint(code));
   });
 
-  it("makes only the pickup code: the return one is left to the return", async () => {
+  it("makes the return code too, different from the pickup one", async () => {
     const id = await offered(await listing());
 
     await respondToOffer(db, await borrowerOf(id), { rentalId: id, action: "ACCEPT" }, NOW);
 
-    expect((await db.doc(`rentals/${id}/handoverCodes/RETURN`).get()).exists).toBe(false);
-    expect((await rental(id))?.returnCodeHash).toBeUndefined();
+    const code = (await db.doc(`rentals/${id}/handoverCodes/RETURN`).get()).get("code");
+    expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(code).not.toBe((await pickupCode(id))?.code);
+    expect((await rental(id))?.returnCodeHash).toBe(codeFingerprint(code));
   });
 
   it("gives each rental its own code", async () => {
@@ -495,8 +518,7 @@ describe("respondToOffer: the pickup code", () => {
       respondToOffer(db, borrower, { rentalId: id, action: "ACCEPT" }, NOW),
     ).rejects.toMatchObject({ code: "failed-precondition" });
 
-    expect(await pickupCode(id)).toBeUndefined();
-    expect((await rental(id))?.pickupCodeHash).toBeUndefined();
+    await expectNoCodes(id);
   });
 
   it("makes no code when the offer is declined or countered", async () => {
@@ -516,8 +538,8 @@ describe("respondToOffer: the pickup code", () => {
       NOW,
     );
 
-    expect(await pickupCode(declined)).toBeUndefined();
-    expect(await pickupCode(counteredId)).toBeUndefined();
+    await expectNoCodes(declined);
+    await expectNoCodes(counteredId);
   });
 });
 
