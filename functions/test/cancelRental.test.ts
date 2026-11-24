@@ -42,6 +42,9 @@ async function acceptedIn(days: number) {
     startDate: range.start,
     endDate: range.end,
   });
+  await db
+    .doc(`wallets/${who.borrower}/transactions/deposit_held_${id}`)
+    .set({ type: "DEPOSIT_HELD", amount: -40, itemTitle: "" });
   return { who, id };
 }
 

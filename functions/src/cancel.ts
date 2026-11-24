@@ -8,18 +8,13 @@ import {
   DateRange,
   RequestError,
   firstDayStart,
+  Parties,
   isValidDeposit,
-  listingTitleOf,
   readRange,
+  requireParties,
   requirePerson,
 } from "./rentalRules";
-import {
-  Wallet,
-  depositReleaseRowId,
-  hasTransaction,
-  readWallet,
-  writeDepositRelease,
-} from "./wallet";
+import { DepositSettlement, readDepositSettlement, writeDepositSettlement } from "./wallet";
 
 /** The status of a cancelled rental. */
 export const CANCELLED = "CANCELLED";
@@ -36,11 +31,9 @@ interface AcceptedReads {
   /** False when the listing was deleted: its booked days are gone with it. */
   listingExists: boolean;
   listingId: string;
-  borrowerId: string;
-  deposit: number;
-  wallet: Wallet;
-  /** True when the deposit is already back, so it is not released twice. */
-  released: boolean;
+  parties: Parties;
+  /** The wallets, and whether the deposit was held and already given back. */
+  settlement: DepositSettlement;
 }
 
 /**
@@ -48,10 +41,11 @@ interface AcceptedReads {
  * the rental becomes CANCELLED, with no waiting offer and no offer addresses left, and a SYSTEM
  * message "Cancelled", seen by the caller. An accepted rental also gets back what its acceptance set
  * up: its days leave the listing's `bookedRanges`, both handover codes and their fingerprints are
- * deleted, and the deposit goes back to the borrower (`DEPOSIT_RELEASED`). The checks run in this order: the
- * rental exists, the caller is a participant, then, if it is already cancelled, the call succeeds
- * and changes nothing; otherwise it is REQUESTED (at any time) or ACCEPTED until the day before its
- * first day, in Zurich at [now].
+ * deleted, and the deposit goes back to the borrower through `writeDepositSettlement`
+ * (`DEPOSIT_RELEASED`), only if it was held (`deposit_held_<rentalId>` exists). The checks run in
+ * this order: the rental exists, the caller is a participant, then, if it is already cancelled, the
+ * call succeeds and changes nothing; otherwise it is REQUESTED (at any time) or ACCEPTED until the
+ * day before its first day, in Zurich at [now].
  *
  * @param db the Firestore database.
  * @param callerId the participant cancelling.
@@ -60,8 +54,8 @@ interface AcceptedReads {
  * @throws RequestError `not-found`; `permission-denied` (not a participant); `failed-precondition`
  *   with the reason `RENTAL_CHANGED` (neither REQUESTED nor ACCEPTED) or `TOO_LATE` (an accepted
  *   rental on or after its first day); `internal` for an accepted rental with no valid dates,
- *   listing, borrower or deposit, or whose borrower's wallet holds less than the deposit. Nothing
- *   is written then.
+ *   listing, parties or deposit, or, from `writeDepositSettlement`, a held deposit that the
+ *   borrower's `heldAsDeposits` does not cover. Nothing is written then.
  */
 export async function cancelRental(
   db: Firestore,
@@ -123,17 +117,10 @@ export async function cancelRental(
         }),
       });
     }
-    if (!accepted.released) {
-      writeDepositRelease(
-        tx,
-        db,
-        accepted.borrowerId,
-        accepted.wallet,
-        accepted.deposit,
-        rentalId,
-        listingTitleOf(rental),
-      );
-    }
+    // Before pickup no late fee exists yet, so the whole deposit goes back.
+    writeDepositSettlement(tx, db, accepted.parties, rentalId, rental, accepted.settlement, {
+      kind: "release",
+    });
   });
 }
 
@@ -161,19 +148,10 @@ async function readAccepted(
   }
   const listingId = requirePerson(rental.listingId, "listing");
   const listingExists = (await tx.get(db.collection("listings").doc(listingId))).exists;
-  const borrowerId = requirePerson(rental.borrowerId, "borrower");
+  const parties = requireParties(rental);
   if (!isValidDeposit(rental.deposit)) {
     throw new RequestError("internal", "The rental has no valid deposit.");
   }
-  const wallet = await readWallet(tx, db, borrowerId);
-  const released = await hasTransaction(tx, db, borrowerId, depositReleaseRowId(rentalId));
-  return {
-    dates,
-    listingExists,
-    listingId,
-    borrowerId,
-    deposit: rental.deposit,
-    wallet,
-    released,
-  };
+  const settlement = await readDepositSettlement(tx, db, parties, rentalId);
+  return { dates, listingExists, listingId, parties, settlement };
 }

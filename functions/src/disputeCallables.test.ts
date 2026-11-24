@@ -135,7 +135,7 @@ describe("the whole direct settlement", () => {
     const rental = (await db.collection("rentals").doc(id).get()).data();
     expect(rental).toMatchObject({
       status: "CLOSED",
-      lastMessage: "Dispute settled · 42 PP to the lender, 18 PP back to the borrower",
+      lastMessage: "Dispute settled · 70% to the lender",
     });
   });
 });

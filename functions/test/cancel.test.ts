@@ -91,6 +91,9 @@ async function accepted(
     ...fields,
   });
   await db.doc(`rentals/${id}/handoverCodes/PICKUP`).set({ code: "secret" });
+  await db
+    .doc(`wallets/${who.borrower}/transactions/deposit_held_${id}`)
+    .set({ type: "DEPOSIT_HELD", amount: -40, itemTitle: "" });
   return { id, listingId };
 }
 
@@ -151,6 +154,7 @@ describe("cancelling an accepted rental", () => {
     expect(hasSeenLastMessage(data, who.borrower)).toBe(false);
     expect(await wallet(who.borrower)).toEqual({ available: 50, heldAsDeposits: 0, heldForRentals: 0 });
     expect(await rows(who.borrower)).toEqual([
+      expect.objectContaining({ id: `deposit_held_${id}`, type: "DEPOSIT_HELD", amount: -40 }),
       expect.objectContaining({
         id: `deposit_released_${id}`,
         type: "DEPOSIT_RELEASED",

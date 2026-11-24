@@ -4,10 +4,11 @@ import { DocumentData, Firestore, Transaction, getFirestore } from "firebase-adm
 import { onCall } from "firebase-functions/v2/https";
 import { toCallableError } from "./callable";
 import {
+  Parties,
   RequestError,
   listingTitleOf,
   parseRentalId,
-  requirePerson,
+  requireParties,
   requireVerifiedEpfl,
 } from "./rentalRules";
 import { Wallet, hasTransaction, readWallet, writeWallet } from "./wallet";
@@ -76,12 +77,6 @@ export async function payRentalLender(
   });
 }
 
-/** The borrower and the lender of a rental. */
-export interface Parties {
-  borrowerId: string;
-  lenderId: string;
-}
-
 /** What a payment moves, read inside the caller's transaction (see [readLenderPayment]). */
 export interface LenderPayment extends Parties {
   price: number;
@@ -90,19 +85,6 @@ export interface LenderPayment extends Parties {
   lender: Wallet;
   // False until the price is reserved at request (#357): it is then taken from `available`.
   fromHeld: boolean;
-}
-
-/**
- * The rental's borrower and lender, two different valid users, or an `internal` refusal: the
- * rental's data is broken then.
- */
-export function requireParties(rental: DocumentData): Parties {
-  const borrowerId = requirePerson(rental.borrowerId, "borrower");
-  const lenderId = requirePerson(rental.ownerId, "lender");
-  if (borrowerId === lenderId) {
-    throw new RequestError("internal", "The rental has the same borrower and lender.");
-  }
-  return { borrowerId, lenderId };
 }
 
 /**
