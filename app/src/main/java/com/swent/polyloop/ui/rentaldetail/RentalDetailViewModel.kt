@@ -36,9 +36,8 @@ import kotlinx.coroutines.launch
  * message, and the screen then shows a generic text. [notFound] is true when there is no such
  * rental. [isSupported] is false for a status the screen does not handle yet (anything but
  * Requested, Accepted, Active, Returned, Disputed and Cancelled): only [itemTitle] is then set, for
- * the placeholder. [isLender] is true when the signed-in user owns the item. [listingId] is the
- * rental's listing, which "Check the item" opens on a returned rental. [sentAt] is when the request
- * was sent, [endDate] the return day and [rentalPrice] the total price in PolyPoints.
+ * the placeholder. [isLender] is true when the signed-in user owns the item. [sentAt] is when the
+ * request was sent, [endDate] the return day and [rentalPrice] the total price in PolyPoints.
  * [suggestedDeposit] is the listing's item value in PolyPoints, or null when the listing is missing
  * or could not be read. [pickupArea] is the name copied on the rental, or the listing's if the
  * request was sent before the listing was geocoded. [pickupPoint] is the listing's public point, or
@@ -70,7 +69,6 @@ data class RentalDetailUiState(
     val notFound: Boolean = false,
     val isSupported: Boolean = true,
     val isLender: Boolean = false,
-    val listingId: String = "",
     val itemTitle: String = "",
     val status: RentalStatus? = null,
     val sentAt: Instant? = null,
@@ -373,7 +371,6 @@ class RentalDetailViewModel(
       _uiState.update {
         RentalDetailUiState(
             isLender = isLender,
-            listingId = rental.listingId,
             itemTitle = rental.listingTitle,
             status = rental.status,
             sentAt = rental.createdAt,

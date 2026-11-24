@@ -331,7 +331,6 @@ class PolyLoopAppTest {
           Screen.ChatList -> C.Tag.chat_list_screen
           Screen.Chat -> C.Tag.chat_screen
           Screen.RentalDetail -> C.Tag.rental_detail_screen
-          Screen.ListingDetail -> C.Tag.listing_detail_screen
           Screen.Handover -> C.Tag.handover_screen
           Screen.Dispute -> C.Tag.dispute_screen
           Screen.ReviewRequest -> C.Tag.review_request_screen
@@ -1023,53 +1022,23 @@ class PolyLoopAppTest {
 
   private val returnedRental = rental.copy(status = RentalStatus.RETURNED)
 
-  /** Asserts that Listing detail is on screen, opened on [listingId]. */
-  private fun assertListingDetailOpenedOn(listingId: String) {
-    assertCurrentScreen(Screen.ListingDetail)
-    assertEquals(
-        listingId,
-        navController.currentBackStackEntry?.arguments?.getString(Screen.ARG_LISTING_ID),
-    )
-  }
+  private val returnedRentalLender =
+      AuthUser(returnedRental.ownerId, "owner@epfl.ch", "Owner")
 
   @Test
-  fun checkTheItemOnAReturnedRentalOpensTheListingWithRequestDatesForTheBorrower() {
-    tapActionButtonOnRentalDetail(returnedRental)
-
-    assertListingDetailOpenedOn(returnedRental.listingId)
-    waitForTag(C.Tag.listing_detail_request_button)
-  }
-
-  @Test
-  fun checkTheItemOnAReturnedRentalOpensTheLendersOwnListingWithoutRequestDates() {
-    tapActionButtonOnRentalDetail(
-        returnedRental,
-        signedIn = AuthUser(listing.ownerId, "owner@epfl.ch", "Owner"),
-    )
-
-    assertListingDetailOpenedOn(returnedRental.listingId)
-    // Once the listing is shown, Listing detail has decided whether it is the user's own.
-    waitForTag(C.Tag.listing_detail_title)
-    composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).assertDoesNotExist()
-  }
-
-  @Test
-  fun backFromTheListingOpenedByCheckTheItemReturnsToRentalDetail() {
-    tapActionButtonOnRentalDetail(returnedRental)
-    assertListingDetailOpenedOn(returnedRental.listingId)
-
-    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+  fun checkTheItemOnAReturnedRentalOpensTheLendersReturnCheck() {
+    tapActionButtonOnRentalDetail(returnedRental, signedIn = returnedRentalLender)
 
     assertCurrentScreen(
-        Screen.RentalDetail,
-        shownRoute = Screen.RentalDetail.createRoute(returnedRental.id),
+        Screen.Handover,
+        shownRoute = Screen.Handover.createRoute(returnedRental.id),
     )
   }
 
   @Test
-  fun aDoubleTapOnCheckTheItemOpensOneListingDetail() {
+  fun aDoubleTapOnCheckTheItemOpensOneHandover() {
     useRentals(FakeRentalRepository(rentals = listOf(returnedRental)))
-    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    currentUser = returnedRentalLender
     setApp()
     composeTestRule.runOnUiThread {
       NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
@@ -1077,14 +1046,21 @@ class PolyLoopAppTest {
 
     doubleTap(C.Tag.rental_detail_action_button)
 
-    assertEquals(
-        1,
-        composeTestRule.runOnIdle {
-          navController.currentBackStack.value.count {
-            it.destination.route == Screen.ListingDetail.route
-          }
-        },
-    )
+    assertEquals(1, handoversOnTheBackStack())
+  }
+
+  @Test
+  fun theBorrowerOfAReturnedRentalHasNoBottomButton() {
+    useRentals(FakeRentalRepository(rentals = listOf(returnedRental)))
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+
+    // Once the status card shows, the rental is loaded and its bottom button would show too.
+    waitForTag(C.Tag.rental_detail_status_headline)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).assertDoesNotExist()
   }
 
   @Test

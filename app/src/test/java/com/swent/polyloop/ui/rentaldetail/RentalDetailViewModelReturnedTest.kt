@@ -116,7 +116,6 @@ class RentalDetailViewModelReturnedTest {
     assertNull(state.errorMsg)
     assertEquals(RentalStatus.RETURNED, state.status)
     assertEquals("Ski helmet", state.itemTitle)
-    assertEquals("l1", state.listingId)
     assertEquals(LocalDate.of(2026, 10, 1), state.startDate)
     assertEquals(LocalDate.of(2026, 10, 8), state.endDate)
     assertEquals(120, state.rentalPrice)
@@ -188,7 +187,6 @@ class RentalDetailViewModelReturnedTest {
     assertTrue(state.isSupported)
     assertEquals(RentalStatus.RETURNED, state.status)
     assertEquals(returnedAt, state.returnedAt)
-    assertEquals("l1", state.listingId)
     vm.onScreenResumed()
     assertEquals(1, rentals.serverNowCalls)
   }

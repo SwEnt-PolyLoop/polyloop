@@ -77,9 +77,9 @@ import java.util.Locale
  * The Rental detail screen, showing the rental loaded by [viewModel]. [onChatClick] opens the
  * rental's chat, [onPersonClick] the other person's profile, [onStartPickupClick] the pickup
  * (Handover) of an accepted rental, [onStartReturnClick] the return (Handover) of an active one,
- * [onViewDisputeClick] the dispute of a disputed one, [onCheckItemClick] Listing detail for the
- * listing of a returned one, and [onReviewRequestClick] Review request, for the lender of a request
- * with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel]. The app's top bar is
+ * [onViewDisputeClick] the dispute of a disputed one, [onCheckItemClick] the lender's return check
+ * (Handover) of a returned one, and [onReviewRequestClick] Review request, for the lender of a
+ * request with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel]. The app's top bar is
  * drawn by the navigation scaffold, not here.
  */
 @Composable
@@ -90,7 +90,7 @@ fun RentalDetailScreen(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
-    onCheckItemClick: (listingId: String) -> Unit,
+    onCheckItemClick: () -> Unit,
     onReviewRequestClick: () -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -120,7 +120,7 @@ fun RentalDetailScreen(
  * ([onStartPickupClick]) pinned at the bottom, an Active one "Start Return" ([onStartReturnClick])
  * and a Disputed one "View Dispute" ([onViewDisputeClick]); a request with no offer has "Review
  * request" ([onReviewRequestClick]) for its lender. A Returned rental has its stage strip, status,
- * details, the person card and "Check the item" ([onCheckItemClick], with its listing's id), with
+ * details, the person card and, for the lender only, "Check the item" ([onCheckItemClick]), with
  * no meeting point or cancel row. A Cancelled rental has only its status, its details and the
  * person card: no stage strip, meeting point, cancel row or bottom button. A Requested or Accepted
  * rental has a cancel row (see [CancelRow]) whose button opens a confirm sheet; "Yes" there calls
@@ -142,7 +142,7 @@ fun RentalDetailContent(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
-    onCheckItemClick: (listingId: String) -> Unit,
+    onCheckItemClick: () -> Unit,
     onCancelClick: () -> Unit,
     modifier: Modifier = Modifier,
     onReviewRequestClick: () -> Unit = {},
@@ -293,9 +293,9 @@ fun RentalDetailContent(
 
 /**
  * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "Start
- * Return" once active, "Check the item" once returned ([onCheckItemClick], with the listing's id;
- * not shown when it is blank), "View Dispute" once disputed, and, for the lender of a request with
- * no offer, "Review request"; nothing otherwise for a request. Start Pickup opens on the pickup day
+ * Return" once active, "Check the item" once returned, for the lender only ([onCheckItemClick];
+ * nothing for the borrower), "View Dispute" once disputed, and, for the lender of a request with no
+ * offer, "Review request"; nothing otherwise for a request. Start Pickup opens on the pickup day
  * and Start Return on the return day, both by the server's date (see [ServerDayButton]); before
  * that day, the day it opens is written in [locale].
  */
@@ -307,7 +307,7 @@ private fun ActionBar(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
-    onCheckItemClick: (listingId: String) -> Unit,
+    onCheckItemClick: () -> Unit,
     onReviewRequestClick: () -> Unit,
 ) {
   val start = uiState.startDate
@@ -359,16 +359,15 @@ private fun ActionBar(
           )
         }
     RentalStatus.RETURNED ->
-        // Listing detail tells the owner apart by itself (its isOwnListing), so no role is passed:
-        // the borrower gets "Request dates" there and the lender, on their own listing, does not.
-        // Never disabled, offline included, as Listing detail shows its own offline state. The
-        // lender's real check of the item ("Item is fine" / "Flag damage") comes later.
-        if (uiState.listingId.isNotBlank()) {
+        // The lender's check ("Item is fine" / "Flag damage") lives on Handover, and nothing else
+        // leads back to it once the rental is Returned. The borrower has nothing to do until the
+        // lender answers. Never disabled, offline included, as Handover shows its own offline state.
+        if (uiState.isLender) {
           ActionBarSurface {
             ActionButton(
                 text = stringResource(R.string.rental_detail_check_item),
                 enabled = true,
-                onClick = { onCheckItemClick(uiState.listingId) },
+                onClick = onCheckItemClick,
             )
           }
         }
