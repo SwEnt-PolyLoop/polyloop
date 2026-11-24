@@ -5,7 +5,7 @@ import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { codeFingerprint } from "./handoverCode";
 import {
   RENTAL_CHANGED,
-  RETURNED_STATUSES,
+  ALREADY_RETURNED_STATUSES,
   WRONG_CODE,
   confirmPickup,
   confirmReturn,
@@ -69,10 +69,16 @@ const codeExists = async (id: string, phase = "PICKUP") =>
 const messages = async (id: string) =>
   (await db.collection(`rentals/${id}/messages`).get()).docs.map((doc) => doc.data());
 
-/** Expects [id] untouched: still ACCEPTED, with its code, and no message. */
+/**
+ * Expects [id] untouched: still ACCEPTED, with its code, no message, and no return code made by
+ * the safety net (the rental from [accepted] has none).
+ */
 async function expectUnchanged(id: string): Promise<void> {
-  expect((await rentalData(id))?.status).toBe("ACCEPTED");
+  const data = await rentalData(id);
+  expect(data?.status).toBe("ACCEPTED");
+  expect(data?.returnCodeHash).toBeUndefined();
   expect(await codeExists(id)).toBe(true);
+  expect(await codeExists(id, "RETURN")).toBe(false);
   expect(await messages(id)).toEqual([]);
 }
 
@@ -397,7 +403,7 @@ describe("confirming the return", () => {
 
   it("succeeds and changes nothing once the rental was returned", async () => {
     const who = people();
-    for (const status of RETURNED_STATUSES) {
+    for (const status of ALREADY_RETURNED_STATUSES) {
       const id = await newRental(who, status, { endDate: LAST_DAY });
 
       // Even with no code left, or a wrong one: the return already happened.

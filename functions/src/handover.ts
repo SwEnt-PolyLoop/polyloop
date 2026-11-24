@@ -27,10 +27,10 @@ export const RENTAL_CHANGED = "RENTAL_CHANGED";
  * The statuses a rental reaches only once its item is back: a return scan on one of them was
  * already confirmed, so it succeeds and changes nothing.
  */
-export const RETURNED_STATUSES = ["RETURNED", "CLOSED", "DISPUTED", "FROZEN"];
+export const ALREADY_RETURNED_STATUSES = ["RETURNED", "CLOSED", "DISPUTED", "FROZEN"];
 
 /** The statuses in which the item can be given back: out, late or not. */
-const RETURN_STATUSES = ["ACTIVE", "OVERDUE"];
+const RETURNABLE_STATUSES = ["ACTIVE", "OVERDUE"];
 
 /** What the receiving person's phone sends once it has scanned the other person's QR code. */
 export interface HandoverScan {
@@ -130,6 +130,7 @@ export async function confirmPickup(
     // The return code and its fingerprint are always written together, so a rental with no return
     // fingerprint has no return code: it was accepted before the return code existed.
     const hasReturnCode = typeof rental[CODE_HASH_FIELDS.RETURN] === "string";
+    const returnCodeFields = hasReturnCode ? {} : writeNewHandoverCode(tx, rentalRef, "RETURN");
     tx.delete(codeRef);
     writeWithSystemMessage(
       tx,
@@ -139,7 +140,7 @@ export async function confirmPickup(
         status: "ACTIVE",
         pickedUpAt: FieldValue.serverTimestamp(),
         [CODE_HASH_FIELDS.PICKUP]: FieldValue.delete(),
-        ...(hasReturnCode ? {} : writeNewHandoverCode(tx, rentalRef, "RETURN")),
+        ...returnCodeFields,
       },
       callerId,
     );
@@ -152,8 +153,9 @@ export async function confirmPickup(
  * becomes RETURNED with `returnedAt`, a SYSTEM message says it waits for the lender's check, and
  * the return code and its fingerprint are deleted, as they are used up. The checks run in this
  * order: the rental exists, the caller is its lender (the person receiving the item back), then,
- * if the rental was already returned ([RETURNED_STATUSES]), the call succeeds and changes nothing
- * (a second scan, or one sent twice); otherwise the rental is ACTIVE or OVERDUE, today in Zurich at
+ * if the rental was already returned ([ALREADY_RETURNED_STATUSES]), the call succeeds and changes
+ * nothing (a second scan, or one sent twice); otherwise the rental is ACTIVE or OVERDUE
+ * ([RETURNABLE_STATUSES]), today in Zurich at
  * [now] is a return day ([isReturnDay]), and the code is the one the borrower's phone shows. No
  * money moves: the lender's check that follows decides about the deposit. The server trusts the
  * app's order: the photos are not checked.
@@ -178,8 +180,8 @@ export async function confirmReturn(
     if (callerId !== rental.ownerId) {
       throw new RequestError("permission-denied", "Only the lender confirms the return.");
     }
-    if (RETURNED_STATUSES.includes(rental.status)) return;
-    if (!RETURN_STATUSES.includes(rental.status)) {
+    if (ALREADY_RETURNED_STATUSES.includes(rental.status)) return;
+    if (!RETURNABLE_STATUSES.includes(rental.status)) {
       throw new RequestError("failed-precondition", "This rental can no longer be returned.", {
         reason: RENTAL_CHANGED,
       });
