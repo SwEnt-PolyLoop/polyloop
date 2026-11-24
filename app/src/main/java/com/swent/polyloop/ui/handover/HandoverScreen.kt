@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -695,8 +696,10 @@ internal fun PhotoTile(
     if (photo.sync == PhotoSync.WAITING) {
       Text(
           text = stringResource(R.string.handover_photo_not_synced),
-          style = MaterialTheme.typography.labelSmall,
+          // Smaller than the time below it, so it stays on one line on a 4-per-row tile.
+          style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
           color = MaterialTheme.colorScheme.onTertiaryContainer,
+          maxLines = 1,
           modifier =
               Modifier.align(Alignment.TopStart)
                   .padding(4.dp)
