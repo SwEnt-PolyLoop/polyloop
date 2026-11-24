@@ -15,8 +15,9 @@ export const CODE_HASH_FIELDS = { PICKUP: "pickupCodeHash", RETURN: "returnCodeH
 /**
  * Makes a new code for [phase] of [rentalRef] in [tx]: the code in `handoverCodes/{phase}`, which
  * only the person who shows it reads, and its fingerprint, returned as `{<field>: fingerprint}` to
- * be written on the rental, so the scanning phone can check a scan. Runs after the transaction's
- * reads.
+ * be written on the rental, so the scanning phone can check a scan. It writes to [tx], and
+ * Firestore refuses a read after a write: call it only after every `tx.get` of the transaction,
+ * as its own statement, not inside the update it feeds.
  */
 export function writeNewHandoverCode(
   tx: Transaction,

@@ -341,8 +341,8 @@ async function accept(
   // The QR codes of both handovers (docs/ARCHITECTURE.md, "Handover"): the pickup's, which the
   // lender shows, and the return's, which the borrower shows. The return's is made now too, so
   // the borrower's phone can keep a copy before the return, in case it is offline then.
-  const pickupCodeHash = writeNewHandoverCode(tx, rentalRef, "PICKUP");
-  const returnCodeHash = writeNewHandoverCode(tx, rentalRef, "RETURN");
+  const pickupCodeFields = writeNewHandoverCode(tx, rentalRef, "PICKUP");
+  const returnCodeFields = writeNewHandoverCode(tx, rentalRef, "RETURN");
   writeWithSystemMessage(
     tx,
     rentalRef,
@@ -352,8 +352,8 @@ async function accept(
       deposit: offer.amount,
       pickupAddress: addresses.pickup,
       returnAddress: addresses.dropOff,
-      ...pickupCodeHash,
-      ...returnCodeHash,
+      ...pickupCodeFields,
+      ...returnCodeFields,
       offer: FieldValue.delete(),
     },
     callerId,
