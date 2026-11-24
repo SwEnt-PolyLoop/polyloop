@@ -28,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -47,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -67,6 +69,7 @@ import coil3.compose.AsyncImage
 import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
+import com.swent.polyloop.model.handover.PhotoSync
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
 import com.swent.polyloop.ui.components.OfflineBanner
@@ -429,7 +432,11 @@ private fun PhotosCard(
       PhotosLoadError(onRetryPhotos)
     } else {
       TileGrid(photoTiles + pendingTiles + emptyTiles)
-      if (uiState.isHandoverDay) PhotosStatus(uiState.photosNeeded, uiState.phase)
+      if (uiState.isHandoverDay) {
+        val waitsOffline = uiState.isOffline && uiState.photos.any { it.sync == PhotoSync.WAITING }
+        PhotosStatus(uiState.photosNeeded, uiState.phase, waitsOffline)
+      }
+      if (uiState.refusedPhotos > 0) RefusedPhotos(uiState.refusedPhotos)
     }
   }
 }
@@ -476,35 +483,59 @@ internal fun PhotosLoadError(onRetry: () -> Unit) {
 }
 
 /**
- * A green check with "Pickup photos done" or "Return photos done" ([phase]), or a red warning with
- * how many photos are missing.
+ * A green check with "Pickup photos done" or "Return photos done" ([phase]), saying they upload
+ * once back online when some still wait offline ([waitsOffline]), or a red warning with how many
+ * photos are missing.
  */
 @Composable
-private fun PhotosStatus(photosNeeded: Int, phase: HandoverPhase?) {
+private fun PhotosStatus(photosNeeded: Int, phase: HandoverPhase?, waitsOffline: Boolean) {
   val done = photosNeeded == 0
-  val color = if (done) PositiveGreen else MaterialTheme.colorScheme.error
+  val isPickup = phase == HandoverPhase.PICKUP
+  val doneText =
+      when {
+        waitsOffline && isPickup -> R.string.handover_photos_done_offline
+        waitsOffline -> R.string.handover_return_photos_done_offline
+        isPickup -> R.string.handover_photos_done
+        else -> R.string.handover_return_photos_done
+      }
+  StatusLine(
+      text =
+          if (done) stringResource(doneText)
+          else pluralStringResource(R.plurals.handover_photos_missing, photosNeeded, photosNeeded),
+      icon = if (done) Icons.Default.CheckCircle else Icons.Default.Warning,
+      color = if (done) PositiveGreen else MaterialTheme.colorScheme.error,
+      tag = C.Tag.handover_photos_status,
+  )
+}
+
+/** "1 photo couldn't be saved." in red: [count] photos the server refused, gone from the grid. */
+@Composable
+private fun RefusedPhotos(count: Int) =
+    StatusLine(
+        text = pluralStringResource(R.plurals.handover_photos_refused, count, count),
+        icon = Icons.Default.Info,
+        color = MaterialTheme.colorScheme.error,
+        tag = C.Tag.handover_photos_refused,
+    )
+
+/** One line of the photos card: [icon] then [text], both in [color]; [tag] is the text's tag. */
+@Composable
+private fun StatusLine(text: String, icon: ImageVector, color: Color, tag: String) {
   Row(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(6.dp),
   ) {
     Icon(
-        imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.Warning,
+        imageVector = icon,
         contentDescription = null,
         tint = color,
         modifier = Modifier.size(18.dp),
     )
     Text(
-        text =
-            if (done)
-                stringResource(
-                    if (phase == HandoverPhase.PICKUP) R.string.handover_photos_done
-                    else R.string.handover_return_photos_done
-                )
-            else
-                pluralStringResource(R.plurals.handover_photos_missing, photosNeeded, photosNeeded),
+        text = text,
         style = MaterialTheme.typography.bodyMedium,
         color = color,
-        modifier = Modifier.testTag(C.Tag.handover_photos_status),
+        modifier = Modifier.testTag(tag),
     )
   }
 }
@@ -660,6 +691,23 @@ internal fun PhotoTile(
                 .background(Color.Black.copy(alpha = 0.45f))
                 .padding(horizontal = 6.dp, vertical = 2.dp),
     )
+    // In the offline banner's colours, as the photo waits for the connection.
+    if (photo.sync == PhotoSync.WAITING) {
+      Text(
+          text = stringResource(R.string.handover_photo_not_synced),
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onTertiaryContainer,
+          modifier =
+              Modifier.align(Alignment.TopStart)
+                  .padding(4.dp)
+                  .background(
+                      MaterialTheme.colorScheme.tertiaryContainer,
+                      RoundedCornerShape(4.dp),
+                  )
+                  .padding(horizontal = 4.dp, vertical = 1.dp)
+                  .testTag(C.Tag.handover_photo_not_synced),
+      )
+    }
   }
 }
 

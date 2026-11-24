@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
+import com.swent.polyloop.model.handover.PhotoSync
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.formatDay
 import java.time.Instant
@@ -289,6 +290,25 @@ class HandoverScreenTest {
     uiState = pickup.copy(photos = photos(3))
     status.assertTextEquals("Pickup photos done")
     assertAbsent(C.Tag.handover_not_pickup_day)
+  }
+
+  @Test
+  fun waitingPhotosAreMarkedNotSyncedAndRefusedOnesAreCounted() {
+    val (sent, waiting) = photos(3).let { it.take(2) to it.last().copy(sync = PhotoSync.WAITING) }
+    val pills = composeTestRule.onAllNodesWithTag(C.Tag.handover_photo_not_synced)
+    setContent(pickup.copy(photos = sent + waiting, isOffline = true))
+
+    pills.assertCountEquals(1)
+    text(
+        C.Tag.handover_photos_status,
+        "Pickup photos done. They upload when you're back online.",
+    )
+    assertAbsent(C.Tag.handover_photos_refused)
+
+    // Back online, the last photo was refused instead: it left the grid and is counted.
+    uiState = pickup.copy(photos = sent, refusedPhotos = 1)
+    pills.assertCountEquals(0)
+    text(C.Tag.handover_photos_refused, "1 photo couldn't be saved.")
   }
 
   @Test
