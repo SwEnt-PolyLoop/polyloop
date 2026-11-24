@@ -355,11 +355,13 @@ describe("acceptSplit and the held deposit", () => {
     );
   });
 
-  it("moves nothing when no deposit was held, but still settles the dispute", async () => {
+  it("moves nothing when no deposit was held, but still settles the dispute, and the chat only says the split", async () => {
     const { id, who } = await heldDispute(50, {}, false);
 
     await acceptSplit(db, who.borrower, { rentalId: id, lenderPercent: 50 }, NOW);
 
+    expect(await systemMessages(id)).toEqual(["Dispute settled · 50% to the lender"]);
+    expect((await rental(id))?.lastMessage).toBe("Dispute settled · 50% to the lender");
     expect(await moved(who, id)).toEqual({
       borrower: [10, 33],
       lender: [5, 0],

@@ -18,7 +18,7 @@ import {
 import { writeWithSystemMessage } from "./negotiation";
 import { RequestError, requireParties } from "./rentalRules";
 import { SweepCounts, runSweep } from "./sweep";
-import { readDepositSettlement, writeDepositSettlement } from "./wallet";
+import { depositToSettle, readDepositSettlement, writeDepositSettlement } from "./wallet";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
 const DISPUTES = "disputes";
@@ -290,7 +290,8 @@ function moveToLlmProposal(
 
 /**
  * Ends a dispute on the split [lenderPercent], accepted by [acceptedBy]: `agreedAt` on the dispute,
- * the rental CLOSED and the shares in the chat. The shares are those of the deposit left after the
+ * the rental CLOSED and the shares in the chat (only the agreed percentage when nothing moved
+ * because no deposit was held). The shares are those of the deposit left after the
  * late fees (`depositToSettle`), which the late-fee job already paid to the lender, and the held
  * deposit moves to the two wallets (`writeDepositSettlement`), in the same transaction. A rental
  * with no held deposit (from before deposits were held) moves no money. All reads come before the
@@ -320,14 +321,14 @@ async function settle(
     lenderPercent,
   });
   const { lender, borrower } = shares;
+  // Nothing moved although there was a deposit to settle (no hold row): the chat must not claim
+  // amounts that were never paid, so it only says the agreed split.
+  const nothingMoved = lender === 0 && borrower === 0 && depositToSettle(open.rental) > 0;
+  const text = nothingMoved
+    ? `Dispute settled · ${lenderPercent}% to the lender`
+    : `Dispute settled · ${lender} PP to the lender, ${borrower} PP back to the borrower`;
   tx.update(open.disputeRef, { agreedAt: Timestamp.fromDate(now) });
-  writeWithSystemMessage(
-    tx,
-    open.rentalRef,
-    `Dispute settled · ${lender} PP to the lender, ${borrower} PP back to the borrower`,
-    { status: CLOSED },
-    acceptedBy,
-  );
+  writeWithSystemMessage(tx, open.rentalRef, text, { status: CLOSED }, acceptedBy);
 }
 
 /**
