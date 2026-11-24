@@ -62,6 +62,17 @@ describe("confirmHandover", () => {
     expect(await status(id)).toBe("RETURNED");
   });
 
+  it("lets only the lender confirm a return", async () => {
+    const who = people();
+    const id = await rental(who, "ACTIVE", { endDate: zurichDay(new Date()) });
+    await db.doc(`rentals/${id}/handoverCodes/RETURN`).set({ code: CODE });
+
+    await expect(
+      confirmHandover.run(asUser(who.borrower, { rentalId: id, phase: "RETURN", code: CODE })),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(await status(id)).toBe("ACTIVE");
+  });
+
   it("gives the app the reason of a refusal it tells apart", async () => {
     const { who, id } = await readyToScan();
 
@@ -82,7 +93,9 @@ describe("confirmHandover", () => {
       { rentalId: " ", phase: "PICKUP", code: CODE },
       { rentalId: id, code: CODE }, // no phase
       { rentalId: id, phase: "pickup", code: CODE },
+      { rentalId: id, phase: "return", code: CODE },
       { rentalId: id, phase: "PICKUP" }, // no code
+      { rentalId: id, phase: "RETURN" }, // no code
       { rentalId: id, phase: "PICKUP", code: "" },
       { rentalId: id, phase: "PICKUP", code: 42 },
       { rentalId: id, phase: "PICKUP", code: "x".repeat(201) },
