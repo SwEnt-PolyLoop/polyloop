@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
-import { CANCELLED, TOO_LATE, cancelRental } from "../src/cancel";
+import { CANCELLED, TOO_LATE, cancelInTransaction } from "../src/cancel";
 import { RENTAL_CHANGED } from "../src/handover";
 import { hasSeenLastMessage } from "../src/testing/readTimes";
 import {
@@ -106,7 +106,7 @@ describe("cancelling a request", () => {
         const caller = who[role];
         const other = role === "borrower" ? who.lender : who.borrower;
 
-        await cancelRental(db, caller, id, DAY_BEFORE);
+        await cancelInTransaction(db, caller, id, DAY_BEFORE);
 
         const data = await rentalData(id);
         expect(data?.status).toBe(CANCELLED);
@@ -127,7 +127,7 @@ describe("cancelling a request", () => {
       const who = people();
       const id = await requested(who, false);
 
-      await cancelRental(db, who.borrower, id, new Date(now));
+      await cancelInTransaction(db, who.borrower, id, new Date(now));
 
       expect((await rentalData(id))?.status).toBe(CANCELLED);
     });
@@ -140,7 +140,7 @@ describe("cancelling an accepted rental", () => {
     const { id, listingId } = await accepted(who, { fields: { returnCodeHash: "fingerprint" } });
     await db.doc(`rentals/${id}/handoverCodes/RETURN`).set({ code: "return secret" });
 
-    await cancelRental(db, who.lender, id, DAY_BEFORE);
+    await cancelInTransaction(db, who.lender, id, DAY_BEFORE);
 
     const data = await rentalData(id);
     expect(data?.status).toBe(CANCELLED);
@@ -171,7 +171,7 @@ describe("cancelling an accepted rental", () => {
     const { id, listingId } = await accepted(who);
     await db.doc(`listings/${listingId}`).delete();
 
-    await cancelRental(db, who.borrower, id, DAY_BEFORE);
+    await cancelInTransaction(db, who.borrower, id, DAY_BEFORE);
 
     expect((await rentalData(id))?.status).toBe(CANCELLED);
     expect(await exists(`listings/${listingId}`)).toBe(false);
@@ -202,7 +202,7 @@ describe("cancelling an accepted rental", () => {
         const who = people();
         const { id, listingId } = await accepted(who, { startDate, endDate });
 
-        await expect(cancelRental(db, who.borrower, id, new Date(now))).rejects.toMatchObject({
+        await expect(cancelInTransaction(db, who.borrower, id, new Date(now))).rejects.toMatchObject({
           code: "failed-precondition",
           details: { reason: TOO_LATE },
         });
@@ -219,7 +219,7 @@ describe("cancelling an accepted rental", () => {
       const who = people();
       const { id } = await accepted(who, { startDate, endDate });
 
-      await cancelRental(db, who.borrower, id, new Date(lastMoment));
+      await cancelInTransaction(db, who.borrower, id, new Date(lastMoment));
 
       expect((await rentalData(id))?.status).toBe(CANCELLED);
     });
@@ -228,12 +228,12 @@ describe("cancelling an accepted rental", () => {
   it("succeeds and changes nothing when cancelled a second time", async () => {
     const who = people();
     const { id } = await accepted(who);
-    await cancelRental(db, who.borrower, id, DAY_BEFORE);
+    await cancelInTransaction(db, who.borrower, id, DAY_BEFORE);
     const walletBefore = await wallet(who.borrower);
     const rowsBefore = await rows(who.borrower);
     const messagesBefore = await messages(id);
 
-    await cancelRental(db, who.lender, id, DAY_BEFORE);
+    await cancelInTransaction(db, who.lender, id, DAY_BEFORE);
 
     expect(await wallet(who.borrower)).toEqual(walletBefore);
     expect(await rows(who.borrower)).toEqual(rowsBefore);
@@ -244,7 +244,7 @@ describe("cancelling an accepted rental", () => {
 
 describe("refusals", () => {
   it("refuses a missing rental", async () => {
-    await expect(cancelRental(db, "someone", randomUUID(), DAY_BEFORE)).rejects.toMatchObject({
+    await expect(cancelInTransaction(db, "someone", randomUUID(), DAY_BEFORE)).rejects.toMatchObject({
       code: "not-found",
     });
   });
@@ -253,7 +253,7 @@ describe("refusals", () => {
     const who = people();
     const { id } = await accepted(who);
 
-    await expect(cancelRental(db, `stranger-${randomUUID()}`, id, DAY_BEFORE)).rejects.toMatchObject({
+    await expect(cancelInTransaction(db, `stranger-${randomUUID()}`, id, DAY_BEFORE)).rejects.toMatchObject({
       code: "permission-denied",
     });
 
@@ -267,7 +267,7 @@ describe("refusals", () => {
       const who = people();
       const { id, listingId } = await accepted(who, { fields: { status } });
 
-      await expect(cancelRental(db, who.borrower, id, DAY_BEFORE)).rejects.toMatchObject({
+      await expect(cancelInTransaction(db, who.borrower, id, DAY_BEFORE)).rejects.toMatchObject({
         code: "failed-precondition",
         details: { reason: RENTAL_CHANGED },
       });
@@ -313,7 +313,7 @@ describe("broken accepted rentals", () => {
       const who = people();
       const { id, listingId } = await accepted(who, { fields: fields(who) });
 
-      await expect(cancelRental(db, who[caller], id, DAY_BEFORE)).rejects.toMatchObject({
+      await expect(cancelInTransaction(db, who[caller], id, DAY_BEFORE)).rejects.toMatchObject({
         code: "internal",
       });
 
@@ -326,7 +326,7 @@ describe("broken accepted rentals", () => {
     const { id, listingId } = await accepted(who);
     await fund(who.borrower, { available: 10, heldAsDeposits: 39, heldForRentals: 0 });
 
-    await expect(cancelRental(db, who.borrower, id, DAY_BEFORE)).rejects.toMatchObject({
+    await expect(cancelInTransaction(db, who.borrower, id, DAY_BEFORE)).rejects.toMatchObject({
       code: "internal",
     });
 
@@ -347,7 +347,7 @@ describe("the deposit of a cancelled rental", () => {
     const { id } = await accepted(who);
     await db.doc(`wallets/${who.borrower}/transactions/deposit_held_${id}`).delete();
 
-    await cancelRental(db, who.borrower, id, DAY_BEFORE);
+    await cancelInTransaction(db, who.borrower, id, DAY_BEFORE);
 
     expect((await rentalData(id))?.status).toBe(CANCELLED);
     expect(await wallet(who.borrower)).toEqual({ available: 10, heldAsDeposits: 40, heldForRentals: 0 });
@@ -362,7 +362,7 @@ describe("the deposit of a cancelled rental", () => {
       .set({ type: "DEPOSIT_RELEASED", amount: 40, itemTitle: "Camping tent" });
     const rowsBefore = await rows(who.borrower);
 
-    await cancelRental(db, who.borrower, id, DAY_BEFORE);
+    await cancelInTransaction(db, who.borrower, id, DAY_BEFORE);
 
     expect((await rentalData(id))?.status).toBe(CANCELLED);
     expect(await wallet(who.borrower)).toEqual({ available: 10, heldAsDeposits: 40, heldForRentals: 0 });

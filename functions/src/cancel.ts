@@ -57,7 +57,7 @@ interface AcceptedReads {
  *   listing, parties or deposit, or, from `writeDepositSettlement`, a held deposit that the
  *   borrower's `heldAsDeposits` does not cover. Nothing is written then.
  */
-export async function cancelRental(
+export async function cancelInTransaction(
   db: Firestore,
   callerId: string,
   rentalId: string,
@@ -146,6 +146,7 @@ async function readAccepted(
       { reason: TOO_LATE },
     );
   }
+  // requirePerson checks any id that must be a non-empty string, not only a person's.
   const listingId = requirePerson(rental.listingId, "listing");
   const listingExists = (await tx.get(db.collection("listings").doc(listingId))).exists;
   const parties = requireParties(rental);
