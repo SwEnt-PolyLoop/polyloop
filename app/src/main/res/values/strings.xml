@@ -448,6 +448,13 @@
     <string name="rental_detail_price_returned">%1$d PP · returned</string>
     <!-- The deposit of a cancelled rental, e.g. "60 PP · released" -->
     <string name="rental_detail_deposit_released">%1$d PP · released</string>
+    <!-- The headline of a returned rental, e.g. "Returned on 8 Oct" -->
+    <string name="rental_detail_returned_headline">Returned on %1$s</string>
+    <!-- The headline of a returned rental whose return date is not known -->
+    <string name="rental_detail_returned_headline_no_date">Returned</string>
+    <string name="rental_detail_check_item">Check the item</string>
+    <string name="rental_detail_returned_body">Check the item against your pickup photos. The deposit stays held until a decision.</string>
+    <string name="rental_detail_returned_body_borrower">The item is being checked against the pickup photos. The deposit is released once everything is confirmed fine.</string>
 
     <!-- Dispute -->
     <string name="dispute_title">Dispute</string>
