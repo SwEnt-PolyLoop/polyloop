@@ -4,7 +4,14 @@ import { getFirestore } from "firebase-admin/firestore";
 import { onCall } from "firebase-functions/v2/https";
 import { toCallableError } from "./callable";
 import { confirmPickup, confirmReturn, parseHandoverScan } from "./handover";
+import type { HandoverPhase } from "./handoverCode";
 import { requireVerifiedEpfl } from "./rentalRules";
+
+/** Who confirms each phase: TypeScript refuses a phase added to [HandoverPhase] but left out here. */
+const CONFIRM: Record<HandoverPhase, typeof confirmPickup> = {
+  PICKUP: confirmPickup,
+  RETURN: confirmReturn,
+};
 
 /**
  * Callable `confirmHandover` (see docs/ARCHITECTURE.md): the phone of the person receiving the item
@@ -17,8 +24,7 @@ export const confirmHandover = onCall(async (request) => {
   try {
     const uid = requireVerifiedEpfl(request.auth);
     const scan = parseHandoverScan(request.data);
-    const confirm = scan.phase === "RETURN" ? confirmReturn : confirmPickup;
-    await confirm(getFirestore(), uid, scan, new Date());
+    await CONFIRM[scan.phase](getFirestore(), uid, scan, new Date());
     return {};
   } catch (error) {
     throw toCallableError(error);
