@@ -1481,19 +1481,6 @@ class HandoverViewModelTest {
   }
 
   @Test
-  fun noCodeIsReadAtReturnYet() {
-    useStatus(RentalStatus.ACTIVE)
-    rentalRepository.serverNow = noonOn(returnDay)
-    handoverRepository.codeFailure = RuntimeException("would be reported if read")
-    val vm = viewModel()
-    vm.retry()
-
-    assertEquals(HandoverPhase.RETURN, vm.uiState.value.phase)
-    assertFalse(vm.uiState.value.codeFailed)
-    assertNull(vm.uiState.value.codeFingerprint)
-  }
-
-  @Test
   fun aLoadedCodeIsNotReadAgainOnRetry() {
     handoverRepository.failure = RuntimeException("photos down")
     val vm = viewModel()
@@ -1511,6 +1498,87 @@ class HandoverViewModelTest {
     assertFalse(state.codeFailed)
     assertFalse(state.showsCode)
     assertFalse(state.canScan)
+  }
+
+  // ---------- the return code ----------
+
+  /**
+   * The handover of [handoverRepository], recording the phase of each code read and each scan sent.
+   */
+  private class PhaseRecorder(private val base: HandoverRepository) : HandoverRepository by base {
+    val codePhases = mutableListOf<HandoverPhase>()
+    val scanPhases = mutableListOf<HandoverPhase>()
+
+    override suspend fun getCodeToShow(rentalId: String, phase: HandoverPhase): Result<String?> {
+      codePhases += phase
+      return base.getCodeToShow(rentalId, phase)
+    }
+
+    override suspend fun getCodeFingerprint(
+        rentalId: String,
+        phase: HandoverPhase,
+    ): Result<String?> {
+      codePhases += phase
+      return base.getCodeFingerprint(rentalId, phase)
+    }
+
+    override suspend fun confirmScan(
+        rentalId: String,
+        phase: HandoverPhase,
+        code: String,
+    ): Result<Unit> {
+      scanPhases += phase
+      return base.confirmScan(rentalId, phase, code)
+    }
+  }
+
+  /** Stores the rental in [status] with the server's clock at noon on [day]. */
+  private fun atReturn(status: RentalStatus = RentalStatus.ACTIVE, day: LocalDate = returnDay) {
+    useStatus(status)
+    rentalRepository.serverNow = noonOn(day)
+  }
+
+  @Test
+  fun theBorrowerShowsTheReturnCodeFromTheReturnDayOnLateIncluded() {
+    handoverRepository.photos = photos(3, phase = HandoverPhase.RETURN)
+    for ((day, status, expected) in
+        listOf(
+            Triple(returnDay.minusDays(1), RentalStatus.ACTIVE, false),
+            Triple(returnDay, RentalStatus.ACTIVE, true),
+            Triple(returnDay.plusDays(1), RentalStatus.OVERDUE, true),
+        )) {
+      atReturn(status, day)
+      val handover = PhaseRecorder(handoverRepository)
+      val state = viewModel(handover = handover).uiState.value
+
+      assertEquals(listOf(HandoverPhase.RETURN), handover.codePhases)
+      assertTrue(state.showsCode)
+      assertEquals("secret-code", state.code)
+      assertEquals(expected, state.canShowCode)
+    }
+  }
+
+  @Test
+  fun theBorrowerNeedsThreeReturnPhotosToShowTheCode() {
+    atReturn()
+    // Pickup photos do not count at return.
+    handoverRepository.photos = photos(3) + photos(2, phase = HandoverPhase.RETURN)
+    val vm = viewModel()
+    assertFalse(vm.uiState.value.canShowCode)
+
+    handoverRepository.photos = photos(3, phase = HandoverPhase.RETURN)
+    assertTrue(vm.uiState.value.canShowCode)
+  }
+
+  @Test
+  fun aReturnCodeThatCannotBeReadIsReported() {
+    atReturn()
+    handoverRepository.codeFailure = RuntimeException("down")
+    handoverRepository.photos = photos(3, phase = HandoverPhase.RETURN)
+    val state = viewModel().uiState.value
+
+    assertTrue(state.codeFailed)
+    assertFalse(state.canShowCode)
   }
 
   @Test
