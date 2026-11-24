@@ -2,6 +2,7 @@
 
 package com.swent.polyloop.ui.handover
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -33,13 +34,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.swent.polyloop.R
+import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.theme.PositiveGreen
 
 /**
- * The card of the person receiving the item (Figma 15, 15.10 to 15.15): "Scan QR code", which calls
- * [onScan], and why it is off or what the last scan gave; once the scan is confirmed, only "Picked
- * up". [onRetry] reads the code's fingerprint again after it failed.
+ * The card of the person receiving the item, the borrower at pickup (Figma 15, 15.10 to 15.15) and
+ * the lender at return (Figma 17): "Scan QR code", which calls [onScan], and why it is off or what
+ * the last scan gave; once the pickup scan is confirmed, only "Picked up". [onRetry] reads the
+ * code's fingerprint again after it failed.
  */
 @Composable
 internal fun ScanCodeCard(uiState: HandoverUiState, onScan: () -> Unit, onRetry: () -> Unit) {
@@ -49,8 +52,10 @@ internal fun ScanCodeCard(uiState: HandoverUiState, onScan: () -> Unit, onRetry:
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.handover_scan_card),
   ) {
     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-      // Also when the phone learns it from the server, e.g. after the screen was opened again.
-      if (uiState.scanConfirmed || uiState.isPickedUp) {
+      // Also when the phone learns it from the server, e.g. after the screen was opened again. A
+      // confirmed return leaves Handover's phase once the rental is seen Returned, so it never
+      // says "Picked up".
+      if ((uiState.scanConfirmed && uiState.phase == HandoverPhase.PICKUP) || uiState.isPickedUp) {
         Confirmed()
         return@Column
       }
@@ -61,11 +66,21 @@ internal fun ScanCodeCard(uiState: HandoverUiState, onScan: () -> Unit, onRetry:
           modifier = Modifier.testTag(C.Tag.handover_scan_title),
       )
       Text(
-          text = stringResource(R.string.handover_scan_hint),
+          text =
+              phaseString(
+                  uiState.phase,
+                  R.string.handover_scan_hint,
+                  R.string.handover_scan_hint_return,
+              ),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
-      ScanButton(enabled = uiState.canScan, isSending = uiState.isSendingScan, onClick = onScan)
+      // A confirmed return keeps "Sending…" until the rental is seen Returned and the card goes.
+      ScanButton(
+          enabled = uiState.canScan,
+          isSending = uiState.isSendingScan || uiState.scanConfirmed,
+          onClick = onScan,
+      )
       ScanMessage(uiState, onRetry)
     }
   }
@@ -120,7 +135,14 @@ private fun ColumnScope.ScanMessage(uiState: HandoverUiState, onRetry: () -> Uni
             red,
         )
     uiState.codeFailed && uiState.isOffline ->
-        Message(stringResource(R.string.handover_code_no_copy), grey)
+        Message(
+            phaseString(
+                uiState.phase,
+                R.string.handover_code_no_copy,
+                R.string.handover_code_no_copy_return,
+            ),
+            grey,
+        )
     uiState.codeFailed -> {
       Message(stringResource(R.string.handover_scan_error), red)
       TextButton(
@@ -133,14 +155,28 @@ private fun ColumnScope.ScanMessage(uiState: HandoverUiState, onRetry: () -> Uni
       }
     }
     uiState.scanError == ScanError.RENTAL_CHANGED ->
-        Message(stringResource(R.string.handover_scan_rental_changed), red)
+        Message(
+            phaseString(
+                uiState.phase,
+                R.string.handover_scan_rental_changed,
+                R.string.handover_scan_rental_changed_return,
+            ),
+            red,
+        )
     uiState.isOffline -> Message(stringResource(R.string.handover_scan_offline), grey)
     uiState.scanError == ScanError.WRONG_CODE ->
         Message(wrongCodeMessage(uiState.otherPersonName), red)
     uiState.scanError == ScanError.NOT_SENT ->
         Message(stringResource(R.string.handover_scan_not_sent), red)
     uiState.scanError == ScanError.REFUSED ->
-        Message(stringResource(R.string.handover_scan_refused), red)
+        Message(
+            phaseString(
+                uiState.phase,
+                R.string.handover_scan_refused,
+                R.string.handover_scan_refused_return,
+            ),
+            red,
+        )
     uiState.scanError == ScanError.SCANNER_UNAVAILABLE ->
         Message(stringResource(R.string.handover_scan_unavailable), red)
   }
@@ -189,6 +225,14 @@ private fun scanTitle(isLender: Boolean, name: String): String =
       isLender -> stringResource(R.string.handover_scan_title_borrower)
       else -> stringResource(R.string.handover_scan_title_lender)
     }
+
+/** The text [forReturn] at return, otherwise [pickup]. */
+@Composable
+internal fun phaseString(
+    phase: HandoverPhase?,
+    @StringRes pickup: Int,
+    @StringRes forReturn: Int,
+): String = stringResource(if (phase == HandoverPhase.RETURN) forReturn else pickup)
 
 @Composable
 private fun wrongCodeMessage(name: String): String =
