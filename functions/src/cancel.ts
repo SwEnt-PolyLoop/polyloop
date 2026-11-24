@@ -126,7 +126,7 @@ export async function cancelInTransaction(
 
 /**
  * The reads of an accepted rental's cancellation, after refusing it from its first day on. The
- * deposit's release row has a fixed id, so finding it tells that the deposit is already back.
+ * deposit's settlement state tells whether it was held and whether it is already released or split.
  */
 async function readAccepted(
   tx: Transaction,
