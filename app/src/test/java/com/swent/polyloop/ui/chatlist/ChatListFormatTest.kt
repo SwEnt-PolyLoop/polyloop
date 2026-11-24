@@ -3,6 +3,7 @@
 package com.swent.polyloop.ui.chatlist
 
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
@@ -13,11 +14,11 @@ class ChatListFormatTest {
 
   private val zurich = ZoneId.of("Europe/Zurich")
 
-  /** Formats [at] as seen on [now], both written in Zurich time, e.g. "2026-10-13T15:02". */
+  /** Formats [at] as seen at [now], both written in Zurich time, e.g. "2026-10-13T15:02". */
   private fun format(at: String, now: String, zone: ZoneId = zurich) =
       formatMessageTime(
           at = LocalDateTime.parse(at).atZone(zone).toInstant(),
-          now = LocalDateTime.parse(now).atZone(zone).toInstant(),
+          today = LocalDateTime.parse(now).toLocalDate(),
           zone = zone,
           locale = Locale.ENGLISH,
       )
@@ -48,10 +49,10 @@ class ChatListFormatTest {
   fun todayDependsOnTheTimeZone() {
     // 23:30 UTC on 12 Oct is already 13 Oct, 01:30 in Zurich.
     val at = Instant.parse("2026-10-12T23:30:00Z")
-    val now = Instant.parse("2026-10-13T08:00:00Z")
+    val today = LocalDate.of(2026, 10, 13)
 
-    assertEquals("01:30", formatMessageTime(at, now, zurich, Locale.ENGLISH))
-    assertEquals("12 Oct", formatMessageTime(at, now, ZoneId.of("UTC"), Locale.ENGLISH))
+    assertEquals("01:30", formatMessageTime(at, today, zurich, Locale.ENGLISH))
+    assertEquals("12 Oct", formatMessageTime(at, today, ZoneId.of("UTC"), Locale.ENGLISH))
   }
 
   @Test

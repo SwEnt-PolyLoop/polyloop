@@ -59,6 +59,7 @@ import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.components.PickupMap
 import com.swent.polyloop.ui.components.RatingLine
 import com.swent.polyloop.ui.components.badgeColors
@@ -146,7 +147,7 @@ fun RentalDetailContent(
     onCancelClick: () -> Unit,
     modifier: Modifier = Modifier,
     onReviewRequestClick: () -> Unit = {},
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
     zone: ZoneId = ZoneId.systemDefault(),
     locale: Locale = LocalConfiguration.current.locales[0],
 ) {

@@ -29,6 +29,7 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,6 +45,7 @@ class CreateListingFieldsTest {
 
   private val availableFrom = LocalDate.of(2026, 10, 6)
   private val availableTo = LocalDate.of(2026, 10, 20)
+  private val today = LocalDate.of(2026, 10, 1)
 
   private var chosenCategory: ListingCategory? = null
   private var pickDatesClicks = 0
@@ -68,11 +70,16 @@ class CreateListingFieldsTest {
     }
   }
 
-  private fun setAvailabilityField(from: LocalDate?, to: LocalDate?) {
+  private fun setAvailabilityField(
+      from: LocalDate?,
+      to: LocalDate?,
+      today: LocalDate = this.today,
+  ) {
     composeTestRule.setContent {
       AvailabilityField(
           from = from,
           to = to,
+          today = today,
           isError = false,
           label = "Available",
           onClick = { pickDatesClicks++ },
@@ -197,7 +204,30 @@ class CreateListingFieldsTest {
     setAvailabilityField(availableFrom, availableTo)
 
     val (from, to) =
-        formatRangeEnds(availableFrom, availableTo, context.resources.configuration.locales[0])
+        formatRangeEnds(
+            availableFrom,
+            availableTo,
+            context.resources.configuration.locales[0],
+            today,
+        )
+    composeTestRule
+        .onNodeWithTag(C.Tag.create_listing_availability_field)
+        .assertTextContains(context.getString(R.string.listing_detail_date_range, from, to))
+  }
+
+  @Test
+  fun availabilityShowsTheYearWhenItIsNotTodaysYear() {
+    val lastYear = LocalDate.of(2025, 12, 1)
+    setAvailabilityField(availableFrom, availableTo, today = lastYear)
+
+    val (from, to) =
+        formatRangeEnds(
+            availableFrom,
+            availableTo,
+            context.resources.configuration.locales[0],
+            lastYear,
+        )
+    assertTrue(to.endsWith("2026"))
     composeTestRule
         .onNodeWithTag(C.Tag.create_listing_availability_field)
         .assertTextContains(context.getString(R.string.listing_detail_date_range, from, to))
@@ -228,6 +258,7 @@ class CreateListingFieldsTest {
         AvailabilityField(
             from = null,
             to = null,
+            today = today,
             isError = false,
             label = "Available",
             onClick = { pickDatesClicks++ },

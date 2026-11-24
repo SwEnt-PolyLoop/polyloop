@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import com.swent.polyloop.ui.rentaldetail.InfoRow
@@ -108,7 +109,7 @@ fun ReviewRequestContent(
     onChatClick: () -> Unit,
     onPersonClick: (uid: String) -> Unit,
     modifier: Modifier = Modifier,
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
 ) {
   Column(
       modifier =
