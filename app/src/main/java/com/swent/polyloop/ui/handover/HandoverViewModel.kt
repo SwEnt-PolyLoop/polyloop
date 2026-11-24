@@ -13,6 +13,7 @@ import com.swent.polyloop.model.handover.HandoverCode
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.HandoverRepository
+import com.swent.polyloop.model.handover.PhotoSync
 import com.swent.polyloop.model.handover.RentalChangedException
 import com.swent.polyloop.model.handover.ScanRefusedException
 import com.swent.polyloop.model.handover.WrongCodeException
@@ -657,7 +658,9 @@ class HandoverViewModel(
           handoverRepository
               .observeMyPhotos(rentalId, shown)
               .catch { _uiState.update { it.copy(photosFailed = true, isLoadingPhotos = false) } }
-              .collect { photos ->
+              .collect { all ->
+                // A photo the server refused is not one of the user's photos.
+                val photos = all.filter { it.sync != PhotoSync.REFUSED }
                 read += shown
                 _uiState.update {
                   val withPhotos =
