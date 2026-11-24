@@ -124,11 +124,11 @@ fun RentalDetailScreen(
  * ([onCheckItemClick]), with no meeting point or cancel row. A Cancelled or Declined rental has
  * only its status, its details and the person card: no stage strip, meeting point, cancel row or
  * bottom button. A Requested or Accepted rental has a cancel row (see [CancelRow]) whose button
- * opens a confirm sheet; "Yes" there calls [onCancelClick]. [today] and [zone] decide how dates are written (e.g. whether the year is shown,
- * and the day of a cancel or return date); tests pass fixed values so their expected texts do not
- * depend on the day they run. [today] is the phone's date, so it is only used to write dates: Start
- * Pickup, Start Return and the cancel window of an accepted rental go by
- * [RentalDetailUiState.serverToday] instead, and stay grey while
+ * opens a confirm sheet; "Yes" there calls [onCancelClick]. [today] and [zone] decide how dates are
+ * written (e.g. whether the year is shown, and the day of a cancel or return date); tests pass
+ * fixed values so their expected texts do not depend on the day they run. [today] is the phone's
+ * date, so it is only used to write dates: Start Pickup, Start Return and the cancel window of an
+ * accepted rental go by [RentalDetailUiState.serverToday] instead, and stay grey while
  * [RentalDetailUiState.isReadingServerToday]. A request has no cancel window. [locale] decides the
  * language of the month and weekday names; tests pass a fixed one so their expected dates do not
  * depend on the device's language.
@@ -212,7 +212,8 @@ fun RentalDetailContent(
           when (uiState.status) {
             // A returned or disputed rental shows no meeting point: the item is already back. Nor
             // does a cancelled one, where nobody meets any more, nor a declined one: nobody meets,
-            // and declining deletes the offer's addresses, so the request's area would only mislead.
+            // and declining deletes the offer's addresses, so the request's area would only
+            // mislead.
             RentalStatus.RETURNED,
             RentalStatus.DISPUTED,
             RentalStatus.CANCELLED,

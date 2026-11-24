@@ -32,7 +32,8 @@ class RentalDetailDeclinedTest {
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
-  // The pickup area, its point and the suggested deposit are set, as the listing is still read for a
+  // The pickup area, its point and the suggested deposit are set, as the listing is still read for
+  // a
   // declined rental, so that a meeting point or a suggested deposit would show if the screen drew
   // one. A declined rental never had its deposit held, so its deposit is 0.
   private val declined =
