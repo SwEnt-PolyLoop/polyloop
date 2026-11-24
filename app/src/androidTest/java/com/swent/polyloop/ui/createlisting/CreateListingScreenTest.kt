@@ -460,9 +460,7 @@ class CreateListingScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.date_picker_confirm_button).performScrollTo().performClick()
 
     composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertDoesNotExist()
-    // The field reads LocalToday, whose default is the phone's date; only its year counts here.
-    val (start, end) =
-        formatRangeEnds(from, to, context.resources.configuration.locales[0], LocalDate.now())
+    val (start, end) = formatRangeEnds(from, to, context.resources.configuration.locales[0], today)
     composeTestRule
         .onNodeWithTag(C.Tag.create_listing_availability_field)
         .performScrollTo()

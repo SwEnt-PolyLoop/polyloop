@@ -294,8 +294,7 @@ class ChatScreenTest {
   fun headerShowsThePersonTheDatesAndTheItem() {
     setContent(loaded)
 
-    // The header reads LocalToday, whose default is the phone's date; only its year counts here.
-    val (from, to) = formatRangeEnds(start, end, today = LocalDate.now())
+    val (from, to) = formatRangeEnds(start, end, today = today)
     composeTestRule.onNodeWithTag(C.Tag.chat_header_name).assertTextEquals("Ana")
     composeTestRule
         .onNodeWithTag(C.Tag.chat_header_dates)

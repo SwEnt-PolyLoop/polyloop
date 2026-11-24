@@ -10,9 +10,9 @@ import java.util.Locale
  * The two ends of a date range, written as briefly as possible: "6" and "20 Oct" in the same month,
  * "28 Oct" and "3 Nov" across months. The year is shown only when it is not the current year
  * ([today]), and then once, at the end, when both dates share it: "2 – 6 Oct 2028", "28 Oct – 3 Nov
- * 2028". Dates in two different years show the year on both ends. Composables pass
- * [com.swent.polyloop.ui.components.LocalToday] as [today], directly or through a `today` parameter
- * that defaults to it, so the year is right from New Year's midnight.
+ * 2028". Dates in two different years show the year on both ends. Composables pass their screen's
+ * `today`, which defaults to [com.swent.polyloop.ui.components.LocalToday], so the year is right
+ * from New Year's midnight.
  */
 internal fun formatRangeEnds(
     from: LocalDate,

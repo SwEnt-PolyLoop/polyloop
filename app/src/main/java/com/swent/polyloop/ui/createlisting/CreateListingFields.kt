@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.dp
 import com.swent.polyloop.R
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.resources.C
-import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import java.time.LocalDate
 
@@ -184,19 +183,22 @@ internal fun CategoryDropdown(
   }
 }
 
-/** A read-only field showing the availability window; tapping it calls [onClick]. */
+/**
+ * A read-only field showing the availability window, with its year only when it is not [today]'s;
+ * tapping it calls [onClick].
+ */
 @Composable
 internal fun AvailabilityField(
     from: LocalDate?,
     to: LocalDate?,
+    today: LocalDate,
     isError: Boolean,
     label: String,
     onClick: () -> Unit,
 ) {
   val text =
       if (from != null && to != null) {
-        val (start, end) =
-            formatRangeEnds(from, to, LocalConfiguration.current.locales[0], LocalToday.current)
+        val (start, end) = formatRangeEnds(from, to, LocalConfiguration.current.locales[0], today)
         stringResource(R.string.listing_detail_date_range, start, end)
       } else {
         ""

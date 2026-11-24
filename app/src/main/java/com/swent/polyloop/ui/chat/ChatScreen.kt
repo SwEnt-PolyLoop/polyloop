@@ -115,7 +115,7 @@ fun ChatContent(
               .testTag(C.Tag.chat_screen)
   ) {
     uiState.header?.let {
-      ChatHeaderBar(header = it, onRentalDetailsClick = onRentalDetailsClick)
+      ChatHeaderBar(header = it, today = today, onRentalDetailsClick = onRentalDetailsClick)
       HorizontalDivider()
     }
     // Only on the pickup day itself, by the server's clock: Handover takes pickup photos on that
@@ -175,9 +175,12 @@ fun ChatContent(
   }
 }
 
-/** The other person, the dates and the item, with the "Rental details" link on the right. */
+/**
+ * The other person, the dates (with the year only when it is not [today]'s) and the item, with the
+ * "Rental details" link on the right.
+ */
 @Composable
-private fun ChatHeaderBar(header: ChatHeader, onRentalDetailsClick: () -> Unit) {
+private fun ChatHeaderBar(header: ChatHeader, today: LocalDate, onRentalDetailsClick: () -> Unit) {
   Row(
       modifier = Modifier.fillMaxWidth().padding(16.dp),
       verticalAlignment = Alignment.CenterVertically,
@@ -192,7 +195,7 @@ private fun ChatHeaderBar(header: ChatHeader, onRentalDetailsClick: () -> Unit) 
           modifier = Modifier.testTag(C.Tag.chat_header_name),
       )
       Text(
-          text = formatDates(header.startDate, header.endDate),
+          text = formatDates(header.startDate, header.endDate, today),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.testTag(C.Tag.chat_header_dates),
@@ -269,10 +272,10 @@ private fun ActionBar(
   }
 }
 
-/** The rental's dates, e.g. "20 – 22 Oct". */
+/** The rental's dates, e.g. "20 – 22 Oct", with the year only when it is not [today]'s. */
 @Composable
-private fun formatDates(start: LocalDate, end: LocalDate): String {
-  val (from, to) = formatRangeEnds(start, end, today = LocalToday.current)
+private fun formatDates(start: LocalDate, end: LocalDate, today: LocalDate): String {
+  val (from, to) = formatRangeEnds(start, end, today = today)
   return stringResource(R.string.chat_date_range, from, to)
 }
 

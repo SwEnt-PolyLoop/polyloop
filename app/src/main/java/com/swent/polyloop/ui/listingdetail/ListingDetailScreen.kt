@@ -153,6 +153,7 @@ fun ListingDetailContent(
             showRequestButton = !uiState.isOwnListing,
             requestEnabled = uiState.availableBalance != null,
             showMap = !uiState.isOffline,
+            today = today,
             onRequestDates = onRequestDates,
             onLenderClick = { onLenderClick(listing.ownerId) },
         )
@@ -207,6 +208,7 @@ private fun ListingDetailError(errorMsg: String, onRetry: () -> Unit) {
  * [showRequestButton] is false (the user's own listing). The button is disabled unless
  * [requestEnabled], i.e. while the user's balance is not known. The pickup area is a map only if
  * [showMap] is true (the phone is online) and the listing has a pickup point; see [PickupArea].
+ * [today] decides whether the availability window's year is written.
  */
 @Composable
 private fun ListingDetailLoaded(
@@ -215,6 +217,7 @@ private fun ListingDetailLoaded(
     showRequestButton: Boolean,
     requestEnabled: Boolean,
     showMap: Boolean,
+    today: LocalDate,
     onRequestDates: () -> Unit,
     onLenderClick: () -> Unit,
 ) {
@@ -245,7 +248,7 @@ private fun ListingDetailLoaded(
           toggleTag = C.Tag.listing_detail_description_toggle,
       )
       LenderCard(owner = owner, onClick = onLenderClick)
-      InfoCard(listing = listing)
+      InfoCard(listing = listing, today = today)
       PickupArea(area = listing.pickupArea, point = listing.pickupPoint, showMap = showMap)
     }
     if (showRequestButton) RequestBar(enabled = requestEnabled, onRequestDates = onRequestDates)
@@ -343,12 +346,14 @@ private fun LenderCard(owner: UserProfile?, onClick: () -> Unit) {
   }
 }
 
-/** Suggested deposit, availability window, and a note that the deposit is agreed in chat. */
+/**
+ * Suggested deposit, availability window (with its year only when it is not [today]'s), and a note
+ * that the deposit is agreed in chat.
+ */
 @Composable
-private fun InfoCard(listing: Listing) {
+private fun InfoCard(listing: Listing, today: LocalDate) {
   val locale = LocalConfiguration.current.locales[0]
-  val (from, to) =
-      formatRangeEnds(listing.availableFrom, listing.availableTo, locale, LocalToday.current)
+  val (from, to) = formatRangeEnds(listing.availableFrom, listing.availableTo, locale, today)
   OutlinedCard(modifier = Modifier.fillMaxWidth()) {
     Column(
         modifier = Modifier.padding(16.dp),

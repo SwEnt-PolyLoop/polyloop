@@ -92,6 +92,39 @@ class TodayTrackerTest {
   }
 
   @Test
+  fun waitsForMidnightOnADayLengthenedByWinterTime() = runTest {
+    // In Zurich, 25 October 2026 has 25 hours: the clocks go from 03:00 back to 02:00. Waiting 24
+    // hours would move on an hour early.
+    val tracker = TodayTracker(clockAt("2026-10-25T00:30")::now)
+    follow(tracker)
+
+    advanceTimeBy(minutes(24 * 60 + 29))
+    assertEquals(oct(25), tracker.today.value)
+
+    advanceTimeBy(minutes(2))
+    assertEquals(oct(26), tracker.today.value)
+  }
+
+  @Test
+  fun aTimeZoneChangeWhileWaitingIsReadAtTheEndOfTheWait() = runTest {
+    val clock = clockAt("2026-10-13T15:00")
+    val tracker = TodayTracker(clock::now)
+    follow(tracker)
+
+    // The phone moves to Honolulu, where it is 03:00 on the 13th, while the tracker waits for
+    // midnight in Zurich, 9 hours later. That wait ends at noon in Honolulu: still the 13th.
+    clock.zone = ZoneId.of("Pacific/Honolulu")
+    advanceTimeBy(minutes(9 * 60 + 1))
+    assertEquals(oct(13), tracker.today.value)
+
+    // The next wait is for midnight in Honolulu, 12 hours later.
+    advanceTimeBy(minutes(12 * 60 - 2))
+    assertEquals(oct(13), tracker.today.value)
+    advanceTimeBy(minutes(2))
+    assertEquals(oct(14), tracker.today.value)
+  }
+
+  @Test
   fun aWaitThatEndsBeforeMidnightWaitsForTheRest() = runTest {
     val clock = clockAt("2026-10-13T23:00")
     val tracker = TodayTracker(clock::now)

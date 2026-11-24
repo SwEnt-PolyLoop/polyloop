@@ -12,7 +12,11 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Today's date on the phone, by [clock], which the app gives every screen through [LocalToday].
- * [clock] is read each time, so a change of the phone's clock or time zone shows at the next read.
+ * [clock] is read each time, so a change of the phone's clock or time zone shows at the next read:
+ * on return to the foreground, or at the end of the wait for midnight. Nothing listens for those
+ * changes while the app stays in the foreground, so one made then (an automatic time zone change
+ * when crossing a border, a large network time correction) can leave the date wrong until the
+ * midnight that was being waited for, up to a day later.
  */
 class TodayTracker(private val clock: () -> ZonedDateTime = { ZonedDateTime.now() }) {
 

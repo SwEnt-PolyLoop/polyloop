@@ -278,6 +278,7 @@ fun CreateListingContent(
         AvailabilityField(
             from = uiState.availableFrom,
             to = uiState.availableTo,
+            today = today,
             isError = isError,
             label = availabilityLabel,
             onClick = onPickDates,
