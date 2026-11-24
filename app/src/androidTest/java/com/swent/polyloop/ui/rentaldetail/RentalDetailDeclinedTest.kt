@@ -101,10 +101,10 @@ class RentalDetailDeclinedTest {
   }
 
   @Test
-  fun theBodySaysThePriceAndTheDepositAreGivenBack() {
+  fun theBodySaysTheRentalPriceIsGivenBack() {
     setContent()
 
-    assertShown(C.Tag.rental_detail_status_body, "The price and deposit are given back.")
+    assertShown(C.Tag.rental_detail_status_body, "The rental price is given back.")
   }
 
   @Test
@@ -156,7 +156,7 @@ class RentalDetailDeclinedTest {
 
     assertShown(C.Tag.rental_detail_status, context.getString(R.string.rental_status_declined))
     assertShown(C.Tag.rental_detail_status_headline, "Request declined")
-    assertShown(C.Tag.rental_detail_status_body, "The price and deposit are given back.")
+    assertShown(C.Tag.rental_detail_status_body, "The rental price is given back.")
     assertShown(C.Tag.rental_detail_dates, "1 – 8 Oct")
     assertShown(C.Tag.rental_detail_price, "120 PP · returned")
   }

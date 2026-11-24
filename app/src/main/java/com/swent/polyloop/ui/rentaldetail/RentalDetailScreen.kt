@@ -527,8 +527,8 @@ private fun StageStrip(status: RentalStatus?) {
  * (Figma frame 13.04-returned). Once disputed, it says that damage was flagged and the deposit
  * stays held (Figma frame 13.09). Once cancelled, it gives the cancel day and says that the rental
  * price, and the deposit if there was one, are given back, the same for both roles (Figma frame
- * 13.07-cancelled). Once declined, it says the request was declined and the price and deposit are
- * given back, with no date, the same for both roles (Figma frame 13.06-declined).
+ * 13.07-cancelled). Once declined, it says the request was declined and the rental price is given
+ * back, with no date, the same for both roles (Figma frame 13.06-declined).
  */
 @Composable
 private fun StatusCard(

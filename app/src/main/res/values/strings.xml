@@ -447,7 +447,7 @@
     <!-- The headline of a declined rental, the same for both roles -->
     <string name="rental_detail_declined_headline">Request declined</string>
     <!-- The body of a declined rental, the same for both roles -->
-    <string name="rental_detail_declined_body">The price and deposit are given back.</string>
+    <string name="rental_detail_declined_body">The rental price is given back.</string>
     <!-- The total rental price of a cancelled rental, e.g. "120 PP · returned" -->
     <string name="rental_detail_price_returned">%1$d PP · returned</string>
     <!-- The deposit of a cancelled rental, e.g. "60 PP · released" -->
