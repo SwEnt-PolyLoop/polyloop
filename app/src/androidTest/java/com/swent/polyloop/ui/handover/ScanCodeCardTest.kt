@@ -15,6 +15,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
@@ -25,7 +27,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The card where the borrower scans the lender's QR code at pickup (Figma 15, 15.10 to 15.15). */
+/**
+ * The card where the person receiving the item scans the other's QR code: the borrower at pickup
+ * (Figma 15, 15.10 to 15.15), the lender at return (Figma 17).
+ */
 @RunWith(AndroidJUnit4::class)
 class ScanCodeCardTest {
 
@@ -109,11 +114,37 @@ class ScanCodeCardTest {
   }
 
   @Test
-  fun atReturnThereIsNoScanCardYet() {
-    // The server makes no return code yet, so the lender has nothing to scan.
-    setContent(ready.copy(isLender = true, phase = HandoverPhase.RETURN))
-    node(C.Tag.handover_scan_card).assertDoesNotExist()
-    node(C.Tag.handover_code_card).assertDoesNotExist()
+  fun atReturnTheLenderScansWithTheReturnTexts() {
+    val returnDay = LocalDate.of(2026, 10, 8)
+    val atReturn =
+        ready.copy(
+            isLender = true,
+            phase = HandoverPhase.RETURN,
+            returnDate = returnDay,
+            serverToday = returnDay,
+        )
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    setContent(atReturn)
+    composeTestRule
+        .onNodeWithText(
+            context.getString(R.string.handover_scan_hint_return),
+            useUnmergedTree = true,
+        )
+        .assertExists()
+
+    uiState = atReturn.copy(scanError = ScanError.REFUSED)
+    assertMessage(context.getString(R.string.handover_scan_refused_return))
+    uiState = atReturn.copy(scanError = ScanError.RENTAL_CHANGED)
+    assertMessage(context.getString(R.string.handover_scan_rental_changed_return))
+    uiState = atReturn.copy(isOffline = true, codeFingerprint = null, codeFailed = true)
+    assertMessage(context.getString(R.string.handover_code_no_copy_return))
+    // A confirmed return is never "Picked up": it shows "Sending…" until the rental leaves the
+    // return, right after it.
+    uiState = atReturn.copy(scanConfirmed = true)
+    composeTestRule
+        .onNodeWithText(context.getString(R.string.handover_scan_sending), useUnmergedTree = true)
+        .assertIsDisplayed()
+    node(C.Tag.handover_scan_confirmed).assertDoesNotExist()
   }
 
   @Test
