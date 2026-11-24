@@ -16,6 +16,7 @@ import {
   readRange,
   requirePerson,
   requireVerifiedEpfl,
+  sortedRanges,
   withBooking,
 } from "./rentalRules";
 
@@ -84,6 +85,19 @@ describe("readRange", () => {
     expect(readRange({ start: "2026-11-12", end: "2026-11-10" })).toBeNull();
     expect(readRange({ start: "2026-11-10" })).toBeNull();
     expect(readRange("2026-11-10")).toBeNull();
+  });
+});
+
+describe("sortedRanges", () => {
+  const november = { start: "2026-11-20", end: "2026-11-22" };
+  const december = { start: "2026-12-01", end: "2026-12-03" };
+
+  it("sorts the valid ranges by first day and leaves out malformed entries", () => {
+    expect(sortedRanges([december, "malformed", november])).toEqual([november, december]);
+  });
+
+  it("is empty for a listing with no list at all", () => {
+    expect(sortedRanges(undefined)).toEqual([]);
   });
 });
 
