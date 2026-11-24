@@ -24,8 +24,9 @@ import {
   offerExpiry,
   readRange,
   requirePerson,
+  withBooking,
 } from "./rentalRules";
-import { HANDOVER_CODES, codeFingerprint, newHandoverCode } from "./handoverCode";
+import { writeNewHandoverCode } from "./handoverCode";
 import { runSweep } from "./sweep";
 import { readWallet, requireFunds, writeDepositHold } from "./wallet";
 
@@ -106,10 +107,10 @@ export async function makeOffer(
  * the offer can answer it, and only the lender's first offer can be countered.
  *
  * Accepting makes the rental ACCEPTED with the offered deposit and the exact addresses, adds its
- * dates to the listing's `bookedRanges`, and declines every other REQUESTED rental of the listing
- * whose dates overlap (buffer day included). It also holds the deposit, the offered amount (the
- * counter amount after a counteroffer), in the borrower's wallet, whoever accepts. The rental price
- * is not reserved.
+ * dates to the listing's `bookedRanges` (kept sorted by first day, see `withBooking`), and declines
+ * every other REQUESTED rental of the listing whose dates overlap (buffer day included). It also
+ * holds the deposit, the offered amount (the counter amount after a counteroffer), in the borrower's
+ * wallet, whoever accepts. The rental price is not reserved.
  *
  * @param db the Firestore database.
  * @param callerId the participant answering.
@@ -311,7 +312,7 @@ async function accept(
   const dates = requireDates(rental);
   const db = rentalRef.firestore;
 
-  const listingRef = await requireFreeListing(tx, rentalRef, rental, dates);
+  const listing = await requireFreeListing(tx, rentalRef, rental, dates);
 
   const addresses = (await tx.get(addressesRef(rentalRef))).data();
   if (!addresses) {
@@ -338,10 +339,11 @@ async function accept(
   requireFunds(wallet, offer.amount);
 
   tx.delete(addressesRef(rentalRef));
-  // The pickup's QR code: the code itself where only the lender reads it, its fingerprint on the
-  // rental so the borrower's phone can check a scan (docs/ARCHITECTURE.md, "Handover").
-  const pickupCode = newHandoverCode();
-  tx.set(rentalRef.collection(HANDOVER_CODES).doc("PICKUP"), { code: pickupCode });
+  // The QR codes of both handovers (docs/ARCHITECTURE.md, "Handover"): the pickup's, which the
+  // lender shows, and the return's, which the borrower shows. The return's is made now too, so
+  // the borrower's phone can keep a copy before the return, in case it is offline then.
+  const pickupCodeFields = writeNewHandoverCode(tx, rentalRef, "PICKUP");
+  const returnCodeFields = writeNewHandoverCode(tx, rentalRef, "RETURN");
   writeWithSystemMessage(
     tx,
     rentalRef,
@@ -351,7 +353,8 @@ async function accept(
       deposit: offer.amount,
       pickupAddress: addresses.pickup,
       returnAddress: addresses.dropOff,
-      pickupCodeHash: codeFingerprint(pickupCode),
+      ...pickupCodeFields,
+      ...returnCodeFields,
       offer: FieldValue.delete(),
     },
     callerId,
@@ -359,9 +362,9 @@ async function accept(
   // The other requests have the same lender. A lender accepting a counteroffer declines them
   // themselves; a borrower accepting takes no part in them, so for the lender they are news.
   const decliner = callerId === rental.ownerId ? callerId : null;
-  tx.update(listingRef, {
-    bookedRanges: FieldValue.arrayUnion({ start: dates.start, end: dates.end }),
-  });
+  // The whole list, sorted, rather than arrayUnion, which appends: the Security Rules read only its
+  // last range to lock the listing.
+  tx.update(listing.ref, { bookedRanges: withBooking(listing.get("bookedRanges"), dates) });
   for (const doc of overlapping) {
     decline(tx, doc.ref, "Dates booked · request declined", decliner);
   }
@@ -470,7 +473,7 @@ async function requireFreeListing(
   rentalRef: DocumentReference,
   rental: DocumentData,
   dates: DateRange,
-): Promise<DocumentReference> {
+): Promise<DocumentSnapshot> {
   const listingRef = rentalRef.firestore.collection(LISTINGS).doc(rental.listingId);
   const listing = await tx.get(listingRef);
   if (!listing.exists) {
@@ -479,7 +482,7 @@ async function requireFreeListing(
   if (bookedRanges(listing.get("bookedRanges")).some((range) => conflicts(range, dates))) {
     throw new RequestError("failed-precondition", "These dates are no longer free.");
   }
-  return listingRef;
+  return listing;
 }
 
 /** True once [offer] can no longer be accepted, and `expireOffers` may decline its rental. */

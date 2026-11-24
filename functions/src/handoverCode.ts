@@ -1,9 +1,33 @@
 // Made with Claude.
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import type { DocumentReference, Transaction } from "firebase-admin/firestore";
 
 /** The subcollection of a rental holding its handover codes, one document per phase. */
 export const HANDOVER_CODES = "handoverCodes";
+
+/** The two handovers, each with its own code: the pickup and the return. */
+export type HandoverPhase = "PICKUP" | "RETURN";
+
+/** The field of the rental holding the fingerprint of each phase's code. */
+export const CODE_HASH_FIELDS = { PICKUP: "pickupCodeHash", RETURN: "returnCodeHash" } as const;
+
+/**
+ * Makes a new code for [phase] of [rentalRef] in [tx]: the code in `handoverCodes/{phase}`, which
+ * only the person who shows it reads, and its fingerprint, returned as `{<field>: fingerprint}` to
+ * be written on the rental, so the scanning phone can check a scan. It writes to [tx], and
+ * Firestore refuses a read after a write: call it only after every `tx.get` of the transaction,
+ * as its own statement, not inside the update it feeds.
+ */
+export function writeNewHandoverCode(
+  tx: Transaction,
+  rentalRef: DocumentReference,
+  phase: HandoverPhase,
+): Record<string, string> {
+  const code = newHandoverCode();
+  tx.set(rentalRef.collection(HANDOVER_CODES).doc(phase), { code });
+  return { [CODE_HASH_FIELDS[phase]]: codeFingerprint(code) };
+}
 
 /** How many random bytes a handover code holds: 256 bits, far too many to guess. */
 const CODE_BYTES = 32;
