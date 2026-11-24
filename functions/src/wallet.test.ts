@@ -182,16 +182,48 @@ describe("deposit settlement", () => {
     expect(await wallet(none.who.borrower)).toMatchObject({ available: 50 });
   });
 
-  it("changes nothing the second time, even when two run together", async () => {
+  it.each([
+    [40, 0],
+    [0, 40],
+    [10, 30],
+  ])(
+    "changes nothing the second time, even when two run together, at lender %i / borrower %i",
+    async (lender, borrower) => {
+      const d = await heldDeposit(40);
+      const split: DepositOutcome = { kind: "split", lenderPercent: (lender / 40) * 100 };
+
+      await Promise.all([settle(d, split), settle(d, split)]);
+      await settle(d, split);
+
+      expect(await wallet(d.who.borrower)).toMatchObject({
+        available: 10 + borrower,
+        heldAsDeposits: 0,
+      });
+      expect(await wallet(d.who.lender)).toMatchObject({ available: 5 + lender });
+      // A side that gets nothing has no row, so only the hold row is the borrower's without a share.
+      expect(await rows(d.who.lender)).toHaveLength(lender > 0 ? 1 : 0);
+      expect(await rows(d.who.borrower)).toHaveLength(borrower > 0 ? 2 : 1);
+    },
+  );
+
+  it("moves nothing, with no error, when the deposit was already released", async () => {
     const d = await heldDeposit(40);
+    // The row of a release by another function (#424, #501).
+    await db
+      .collection("wallets")
+      .doc(d.who.borrower)
+      .collection("transactions")
+      .doc(`deposit_released_${d.rentalId}`)
+      .set({ type: "DEPOSIT_RELEASED", amount: 40, itemTitle: "Tent" });
 
-    const split: DepositOutcome = { kind: "split", lenderPercent: 25 };
-    await Promise.all([settle(d, split), settle(d, split)]);
-    await settle(d, split);
+    const shares = await settle(d, { kind: "split", lenderPercent: 50 });
 
-    expect(await wallet(d.who.borrower)).toMatchObject({ available: 40, heldAsDeposits: 0 });
-    expect(await wallet(d.who.lender)).toMatchObject({ available: 15 });
-    expect(await rows(d.who.lender)).toHaveLength(1);
+    expect(shares).toEqual({ lender: 0, borrower: 0 });
+    expect(await wallet(d.who.borrower)).toMatchObject({ available: 10, heldAsDeposits: 40 });
+    expect(await wallet(d.who.lender)).toMatchObject({ available: 5 });
+    expect(await rows(d.who.lender)).toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
   });
 
   it("moves nothing when no deposit was held", async () => {
