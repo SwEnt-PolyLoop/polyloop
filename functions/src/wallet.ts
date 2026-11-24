@@ -7,6 +7,7 @@ import {
   Firestore,
   Transaction,
 } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import { splitDeposit } from "./disputeRules";
 import { RequestError, listingTitleOf } from "./rentalRules";
 
@@ -263,13 +264,22 @@ export function writeDepositSettlement(
   outcome: DepositOutcome,
 ): DepositShares {
   const amount = depositToSettle(rental);
-  if (!state.held || state.settled || amount <= 0) return { lender: 0, borrower: 0 };
+  if (state.settled || amount <= 0) return { lender: 0, borrower: 0 };
+  if (!state.held) {
+    logger.warn("Settling a deposit that was never held: nothing moves", { rentalId });
+    return { lender: 0, borrower: 0 };
+  }
   const release = outcome.kind === "release";
   const shares: DepositShares = release
     ? { lender: 0, borrower: amount }
     : splitDeposit(amount, outcome.lenderPercent);
   const itemTitle = listingTitleOf(rental);
   if (state.borrower.heldAsDeposits < amount) {
+    logger.error("Held deposits do not cover the settlement", {
+      rentalId,
+      amount,
+      heldAsDeposits: state.borrower.heldAsDeposits,
+    });
     throw new RequestError("internal", "The borrower's held deposits do not cover the deposit.");
   }
   const borrowerRow =

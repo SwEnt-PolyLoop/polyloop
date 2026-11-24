@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
+import * as logger from "firebase-functions/logger";
 import {
   DepositOutcome,
   depositToSettle,
@@ -13,6 +14,9 @@ import {
   writeWallet,
 } from "./wallet";
 import { fund, people, rows, wallet } from "./testing/walletFixtures";
+
+// The logger's exports cannot be spied on one by one, so its two calls are replaced here.
+jest.mock("firebase-functions/logger", () => ({ warn: jest.fn(), error: jest.fn() }));
 
 // The helpers run inside a transaction, so they are tested on the Firestore emulator.
 let db: Firestore;
@@ -79,6 +83,11 @@ describe("depositToSettle", () => {
 });
 
 describe("deposit settlement", () => {
+  const warn = logger.warn as jest.Mock;
+  const error = logger.error as jest.Mock;
+
+  beforeEach(() => jest.clearAllMocks());
+
   /**
    * Creates a borrower with 10 PP available and [held] PP held as deposit, a lender with 5 PP, and
    * the borrower's hold row unless [hold] is false.
@@ -128,6 +137,8 @@ describe("deposit settlement", () => {
 
     const shares = await settle(d, { kind: "release" });
     expect(shares).toEqual({ lender: 0, borrower: 40 });
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
 
     expect(await wallet(d.who.borrower)).toEqual({ available: 50, heldAsDeposits: 0, heldForRentals: 0 });
     expect(await wallet(d.who.lender)).toMatchObject({ available: 5 });
@@ -189,6 +200,11 @@ describe("deposit settlement", () => {
     const shares = await settle(d, { kind: "split", lenderPercent: 25 });
 
     expect(shares).toEqual({ lender: 0, borrower: 0 });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("never held"), {
+      rentalId: d.rentalId,
+    });
+    expect(error).not.toHaveBeenCalled();
     expect(await wallet(d.who.borrower)).toMatchObject({ available: 10, heldAsDeposits: 40 });
     expect(await rows(d.who.borrower)).toEqual([]);
     expect(await rows(d.who.lender)).toEqual([]);
@@ -209,6 +225,13 @@ describe("deposit settlement", () => {
 
     await expect(settle(d, { kind: "split", lenderPercent: 25 })).rejects.toMatchObject({ code: "internal" });
 
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("do not cover"), {
+      rentalId: d.rentalId,
+      amount: 40,
+      heldAsDeposits: 20,
+    });
+    expect(warn).not.toHaveBeenCalled();
     expect(await wallet(d.who.borrower)).toMatchObject({ available: 10, heldAsDeposits: 20 });
     expect(await wallet(d.who.lender)).toMatchObject({ available: 5 });
   });
