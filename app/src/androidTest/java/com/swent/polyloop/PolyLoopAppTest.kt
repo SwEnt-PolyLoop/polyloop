@@ -462,6 +462,31 @@ class PolyLoopAppTest {
   }
 
   @Test
+  fun forgotPasswordShowsItsStepOnTheSignInRoute() {
+    setApp()
+
+    composeTestRule.onNodeWithTag(C.Tag.auth_forgot_password_link).performScrollTo().performClick()
+
+    waitForTag(C.Tag.auth_reset_screen)
+    assertEquals(Screen.Auth.route, navController.currentDestination?.route)
+    composeTestRule.onNodeWithTag(C.Tag.auth_login_button).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.top_bar).assertDoesNotExist()
+  }
+
+  @Test
+  fun systemBackOnForgotPasswordReturnsToTheForm() {
+    setApp()
+    composeTestRule.onNodeWithTag(C.Tag.auth_forgot_password_link).performScrollTo().performClick()
+    waitForTag(C.Tag.auth_reset_screen)
+
+    // Through the dispatcher, as Espresso.pressBack() waits for window focus and timed out on CI.
+    composeTestRule.runOnUiThread { backDispatcher.onBackPressed() }
+
+    assertCurrentScreen(Screen.Auth)
+    composeTestRule.onNodeWithTag(C.Tag.auth_reset_screen).assertDoesNotExist()
+  }
+
+  @Test
   fun menuOpensEveryTopLevelDestination() {
     setAppSignedIn(isAdmin = true)
 

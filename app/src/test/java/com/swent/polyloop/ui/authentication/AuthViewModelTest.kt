@@ -728,6 +728,193 @@ class AuthViewModelTest {
     )
   }
 
+  // ---------- forgot password ----------
+
+  /** Types [email] on the log-in form and opens the "Forgot password" step. */
+  private fun openReset(email: String = "john@epfl.ch") {
+    viewModel.onEmailChange(email)
+    viewModel.openPasswordReset()
+  }
+
+  @Test
+  fun openPasswordResetShowsTheStepWithTheTypedEmail() {
+    viewModel.submit() // an empty form marks the attempt and shows its errors
+    openReset()
+
+    assertTrue(state.isResettingPassword)
+    assertEquals("john@epfl.ch", state.email)
+    assertFalse(state.hasAttemptedSubmit)
+    assertFalse(state.isResetEmailSent)
+    assertNull(state.error)
+    assertTrue(state.canSendReset)
+  }
+
+  @Test
+  fun openPasswordResetIsIgnoredWhileARequestRuns() {
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+    fillLogIn()
+    viewModel.submit()
+
+    viewModel.openPasswordReset()
+    gate.complete(Unit)
+
+    assertFalse(state.isResettingPassword)
+    assertTrue(state.isSignedIn)
+  }
+
+  @Test
+  fun sendPasswordResetSendsToTheTypedEmailAndConfirms() {
+    openReset()
+
+    viewModel.sendPasswordReset()
+
+    assertEquals(listOf("sendPasswordResetEmail(john@epfl.ch)"), repository.calls)
+    assertTrue(state.isResetEmailSent)
+    assertTrue(state.isResettingPassword)
+    assertNull(state.error)
+    assertFalse(state.isLoading)
+  }
+
+  @Test
+  fun sendPasswordResetWithNonEpflEmailOnlyMarksTheAttempt() {
+    openReset("john@gmail.com")
+
+    viewModel.sendPasswordReset()
+
+    assertTrue(state.hasAttemptedSubmit)
+    assertFalse(state.isResetEmailSent)
+    assertTrue(repository.calls.isEmpty())
+  }
+
+  @Test
+  fun sendPasswordResetFailureShowsTheErrorWithoutCountdown() {
+    repository.resetResult = AuthResult.Failure(AuthError.NETWORK)
+    openReset()
+
+    viewModel.sendPasswordReset()
+
+    assertEquals(AuthError.NETWORK, state.error)
+    assertFalse(state.isResetEmailSent)
+    assertEquals(0, state.resetCooldownSeconds)
+    assertTrue(state.canSendReset)
+  }
+
+  @Test
+  fun sendPasswordResetFailureAfterASentEmailHidesTheConfirmation() {
+    openReset()
+    viewModel.sendPasswordReset()
+    advanceSeconds(60)
+    repository.resetResult = AuthResult.Failure(AuthError.TOO_MANY_REQUESTS)
+
+    viewModel.sendPasswordReset()
+
+    assertFalse(state.isResetEmailSent)
+    assertEquals(AuthError.TOO_MANY_REQUESTS, state.error)
+  }
+
+  @Test
+  fun sendPasswordResetIsIgnoredWhileLoading() {
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+    openReset()
+
+    viewModel.sendPasswordReset()
+    assertTrue(state.isLoading)
+    assertFalse(state.canSendReset)
+    viewModel.sendPasswordReset()
+    gate.complete(Unit)
+
+    assertEquals(1, repository.calls.count { it.startsWith("sendPasswordResetEmail") })
+  }
+
+  @Test
+  fun sendPasswordResetDisablesSendingAgainFor60Seconds() {
+    openReset()
+    viewModel.sendPasswordReset()
+
+    assertEquals(60, state.resetSecondsLeft)
+    assertFalse(state.canSendReset)
+
+    advanceSeconds(30)
+    viewModel.sendPasswordReset()
+    assertEquals(1, repository.calls.size)
+    assertEquals(30, state.resetSecondsLeft)
+
+    advanceSeconds(30)
+    assertEquals(0, state.resetSecondsLeft)
+    assertTrue(state.canSendReset)
+  }
+
+  @Test
+  fun resetCountdownDoesNotBlockAnotherAddress() {
+    openReset()
+    viewModel.sendPasswordReset()
+
+    viewModel.onEmailChange("jane@epfl.ch")
+    assertEquals(0, state.resetSecondsLeft)
+    viewModel.sendPasswordReset()
+
+    assertEquals("sendPasswordResetEmail(jane@epfl.ch)", repository.calls.last())
+  }
+
+  @Test
+  fun resetAndResendCountdownsAreSeparate() {
+    fillSignUp()
+    viewModel.submit() // sends the verification email: Resend waits 60 seconds
+    viewModel.backToForm()
+    viewModel.switchMode(AuthMode.LOG_IN)
+    viewModel.openPasswordReset()
+
+    assertTrue(state.canSendReset)
+    viewModel.sendPasswordReset()
+
+    assertEquals("sendPasswordResetEmail(john@epfl.ch)", repository.calls.last())
+    assertEquals(60, state.resendSecondsLeft)
+  }
+
+  @Test
+  fun editingTheEmailHidesTheConfirmation() {
+    openReset()
+    viewModel.sendPasswordReset()
+
+    viewModel.onEmailChange("jane@epfl.ch")
+
+    assertFalse(state.isResetEmailSent)
+  }
+
+  @Test
+  fun backToFormLeavesTheStepKeepingTheEmailAndTheCountdown() {
+    openReset(" John@EPFL.ch ")
+    viewModel.sendPasswordReset()
+    advanceSeconds(10)
+
+    assertTrue(viewModel.backToForm())
+
+    assertFalse(state.isResettingPassword)
+    assertFalse(state.isResetEmailSent)
+    assertEquals(AuthMode.LOG_IN, state.mode)
+    assertEquals(" John@EPFL.ch ", state.email)
+
+    viewModel.openPasswordReset()
+    assertEquals(50, state.resetSecondsLeft)
+    assertFalse(state.canSendReset)
+  }
+
+  @Test
+  fun backToFormIsIgnoredWhileTheResetEmailIsSent() {
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+    openReset()
+    viewModel.sendPasswordReset()
+
+    assertFalse(viewModel.backToForm())
+    gate.complete(Unit)
+
+    assertTrue(state.isResettingPassword)
+    assertTrue(state.isResetEmailSent)
+  }
+
   // ---------- profile creation ----------
 
   private fun signInWithoutName() {

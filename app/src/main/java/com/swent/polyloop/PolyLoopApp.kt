@@ -32,6 +32,7 @@ import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.ui.authentication.AuthScreen
 import com.swent.polyloop.ui.authentication.AuthViewModel
 import com.swent.polyloop.ui.authentication.CheckInboxScreen
+import com.swent.polyloop.ui.authentication.ForgotPasswordScreen
 import com.swent.polyloop.ui.browse.BrowseScreen
 import com.swent.polyloop.ui.browse.BrowseViewModel
 import com.swent.polyloop.ui.chat.ChatScreen
@@ -164,11 +165,13 @@ private fun PolyLoopScaffold(
           if (authState.isSignedIn) navigationActions.navigateAfterSignIn()
         }
         // "Check your inbox" is a step of this screen, not a route: both share the ViewModel, which
-        // holds the email and password needed to resend the email and to log in again.
+        // holds the email and password needed to resend the email and to log in again. So is
+        // "Forgot password", which uses the typed email.
         when {
           // Nothing while leaving for Browse, so the form does not flash during the fade.
           authState.isSignedIn -> Unit
           authState.isAwaitingVerification -> CheckInboxScreen(viewModel = authViewModel)
+          authState.isResettingPassword -> ForgotPasswordScreen(viewModel = authViewModel)
           else -> AuthScreen(viewModel = authViewModel)
         }
       }

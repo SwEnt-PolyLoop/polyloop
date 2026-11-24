@@ -143,6 +143,10 @@ object C {
     const val auth_email_resent = "auth_email_resent"
     const val auth_back_to_form_button = "auth_back_to_form_button"
     const val auth_name_continue_button = "auth_name_continue_button"
+    const val auth_forgot_password_link = "auth_forgot_password_link"
+    const val auth_reset_screen = "auth_reset_screen"
+    const val auth_reset_send_button = "auth_reset_send_button"
+    const val auth_reset_sent = "auth_reset_sent"
 
     const val chat_list_screen = "chat_list_screen"
     const val chat_list_title = "chat_list_title"
