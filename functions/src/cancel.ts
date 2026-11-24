@@ -115,6 +115,7 @@ export async function cancelRental(
     tx.delete(rentalRef.collection(HANDOVER_CODES).doc("RETURN"));
     if (accepted.listingExists) {
       // The same object `accept` added, so arrayRemove finds it.
+      // arrayRemove keeps the order the Security Rules rely on (#341).
       tx.update(db.collection("listings").doc(accepted.listingId), {
         bookedRanges: FieldValue.arrayRemove({
           start: accepted.dates.start,
