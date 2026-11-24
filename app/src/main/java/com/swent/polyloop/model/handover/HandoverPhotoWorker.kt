@@ -20,6 +20,7 @@ import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.firestore.enumOrNull
 import java.io.File
+import java.nio.file.Files
 import java.util.Date
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.tasks.await
@@ -71,7 +72,7 @@ class HandoverPhotoWorker(context: Context, params: WorkerParameters) :
             )
         document.set(photo).await()
       }
-      file.delete()
+      deleteCopy(file)
       Result.success()
     } catch (e: CancellationException) {
       throw e
@@ -79,15 +80,23 @@ class HandoverPhotoWorker(context: Context, params: WorkerParameters) :
       when {
         !isRefusal(e) -> Result.retry()
         // A write left queued by an earlier run that was stopped may have created it meanwhile.
-        document.existsOnServer() -> Result.success().also { file.delete() }
+        document.existsOnServer() -> Result.success().also { deleteCopy(file) }
         else -> refused(file)
       }
     }
   }
 
   private fun refused(file: File?): Result {
-    file?.delete()
+    deleteCopy(file)
     return Result.failure(workDataOf(REFUSED to true))
+  }
+
+  /**
+   * Deletes the phone's copy of the photo, once it is sent or refused. A copy that cannot be
+   * deleted only takes space, so the job still ends as it would have.
+   */
+  private fun deleteCopy(file: File?) {
+    if (file != null) runCatching { Files.deleteIfExists(file.toPath()) }
   }
 
   private suspend fun DocumentReference.existsOnServer() = get(Source.SERVER).await().exists()
