@@ -444,6 +444,10 @@
     <string name="rental_detail_cancelled_body">Cancelled before pickup, so the rental price and the deposit are given back.</string>
     <!-- The body of a cancelled rental that had no deposit (cancelled while requested) -->
     <string name="rental_detail_cancelled_body_no_deposit">Cancelled before pickup, so the rental price is given back.</string>
+    <!-- The headline of a declined rental, the same for both roles -->
+    <string name="rental_detail_declined_headline">Request declined</string>
+    <!-- The body of a declined rental, the same for both roles -->
+    <string name="rental_detail_declined_body">The price and deposit are given back.</string>
     <!-- The total rental price of a cancelled rental, e.g. "120 PP · returned" -->
     <string name="rental_detail_price_returned">%1$d PP · returned</string>
     <!-- The deposit of a cancelled rental, e.g. "60 PP · released" -->
