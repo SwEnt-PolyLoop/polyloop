@@ -1582,6 +1582,81 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun theLenderScansTheReturnFromTheReturnDayOnLateIncluded() {
+    signInLender()
+    handoverRepository.photos = photos(3, takenBy = "owner", phase = HandoverPhase.RETURN)
+    for ((day, status, expected) in
+        listOf(
+            Triple(returnDay.minusDays(1), RentalStatus.ACTIVE, false),
+            Triple(returnDay, RentalStatus.ACTIVE, true),
+            Triple(returnDay.plusDays(1), RentalStatus.OVERDUE, true),
+        )) {
+      atReturn(status, day)
+      val handover = PhaseRecorder(handoverRepository)
+      val state = viewModel(handover = handover).uiState.value
+
+      assertEquals(listOf(HandoverPhase.RETURN), handover.codePhases)
+      assertFalse(state.showsCode)
+      assertNull(state.code) // the lender never gets the return code itself
+      assertEquals(HandoverCode.fingerprint("secret-code"), state.codeFingerprint)
+      assertEquals(expected, state.canScan)
+    }
+  }
+
+  @Test
+  fun theLenderScansTheReturnOnlyWithThreeReturnPhotosAndOnline() {
+    atReturn()
+    signInLender()
+    handoverRepository.photos = photos(2, takenBy = "owner", phase = HandoverPhase.RETURN)
+    val vm = viewModel()
+    assertFalse(vm.uiState.value.canScan)
+
+    handoverRepository.photos = photos(3, takenBy = "owner", phase = HandoverPhase.RETURN)
+    assertTrue(vm.uiState.value.canScan)
+
+    connectivity.setOnline(false)
+    assertFalse(vm.uiState.value.canScan)
+  }
+
+  @Test
+  fun theLenderScansTheReturnUntilTheServerTakesItThenChecksTheItem() {
+    atReturn()
+    signInLender()
+    handoverRepository.photos =
+        photos(3, takenBy = "owner") + photos(3, takenBy = "owner", phase = HandoverPhase.RETURN)
+    val handover = PhaseRecorder(handoverRepository)
+    val vm = viewModel(handover = handover)
+
+    // A wrong code is refused on the phone and never sent.
+    vm.onCodeScanned("not-the-code")
+    assertEquals(ScanError.WRONG_CODE, vm.uiState.value.scanError)
+    assertTrue(handoverRepository.scannedCodes.isEmpty())
+
+    // The server refuses the right code once, e.g. its day is not the return day yet.
+    handoverRepository.scanFailure = ScanRefusedException()
+    vm.onCodeScanned("secret-code")
+    assertEquals(ScanError.REFUSED, vm.uiState.value.scanError)
+    assertTrue(vm.uiState.value.canScan)
+
+    handoverRepository.scanFailure = null
+    vm.onCodeScanned("secret-code")
+    assertEquals(listOf(HandoverPhase.RETURN, HandoverPhase.RETURN), handover.scanPhases)
+    assertTrue(vm.uiState.value.scanConfirmed)
+    assertNull(vm.uiState.value.scanError)
+
+    // The Function moves the rental on: the scan is over and the lender checks the item.
+    rentalRepository.setStatus(rental.id, RentalStatus.RETURNED)
+    val state = vm.uiState.value
+    assertNull(state.phase)
+    assertFalse(state.scanConfirmed)
+    assertNull(state.codeFingerprint)
+    assertFalse(state.canScan)
+    assertTrue(state.isReturnCheck)
+    assertEquals(3, state.pickupPhotos.size)
+    assertEquals(3, state.photos.size)
+  }
+
+  @Test
   fun theRolesSwapAtReturn() {
     val pickup = HandoverUiState(phase = HandoverPhase.PICKUP, isLender = true)
     val atReturn = pickup.copy(phase = HandoverPhase.RETURN)
