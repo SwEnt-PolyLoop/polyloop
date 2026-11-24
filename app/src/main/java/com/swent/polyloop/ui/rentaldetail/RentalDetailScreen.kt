@@ -79,8 +79,8 @@ import java.util.Locale
  * (Handover) of an accepted rental, [onStartReturnClick] the return (Handover) of an active one,
  * [onViewDisputeClick] the dispute of a disputed one, [onCheckItemClick] the lender's return check
  * (Handover) of a returned one, and [onReviewRequestClick] Review request, for the lender of a
- * request with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel]. The app's top bar is
- * drawn by the navigation scaffold, not here.
+ * request with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel]. The app's top
+ * bar is drawn by the navigation scaffold, not here.
  */
 @Composable
 fun RentalDetailScreen(
@@ -120,10 +120,10 @@ fun RentalDetailScreen(
  * ([onStartPickupClick]) pinned at the bottom, an Active one "Start Return" ([onStartReturnClick])
  * and a Disputed one "View Dispute" ([onViewDisputeClick]); a request with no offer has "Review
  * request" ([onReviewRequestClick]) for its lender. A Returned rental has its stage strip, status,
- * details, the person card and, for the lender only, "Check the item" ([onCheckItemClick]), with
- * no meeting point or cancel row. A Cancelled rental has only its status, its details and the
- * person card: no stage strip, meeting point, cancel row or bottom button. A Requested or Accepted
- * rental has a cancel row (see [CancelRow]) whose button opens a confirm sheet; "Yes" there calls
+ * details, the person card and, for the lender only, "Check the item" ([onCheckItemClick]), with no
+ * meeting point or cancel row. A Cancelled rental has only its status, its details and the person
+ * card: no stage strip, meeting point, cancel row or bottom button. A Requested or Accepted rental
+ * has a cancel row (see [CancelRow]) whose button opens a confirm sheet; "Yes" there calls
  * [onCancelClick]. [today] and [zone] decide how dates are written (e.g. whether the year is shown,
  * and the day of a cancel or return date); tests pass fixed values so their expected texts do not
  * depend on the day they run. [today] is the phone's date, so it is only used to write dates: Start
@@ -361,7 +361,8 @@ private fun ActionBar(
     RentalStatus.RETURNED ->
         // The lender's check ("Item is fine" / "Flag damage") lives on Handover, and nothing else
         // leads back to it once the rental is Returned. The borrower has nothing to do until the
-        // lender answers. Never disabled, offline included, as Handover shows its own offline state.
+        // lender answers. Never disabled, offline included, as Handover shows its own offline
+        // state.
         if (uiState.isLender) {
           ActionBarSurface {
             ActionButton(
@@ -520,10 +521,10 @@ private fun StageStrip(status: RentalStatus?) {
  * pickup day (Figma frame 13.01); once active, the return day (Figma frame 13.02-active). Once
  * returned, it gives the return day, then asks the lender to check the item against their pickup
  * photos (Figma frame 13.04b-returned-lender) and tells the borrower the item is being checked
- * (Figma frame 13.04-returned). Once disputed, it says that damage was flagged and
- * the deposit stays held (Figma frame 13.09). Once cancelled, it gives the cancel day and says that
- * the rental price, and the deposit if there was one, are given back, the same for both roles
- * (Figma frame 13.07-cancelled).
+ * (Figma frame 13.04-returned). Once disputed, it says that damage was flagged and the deposit
+ * stays held (Figma frame 13.09). Once cancelled, it gives the cancel day and says that the rental
+ * price, and the deposit if there was one, are given back, the same for both roles (Figma frame
+ * 13.07-cancelled).
  */
 @Composable
 private fun StatusCard(

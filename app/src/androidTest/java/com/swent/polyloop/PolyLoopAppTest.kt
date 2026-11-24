@@ -1022,8 +1022,7 @@ class PolyLoopAppTest {
 
   private val returnedRental = rental.copy(status = RentalStatus.RETURNED)
 
-  private val returnedRentalLender =
-      AuthUser(returnedRental.ownerId, "owner@epfl.ch", "Owner")
+  private val returnedRentalLender = AuthUser(returnedRental.ownerId, "owner@epfl.ch", "Owner")
 
   @Test
   fun checkTheItemOnAReturnedRentalOpensTheLendersReturnCheck() {
