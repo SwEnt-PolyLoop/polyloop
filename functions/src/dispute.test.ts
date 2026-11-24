@@ -7,9 +7,6 @@ import { MAX_PROPOSALS, acceptSplit, escalateDispute, proposeSplit } from "./dis
 import { hasSeenLastMessage } from "./testing/readTimes";
 import { People, fund, people, rows, wallet } from "./testing/walletFixtures";
 
-// Firebase loads this ES module to verify tokens, which Jest cannot load; these tests do not sign in.
-jest.mock("jose", () => ({}));
-
 // The transactions are tested on the emulator; the pure rules are in disputeRules.test.ts.
 let db: Firestore;
 

@@ -240,6 +240,25 @@ export function requirePerson(value: unknown, role: string): string {
   return value;
 }
 
+/** The borrower and the lender of a rental. */
+export interface Parties {
+  borrowerId: string;
+  lenderId: string;
+}
+
+/**
+ * The rental's borrower and lender, two different valid users, or an `internal` refusal: the
+ * rental's data is broken then.
+ */
+export function requireParties(rental: Record<string, unknown>): Parties {
+  const borrowerId = requirePerson(rental.borrowerId, "borrower");
+  const lenderId = requirePerson(rental.ownerId, "lender");
+  if (borrowerId === lenderId) {
+    throw new RequestError("internal", "The rental has the same borrower and lender.");
+  }
+  return { borrowerId, lenderId };
+}
+
 /** The rental's item title, or "" when it has none. */
 export function listingTitleOf(rental: Record<string, unknown>): string {
   return typeof rental.listingTitle === "string" ? rental.listingTitle : "";

@@ -16,8 +16,7 @@ import {
   SplitInput,
 } from "./disputeRules";
 import { writeWithSystemMessage } from "./negotiation";
-import { requireParties } from "./payLender";
-import { RequestError } from "./rentalRules";
+import { RequestError, requireParties } from "./rentalRules";
 import { SweepCounts, runSweep } from "./sweep";
 import { readDepositSettlement, writeDepositSettlement } from "./wallet";
 

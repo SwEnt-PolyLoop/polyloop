@@ -9,7 +9,7 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { splitDeposit } from "./disputeRules";
-import { RequestError, listingTitleOf } from "./rentalRules";
+import { Parties, RequestError, listingTitleOf } from "./rentalRules";
 
 /**
  * Reading and writing a user's wallet inside a transaction, shared by the functions that move
@@ -166,10 +166,7 @@ const DEPOSIT_RELEASED = "DEPOSIT_RELEASED";
 const DEPOSIT_SPLIT = "DEPOSIT_SPLIT";
 
 /** The borrower and the lender of a rental, whose wallets a settlement moves. */
-export interface SettlementParties {
-  borrowerId: string;
-  lenderId: string;
-}
+export type SettlementParties = Parties;
 
 /** What a settlement reads, inside the caller's transaction (see [readDepositSettlement]). */
 export interface DepositSettlement {

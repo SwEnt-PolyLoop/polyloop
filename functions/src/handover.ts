@@ -7,10 +7,9 @@ import {
   PAID_STATUSES,
   isLenderPaid,
   readLenderPayment,
-  requireParties,
   writeLenderPayment,
 } from "./payLender";
-import { RequestError, asFields, parseText } from "./rentalRules";
+import { RequestError, asFields, parseText, requireParties } from "./rentalRules";
 import { zurichDay } from "./serverToday";
 
 /** The reasons of a refusal the app reads (`details.reason`), see docs/ARCHITECTURE.md. */
