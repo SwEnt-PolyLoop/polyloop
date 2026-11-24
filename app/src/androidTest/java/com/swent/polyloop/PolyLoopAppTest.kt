@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -32,6 +33,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.model.auth.AuthError
@@ -887,12 +889,27 @@ class PolyLoopAppTest {
   }
 
   @Test
-  fun cancelRequestThenYesCancelsTheRentalAndShowsThePlaceholder() {
+  fun cancelRequestThenYesShowsTheRentalAsCancelled() {
     val rentals = openTheCancelSheetOfARequest()
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
 
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_cancel_yes).performClick()
 
-    waitForTag(C.Tag.rental_detail_unsupported)
+    // The headline's day is not checked: the fake stamps the real time as the cancel date.
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodes(
+              hasTestTag(C.Tag.rental_detail_status) and
+                  hasText(context.getString(R.string.rental_status_cancelled)),
+              useUnmergedTree = true,
+          )
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    composeTestRule
+        .onNodeWithTag(C.Tag.rental_detail_status_body, useUnmergedTree = true)
+        .assertTextEquals(context.getString(R.string.rental_detail_cancelled_body_no_deposit))
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_unsupported).assertDoesNotExist()
     assertEquals(
         RentalStatus.CANCELLED,
         runBlocking { rentals.getRental(rental.id).getOrThrow()?.status },

@@ -224,12 +224,33 @@ class FakeRentalRepositoryOffersTest {
   }
 
   @Test
+  fun cancelRentalSetsTheCancelDateOfARequestToTheClock() = runTest {
+    val repository = repository(rental())
+    now = Instant.parse("2026-11-06T09:30:00Z")
+
+    repository.cancelRental("r1").getOrThrow()
+
+    assertEquals(Instant.parse("2026-11-06T09:30:00Z"), repository.stored().cancelledAt)
+  }
+
+  @Test
+  fun cancelRentalSetsTheCancelDateOfAnAcceptedRentalToTheClock() = runTest {
+    val repository = repository(rental(status = RentalStatus.ACCEPTED))
+    now = Instant.parse("2026-11-06T09:30:00Z")
+
+    repository.cancelRental("r1").getOrThrow()
+
+    assertEquals(Instant.parse("2026-11-06T09:30:00Z"), repository.stored().cancelledAt)
+  }
+
+  @Test
   fun cancelRentalRefusesOtherStatusesAndLeavesThemUnchanged() = runTest {
     for (status in listOf(RentalStatus.DECLINED, RentalStatus.ACTIVE, RentalStatus.DISPUTED)) {
       val repository = repository(rental(status = status))
 
       assertTrue(repository.cancelRental("r1").isFailure)
       assertEquals(status, repository.stored().status)
+      assertNull(repository.stored().cancelledAt)
     }
   }
 
