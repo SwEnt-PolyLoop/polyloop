@@ -102,7 +102,7 @@ fun PolyLoopDateRangePicker(
     onConfirm: (start: LocalDate, end: LocalDate) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
     isSending: Boolean = false,
     errorMsg: String? = null,
     onDayPicked: () -> Unit = {},
@@ -292,7 +292,10 @@ private fun Header(
     }
     Spacer(Modifier.weight(1f))
     if (mode is DateRangePickerMode.Request) {
-      val (from, to) = formatRangeEnds(window.start, window.endInclusive, locale)
+      // The phone's date: the today handed down to the sheet's content is the first day that
+      // can be picked, tomorrow in this mode, which is already next year on 31 December.
+      val (from, to) =
+          formatRangeEnds(window.start, window.endInclusive, locale, LocalToday.current)
       Text(
           text = stringResource(R.string.date_picker_available, from, to),
           style = MaterialTheme.typography.bodyMedium,

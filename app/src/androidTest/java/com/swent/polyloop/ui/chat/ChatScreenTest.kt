@@ -45,6 +45,7 @@ import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -58,6 +59,7 @@ class ChatScreenTest {
 
   // The expected times are built with formatMessageTime too, so the tests pass in any time zone.
   private val now = Instant.parse("2026-10-13T12:00:00Z")
+  private val today = now.atZone(ZoneId.systemDefault()).toLocalDate()
   private val start = LocalDate.of(2026, 10, 20)
   private val end = LocalDate.of(2026, 10, 22)
 
@@ -92,7 +94,7 @@ class ChatScreenTest {
             onSend = { sends++ },
             onRetry = { retries++ },
             onRentalDetailsClick = { rentalDetailsClicks++ },
-            now = now,
+            today = today,
             onStartPickupClick = { pickupClicks++ },
             onReviewRequestClick = { reviewRequestClicks++ },
         )
@@ -132,7 +134,7 @@ class ChatScreenTest {
               onSend = {},
               onRetry = {},
               onRentalDetailsClick = {},
-              now = now,
+              today = today,
           )
         }
       }
@@ -169,7 +171,7 @@ class ChatScreenTest {
             onSend = {},
             onRetry = {},
             onRentalDetailsClick = {},
-            now = now,
+            today = today,
         )
       }
     }
@@ -292,7 +294,8 @@ class ChatScreenTest {
   fun headerShowsThePersonTheDatesAndTheItem() {
     setContent(loaded)
 
-    val (from, to) = formatRangeEnds(start, end)
+    // The header reads LocalToday, whose default is the phone's date; only its year counts here.
+    val (from, to) = formatRangeEnds(start, end, today = LocalDate.now())
     composeTestRule.onNodeWithTag(C.Tag.chat_header_name).assertTextEquals("Ana")
     composeTestRule
         .onNodeWithTag(C.Tag.chat_header_dates)
@@ -327,7 +330,7 @@ class ChatScreenTest {
     setContent(loaded)
 
     inMessage("m1", C.Tag.chat_message_text).assertTextEquals("Hi! When do you need it?")
-    inMessage("m1", C.Tag.chat_message_time).assertTextEquals(formatMessageTime(now, now))
+    inMessage("m1", C.Tag.chat_message_time).assertTextEquals(formatMessageTime(now, today))
   }
 
   @Test
@@ -352,7 +355,7 @@ class ChatScreenTest {
             context.getString(
                 R.string.chat_system_message,
                 "Request sent",
-                formatMessageTime(now, now),
+                formatMessageTime(now, today),
             )
         )
   }
@@ -389,7 +392,7 @@ class ChatScreenTest {
             onSend = { sends++ },
             onRetry = {},
             onRentalDetailsClick = {},
-            now = now,
+            today = today,
         )
       }
     }

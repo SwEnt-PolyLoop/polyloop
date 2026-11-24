@@ -38,6 +38,7 @@ import com.swent.polyloop.ui.chat.ChatScreen
 import com.swent.polyloop.ui.chat.ChatViewModel
 import com.swent.polyloop.ui.chatlist.ChatListScreen
 import com.swent.polyloop.ui.chatlist.ChatListViewModel
+import com.swent.polyloop.ui.components.ProvideToday
 import com.swent.polyloop.ui.createlisting.CreateListingScreen
 import com.swent.polyloop.ui.createlisting.CreateListingViewModel
 import com.swent.polyloop.ui.dispute.DisputeScreen
@@ -122,8 +123,11 @@ fun PolyLoopApp(
         )
       },
   ) {
-    PolyLoopScaffold(navController, navigationActions, currentRoute, startDestination) {
-      scope.launch { drawerState.open() }
+    // Today's date for every screen, kept up to date across midnight (see LocalToday).
+    ProvideToday {
+      PolyLoopScaffold(navController, navigationActions, currentRoute, startDestination) {
+        scope.launch { drawerState.open() }
+      }
     }
   }
 }

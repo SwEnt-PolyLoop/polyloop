@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.chatlist.formatMessageTime
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
@@ -87,8 +88,8 @@ fun ChatScreen(
 
 /**
  * Stateless Chat content: the header, then a loading indicator, an error with a Retry button, the
- * empty state or the messages, and the bar to type and send a message. [now] decides which messages
- * are from today. The offer card, when there is an offer, sits above that bar.
+ * empty state or the messages, and the bar to type and send a message. [today] decides which
+ * messages are from today. The offer card, when there is an offer, sits above that bar.
  */
 @Composable
 fun ChatContent(
@@ -97,7 +98,7 @@ fun ChatContent(
     onSend: () -> Unit,
     onRetry: () -> Unit,
     onRentalDetailsClick: () -> Unit,
-    now: Instant = Instant.now(),
+    today: LocalDate = LocalToday.current,
     onAcceptOffer: () -> Unit = {},
     onDeclineOffer: () -> Unit = {},
     onStartCounter: () -> Unit = {},
@@ -151,7 +152,7 @@ fun ChatContent(
                 modifier =
                     Modifier.align(Alignment.Center).padding(16.dp).testTag(C.Tag.chat_empty),
             )
-        else -> MessageList(messages = uiState.messages, now = now)
+        else -> MessageList(messages = uiState.messages, today = today)
       }
     }
     // Typing is only possible once the chat is loaded.
@@ -271,7 +272,7 @@ private fun ActionBar(
 /** The rental's dates, e.g. "20 – 22 Oct". */
 @Composable
 private fun formatDates(start: LocalDate, end: LocalDate): String {
-  val (from, to) = formatRangeEnds(start, end)
+  val (from, to) = formatRangeEnds(start, end, today = LocalToday.current)
   return stringResource(R.string.chat_date_range, from, to)
 }
 
@@ -281,7 +282,7 @@ private fun formatDates(start: LocalDate, end: LocalDate): String {
  * message in place and hide the newest ones under the field.
  */
 @Composable
-private fun MessageList(messages: List<ChatMessageRow>, now: Instant) {
+private fun MessageList(messages: List<ChatMessageRow>, today: LocalDate) {
   val listState = rememberLazyListState()
   val height by remember { derivedStateOf { listState.layoutInfo.viewportSize.height } }
   LaunchedEffect(messages.size, height) { listState.scrollToItem(messages.lastIndex) }
@@ -293,8 +294,8 @@ private fun MessageList(messages: List<ChatMessageRow>, now: Instant) {
   ) {
     items(messages, key = { it.id }) { message ->
       when (message.kind) {
-        MessageKind.SYSTEM -> SystemMessage(message, now)
-        else -> MessageBubble(message, now)
+        MessageKind.SYSTEM -> SystemMessage(message, today)
+        else -> MessageBubble(message, today)
       }
     }
   }
@@ -305,7 +306,7 @@ private fun MessageList(messages: List<ChatMessageRow>, now: Instant) {
  * The time sits in the bottom corner on the same side.
  */
 @Composable
-private fun MessageBubble(message: ChatMessageRow, now: Instant) {
+private fun MessageBubble(message: ChatMessageRow, today: LocalDate) {
   val mine = message.kind == MessageKind.MINE
   val colors = MaterialTheme.colorScheme
   Box(
@@ -329,7 +330,7 @@ private fun MessageBubble(message: ChatMessageRow, now: Instant) {
             modifier = Modifier.testTag(C.Tag.chat_message_text),
         )
         Text(
-            text = formatMessageTime(message.sentAt, now),
+            text = formatMessageTime(message.sentAt, today),
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(top = 2.dp).testTag(C.Tag.chat_message_time),
         )
@@ -340,13 +341,13 @@ private fun MessageBubble(message: ChatMessageRow, now: Instant) {
 
 /** A message written by the app, centred and in grey, with its time. */
 @Composable
-private fun SystemMessage(message: ChatMessageRow, now: Instant) {
+private fun SystemMessage(message: ChatMessageRow, today: LocalDate) {
   Text(
       text =
           stringResource(
               R.string.chat_system_message,
               message.text,
-              formatMessageTime(message.sentAt, now),
+              formatMessageTime(message.sentAt, today),
           ),
       style = MaterialTheme.typography.labelMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -451,7 +452,7 @@ private fun ChatContentPreview() {
         onSend = {},
         onRetry = {},
         onRentalDetailsClick = {},
-        now = now,
+        today = LocalDate.of(2026, 10, 13),
     )
   }
 }

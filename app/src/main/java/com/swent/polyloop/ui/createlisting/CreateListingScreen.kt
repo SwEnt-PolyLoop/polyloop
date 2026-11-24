@@ -37,6 +37,7 @@ import com.swent.polyloop.model.listing.Listing
 import com.swent.polyloop.model.listing.ListingCategory
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.DateRangePickerMode
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.components.PolyLoopDateRangePicker
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.LocalDate
@@ -118,7 +119,7 @@ fun CreateListingContent(
     onCaptureFailed: (uri: String) -> Unit,
     onPublish: () -> Unit,
     modifier: Modifier = Modifier,
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
     cameraPermissionGranted: Boolean? = null,
     onListingPublished: (listingId: String) -> Unit = {},
 ) {

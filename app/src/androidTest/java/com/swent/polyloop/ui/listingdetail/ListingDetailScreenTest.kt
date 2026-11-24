@@ -297,11 +297,13 @@ class ListingDetailScreenTest {
   fun displaysDepositAvailabilityAndNote() {
     setContent()
 
+    // The card reads LocalToday, whose default is the phone's date; only its year counts here.
     val (from, to) =
         formatRangeEnds(
             listing.availableFrom,
             listing.availableTo,
             context.resources.configuration.locales[0],
+            LocalDate.now(),
         )
     assertSectionText(
         C.Tag.listing_detail_deposit,
@@ -617,11 +619,13 @@ class ListingDetailScreenTest {
     )
 
     composeTestRule.onNodeWithTag(C.Tag.date_picker_sheet).assertIsDisplayed()
+    // The window reads LocalToday, whose default is the phone's date; only its year counts here.
     val (from, to) =
         formatRangeEnds(
             listing.availableFrom,
             listing.availableTo,
             context.resources.configuration.locales[0],
+            LocalDate.now(),
         )
     composeTestRule
         .onNodeWithTag(C.Tag.date_picker_available)

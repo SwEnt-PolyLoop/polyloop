@@ -56,6 +56,7 @@ import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.DateRangePickerMode
 import com.swent.polyloop.ui.components.ExpandableText
 import com.swent.polyloop.ui.components.ListingPhoto
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.components.PickupMap
 import com.swent.polyloop.ui.components.PolyLoopDateRangePicker
 import com.swent.polyloop.ui.components.PriceText
@@ -114,7 +115,7 @@ fun ListingDetailContent(
     onLenderClick: (ownerId: String) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
     onDayPicked: () -> Unit = {},
     onRequestSent: (rentalId: String) -> Unit = {},
 ) {
@@ -346,7 +347,8 @@ private fun LenderCard(owner: UserProfile?, onClick: () -> Unit) {
 @Composable
 private fun InfoCard(listing: Listing) {
   val locale = LocalConfiguration.current.locales[0]
-  val (from, to) = formatRangeEnds(listing.availableFrom, listing.availableTo, locale)
+  val (from, to) =
+      formatRangeEnds(listing.availableFrom, listing.availableTo, locale, LocalToday.current)
   OutlinedCard(modifier = Modifier.fillMaxWidth()) {
     Column(
         modifier = Modifier.padding(16.dp),

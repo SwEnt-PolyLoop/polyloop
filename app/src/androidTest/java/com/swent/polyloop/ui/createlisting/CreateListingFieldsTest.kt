@@ -196,8 +196,14 @@ class CreateListingFieldsTest {
   fun availabilityShowsFormattedRange() {
     setAvailabilityField(availableFrom, availableTo)
 
+    // The field reads LocalToday, whose default is the phone's date; only its year counts here.
     val (from, to) =
-        formatRangeEnds(availableFrom, availableTo, context.resources.configuration.locales[0])
+        formatRangeEnds(
+            availableFrom,
+            availableTo,
+            context.resources.configuration.locales[0],
+            LocalDate.now(),
+        )
     composeTestRule
         .onNodeWithTag(C.Tag.create_listing_availability_field)
         .assertTextContains(context.getString(R.string.listing_detail_date_range, from, to))
