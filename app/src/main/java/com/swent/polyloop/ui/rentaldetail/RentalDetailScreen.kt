@@ -1021,7 +1021,8 @@ private fun CancelRow(
       // cannot act on. It does not say "Try again" either, as some refusals are final (e.g. an
       // accepted rental whose pickup day has come by the server's clock). Once #429 sends a
       // details.reason, the repository should read it and the screen show a matching message, as
-      // DisputeRepositoryFirestore does; not yet, as #429 does not define the reasons.
+      // DisputeRepositoryFirestore does; #429 sends RENTAL_CHANGED and TOO_LATE; the app does not
+      // read them yet.
       Text(
           text = stringResource(R.string.rental_detail_cancel_error_fallback),
           style = MaterialTheme.typography.bodySmall,
