@@ -164,6 +164,12 @@ describe("proposeSplit", () => {
 describe("acceptSplit", () => {
   it("settles the dispute and closes the rental, with the shares in the chat", async () => {
     const id = await disputed({ proposals: [proposal(LENDER, 50)] });
+    await fund(BORROWER, { available: 10, heldAsDeposits: 33, heldForRentals: 0 });
+    await fund(LENDER, { available: 5, heldAsDeposits: 0, heldForRentals: 0 });
+    await db
+      .collection(`wallets/${BORROWER}/transactions`)
+      .doc(`deposit_held_${id}`)
+      .set({ type: "DEPOSIT_HELD", amount: -33, itemTitle: "" });
 
     await acceptSplit(db, BORROWER, { rentalId: id, lenderPercent: 50 }, NOW);
 

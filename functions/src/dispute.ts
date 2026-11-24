@@ -14,13 +14,12 @@ import {
   SETTLE,
   STAGE_CHANGED,
   SplitInput,
-  splitDeposit,
 } from "./disputeRules";
 import { writeWithSystemMessage } from "./negotiation";
 import { requireParties } from "./payLender";
-import { RequestError, listingTitleOf } from "./rentalRules";
+import { RequestError } from "./rentalRules";
 import { SweepCounts, runSweep } from "./sweep";
-import { depositToSettle, readDepositSettlement, writeDepositSettlement } from "./wallet";
+import { readDepositSettlement, writeDepositSettlement } from "./wallet";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
 const DISPUTES = "disputes";
@@ -316,17 +315,11 @@ async function settle(
   acceptedBy: string,
 ): Promise<void> {
   const parties = requireParties(open.rental);
-  const shares = splitDeposit(depositToSettle(open.rental), lenderPercent);
   const state = await readDepositSettlement(tx, db, parties, open.rentalRef.id);
-  writeDepositSettlement(
-    tx,
-    db,
-    parties,
-    open.rentalRef.id,
-    listingTitleOf(open.rental),
-    state,
-    shares,
-  );
+  const shares = writeDepositSettlement(tx, db, parties, open.rentalRef.id, open.rental, state, {
+    kind: "split",
+    lenderPercent,
+  });
   const { lender, borrower } = shares;
   tx.update(open.disputeRef, { agreedAt: Timestamp.fromDate(now) });
   writeWithSystemMessage(

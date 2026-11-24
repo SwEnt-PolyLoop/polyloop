@@ -7,7 +7,8 @@ import {
   Firestore,
   Transaction,
 } from "firebase-admin/firestore";
-import { RequestError } from "./rentalRules";
+import { splitDeposit } from "./disputeRules";
+import { RequestError, listingTitleOf } from "./rentalRules";
 
 /**
  * Reading and writing a user's wallet inside a transaction, shared by the functions that move
@@ -227,23 +228,28 @@ export async function readDepositSettlement(
   return { borrower, lender, held, settled: released || borrowerSplit || lenderSplit };
 }
 
+/** How a deposit is settled: given back whole after a clean return, or split by a percentage. */
+export type DepositOutcome = { kind: "release" } | { kind: "split"; lenderPercent: number };
+
 /**
- * Write step of a deposit settlement, inside the caller's transaction after its reads: the
- * borrower's `heldAsDeposits` goes down by the whole amount, and each share goes to its owner's
- * `available`. A clean return ([release]) gives everything to the borrower, with a
- * `DEPOSIT_RELEASED` row `deposit_released_<rentalId>`; a split gives each side that receives
- * PolyPoints a `DEPOSIT_SPLIT` row `deposit_split_<rentalId>`, and none for a share of 0.
- * Nothing moves when no deposit was held (a rental from before deposits were held), when it was
- * already settled, or when there is nothing to settle.
+ * Write step of a deposit settlement, inside the caller's transaction after its reads. It works
+ * out the amount (`depositToSettle`, the late fees already taken) and the shares itself, so a
+ * caller cannot pass shares that leave part of the deposit held for good. The borrower's
+ * `heldAsDeposits` goes down by the whole amount, and each share goes to its owner's `available`.
+ * A clean return (`release`) gives everything to the borrower, with a `DEPOSIT_RELEASED` row
+ * `deposit_released_<rentalId>`; a split (`splitDeposit`, the borrower's share rounded down) gives
+ * each side that receives PolyPoints a `DEPOSIT_SPLIT` row `deposit_split_<rentalId>`, and none for
+ * a share of 0. Nothing moves when no deposit was held (a rental from before deposits were held),
+ * when it was already settled, or when there is nothing to settle.
  *
  * @param tx the transaction to write in.
  * @param db the Firestore database.
  * @param parties the borrower and the lender.
  * @param rentalId the rental the deposit belongs to.
- * @param itemTitle the title of the item, or "".
+ * @param rental the rental document's data: the deposit, the late fees and the item title.
  * @param state what [readDepositSettlement] read in the same transaction.
- * @param shares the lender's and the borrower's shares, adding up to the amount to settle.
- * @param release true for a clean return, when the borrower gets everything back.
+ * @param outcome a clean return, or a split with the lender's percentage.
+ * @returns the shares settled, which add up to the amount; both 0 when nothing moved.
  * @throws RequestError `internal` when the borrower's `heldAsDeposits` is below the amount: the
  *   data is broken, and nothing is written.
  */
@@ -252,13 +258,17 @@ export function writeDepositSettlement(
   db: Firestore,
   parties: SettlementParties,
   rentalId: string,
-  itemTitle: string,
+  rental: DocumentData,
   state: DepositSettlement,
-  shares: DepositShares,
-  release = false,
-): void {
-  const amount = shares.lender + shares.borrower;
-  if (!state.held || state.settled || amount <= 0) return;
+  outcome: DepositOutcome,
+): DepositShares {
+  const amount = depositToSettle(rental);
+  if (!state.held || state.settled || amount <= 0) return { lender: 0, borrower: 0 };
+  const release = outcome.kind === "release";
+  const shares: DepositShares = release
+    ? { lender: 0, borrower: amount }
+    : splitDeposit(amount, outcome.lenderPercent);
+  const itemTitle = listingTitleOf(rental);
   if (state.borrower.heldAsDeposits < amount) {
     throw new RequestError("internal", "The borrower's held deposits do not cover the deposit.");
   }
@@ -291,6 +301,7 @@ export function writeDepositSettlement(
       { id: splitRowId(rentalId), type: DEPOSIT_SPLIT, amount: shares.lender, itemTitle },
     );
   }
+  return shares;
 }
 
 /**
