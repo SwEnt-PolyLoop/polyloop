@@ -280,3 +280,92 @@ describe("refusals", () => {
     });
   }
 });
+
+/** Checks that a refused cancel of the accepted rental [id] wrote nothing. */
+async function expectNothingWritten(who: People, id: string, listingId: string) {
+  expect((await rentalData(id))?.status).toBe("ACCEPTED");
+  expect(await wallet(who.borrower)).toEqual({ available: 10, heldAsDeposits: 40, heldForRentals: 0 });
+  expect(await rows(who.borrower)).toEqual([
+    expect.objectContaining({ id: `deposit_held_${id}`, type: "DEPOSIT_HELD" }),
+  ]);
+  expect(await bookedRanges(listingId)).toHaveLength(2);
+  expect(await exists(`rentals/${id}/handoverCodes/PICKUP`)).toBe(true);
+  expect(await messages(id)).toEqual([]);
+}
+
+describe("broken accepted rentals", () => {
+  const broken: { name: string; fields: (who: People) => object; caller: keyof People }[] = [
+    { name: "no valid dates", fields: () => ({ startDate: "not a date" }), caller: "borrower" },
+    { name: "no listingId", fields: () => ({ listingId: "" }), caller: "borrower" },
+    // The caller is the lender: with no borrower, the borrower is no participant.
+    { name: "no borrower", fields: () => ({ borrowerId: "" }), caller: "lender" },
+    {
+      name: "the same borrower and lender",
+      fields: (who) => ({ ownerId: who.borrower }),
+      caller: "borrower",
+    },
+    { name: "a deposit of 0", fields: () => ({ deposit: 0 }), caller: "borrower" },
+    { name: "a deposit that is not whole", fields: () => ({ deposit: 1.5 }), caller: "borrower" },
+    { name: "a deposit that is not a number", fields: () => ({ deposit: "40" }), caller: "borrower" },
+  ];
+  for (const { name, fields, caller } of broken) {
+    it(`refuses an accepted rental with ${name} as internal and writes nothing`, async () => {
+      const who = people();
+      const { id, listingId } = await accepted(who, { fields: fields(who) });
+
+      await expect(cancelRental(db, who[caller], id, DAY_BEFORE)).rejects.toMatchObject({
+        code: "internal",
+      });
+
+      await expectNothingWritten(who, id, listingId);
+    });
+  }
+
+  it("refuses held deposits that do not cover the deposit and writes nothing", async () => {
+    const who = people();
+    const { id, listingId } = await accepted(who);
+    await fund(who.borrower, { available: 10, heldAsDeposits: 39, heldForRentals: 0 });
+
+    await expect(cancelRental(db, who.borrower, id, DAY_BEFORE)).rejects.toMatchObject({
+      code: "internal",
+    });
+
+    expect((await rentalData(id))?.status).toBe("ACCEPTED");
+    expect(await wallet(who.borrower)).toEqual({ available: 10, heldAsDeposits: 39, heldForRentals: 0 });
+    expect(await rows(who.borrower)).toHaveLength(1);
+    expect(await bookedRanges(listingId)).toHaveLength(2);
+    expect(await exists(`rentals/${id}/handoverCodes/PICKUP`)).toBe(true);
+    expect(await messages(id)).toEqual([]);
+  });
+});
+
+describe("the deposit of a cancelled rental", () => {
+  // Accepted before deposits were held (#391): the 40 PP held belong to another rental, and
+  // must not pay this one back.
+  it("moves nothing when it was never held", async () => {
+    const who = people();
+    const { id } = await accepted(who);
+    await db.doc(`wallets/${who.borrower}/transactions/deposit_held_${id}`).delete();
+
+    await cancelRental(db, who.borrower, id, DAY_BEFORE);
+
+    expect((await rentalData(id))?.status).toBe(CANCELLED);
+    expect(await wallet(who.borrower)).toEqual({ available: 10, heldAsDeposits: 40, heldForRentals: 0 });
+    expect(await rows(who.borrower)).toEqual([]);
+  });
+
+  it("moves nothing when it was already given back", async () => {
+    const who = people();
+    const { id } = await accepted(who);
+    await db
+      .doc(`wallets/${who.borrower}/transactions/deposit_released_${id}`)
+      .set({ type: "DEPOSIT_RELEASED", amount: 40, itemTitle: "Camping tent" });
+    const rowsBefore = await rows(who.borrower);
+
+    await cancelRental(db, who.borrower, id, DAY_BEFORE);
+
+    expect((await rentalData(id))?.status).toBe(CANCELLED);
+    expect(await wallet(who.borrower)).toEqual({ available: 10, heldAsDeposits: 40, heldForRentals: 0 });
+    expect(await rows(who.borrower)).toEqual(rowsBefore);
+  });
+});
