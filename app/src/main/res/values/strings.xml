@@ -454,6 +454,7 @@
     <string name="rental_detail_returned_headline_no_date">Returned</string>
     <string name="rental_detail_check_item">Check the item</string>
     <string name="rental_detail_returned_body">Check the item against your pickup photos. The deposit stays held until a decision.</string>
+    <string name="rental_detail_returned_body_borrower">The item is being checked against the pickup photos. The deposit is released once everything is confirmed fine.</string>
 
     <!-- Dispute -->
     <string name="dispute_title">Dispute</string>

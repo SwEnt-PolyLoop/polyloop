@@ -101,11 +101,22 @@ class RentalDetailReturnedTest {
   }
 
   @Test
-  fun theStatusCardGivesTheReturnDayAndAsksToCheckTheItem() {
+  fun theStatusCardGivesTheReturnDayAndTellsTheBorrowerTheItemIsBeingChecked() {
     setContent()
 
     assertShown(C.Tag.rental_detail_status, context.getString(R.string.rental_status_returned))
     assertShown(C.Tag.rental_detail_status_headline, "Returned on 8 Oct")
+    assertShown(
+        C.Tag.rental_detail_status_body,
+        "The item is being checked against the pickup photos. The deposit is released once " +
+            "everything is confirmed fine.",
+    )
+  }
+
+  @Test
+  fun theStatusCardAsksTheLenderToCheckTheItem() {
+    setContent(returned.copy(isLender = true))
+
     assertShown(
         C.Tag.rental_detail_status_body,
         "Check the item against your pickup photos. The deposit stays held until a decision.",
@@ -160,14 +171,10 @@ class RentalDetailReturnedTest {
   }
 
   @Test
-  fun theLenderSeesTheSameTexts() {
+  fun theLenderSeesTheSameHeadlineAndDetails() {
     setContent(returned.copy(isLender = true))
 
     assertShown(C.Tag.rental_detail_status_headline, "Returned on 8 Oct")
-    assertShown(
-        C.Tag.rental_detail_status_body,
-        context.getString(R.string.rental_detail_returned_body),
-    )
     assertShown(C.Tag.rental_detail_dates, "1 – 8 Oct")
     assertShown(C.Tag.rental_detail_price, "120 PP · paid")
     assertShown(C.Tag.rental_detail_accepted_deposit, "60 PP · held")

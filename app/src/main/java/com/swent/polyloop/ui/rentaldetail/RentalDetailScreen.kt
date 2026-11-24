@@ -518,8 +518,9 @@ private fun StageStrip(status: RentalStatus?) {
  * written in [locale], with its year only when it is not [today]'s year. While an offer waits for
  * an answer, the card says where it stands instead (Figma frame 13.10). Once accepted, it gives the
  * pickup day (Figma frame 13.01); once active, the return day (Figma frame 13.02-active). Once
- * returned, it gives the return day and asks to check the item against the pickup photos, the same
- * for both roles (Figma frame 13.04-returned). Once disputed, it says that damage was flagged and
+ * returned, it gives the return day, then asks the lender to check the item against their pickup
+ * photos (Figma frame 13.04b-returned-lender) and tells the borrower the item is being checked
+ * (Figma frame 13.04-returned). Once disputed, it says that damage was flagged and
  * the deposit stays held (Figma frame 13.09). Once cancelled, it gives the cancel day and says that
  * the rental price, and the deposit if there was one, are given back, the same for both roles
  * (Figma frame 13.07-cancelled).
@@ -555,7 +556,11 @@ private fun StatusCard(
           when {
             status == RentalStatus.ACCEPTED -> stringResource(R.string.rental_detail_accepted_body)
             status == RentalStatus.ACTIVE -> stringResource(R.string.rental_detail_active_body)
-            status == RentalStatus.RETURNED -> stringResource(R.string.rental_detail_returned_body)
+            status == RentalStatus.RETURNED ->
+                stringResource(
+                    if (uiState.isLender) R.string.rental_detail_returned_body
+                    else R.string.rental_detail_returned_body_borrower
+                )
             status == RentalStatus.DISPUTED -> stringResource(R.string.rental_detail_disputed_body)
             // A rental cancelled while requested had no deposit yet; one cancelled once accepted
             // with a deposit of 0 (unknown) has none to show either, so the body leaves it out.
