@@ -32,10 +32,9 @@ class RentalDetailDeclinedTest {
 
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
-  // The pickup area, its point and the suggested deposit are set, as the listing is still read for
-  // a
-  // declined rental, so that a meeting point or a suggested deposit would show if the screen drew
-  // one. A declined rental never had its deposit held, so its deposit is 0.
+  // The pickup area, its point and the suggested deposit are set, because the listing is still
+  // read for a declined rental: a meeting point or a suggested deposit would show if the screen
+  // drew one. A declined rental never had its deposit held, so its deposit is 0.
   private val declined =
       RentalDetailUiState(
           itemTitle = "Ski helmet, size M",
@@ -124,6 +123,7 @@ class RentalDetailDeclinedTest {
     composeTestRule.onNodeWithTag(C.Tag.rental_detail_accepted_deposit).assertDoesNotExist()
   }
 
+  // No declined rental has a deposit today, but the row is shared with Cancelled: this covers it.
   @Test
   fun withADepositTheDepositShowsAsReleased() {
     setContent(declined.copy(deposit = 60))

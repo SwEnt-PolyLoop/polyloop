@@ -211,9 +211,7 @@ fun RentalDetailContent(
           }
           when (uiState.status) {
             // A returned or disputed rental shows no meeting point: the item is already back. Nor
-            // does a cancelled one, where nobody meets any more, nor a declined one: nobody meets,
-            // and declining deletes the offer's addresses, so the request's area would only
-            // mislead.
+            // does a cancelled or declined one, where nobody meets any more.
             RentalStatus.RETURNED,
             RentalStatus.DISPUTED,
             RentalStatus.CANCELLED,
