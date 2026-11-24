@@ -77,6 +77,7 @@ class RentalDetailActiveTest {
             onStartPickupClick = { startPickupClicks++ },
             onStartReturnClick = { startReturnClicks++ },
             onViewDisputeClick = {},
+            onCheckItemClick = {},
             onCancelClick = {},
             today = today,
             zone = ZoneOffset.UTC,

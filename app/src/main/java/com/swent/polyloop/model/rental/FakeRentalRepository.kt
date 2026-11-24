@@ -265,11 +265,16 @@ class FakeRentalRepository(
 
   /**
    * Changes the status of [rentalId] as a Cloud Function would (e.g. ACTIVE after the pickup scan),
-   * so that whoever follows the rental sees it change. Does nothing for an unknown id.
+   * so that whoever follows the rental sees it change. Does nothing for an unknown id. A non-null
+   * [returnedAt] is set on the rental too, as the return scan's Cloud Function does when it makes
+   * the rental RETURNED; null leaves the rental's own [Rental.returnedAt] as it is.
    */
-  fun setStatus(rentalId: String, status: RentalStatus) {
+  fun setStatus(rentalId: String, status: RentalStatus, returnedAt: Instant? = null) {
     stored.update { rentals ->
-      rentals.map { if (it.id == rentalId) it.copy(status = status) else it }
+      rentals.map {
+        if (it.id == rentalId) it.copy(status = status, returnedAt = returnedAt ?: it.returnedAt)
+        else it
+      }
     }
   }
 
