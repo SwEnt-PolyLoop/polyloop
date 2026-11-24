@@ -163,8 +163,14 @@ class HandoverRepositoryFirestore(
       rentalId: String,
       phase: HandoverPhase,
       code: String,
+      scannedAt: Instant?,
   ): Result<Unit> {
-    val data = mapOf("rentalId" to rentalId, "phase" to phase.name, "code" to code)
+    val data = buildMap {
+      put("rentalId", rentalId)
+      put("phase", phase.name)
+      put("code", code)
+      if (scannedAt != null) put("scannedAt", scannedAt.toEpochMilli())
+    }
     // Back waits for the answer, and a stalled call would only fail after about 70 s, so stop
     // waiting sooner. Sending it again is safe: a pickup already confirmed changes nothing.
     val result =

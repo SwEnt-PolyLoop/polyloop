@@ -49,13 +49,20 @@ interface HandoverRepository {
 
   /**
    * Sends the [code] the signed-in user scanned in [phase] of [rentalId]; the server checks it and
-   * moves the rental on. Succeeds if it was already done. Fails with [WrongCodeException] if the
-   * code is not this rental's, with [RentalChangedException] if the rental can no longer take this
-   * scan (e.g. cancelled), with [ScanRefusedException] if the server refuses it for another reason
-   * that sending it again would not fix, or with the cause if nobody is signed in or it cannot be
-   * sent (e.g. the connection dropped, or no answer came within 30 seconds: a TimeoutException).
+   * moves the rental on. [scannedAt] is when a scan made offline was made (by `ServerClock`), null
+   * for a scan sent at once. Succeeds if it was already done. Fails with [WrongCodeException] if
+   * the code is not this rental's, with [RentalChangedException] if the rental can no longer take
+   * this scan (e.g. cancelled), with [ScanRefusedException] if the server refuses it for another
+   * reason that sending it again would not fix, or with the cause if nobody is signed in or it
+   * cannot be sent (e.g. the connection dropped, or no answer came within 30 seconds: a
+   * TimeoutException).
    */
-  suspend fun confirmScan(rentalId: String, phase: HandoverPhase, code: String): Result<Unit>
+  suspend fun confirmScan(
+      rentalId: String,
+      phase: HandoverPhase,
+      code: String,
+      scannedAt: Instant? = null,
+  ): Result<Unit>
 
   /**
    * Tells, as the signed-in lender, that the item of the returned rental [rentalId] came back fine:

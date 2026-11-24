@@ -111,6 +111,9 @@ class FakeHandoverRepository(
   // The codes sent to confirmScan, in order, including the wrong ones.
   val scannedCodes = mutableListOf<String>()
 
+  // The scannedAt sent with each of them: null for a scan sent at once.
+  val scanTimes = mutableListOf<Instant?>()
+
   override suspend fun getCodeToShow(rentalId: String, phase: HandoverPhase): Result<String?> =
       readCode {
         code
@@ -125,8 +128,10 @@ class FakeHandoverRepository(
       rentalId: String,
       phase: HandoverPhase,
       code: String,
+      scannedAt: Instant?,
   ): Result<Unit> {
     scannedCodes += code
+    scanTimes += scannedAt
     gate?.await()
     return when {
       currentUid == null -> Result.failure(IllegalStateException(NOT_SIGNED_IN))

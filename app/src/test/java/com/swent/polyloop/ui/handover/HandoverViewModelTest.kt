@@ -1566,9 +1566,10 @@ class HandoverViewModelTest {
         rentalId: String,
         phase: HandoverPhase,
         code: String,
+        scannedAt: Instant?,
     ): Result<Unit> {
       scanPhases += phase
-      return base.confirmScan(rentalId, phase, code)
+      return base.confirmScan(rentalId, phase, code, scannedAt)
     }
   }
 
