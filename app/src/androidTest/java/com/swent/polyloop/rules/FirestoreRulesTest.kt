@@ -571,6 +571,11 @@ class FirestoreRulesTest {
           assertDenied { addressesRef(listing.id).delete().await() }
           // The owner still reads them.
           assertEquals("Route 1", addressesRef(listing.id).get(Source.SERVER).await()["pickup"])
+          // Nor writes them again once they are gone.
+          FirebaseEmulator.deleteDocumentAsAdmin(addressesRef(listing.id).path)
+          assertDenied {
+            addressesRef(listing.id).set(mapOf("pickup" to "A", "dropOff" to "B")).await()
+          }
         }
       }
 
@@ -588,6 +593,7 @@ class FirestoreRulesTest {
         listingRef(listing.id).update("title", "Bigger tent").await()
         addressesRef(listing.id).update("pickup", "Elsewhere").await()
         addressesRef(listing.id).delete().await()
+        addressesRef(listing.id).set(mapOf("pickup" to "A", "dropOff" to "B")).await()
         listingRef(listing.id).delete().await()
       }
 
