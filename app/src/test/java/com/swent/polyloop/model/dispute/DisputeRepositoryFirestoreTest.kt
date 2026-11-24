@@ -110,6 +110,8 @@ class DisputeRepositoryFirestoreTest {
         listOf(
             refusedWith(details = null),
             refusedWith(mapOf("reason" to "SOMETHING_ELSE")),
+            // A rental no longer Returned (openDispute) is a plain failure, read by no screen.
+            refusedWith(mapOf("reason" to "RENTAL_CHANGED")),
             refusedWith(
                 mapOf("reason" to "STAGE_CHANGED"),
                 code = FirebaseFunctionsException.Code.PERMISSION_DENIED,
@@ -119,14 +121,8 @@ class DisputeRepositoryFirestoreTest {
     refusals.forEach { refusal ->
       every { callable.call(any()) } returns Tasks.forException(refusal)
       assertSame(refusal, repository.propose("r1", 40).exceptionOrNull())
+      assertSame(refusal, repository.openDispute("r1").exceptionOrNull())
     }
-  }
-
-  @Test
-  fun aRentalNoLongerReturnedIsAPlainFailureOfOpenDispute() = runTest {
-    val refusal = refusedWith(mapOf("reason" to "RENTAL_CHANGED"))
-
-    assertSame(refusal, repository.openDispute("r1").exceptionOrNull())
   }
 
   // ---------- observeDispute ----------

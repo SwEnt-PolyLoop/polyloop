@@ -135,19 +135,6 @@ describe("openDispute", () => {
     expect(await openDispute.run(asUser(LENDER, { rentalId: id }))).toEqual({});
     expect((await dispute(id))?.stage).toBe("SETTLE");
   });
-
-  it("gives the app RENTAL_CHANGED in the HttpsError's details", async () => {
-    const id = await disputed();
-    await db.collection("disputes").doc(id).delete();
-
-    const error = await openDispute.run(asUser(LENDER, { rentalId: id })).catch((e) => e);
-
-    expect(error).toBeInstanceOf(HttpsError);
-    expect(error).toMatchObject({
-      code: "failed-precondition",
-      details: { reason: "RENTAL_CHANGED" },
-    });
-  });
 });
 
 describe("the whole direct settlement", () => {

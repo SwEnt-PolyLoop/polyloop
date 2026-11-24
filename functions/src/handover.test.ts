@@ -4,13 +4,13 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { codeFingerprint } from "./handoverCode";
 import {
-  RENTAL_CHANGED,
   ALREADY_RETURNED_STATUSES,
   WRONG_CODE,
   confirmPickup,
   confirmReturn,
   isReturnDay,
 } from "./handover";
+import { RENTAL_CHANGED } from "./rentalRules";
 import { hasSeenLastMessage } from "./testing/readTimes";
 import {
   People,

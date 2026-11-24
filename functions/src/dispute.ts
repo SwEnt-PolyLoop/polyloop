@@ -16,9 +16,8 @@ import {
   STAGE_CHANGED,
   SplitInput,
 } from "./disputeRules";
-import { RENTAL_CHANGED } from "./handover";
 import { writeWithSystemMessage } from "./negotiation";
-import { RequestError, requireParties } from "./rentalRules";
+import { RENTAL_CHANGED, RequestError, requireParties } from "./rentalRules";
 import { SweepCounts, runSweep } from "./sweep";
 import { depositToSettle, readDepositSettlement, writeDepositSettlement } from "./wallet";
 
@@ -183,7 +182,7 @@ export async function escalateDispute(
  * @param rentalId the rental whose item came back damaged.
  * @param now the current time, from which `escalatesAt` is counted; passed so tests can set it.
  * @throws RequestError `not-found`; `permission-denied` (not the lender); `failed-precondition`
- *   with the reason `RENTAL_CHANGED` (no longer RETURNED, e.g. the lender's "Item is fine" won).
+ *   with the reason `RENTAL_CHANGED` (no longer RETURNED, e.g. the lender's "Item is fine" won, once #491 exists).
  *   Nothing is written then.
  */
 export async function openDispute(

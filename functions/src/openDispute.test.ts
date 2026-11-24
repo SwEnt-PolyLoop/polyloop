@@ -103,7 +103,7 @@ describe("openDispute", () => {
   });
 
   it("refuses a rental that is not RETURNED with RENTAL_CHANGED, and writes nothing", async () => {
-    // CLOSED stands for "Item is fine" sent first; DISPUTED without a dispute is corrupt data.
+    // CLOSED stands for "Item is fine" sent first (once #491 exists); DISPUTED without a dispute is corrupt data.
     for (const status of ["ACTIVE", "CLOSED", "DISPUTED"]) {
       const id = await rentalWith(status);
 

@@ -21,6 +21,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.swent.polyloop.R
 import com.swent.polyloop.model.auth.AuthUser
 import com.swent.polyloop.model.auth.FakeAuthRepository
 import com.swent.polyloop.model.connectivity.FakeConnectivityRepository
@@ -142,12 +144,16 @@ class HandoverReturnConfirmTest {
   @Test
   fun onlyItemIsFineSaysItIsNotAvailableYet() {
     setContent(check)
+    val notAvailable =
+        InstrumentationRegistry.getInstrumentation()
+            .targetContext
+            .getString(R.string.not_available_yet)
 
     composeTestRule
         .onNodeWithTag(C.Tag.handover_item_fine_not_available)
         .performScrollTo()
-        .assertTextEquals("Not available yet")
-    composeTestRule.onAllNodesWithText("Not available yet").assertCountEquals(1)
+        .assertTextEquals(notAvailable)
+    composeTestRule.onAllNodesWithText(notAvailable).assertCountEquals(1)
   }
 
   @Test
