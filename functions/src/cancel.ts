@@ -2,7 +2,7 @@
 
 import { DocumentData, FieldValue, Firestore, Transaction } from "firebase-admin/firestore";
 import { RENTAL_CHANGED } from "./handover";
-import { HANDOVER_CODES } from "./handoverCode";
+import { CODE_HASH_FIELDS, HANDOVER_CODES } from "./handoverCode";
 import { writeWithSystemMessage } from "./negotiation";
 import {
   DateRange,
@@ -47,8 +47,8 @@ interface AcceptedReads {
  * Cancels the rental [rentalId] for [callerId], one of its two participants, in one transaction:
  * the rental becomes CANCELLED, with no waiting offer and no offer addresses left, and a SYSTEM
  * message "Cancelled", seen by the caller. An accepted rental also gets back what its acceptance set
- * up: its days leave the listing's `bookedRanges`, the pickup code and its fingerprint are deleted,
- * and the deposit goes back to the borrower (`DEPOSIT_RELEASED`). The checks run in this order: the
+ * up: its days leave the listing's `bookedRanges`, both handover codes and their fingerprints are
+ * deleted, and the deposit goes back to the borrower (`DEPOSIT_RELEASED`). The checks run in this order: the
  * rental exists, the caller is a participant, then, if it is already cancelled, the call succeeds
  * and changes nothing; otherwise it is REQUESTED (at any time) or ACCEPTED until the day before its
  * first day, in Zurich at [now].
@@ -100,12 +100,19 @@ export async function cancelRental(
       {
         status: CANCELLED,
         offer: FieldValue.delete(),
-        ...(accepted ? { pickupCodeHash: FieldValue.delete() } : {}),
+        ...(accepted
+          ? {
+              [CODE_HASH_FIELDS.PICKUP]: FieldValue.delete(),
+              [CODE_HASH_FIELDS.RETURN]: FieldValue.delete(),
+            }
+          : {}),
       },
       callerId,
     );
     if (!accepted) return;
+    // Both handover codes are made at acceptance, so a cancel removes both.
     tx.delete(rentalRef.collection(HANDOVER_CODES).doc("PICKUP"));
+    tx.delete(rentalRef.collection(HANDOVER_CODES).doc("RETURN"));
     if (accepted.listingExists) {
       // The same object `accept` added, so arrayRemove finds it.
       tx.update(db.collection("listings").doc(accepted.listingId), {

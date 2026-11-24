@@ -132,9 +132,10 @@ describe("cancelling a request", () => {
 });
 
 describe("cancelling an accepted rental", () => {
-  it("frees its days, deletes the pickup code and gives the deposit back", async () => {
+  it("frees its days, deletes the handover codes and gives the deposit back", async () => {
     const who = people();
-    const { id, listingId } = await accepted(who);
+    const { id, listingId } = await accepted(who, { fields: { returnCodeHash: "fingerprint" } });
+    await db.doc(`rentals/${id}/handoverCodes/RETURN`).set({ code: "return secret" });
 
     await cancelRental(db, who.lender, id, DAY_BEFORE);
 
@@ -142,6 +143,8 @@ describe("cancelling an accepted rental", () => {
     expect(data?.status).toBe(CANCELLED);
     expect(data?.pickupCodeHash).toBeUndefined();
     expect(await exists(`rentals/${id}/handoverCodes/PICKUP`)).toBe(false);
+    expect(data?.returnCodeHash).toBeUndefined();
+    expect(await exists(`rentals/${id}/handoverCodes/RETURN`)).toBe(false);
     expect(await bookedRanges(listingId)).toEqual([OTHER_RANGE]);
     expect(await messages(id)).toEqual([expect.objectContaining({ text: "Cancelled", type: "SYSTEM" })]);
     expect(hasSeenLastMessage(data, who.lender)).toBe(true);
