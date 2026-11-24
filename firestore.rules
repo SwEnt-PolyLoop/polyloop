@@ -288,7 +288,7 @@ service cloud.firestore {
                 request.auth.uid + '_' + request.resource.data.phase + '_([0-9]|1[0-9])')
             && (get(rentalPath(rentalId)).data.status
                     in phaseStatuses()[request.resource.data.phase]
-                || isPickupPhotoTakenBeforeTheScan(get(rentalPath(rentalId)).data));
+                || isPhotoTakenBeforeItsScan(get(rentalPath(rentalId)).data));
       }
 
       // The statuses a rental must have for photos of each phase.
@@ -296,12 +296,12 @@ service cloud.firestore {
         return {'PICKUP': ['ACCEPTED'], 'RETURN': ['ACTIVE', 'OVERDUE']};
       }
 
-      // A pickup photo taken before the pickup scan (pickedUpAt, set by confirmHandover) that
-      // arrives after it.
-      function isPickupPhotoTakenBeforeTheScan(rental) {
-        return request.resource.data.phase == 'PICKUP'
-            && 'pickedUpAt' in rental
-            && request.resource.data.takenAt < rental.pickedUpAt;
+      // A photo taken before its phase's scan that arrives after it (#511): the time of the scan is
+      // pickedUpAt at pickup and returnedAt at return, both set by confirmHandover.
+      function isPhotoTakenBeforeItsScan(rental) {
+        let scanFields = {'PICKUP': 'pickedUpAt', 'RETURN': 'returnedAt'};
+        let scannedAt = scanFields[request.resource.data.phase];
+        return scannedAt in rental && request.resource.data.takenAt < rental[scannedAt];
       }
 
       // The secret code of each handover's QR code (#434, #435), one document per phase (PICKUP,
