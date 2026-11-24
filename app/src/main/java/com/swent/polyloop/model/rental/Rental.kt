@@ -14,6 +14,9 @@ import java.time.temporal.ChronoUnit
  *
  * The listing title, both names and the public areas are copied when the rental is created, so My
  * rentals and the chat list can show a rental without reading the listing or the profiles.
+ *
+ * Only Cloud Functions write [cancelledAt]. A rental cancelled before the field existed has none,
+ * so it is null then, and Rental detail shows "Cancelled" with no date.
  */
 data class Rental(
     val id: String,
@@ -37,6 +40,7 @@ data class Rental(
     val deposit: Int = 0, // in PP: the accepted amount, 0 until then
     val lateFees: Int = 0, // in PP: taken from the deposit for a late return, 0 if never late
     val offer: DepositOffer? = null, // the offer waiting for an answer, if any
+    val cancelledAt: Instant? = null, // when it was cancelled; null if unknown, see below
     val createdAt: Instant,
     val lastMessage: String = "",
     // Starts at createdAt: the chat list sorts by this field, and Firestore leaves out of a sorted

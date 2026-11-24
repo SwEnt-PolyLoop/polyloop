@@ -35,6 +35,7 @@ internal object RentalFields {
   const val OFFER_IS_COUNTER = "isCounter"
   const val OFFER_PREVIOUS_AMOUNT = "previousAmount"
   const val OFFER_EXPIRES_AT = "expiresAt"
+  const val CANCELLED_AT = "cancelledAt"
   const val CREATED_AT = "createdAt"
   const val LAST_MESSAGE = "lastMessage"
   const val LAST_MESSAGE_AT = "lastMessageAt"
@@ -44,7 +45,8 @@ internal object RentalFields {
  * Builds a [Rental] from a Firestore document, or returns null if a field it cannot do without
  * (ids, dates, status, prices, `createdAt`) is missing or has the wrong type. Copied names, title,
  * photo, areas, addresses and the last message read as "" when missing, `lastMessageAt` as
- * `createdAt`, `deposit` and `lateFees` as 0, and a missing or malformed `offer` as no offer.
+ * `createdAt`, `deposit` and `lateFees` as 0, a missing or malformed `offer` as no offer, and a
+ * missing or malformed `cancelledAt` as null.
  */
 internal fun rentalFromDocument(id: String, data: Map<String, Any?>): Rental? {
   val createdAt = instantOrNull(data[RentalFields.CREATED_AT]) ?: return null
@@ -71,6 +73,9 @@ internal fun rentalFromDocument(id: String, data: Map<String, Any?>): Rental? {
       // return is late, so a rental that was never late has no such field.
       lateFees = intOrNull(data[RentalFields.LATE_FEES]) ?: 0,
       offer = depositOfferFromDocument(data[RentalFields.OFFER]),
+      // Only Cloud Functions write cancelledAt, and rentals cancelled before the field existed
+      // have none, so missing reads as null: the screen then shows "Cancelled" with no date.
+      cancelledAt = instantOrNull(data[RentalFields.CANCELLED_AT]),
       createdAt = createdAt,
       lastMessage = data.stringOrEmpty(RentalFields.LAST_MESSAGE),
       lastMessageAt = instantOrNull(data[RentalFields.LAST_MESSAGE_AT]) ?: createdAt,
