@@ -806,16 +806,20 @@ class PolyLoopAppTest {
   }
 
   /**
-   * Opens Rental detail on [shown], signed in as its borrower, and taps its action button. The
-   * server's time is [serverNow], or the fake's default when null.
+   * Opens Rental detail on [shown], signed in as [signedIn] (its borrower by default), and taps its
+   * action button. The server's time is [serverNow], or the fake's default when null.
    */
-  private fun tapActionButtonOnRentalDetail(shown: Rental, serverNow: Instant? = null) {
+  private fun tapActionButtonOnRentalDetail(
+      shown: Rental,
+      serverNow: Instant? = null,
+      signedIn: AuthUser = AuthUser("uid", "john@epfl.ch", "John Doe"),
+  ) {
     useRentals(
         FakeRentalRepository(rentals = listOf(shown)).also { fake ->
           serverNow?.let { fake.serverNow = it }
         }
     )
-    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    currentUser = signedIn
     setApp()
     composeTestRule.runOnUiThread {
       NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(shown.id))
@@ -1014,6 +1018,48 @@ class PolyLoopAppTest {
     doubleTap(C.Tag.rental_detail_action_button)
 
     assertEquals(1, handoversOnTheBackStack())
+  }
+
+  private val returnedRental = rental.copy(status = RentalStatus.RETURNED)
+
+  private val returnedRentalLender = AuthUser(returnedRental.ownerId, "owner@epfl.ch", "Owner")
+
+  @Test
+  fun checkTheItemOnAReturnedRentalOpensTheLendersReturnCheck() {
+    tapActionButtonOnRentalDetail(returnedRental, signedIn = returnedRentalLender)
+
+    assertCurrentScreen(
+        Screen.Handover,
+        shownRoute = Screen.Handover.createRoute(returnedRental.id),
+    )
+  }
+
+  @Test
+  fun aDoubleTapOnCheckTheItemOpensOneHandover() {
+    useRentals(FakeRentalRepository(rentals = listOf(returnedRental)))
+    currentUser = returnedRentalLender
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+
+    doubleTap(C.Tag.rental_detail_action_button)
+
+    assertEquals(1, handoversOnTheBackStack())
+  }
+
+  @Test
+  fun theBorrowerOfAReturnedRentalHasNoBottomButton() {
+    useRentals(FakeRentalRepository(rentals = listOf(returnedRental)))
+    currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
+    setApp()
+    composeTestRule.runOnUiThread {
+      NavigationActions(navController).navigateTo(Screen.RentalDetail.createRoute(rental.id))
+    }
+
+    // Once the status card shows, the rental is loaded and its bottom button would show too.
+    waitForTag(C.Tag.rental_detail_status_headline)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).assertDoesNotExist()
   }
 
   @Test

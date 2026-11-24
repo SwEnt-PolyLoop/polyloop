@@ -36,6 +36,7 @@ internal object RentalFields {
   const val OFFER_PREVIOUS_AMOUNT = "previousAmount"
   const val OFFER_EXPIRES_AT = "expiresAt"
   const val CANCELLED_AT = "cancelledAt"
+  const val RETURNED_AT = "returnedAt"
   const val CREATED_AT = "createdAt"
   const val LAST_MESSAGE = "lastMessage"
   const val LAST_MESSAGE_AT = "lastMessageAt"
@@ -46,7 +47,7 @@ internal object RentalFields {
  * (ids, dates, status, prices, `createdAt`) is missing or has the wrong type. Copied names, title,
  * photo, areas, addresses and the last message read as "" when missing, `lastMessageAt` as
  * `createdAt`, `deposit` and `lateFees` as 0, a missing or malformed `offer` as no offer, and a
- * missing or malformed `cancelledAt` as null.
+ * missing or malformed `cancelledAt` or `returnedAt` as null.
  */
 internal fun rentalFromDocument(id: String, data: Map<String, Any?>): Rental? {
   val createdAt = instantOrNull(data[RentalFields.CREATED_AT]) ?: return null
@@ -76,6 +77,10 @@ internal fun rentalFromDocument(id: String, data: Map<String, Any?>): Rental? {
       // Only Cloud Functions write cancelledAt, and rentals cancelled before the field existed
       // have none, so missing reads as null: the screen then shows "Cancelled" with no date.
       cancelledAt = instantOrNull(data[RentalFields.CANCELLED_AT]),
+      // Only Cloud Functions write returnedAt (the return scan), and rentals returned before the
+      // field existed have none, so missing reads as null: the screen then shows "Returned" with
+      // no date.
+      returnedAt = instantOrNull(data[RentalFields.RETURNED_AT]),
       createdAt = createdAt,
       lastMessage = data.stringOrEmpty(RentalFields.LAST_MESSAGE),
       lastMessageAt = instantOrNull(data[RentalFields.LAST_MESSAGE_AT]) ?: createdAt,
