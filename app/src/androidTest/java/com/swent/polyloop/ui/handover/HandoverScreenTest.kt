@@ -352,12 +352,12 @@ class HandoverScreenTest {
   }
 
   @Test
-  fun offlineTheBannerShowsAndTheCameraTilesDoNothing() {
+  fun offlineTheBannerShowsAndTheCameraStillOpens() {
     setContent(pickup.copy(isOffline = true))
 
     assertShown(C.Tag.offline_banner)
     composeTestRule.onAllNodesWithTag(C.Tag.handover_add_photo)[0].performClick()
-    assertEquals(0, cameraOpenings)
+    assertEquals(1, cameraOpenings)
   }
 
   @Test

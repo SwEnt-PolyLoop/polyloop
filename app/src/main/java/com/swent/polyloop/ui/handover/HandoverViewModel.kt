@@ -89,8 +89,11 @@ enum class ReturnCheck {
  * @property isLoadingPhotos true until the photos followed are read for the first time; only the
  *   lender's check shows it.
  * @property photosFailed true when the photos could not be loaded.
- * @property failedPhoto the photo whose upload failed, kept to try again; null when none did.
- * @property isOffline true while the phone has no connection; no photo can be uploaded then.
+ * @property refusedPhotos how many of the user's photos of [phase] the server refused; they are not
+ *   in [photos].
+ * @property failedPhoto the photo that could not be queued, kept to try again; null when none.
+ * @property isOffline true while the phone has no connection; photos still go into the upload
+ *   queue, which sends them once it is back.
  * @property code the secret code the user shows as a QR code, when they show it (see [showsCode]);
  *   null until read.
  * @property codeFingerprint the fingerprint of the code the user scans, when they scan; null until
@@ -127,6 +130,7 @@ data class HandoverUiState(
     val pickupPhotos: List<HandoverPhoto> = emptyList(),
     val isLoadingPhotos: Boolean = false,
     val photosFailed: Boolean = false,
+    val refusedPhotos: Int = 0,
     val isUploading: Boolean = false,
     val failedPhoto: FailedPhoto? = null,
     val isOffline: Boolean = false,
@@ -177,15 +181,14 @@ data class HandoverUiState(
         }
 
   /**
-   * True when a photo can be uploaded: on the handover day and not past its end, before the pickup
-   * is confirmed, online, under 20, none uploading.
+   * True when a photo can be added to the upload queue, online or offline: on the handover day and
+   * not past its end, before the pickup is confirmed, under 20, none being added.
    */
   val canUpload: Boolean
     get() =
         isHandoverDay &&
             !isDayOver &&
             !isPickedUp &&
-            !isOffline &&
             photos.size < HandoverPhoto.MAX_PHOTOS &&
             !isUploading
 
@@ -646,6 +649,7 @@ class HandoverViewModel(
       it.copy(
           photos = emptyList(),
           pickupPhotos = emptyList(),
+          refusedPhotos = 0,
           isLoadingPhotos = phases.isNotEmpty(),
           photosFailed = false,
       )
@@ -659,13 +663,13 @@ class HandoverViewModel(
               .observeMyPhotos(rentalId, shown)
               .catch { _uiState.update { it.copy(photosFailed = true, isLoadingPhotos = false) } }
               .collect { all ->
-                // A photo the server refused is not one of the user's photos.
-                val photos = all.filter { it.sync != PhotoSync.REFUSED }
+                // A photo the server refused is not one of the user's photos: it is only counted.
+                val (refused, photos) = all.partition { it.sync == PhotoSync.REFUSED }
                 read += shown
                 _uiState.update {
                   val withPhotos =
                       if (check && shown == HandoverPhase.PICKUP) it.copy(pickupPhotos = photos)
-                      else it.copy(photos = photos)
+                      else it.copy(photos = photos, refusedPhotos = refused.size)
                   withPhotos.copy(isLoadingPhotos = read.size < phases.size)
                 }
               }
