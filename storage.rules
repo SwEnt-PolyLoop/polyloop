@@ -34,12 +34,30 @@ service firebase.storage {
 
       // The photos are uploaded before the listing document is written, so a folder whose listing
       // does not exist yet is open to any verified user (its random id is not public yet). Once the
-      // listing exists, only its owner may change its photos.
+      // listing exists, only its owner may change its photos, and not while it is locked.
       function canChangePhotos(listingId) {
         let listing = /databases/(default)/documents/listings/$(listingId);
         return isVerifiedEpfl()
             && (!firestore.exists(listing)
-                || firestore.get(listing).data.ownerId == request.auth.uid);
+                || (firestore.get(listing).data.ownerId == request.auth.uid
+                    && !isLocked(firestore.get(listing).data)));
+      }
+
+      // The same lock as in firestore.rules (#341): an accepted rental of the listing ends today or
+      // later. Cloud Functions keep bookedRanges sorted by first day, so the last one ends last.
+      function isLocked(listing) {
+        let ranges = listing.get('bookedRanges', []);
+        return ranges.size() > 0 && ranges[ranges.size() - 1].end >= today();
+      }
+
+      // Today as YYYY-MM-DD, never later than in Zurich: UTC+1, as in firestore.rules.
+      function today() {
+        let now = request.time + duration.value(1, 'h');
+        return string(now.year()) + '-' + twoDigits(now.month()) + '-' + twoDigits(now.day());
+      }
+
+      function twoDigits(number) {
+        return (number < 10 ? '0' : '') + string(number);
       }
 
       // The signed-in user uploaded the photo stored here. A photo without the tag (uploaded

@@ -93,6 +93,21 @@ export function bookedRanges(value: unknown): DateRange[] {
 }
 
 /**
+ * A listing's `bookedRanges` as Cloud Functions store them: its valid ranges, sorted by first day.
+ * Booked ranges never overlap, so the last one also ends last; the Security Rules, which cannot loop
+ * over a list, read only that one to lock the listing (docs/ARCHITECTURE.md, "Security rules").
+ * Malformed entries, ignored everywhere, are left out.
+ */
+export function sortedRanges(stored: unknown): DateRange[] {
+  return bookedRanges(stored).sort((a, b) => dayNumber(a.start) - dayNumber(b.start));
+}
+
+/** A listing's `bookedRanges` once [range] is booked too, stored as by [sortedRanges]. */
+export function withBooking(stored: unknown, range: DateRange): DateRange[] {
+  return sortedRanges([...bookedRanges(stored), range]);
+}
+
+/**
  * Reads a stored date range (`{start, end}`, as in `bookedRanges`), or returns null if it is not
  * one. A range whose end is before its start is refused too.
  */
@@ -238,6 +253,25 @@ export function requirePerson(value: unknown, role: string): string {
     throw new RequestError("internal", `The rental has no ${role}.`);
   }
   return value;
+}
+
+/** The borrower and the lender of a rental. */
+export interface Parties {
+  borrowerId: string;
+  lenderId: string;
+}
+
+/**
+ * The rental's borrower and lender, two different valid users, or an `internal` refusal: the
+ * rental's data is broken then.
+ */
+export function requireParties(rental: Record<string, unknown>): Parties {
+  const borrowerId = requirePerson(rental.borrowerId, "borrower");
+  const lenderId = requirePerson(rental.ownerId, "lender");
+  if (borrowerId === lenderId) {
+    throw new RequestError("internal", "The rental has the same borrower and lender.");
+  }
+  return { borrowerId, lenderId };
 }
 
 /** The rental's item title, or "" when it has none. */

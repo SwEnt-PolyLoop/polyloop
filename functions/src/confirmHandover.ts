@@ -3,19 +3,28 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { onCall } from "firebase-functions/v2/https";
 import { toCallableError } from "./callable";
-import { confirmPickup, parseHandoverScan } from "./handover";
+import { confirmPickup, confirmReturn, parseHandoverScan } from "./handover";
+import type { HandoverPhase } from "./handoverCode";
 import { requireVerifiedEpfl } from "./rentalRules";
 
+/** Who confirms each phase: TypeScript refuses a phase added to [HandoverPhase] but left out here. */
+const CONFIRM: Record<HandoverPhase, typeof confirmPickup> = {
+  PICKUP: confirmPickup,
+  RETURN: confirmReturn,
+};
+
 /**
- * Callable `confirmHandover` (see docs/ARCHITECTURE.md): the borrower's phone sends the code it
- * scanned on the lender's phone. Input: `{rentalId, phase, code}`, with `phase` `PICKUP` for now.
- * A confirmed pickup makes the rental ACTIVE and pays the lender. A refusal the app tells apart
- * carries `details.reason`: `WRONG_CODE` or `RENTAL_CHANGED`. Returns nothing.
+ * Callable `confirmHandover` (see docs/ARCHITECTURE.md): the phone of the person receiving the item
+ * sends the code it scanned on the other person's phone. Input: `{rentalId, phase, code}`, with
+ * `phase` `PICKUP` (the borrower scans) or `RETURN` (the lender scans). A confirmed pickup makes
+ * the rental ACTIVE and pays the lender; a confirmed return makes it RETURNED. A refusal the app
+ * tells apart carries `details.reason`: `WRONG_CODE` or `RENTAL_CHANGED`. Returns nothing.
  */
 export const confirmHandover = onCall(async (request) => {
   try {
     const uid = requireVerifiedEpfl(request.auth);
-    await confirmPickup(getFirestore(), uid, parseHandoverScan(request.data), new Date());
+    const scan = parseHandoverScan(request.data);
+    await CONFIRM[scan.phase](getFirestore(), uid, scan, new Date());
     return {};
   } catch (error) {
     throw toCallableError(error);

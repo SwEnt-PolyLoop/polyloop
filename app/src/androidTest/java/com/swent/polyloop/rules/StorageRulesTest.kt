@@ -15,6 +15,8 @@ import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.io.File
 import java.io.RandomAccessFile
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
@@ -36,6 +38,9 @@ class StorageRulesTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val listingId = "listing-${UUID.randomUUID()}"
   private val bytes = byteArrayOf(1, 2, 3, 4)
+
+  // Today in Zurich, where rental dates are counted.
+  private val today = LocalDate.now(ZoneId.of("Europe/Zurich"))
 
   // A JPEG tagged with the uid of the user signed in when it is uploaded, as
   // ListingRepositoryFirestore tags listing photos. The profile photo rules ignore the tag.
@@ -73,6 +78,20 @@ class StorageRulesTest {
     FirebaseEmulator.createDocumentAsAdmin(
         "listings/$listingId",
         mapOf("ownerId" to ownerUid, "title" to "Camping tent"),
+    )
+  }
+
+  /**
+   * Books the listing on [ranges] (first and last day), oldest first, as accepting rentals stores
+   * them (Cloud Functions keep `bookedRanges` sorted).
+   */
+  private fun bookListing(vararg ranges: Pair<LocalDate, LocalDate>) {
+    FirebaseEmulator.updateDocumentAsAdmin(
+        "listings/$listingId",
+        mapOf(
+            "bookedRanges" to
+                ranges.map { (start, end) -> mapOf("start" to "$start", "end" to "$end") }
+        ),
     )
   }
 
@@ -123,6 +142,35 @@ class StorageRulesTest {
         assertDenied { photo().delete().await() }
 
         signInAsOwner()
+        photo("1.jpg").putBytes(bytes, jpeg).await()
+        photo().delete().await()
+      }
+
+  @Test
+  fun ownerCannotChangeThePhotosOfAListingWhileABookingEndsTodayOrLater() =
+      runBlocking<Unit> {
+        photo().putBytes(bytes, jpeg).await()
+        publishListing()
+        bookListing(today.minusDays(30) to today.minusDays(28), today.minusDays(2) to today)
+
+        assertDenied { photo().putBytes(bytes, jpeg).await() }
+        assertDenied { photo("1.jpg").putBytes(bytes, jpeg).await() }
+        assertDenied { photo().updateMetadata(jpeg).await() }
+        assertDenied { photo().delete().await() }
+        assertArrayEquals(bytes, photo().getBytes(MAX_BYTES).await())
+      }
+
+  @Test
+  fun ownerChangesThePhotosAgainOnceTheBookingsAreOverOrCancelled() =
+      runBlocking<Unit> {
+        photo().putBytes(bytes, jpeg).await()
+        publishListing()
+        val over = today.minusDays(4) to today.minusDays(2)
+        bookListing(over, today.plusDays(5) to today.plusDays(7))
+        assertDenied { photo().delete().await() }
+
+        // Cancelling a rental removes its range, as cancelRental does.
+        bookListing(over)
         photo("1.jpg").putBytes(bytes, jpeg).await()
         photo().delete().await()
       }
