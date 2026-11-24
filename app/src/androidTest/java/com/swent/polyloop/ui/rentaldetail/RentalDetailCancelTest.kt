@@ -88,6 +88,7 @@ class RentalDetailCancelTest {
         onStartPickupClick = {},
         onStartReturnClick = {},
         onViewDisputeClick = {},
+        onCheckItemClick = {},
         onCancelClick = { cancelClicks++ },
         today = today,
         zone = ZoneOffset.UTC,

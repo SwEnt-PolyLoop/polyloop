@@ -78,6 +78,60 @@ class RentalDocumentTest {
   }
 
   @Test
+  fun readsTheCancelDate() {
+    val cancelledAt = Instant.parse("2026-09-30T08:15:00Z")
+
+    val data = validData + (RentalFields.CANCELLED_AT to Timestamp(cancelledAt))
+
+    val rental = rentalFromDocument("rental-1", data)
+
+    assertEquals(cancelledAt, rental?.cancelledAt)
+  }
+
+  @Test
+  fun missingCancelDateReadsAsNull() {
+    val rental = rentalFromDocument("rental-1", validData)
+
+    assertNull(rental?.cancelledAt)
+  }
+
+  @Test
+  fun aCancelDateOfTheWrongTypeReadsAsNullAndKeepsTheRental() {
+    val rental =
+        rentalFromDocument("rental-1", validData + (RentalFields.CANCELLED_AT to "2026-09-30"))
+
+    assertEquals(expectedRental, rental)
+    assertNull(rental?.cancelledAt)
+  }
+
+  @Test
+  fun readsTheReturnDate() {
+    val returnedAt = Instant.parse("2026-10-08T16:40:00Z")
+
+    val data = validData + (RentalFields.RETURNED_AT to Timestamp(returnedAt))
+
+    val rental = rentalFromDocument("rental-1", data)
+
+    assertEquals(returnedAt, rental?.returnedAt)
+  }
+
+  @Test
+  fun missingReturnDateReadsAsNull() {
+    val rental = rentalFromDocument("rental-1", validData)
+
+    assertNull(rental?.returnedAt)
+  }
+
+  @Test
+  fun aReturnDateOfTheWrongTypeReadsAsNullAndKeepsTheRental() {
+    val rental =
+        rentalFromDocument("rental-1", validData + (RentalFields.RETURNED_AT to "2026-10-08"))
+
+    assertEquals(expectedRental, rental)
+    assertNull(rental?.returnedAt)
+  }
+
+  @Test
   fun aMalformedOfferReadsAsNoOfferAndKeepsTheRental() {
     val complete =
         mapOf(

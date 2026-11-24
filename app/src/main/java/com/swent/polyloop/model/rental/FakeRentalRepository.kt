@@ -24,8 +24,8 @@ import kotlinx.coroutines.flow.update
  * Holds the rentals in memory: every change is emitted to the observers. When [failure] is set,
  * every call fails with it; an observer throws it when it subscribes or at the next change, not as
  * soon as it is set. When [gate] is set, the suspending calls wait for it to complete, so tests can
- * see a loading state. [clock] gives the creation time of new rentals and the current time of the
- * negotiation; the server's time, which [serverNow] returns, is set separately.
+ * see a loading state. [clock] gives the creation time of new rentals, the current time of the
+ * negotiation and the cancel time; the server's time, which [serverNow] returns, is set separately.
  *
  * The negotiation follows the rules of the Cloud Functions, except for what the fake cannot know:
  * - it does not know who calls it, so it does not check the caller's role;
@@ -33,7 +33,7 @@ import kotlinx.coroutines.flow.update
  *   is made nor when it is accepted) and does not refuse a listing that is gone.
  *
  * [cancelRental] checks only the status: the day rule (an Accepted rental is locked from its pickup
- * day) belongs to the Cloud Function.
+ * day) belongs to the Cloud Function. It sets `cancelledAt` to [clock].
  *
  * A refusal is an [IllegalStateException].
  */
@@ -206,7 +206,9 @@ class FakeRentalRepository(
   override suspend fun cancelRental(rentalId: String): Result<Unit> =
       update(rentalId, allowed = CANCELLABLE) { rental ->
         offeredAddresses.remove(rentalId)
-        rental.copy(status = RentalStatus.CANCELLED, offer = null)
+        // The Cloud Function stamps cancelledAt, so the fake does too: app tests then see the
+        // same rental as the app would.
+        rental.copy(status = RentalStatus.CANCELLED, offer = null, cancelledAt = clock())
       }
 
   override suspend fun serverNow(): Result<Instant> {
@@ -263,11 +265,16 @@ class FakeRentalRepository(
 
   /**
    * Changes the status of [rentalId] as a Cloud Function would (e.g. ACTIVE after the pickup scan),
-   * so that whoever follows the rental sees it change. Does nothing for an unknown id.
+   * so that whoever follows the rental sees it change. Does nothing for an unknown id. A non-null
+   * [returnedAt] is set on the rental too, as the return scan's Cloud Function does when it makes
+   * the rental RETURNED; null leaves the rental's own [Rental.returnedAt] as it is.
    */
-  fun setStatus(rentalId: String, status: RentalStatus) {
+  fun setStatus(rentalId: String, status: RentalStatus, returnedAt: Instant? = null) {
     stored.update { rentals ->
-      rentals.map { if (it.id == rentalId) it.copy(status = status) else it }
+      rentals.map {
+        if (it.id == rentalId) it.copy(status = status, returnedAt = returnedAt ?: it.returnedAt)
+        else it
+      }
     }
   }
 

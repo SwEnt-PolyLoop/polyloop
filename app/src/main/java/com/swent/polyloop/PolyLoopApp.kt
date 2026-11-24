@@ -337,6 +337,13 @@ private fun PolyLoopScaffold(
               }
             },
             onViewDisputeClick = { navController.navigate(Screen.Dispute.createRoute(rentalId)) },
+            // The lender's return check lives on Handover. Single top: a fast double tap opens it
+            // once.
+            onCheckItemClick = {
+              navController.navigate(Screen.Handover.createRoute(rentalId)) {
+                launchSingleTop = true
+              }
+            },
             onReviewRequestClick = {
               navController.navigate(Screen.ReviewRequest.createRoute(rentalId)) {
                 launchSingleTop = true
