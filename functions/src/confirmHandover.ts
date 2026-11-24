@@ -15,10 +15,12 @@ const CONFIRM: Record<HandoverPhase, typeof confirmPickup> = {
 
 /**
  * Callable `confirmHandover` (see docs/ARCHITECTURE.md): the phone of the person receiving the item
- * sends the code it scanned on the other person's phone. Input: `{rentalId, phase, code}`, with
- * `phase` `PICKUP` (the borrower scans) or `RETURN` (the lender scans). A confirmed pickup makes
- * the rental ACTIVE and pays the lender; a confirmed return makes it RETURNED. A refusal the app
- * tells apart carries `details.reason`: `WRONG_CODE` or `RENTAL_CHANGED`. Returns nothing.
+ * sends the code it scanned on the other person's phone. Input:
+ * `{rentalId, phase, code, scannedAt?}`, with `phase` `PICKUP` (the borrower scans) or `RETURN`
+ * (the lender scans), and `scannedAt` (epoch ms) only for a scan made offline and sent later (see
+ * `isPickupOnTime`). A confirmed pickup makes the rental ACTIVE and pays the lender; a confirmed
+ * return makes it RETURNED. A refusal the app tells apart carries `details.reason`: `WRONG_CODE` or
+ * `RENTAL_CHANGED`. Returns nothing.
  */
 export const confirmHandover = onCall(async (request) => {
   try {

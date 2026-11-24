@@ -49,6 +49,18 @@ describe("confirmHandover", () => {
     expect(await wallet(who.lender)).toMatchObject({ available: 15 });
   });
 
+  it("takes when a scan made offline was made", async () => {
+    const { who, id } = await readyToScan();
+    const data = { rentalId: id, phase: "PICKUP", code: CODE };
+
+    await expect(
+      confirmHandover.run(asUser(who.borrower, { ...data, scannedAt: Date.now() + 60_000 })),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+    await confirmHandover.run(asUser(who.borrower, { ...data, scannedAt: Date.now() - 1000 }));
+
+    expect(await status(id)).toBe("ACTIVE");
+  });
+
   it("confirms the return the lender scanned", async () => {
     const who = people();
     const id = await rental(who, "ACTIVE", { endDate: zurichDay(new Date()) });
@@ -99,6 +111,9 @@ describe("confirmHandover", () => {
       { rentalId: id, phase: "PICKUP", code: "" },
       { rentalId: id, phase: "PICKUP", code: 42 },
       { rentalId: id, phase: "PICKUP", code: "x".repeat(201) },
+      { rentalId: id, phase: "PICKUP", code: CODE, scannedAt: "2026-12-01" },
+      { rentalId: id, phase: "PICKUP", code: CODE, scannedAt: 1.5 },
+      { rentalId: id, phase: "PICKUP", code: CODE, scannedAt: -1 },
       null,
     ];
 
