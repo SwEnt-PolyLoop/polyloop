@@ -10,6 +10,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
@@ -20,7 +22,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The card where the lender shows the QR code at pickup (Figma 14, 14.10 to 14.13). */
+/**
+ * The card where the person giving the item shows the QR code: the lender at pickup (Figma 14,
+ * 14.10 to 14.13), the borrower at return (Figma 16).
+ */
 @RunWith(AndroidJUnit4::class)
 class ShowCodeCardTest {
 
@@ -76,11 +81,29 @@ class ShowCodeCardTest {
     node(C.Tag.handover_code_title).assertTextEquals("Show this code to the borrower")
   }
 
+  private val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+  /** The borrower on the return day, with 3 photos and the code. */
+  private val atReturn =
+      ready.copy(
+          isLender = false,
+          phase = HandoverPhase.RETURN,
+          returnDate = LocalDate.of(2026, 10, 8),
+          serverToday = LocalDate.of(2026, 10, 8),
+      )
+
   @Test
-  fun atReturnNoCodeCardIsShownUntilTheServerMakesAReturnCode() {
-    // Even on the pickup day (a one-day rental), the borrower has no return code to show yet.
-    setContent(ready.copy(isLender = false, phase = HandoverPhase.RETURN))
-    node(C.Tag.handover_code_card).assertDoesNotExist()
+  fun atReturnTheBorrowerShowsTheQrToTheLender() {
+    setContent(atReturn)
+    node(C.Tag.handover_code_title)
+        .assertTextEquals(context.getString(R.string.handover_show_code_title, "Mara"))
+    node(C.Tag.handover_qr_code).performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun atReturnOfflineWithoutACopyAsksToConnectOnceForTheReturn() {
+    setContent(atReturn.copy(isOffline = true, code = null, codeFailed = true))
+    assertMessage(context.getString(R.string.handover_code_no_copy_return))
   }
 
   @Test
