@@ -44,13 +44,15 @@ interface StoredProposal {
 }
 
 /** A dispute and its rental, read in a transaction. */
-interface OpenDispute {
+export interface OpenDispute {
   disputeRef: DocumentReference;
   rentalRef: DocumentReference;
   rental: DocumentData;
   proposals: StoredProposal[];
   /** As read: a Timestamp, or missing or null on a dispute that never escalates by itself. */
   escalatesAt: unknown;
+  /** As read: the LLM proposal's fields, or missing in direct settlement. */
+  llmProposal: unknown;
 }
 
 /**
@@ -175,7 +177,7 @@ export async function escalateDispute(
  * @param now the current time, compared with `escalatesAt`.
  * @param act the change to make while the dispute is in direct settlement; it may throw a refusal
  *   before writing anything.
- * @throws RequestError the refusals of [requireSettlingDispute] and of [act], or `STAGE_CHANGED`
+ * @throws RequestError the refusals of [requireOpenDispute] and of [act], or `STAGE_CHANGED`
  *   after the escalation.
  */
 async function inDirectSettlement(
@@ -186,7 +188,7 @@ async function inDirectSettlement(
   act: (tx: Transaction, open: OpenDispute) => void | Promise<void>,
 ): Promise<void> {
   const escalated = await db.runTransaction(async (tx) => {
-    const open = await requireSettlingDispute(tx, db, rentalId, callerId);
+    const open = await requireOpenDispute(tx, db, rentalId, callerId, SETTLE);
     if (isDue(open.escalatesAt, now)) {
       moveToLlmProposal(tx, open.disputeRef, open.rentalRef, null);
       return true;
@@ -333,18 +335,19 @@ async function settle(
 
 /**
  * The dispute of [rentalId] and its rental, or a refusal: the dispute or the rental is missing, the
- * caller takes no part in the rental, the dispute is settled, it left direct settlement, or the
- * rental is not DISPUTED. The settled and left cases carry `STAGE_CHANGED`: a request that lost
+ * caller takes no part in the rental, the dispute is settled, it is not at [stage], or the rental
+ * is not DISPUTED. The settled and other-stage cases carry `STAGE_CHANGED`: a request that lost
  * the race to an agreement or an escalation tells the app the dispute moved on, so it follows the
  * dispute instead of showing an error. They are checked before the status, because an agreement
  * also closes the rental. Only a Function opens a dispute, setting its rental to DISPUTED, so any
  * other status means corrupt data: it gets a plain refusal, and an agreement never overwrites it.
  */
-async function requireSettlingDispute(
+export async function requireOpenDispute(
   tx: Transaction,
   db: Firestore,
   rentalId: string,
   callerId: string,
+  stage: string,
 ): Promise<OpenDispute> {
   const disputeRef = db.collection(DISPUTES).doc(rentalId);
   const rentalRef = db.collection(RENTALS).doc(rentalId);
@@ -360,17 +363,28 @@ async function requireSettlingDispute(
   if (dispute.agreedAt) {
     throw stageChanged("This dispute is already settled.");
   }
-  if (dispute.stage !== SETTLE) {
-    throw stageChanged();
+  if (dispute.stage !== stage) {
+    throw stageChanged(
+      stage === SETTLE
+        ? undefined
+        : "This dispute is no longer waiting for an answer to the LLM proposal.",
+    );
   }
   if (rental.status !== DISPUTED) {
     throw new RequestError("failed-precondition", "This rental is not in dispute.");
   }
   const proposals = Array.isArray(dispute.proposals) ? (dispute.proposals as StoredProposal[]) : [];
-  return { disputeRef, rentalRef, rental, proposals, escalatesAt: dispute.escalatesAt };
+  return {
+    disputeRef,
+    rentalRef,
+    rental,
+    proposals,
+    escalatesAt: dispute.escalatesAt,
+    llmProposal: dispute.llmProposal,
+  };
 }
 
-/** The refusal sent when the dispute was settled or left direct settlement, with [message]. */
+/** The refusal sent when the dispute was settled or left its stage, with [message]. */
 function stageChanged(
   message = "This dispute is no longer in direct settlement.",
 ): RequestError {
