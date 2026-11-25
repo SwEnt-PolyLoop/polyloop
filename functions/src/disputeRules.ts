@@ -34,13 +34,13 @@ export const FAILED = "FAILED";
  */
 export const PROPOSAL_CHANGED = "PROPOSAL_CHANGED";
 export const STAGE_CHANGED = "STAGE_CHANGED";
+export const LLM_PROPOSAL_CHANGED = "LLM_PROPOSAL_CHANGED";
 
 /** A split sent by the app: the dispute's rental and the lender's share, in percent. */
 export interface SplitInput {
   rentalId: string;
   lenderPercent: number;
 }
-
 
 /** The two shares of a deposit, in whole PolyPoints, adding up to the deposit. */
 export interface DepositSplit {

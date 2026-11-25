@@ -2,7 +2,15 @@
 
 import { Firestore } from "firebase-admin/firestore";
 import { requireOpenDispute } from "./dispute";
-import { COURT, FAILED, LLM_PROPOSAL, MAX_LLM_ATTEMPTS, PENDING, READY } from "./disputeRules";
+import {
+  COURT,
+  FAILED,
+  LLM_PROPOSAL,
+  LLM_PROPOSAL_CHANGED,
+  MAX_LLM_ATTEMPTS,
+  PENDING,
+  READY,
+} from "./disputeRules";
 import { writeWithSystemMessage } from "./negotiation";
 import { RequestError } from "./rentalRules";
 
@@ -26,8 +34,9 @@ interface StoredLlmProposal {
  * @param rentalId the rental of the dispute.
  * @throws RequestError `not-found`, `permission-denied` (not a participant) or
  *   `failed-precondition` (settled or no longer in `LLM_PROPOSAL`: `STAGE_CHANGED`, so two
- *   rejections sent at once move the dispute once; the proposal still `PENDING`; the rental not
- *   DISPUTED). Nothing is written then.
+ *   rejections sent at once move the dispute once; the proposal `PENDING`, a new attempt asked
+ *   meanwhile: `LLM_PROPOSAL_CHANGED`; no proposal; the rental not DISPUTED). Nothing is written
+ *   then.
  */
 export async function rejectLlmProposal(
   db: Firestore,
@@ -37,6 +46,10 @@ export async function rejectLlmProposal(
   await db.runTransaction(async (tx) => {
     const open = await requireOpenDispute(tx, db, rentalId, callerId, LLM_PROPOSAL);
     const status = ((open.llmProposal ?? {}) as StoredLlmProposal).status;
+    if (status === PENDING) {
+      // The other party asked for a new attempt meanwhile: the app follows the dispute.
+      throw llmProposalChanged();
+    }
     if (status !== READY && status !== FAILED) {
       throw new RequestError("failed-precondition", "The LLM proposal is not ready yet.");
     }
@@ -56,8 +69,9 @@ export async function rejectLlmProposal(
  * @param rentalId the rental of the dispute.
  * @throws RequestError `not-found`, `permission-denied` (not a participant) or
  *   `failed-precondition` (settled or no longer in `LLM_PROPOSAL`: `STAGE_CHANGED`; the proposal
- *   not `FAILED`, so two retries sent at once start one attempt; no attempt left; the rental not
- *   DISPUTED). Nothing is written then.
+ *   `PENDING` or `READY`, an attempt already started, so two retries sent at once, or a retry sent
+ *   again after its answer was lost, start one attempt: `LLM_PROPOSAL_CHANGED`; no proposal, or
+ *   no attempt left; the rental not DISPUTED). Nothing is written then.
  */
 export async function retryLlmProposal(
   db: Firestore,
@@ -67,6 +81,10 @@ export async function retryLlmProposal(
   await db.runTransaction(async (tx) => {
     const open = await requireOpenDispute(tx, db, rentalId, callerId, LLM_PROPOSAL);
     const { status, attempt } = (open.llmProposal ?? {}) as StoredLlmProposal;
+    if (status === PENDING || status === READY) {
+      // Another retry, maybe this caller's own whose answer was lost, already started an attempt.
+      throw llmProposalChanged();
+    }
     if (status !== FAILED || typeof attempt !== "number" || !Number.isInteger(attempt)) {
       throw new RequestError("failed-precondition", "Only a failed LLM proposal can be retried.");
     }
@@ -80,3 +98,9 @@ export async function retryLlmProposal(
   });
 }
 
+/** The refusal sent when the LLM proposal changed since the caller saw it. */
+function llmProposalChanged(): RequestError {
+  return new RequestError("failed-precondition", "The LLM proposal changed.", {
+    reason: LLM_PROPOSAL_CHANGED,
+  });
+}
