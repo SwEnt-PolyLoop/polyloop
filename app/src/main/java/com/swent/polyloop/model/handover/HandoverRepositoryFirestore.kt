@@ -19,10 +19,10 @@ import com.swent.polyloop.model.firestore.refusalReason
 import com.swent.polyloop.model.firestore.snapshotsAsFlow
 import com.swent.polyloop.model.firestore.withFirebaseErrors
 import java.io.File
-import java.io.IOException
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeoutException
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -126,8 +126,11 @@ class HandoverRepositoryFirestore(
               val slotId = photoSlotId(uid, phase, slot)
               uploadQueue.enqueue(rentalId, phase, uid, slotId, takenAt, file)
               Result.success(Unit)
-            } catch (e: IOException) {
-              Result.failure(e) // the photo could not be copied, e.g. the phone is full
+            } catch (e: CancellationException) {
+              throw e
+            } catch (e: Exception) {
+              // The photo could not be copied (e.g. the phone is full) or its job saved.
+              Result.failure(e)
             }
           }
     }

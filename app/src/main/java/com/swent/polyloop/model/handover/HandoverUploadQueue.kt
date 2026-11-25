@@ -13,6 +13,7 @@ import androidx.work.await
 import androidx.work.workDataOf
 import java.io.File
 import java.time.Instant
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -38,8 +39,9 @@ class HandoverUploadQueue(
 
   /**
    * Copies the photo at [photo] and queues it as [slotId] of [rentalId] in [phase], taken by [uid]
-   * at [takenAt]. Queuing the same slot again changes nothing. Returns once the job is saved, so
-   * [observe] lists it from then on.
+   * at [takenAt]. A slot whose job still waits keeps that job and its time, but its file is
+   * replaced: callers queue only free slots. Returns once the job is saved, so [observe] lists it
+   * from then on; if it cannot be saved, the copy is deleted and the error thrown.
    */
   suspend fun enqueue(
       rentalId: String,
@@ -69,7 +71,14 @@ class HandoverUploadQueue(
             .addTag(SLOT + slotId)
             .addTag(TAKEN_AT + takenAt.toEpochMilli())
             .build()
-    workManager.enqueueUniqueWork("$rentalId/$slotId", ExistingWorkPolicy.KEEP, request).await()
+    try {
+      workManager.enqueueUniqueWork("$rentalId/$slotId", ExistingWorkPolicy.KEEP, request).await()
+    } catch (e: CancellationException) {
+      throw e // the job may be saved already, and needs its copy
+    } catch (e: Exception) {
+      copy.delete() // no job will send it (e.g. WorkManager's database failed)
+      throw e
+    }
   }
 
   /**

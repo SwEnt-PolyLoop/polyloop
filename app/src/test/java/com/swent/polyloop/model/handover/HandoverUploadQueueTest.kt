@@ -7,17 +7,22 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
 import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker
+import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.workDataOf
+import io.mockk.every
+import io.mockk.mockk
 import java.io.File
 import java.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -91,6 +96,23 @@ class HandoverUploadQueueTest {
 
     goOnline()
     assertTrue(observe().single().refused)
+  }
+
+  @Test
+  fun aPhotoWhoseJobCannotBeSavedLeavesNoCopy() {
+    val broken = mockk<WorkManager>()
+    every { broken.enqueueUniqueWork(any<String>(), any(), any<OneTimeWorkRequest>()) } throws
+        IllegalStateException("database failed")
+    val photo = File(context.cacheDir, "camera.jpg").apply { writeBytes(byteArrayOf(7)) }
+
+    assertThrows(IllegalStateException::class.java) {
+      runBlocking {
+        HandoverUploadQueue(context, broken)
+            .enqueue("rental1", HandoverPhase.PICKUP, "me", "me_PICKUP_0", Instant.EPOCH, photo)
+      }
+    }
+    assertFalse(File(context.filesDir, "handover_upload_queue/rental1/me_PICKUP_0.jpg").exists())
+    photo.delete()
   }
 
   private companion object {
