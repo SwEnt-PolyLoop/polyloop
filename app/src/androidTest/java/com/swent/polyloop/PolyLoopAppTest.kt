@@ -666,6 +666,32 @@ class PolyLoopAppTest {
   }
 
   @Test
+  fun declineOnReviewRequestFromRentalDetailShowsTheRentalAsDeclined() {
+    openAsLender(Screen.RentalDetail.createRoute(rental.id))
+    val context = InstrumentationRegistry.getInstrumentation().targetContext
+    waitForTag(C.Tag.rental_detail_action_button)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_action_button).performClick()
+    assertCurrentScreen(Screen.ReviewRequest, Screen.ReviewRequest.createRoute(rental.id))
+    waitForTag(C.Tag.review_request_send)
+
+    composeTestRule.onNodeWithTag(C.Tag.review_request_decline).performClick()
+
+    // Back on the same Rental detail, which follows the rental live and shows it as Declined.
+    composeTestRule.waitUntil(timeoutMillis = 5_000) {
+      composeTestRule
+          .onAllNodes(
+              hasTestTag(C.Tag.rental_detail_status) and
+                  hasText(context.getString(R.string.rental_status_declined)),
+              useUnmergedTree = true,
+          )
+          .fetchSemanticsNodes()
+          .isNotEmpty()
+    }
+    assertCurrentScreen(Screen.RentalDetail)
+    composeTestRule.onNodeWithTag(C.Tag.rental_detail_unsupported).assertDoesNotExist()
+  }
+
+  @Test
   fun theChatsBarGoesBackToTheFormTheChatWasOpenedFrom() {
     openReviewRequest()
     val formEntry = currentEntryId()

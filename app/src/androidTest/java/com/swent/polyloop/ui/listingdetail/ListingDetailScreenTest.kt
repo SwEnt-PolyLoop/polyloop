@@ -302,6 +302,7 @@ class ListingDetailScreenTest {
             listing.availableFrom,
             listing.availableTo,
             context.resources.configuration.locales[0],
+            today,
         )
     assertSectionText(
         C.Tag.listing_detail_deposit,
@@ -622,6 +623,7 @@ class ListingDetailScreenTest {
             listing.availableFrom,
             listing.availableTo,
             context.resources.configuration.locales[0],
+            today,
         )
     composeTestRule
         .onNodeWithTag(C.Tag.date_picker_available)

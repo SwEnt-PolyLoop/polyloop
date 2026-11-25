@@ -12,8 +12,8 @@ import {
   readWallet,
   writeDepositSettlement,
   writeWallet,
-} from "./wallet";
-import { fund, people, rows, wallet } from "./testing/walletFixtures";
+} from "../src/wallet";
+import { fund, people, rows, wallet } from "../src/testing/walletFixtures";
 
 // The logger's exports cannot be spied on one by one, so its two calls are replaced here.
 jest.mock("firebase-functions/logger", () => ({ warn: jest.fn(), error: jest.fn() }));
