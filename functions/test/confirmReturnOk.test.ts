@@ -113,4 +113,38 @@ describe("confirmReturnOk", () => {
     expect(await newRows(who, id)).toHaveLength(1);
     expect(await wallet(who.borrower)).toMatchObject({ available: 50, heldAsDeposits: 0 });
   });
+
+  it("refuses the borrower, a stranger and a missing rental, and writes nothing", async () => {
+    const who = people();
+    const id = await heldRental(who, "RETURNED");
+
+    for (const caller of [who.borrower, "confirm-return-ok-stranger"]) {
+      await expect(confirmReturnOk(db, caller, id)).rejects.toMatchObject({
+        code: "permission-denied",
+      });
+    }
+    await expect(confirmReturnOk(db, who.lender, randomUUID())).rejects.toMatchObject({
+      code: "not-found",
+    });
+    expect((await rentalData(id))?.status).toBe("RETURNED");
+    expect(await messages(id)).toEqual([]);
+    expect(await newRows(who, id)).toEqual([]);
+  });
+
+  it("refuses a rental that is no longer RETURNED with RENTAL_CHANGED", async () => {
+    for (const status of ["ACTIVE", "DISPUTED", "CLOSED"]) {
+      const who = people();
+      const id = await heldRental(who, status);
+      // A CLOSED rental with a dispute was closed by the dispute's agreement, not by this answer.
+      if (status === "CLOSED") await db.collection("disputes").doc(id).set({ stage: "SETTLE" });
+
+      await expect(confirmReturnOk(db, who.lender, id)).rejects.toMatchObject({
+        code: "failed-precondition",
+        details: { reason: "RENTAL_CHANGED" },
+      });
+      expect((await rentalData(id))?.status).toBe(status);
+      expect(await messages(id)).toEqual([]);
+      expect(await newRows(who, id)).toEqual([]);
+    }
+  });
 });
