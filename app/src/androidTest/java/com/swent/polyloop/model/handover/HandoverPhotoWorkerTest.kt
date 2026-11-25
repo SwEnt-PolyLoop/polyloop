@@ -2,14 +2,19 @@
 
 package com.swent.polyloop.model.handover
 
+import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.work.ListenableWorker.Result
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.workDataOf
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
 import com.google.firebase.storage.storage
@@ -63,8 +68,24 @@ class HandoverPhotoWorkerTest {
             )
           }
 
-  private suspend fun runWorker(rental: String = rentalId, takenBy: String = uid): Result =
+  private suspend fun runWorker(
+      rental: String = rentalId,
+      takenBy: String = uid,
+      db: FirebaseFirestore = Firebase.firestore,
+  ): Result =
       TestListenableWorkerBuilder<HandoverPhotoWorker>(context)
+          .setWorkerFactory(
+              object : WorkerFactory() {
+                override fun createWorker(
+                    appContext: Context,
+                    workerClassName: String,
+                    workerParameters: WorkerParameters,
+                ) =
+                    HandoverPhotoWorker(appContext, workerParameters, Firebase.auth, db) {
+                      Firebase.storage
+                    }
+              }
+          )
           .setInputData(
               workDataOf(
                   HandoverPhotoWorker.UID to takenBy,
@@ -128,6 +149,21 @@ class HandoverPhotoWorkerTest {
       setCustomMetadata(HandoverPhotoWorker.TAKEN_AT, tag)
     }
     Firebase.storage.reference.child("${document.path}.jpg").putBytes(BYTES, metadata).await()
+  }
+
+  @Test
+  fun aPhotoThatCannotReachTheServerIsRetriedAndKept() = runBlocking {
+    // A Firestore of its own app, as useEmulator works only before an instance is used, on a port
+    // of the device itself where nothing listens. (Storage would keep retrying for 20 minutes.)
+    val app = FirebaseApp.initializeApp(context, FirebaseApp.getInstance().options, "unreachable")
+    try {
+      val unreachable = Firebase.firestore(app).apply { useEmulator("127.0.0.1", 9) }
+
+      assertEquals(Result.retry(), runWorker(db = unreachable))
+      assertTrue(file.exists())
+    } finally {
+      app.delete()
+    }
   }
 
   @Test

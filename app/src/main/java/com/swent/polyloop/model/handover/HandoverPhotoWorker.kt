@@ -9,11 +9,14 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.firestore
+import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageException
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.storageMetadata
@@ -35,9 +38,20 @@ import kotlinx.coroutines.tasks.await
  * user is signed out, and fails with [REFUSED] in its output when the server refused the photo
  * (e.g. it arrived more than a day after it was taken), as sending it again would be refused too.
  * The phone's copy of the file is deleted unless it is retried.
+ *
+ * WorkManager builds it with the context and params only, so [auth], [db] and [storage] take the
+ * app's instances; tests pass others through a WorkerFactory.
  */
-class HandoverPhotoWorker(context: Context, params: WorkerParameters) :
-    CoroutineWorker(context, params) {
+class HandoverPhotoWorker
+@JvmOverloads
+constructor(
+    context: Context,
+    params: WorkerParameters,
+    private val auth: FirebaseAuth = Firebase.auth,
+    private val db: FirebaseFirestore = Firebase.firestore,
+    // Read when the photo is sent, as the app's Storage is built on first use.
+    private val storage: () -> FirebaseStorage = { RepositoryProvider.storage },
+) : CoroutineWorker(context, params) {
 
   override suspend fun doWork(): Result {
     val uid = inputData.getString(UID)
@@ -47,21 +61,20 @@ class HandoverPhotoWorker(context: Context, params: WorkerParameters) :
     val takenAt = inputData.getLong(TAKEN_AT, -1)
     val file = inputData.getString(FILE)?.let(::File)
     // Signed out: kept, and sent once its user signs in again.
-    val signedIn = Firebase.auth.currentUser?.uid ?: return Result.retry()
+    val signedIn = auth.currentUser?.uid ?: return Result.retry()
     // Nothing to send, or another user signed in, whom the rules would refuse it from.
     if (uid != signedIn || rentalId == null || slotId == null || phase == null || takenAt < 0) {
       return refused(file)
     }
     if (file == null || !file.exists()) return refused(file)
     val document =
-        Firebase.firestore
-            .collection(HandoverFields.RENTALS)
+        db.collection(HandoverFields.RENTALS)
             .document(rentalId)
             .collection(HandoverFields.PHOTOS)
             .document(slotId)
     return try {
       if (!document.existsOnServer()) {
-        val ref = RepositoryProvider.storage.reference.child("${document.path}.jpg")
+        val ref = storage().reference.child("${document.path}.jpg")
         // A file already there is reused only if an earlier run of this job uploaded it. Another
         // one (e.g. a refused photo's) is not this photo: the rules refuse to replace it, so the
         // photo ends refused instead of being saved with the wrong image.
@@ -88,7 +101,7 @@ class HandoverPhotoWorker(context: Context, params: WorkerParameters) :
     } catch (e: Exception) {
       when {
         // Also a refusal because the user signed out meanwhile: kept for when they are back.
-        !isRefusal(e) || Firebase.auth.currentUser == null -> Result.retry()
+        !isRefusal(e) || auth.currentUser == null -> Result.retry()
         // A write left queued by an earlier run that was stopped may have created it meanwhile.
         document.existsOnServer() -> Result.success().also { deleteCopy(file) }
         else -> refused(file)
