@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -193,6 +194,31 @@ class HandoverReturnConfirmTest {
         .onNodeWithTag(C.Tag.handover_check_progress, useUnmergedTree = true)
         .assertIsDisplayed()
         .assertContentDescriptionEquals("Sending your answer")
+  }
+
+  @Test
+  fun onceItemIsFineIsSentTheDepositReadsGivenBack() {
+    setContent(check.copy(checkSent = ReturnCheck.ITEM_FINE))
+
+    composeTestRule.onNodeWithText("The deposit went back to Borrower.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("The deposit stays held until you decide.").assertDoesNotExist()
+    text(C.Tag.handover_deposit_label, "Deposit given back")
+    text(C.Tag.handover_deposit, "80 PP")
+  }
+
+  @Test
+  fun onceItemIsFineIsSentWithoutTheBorrowersNameTheDepositWentBackToTheBorrower() {
+    setContent(check.copy(otherPersonName = "", checkSent = ReturnCheck.ITEM_FINE))
+
+    composeTestRule.onNodeWithText("The deposit went back to the borrower.").assertIsDisplayed()
+  }
+
+  @Test
+  fun onceDamageIsFlaggedTheDepositStaysHeld() {
+    setContent(check.copy(checkSent = ReturnCheck.DAMAGE_FLAGGED))
+
+    composeTestRule.onNodeWithText("The deposit stays held until you decide.").assertIsDisplayed()
+    text(C.Tag.handover_deposit_label, "Deposit held")
   }
 
   @Test
