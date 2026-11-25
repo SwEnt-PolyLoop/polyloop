@@ -305,16 +305,18 @@ function moveToLlmProposal(
  * @param lenderPercent the accepted split, the lender's share in percent.
  * @param now the current time, stored as `agreedAt`.
  * @param acceptedBy the participant accepting, who has seen the system message.
+ * @param disputeFields other fields of the dispute to write with `agreedAt`, in the same update.
  * @throws RequestError `internal` when the rental's people are not valid and different, or when
  *   the borrower's held deposits do not cover the amount. Nothing is written then.
  */
-async function settle(
+export async function settle(
   tx: Transaction,
   db: Firestore,
   open: OpenDispute,
   lenderPercent: number,
   now: Date,
   acceptedBy: string,
+  disputeFields: DocumentData = {},
 ): Promise<void> {
   const parties = requireParties(open.rental);
   const state = await readDepositSettlement(tx, db, parties, open.rentalRef.id);
@@ -329,7 +331,7 @@ async function settle(
   const text = nothingMoved
     ? `Dispute settled · ${lenderPercent}% to the lender`
     : `Dispute settled · ${lender} PP to the lender, ${borrower} PP back to the borrower`;
-  tx.update(open.disputeRef, { agreedAt: Timestamp.fromDate(now) });
+  tx.update(open.disputeRef, { ...disputeFields, agreedAt: Timestamp.fromDate(now) });
   writeWithSystemMessage(tx, open.rentalRef, text, { status: CLOSED }, acceptedBy);
 }
 
