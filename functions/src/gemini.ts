@@ -1,8 +1,8 @@
 // Made with Claude.
 
 /**
- * The Vertex AI [SplitAdvisor] (docs/adr/0001): Gemini, called with the Functions service account,
- * in the EU. The only file that imports `@google/genai`.
+ * The Vertex AI [SplitAdvisor] (docs/adr/0001): Gemini, called with the Functions service account.
+ * The only file that imports `@google/genai`.
  */
 import {
   ApiError,
@@ -16,10 +16,13 @@ import {
 import { AdvisorRequest, PermanentAdvisorError, PromptPart, SplitAdvisor } from "./splitAdvisor";
 
 /** The model asked for the split, stored with each LLM proposal. */
-export const GEMINI_MODEL = "gemini-2.5-flash";
+export const GEMINI_MODEL = "gemini-3.8-flash";
 
-/** Where Vertex AI runs the model: next to the Functions and the Firestore database. */
-export const GEMINI_LOCATION = "europe-west1";
+/**
+ * Where Vertex AI runs the model: the global endpoint, which does not keep processing in the EU.
+ * No EU location serves a Gemini model to this project (docs/adr/0001).
+ */
+export const GEMINI_LOCATION = "global";
 
 /**
  * How long one call may take before it fails as a timeout, which may pass: well within the
@@ -28,9 +31,9 @@ export const GEMINI_LOCATION = "europe-west1";
 export const GEMINI_TIMEOUT_MS = 120_000;
 
 /**
- * The most tokens the model may spend thinking before it answers. gemini-2.5-flash thinks with no
+ * The most tokens the model may spend thinking before it answers. Gemini Flash thinks with no
  * limit by default, which adds time against [GEMINI_TIMEOUT_MS], and each timeout is retried and
- * billed again. There is no `maxOutputTokens`: on 2.5 models it counts the thinking too, and an
+ * billed again. There is no `maxOutputTokens`: it counts the thinking too, and an
  * answer cut short (`MAX_TOKENS`) fails for good.
  */
 export const GEMINI_THINKING_BUDGET = 2048;
