@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -50,17 +51,18 @@ enum class RechargeStatus {
  *   unknown is not "no transactions". Transactions with the same date are ordered by id, highest
  *   first, so the order is always the same.
  * @property isLoading true until the wallet and the history are both known, or a read failed. It
- *   stays true offline while one is still unknown, so the screen shows a spinner only online.
+ *   stays true offline or unreachable while one is still unknown, so the screen shows a spinner
+ *   only while neither [isOffline] nor [isUnreachable] is set.
  * @property errorMsg null without an error, blank for the generic text.
  * @property isOffline true while the phone is offline: the wallet and the history stay readable
  *   from cache, but a recharge is refused.
- * @property isUnreachable true when the wallet or the history is still unknown
- *   [UNREACHABLE_AFTER_MS] after the screen began to read them, with no error: the server is not
- *   answering, whatever the phone's network status says (captive Wi-Fi, a router without internet).
+ * @property isUnreachable true when the wallet or the history is still unknown after the phone has
+ *   been online for [UNREACHABLE_AFTER_MS], with no error: the server is not answering although the
+ *   phone reports a connection (captive Wi-Fi, a router without internet). Offline, it is false.
  *   The screen then shows the same unavailable state as offline, without the offline banner. A
  *   confirmed snapshot that arrives later makes both known and resets it; it never replaces a value
- *   that is already known, and [isLoading] stays true until both are known. Starting to read again
- *   (retry) resets it and restarts the wait.
+ *   that is already known, and [isLoading] stays true until both are known. The wait restarts on
+ *   retry and each time the phone comes back online.
  * @property rechargeStatus where the last recharge stands.
  * @property rechargeAmount the amount of the last recharge in whole PP, sent or refused; null
  *   before the first one.
@@ -182,12 +184,19 @@ class WalletViewModel(
     observing = viewModelScope.launch {
       // A child of this job, so a restart (retry) cancels it and starts a new wait.
       launch {
-        delay(UNREACHABLE_AFTER_MS)
-        _uiState.update {
-          // Ignored once both are known or an error is shown; known values are never touched.
-          if (it.errorMsg == null && (it.wallet == null || it.history == null)) {
-            it.copy(isUnreachable = true)
-          } else it
+        // Counts only while online, and starts again each time the phone comes back online.
+        connectivityRepository.isOnline.collectLatest { online ->
+          if (!online) {
+            _uiState.update { it.copy(isUnreachable = false) }
+            return@collectLatest
+          }
+          delay(UNREACHABLE_AFTER_MS)
+          _uiState.update {
+            // Ignored once both are known or an error is shown; known values are never touched.
+            if (it.errorMsg == null && (it.wallet == null || it.history == null)) {
+              it.copy(isUnreachable = true)
+            } else it
+          }
         }
       }
       // Each repository flow stays silent while its data is unconfirmed (e.g. offline with an empty

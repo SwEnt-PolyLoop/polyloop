@@ -681,6 +681,38 @@ class WalletViewModelTest {
   }
 
   @Test
+  fun theTimeoutOnlyCountsWhileOnline() = runTest {
+    connectivity.setOnline(false)
+    val (viewModel, _) = controlledViewModel()
+
+    advanceTimeBy(unreachableAfterMs * 2)
+    runCurrent()
+    assertFalse(viewModel.uiState.value.isUnreachable)
+
+    connectivity.setOnline(true)
+    runCurrent()
+    assertFalse(viewModel.uiState.value.isUnreachable)
+
+    advanceTimeBy(unreachableAfterMs)
+    runCurrent()
+    assertTrue(viewModel.uiState.value.isUnreachable)
+  }
+
+  @Test
+  fun goingOfflineClearsUnreachable() = runTest {
+    val (viewModel, _) = controlledViewModel()
+    advanceTimeBy(unreachableAfterMs)
+    runCurrent()
+    assertTrue(viewModel.uiState.value.isUnreachable)
+
+    connectivity.setOnline(false)
+    runCurrent()
+
+    assertFalse(viewModel.uiState.value.isUnreachable)
+    assertTrue(viewModel.uiState.value.isOffline)
+  }
+
+  @Test
   fun rechargeWhileUnreachableSendsNothingAndEndsInAnError() = runTest {
     val (viewModel, _) = controlledViewModel()
     advanceTimeBy(unreachableAfterMs)
@@ -715,6 +747,7 @@ class WalletViewModelTest {
 
     advanceTimeBy(unreachableAfterMs)
     runCurrent()
+    assertFalse(viewModel.uiState.value.isUnreachable)
 
     val state = viewModel.uiState.value
     assertTrue(state.isOffline)
