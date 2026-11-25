@@ -115,7 +115,7 @@ class HandoverReturnConfirmTest {
     composeTestRule
         .onNodeWithTag(C.Tag.handover_item_fine_button)
         .performScrollTo()
-        .assert(hasText("Gives the deposit, less any late fees, back to Borrower"))
+        .assert(hasText("Closes the rental, deposit is released"))
   }
 
   @Test
@@ -166,22 +166,6 @@ class HandoverReturnConfirmTest {
         .performScrollTo()
         .performClick()
     assertEquals(1, damageFlagged)
-  }
-
-  @Test
-  fun withoutTheBorrowersNameItemIsFineReleasesTheDepositToTheBorrower() {
-    setContent(check.copy(otherPersonName = ""))
-
-    composeTestRule
-        .onNodeWithTag(C.Tag.handover_item_fine_button)
-        .performScrollTo()
-        .assert(
-            hasText(
-                InstrumentationRegistry.getInstrumentation()
-                    .targetContext
-                    .getString(R.string.handover_item_fine_detail_no_name)
-            )
-        )
   }
 
   @Test

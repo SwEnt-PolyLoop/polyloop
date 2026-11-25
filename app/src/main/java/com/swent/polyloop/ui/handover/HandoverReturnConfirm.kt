@@ -272,7 +272,6 @@ private fun CheckButtons(
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.Bold,
     )
-    val name = uiState.otherPersonName
     val shape = RoundedCornerShape(dimensionResource(R.dimen.handover_check_button_corner))
     Button(
         onClick = onItemFine,
@@ -282,9 +281,7 @@ private fun CheckButtons(
     ) {
       CheckButtonContent(
           title = stringResource(R.string.handover_item_fine),
-          detail =
-              if (name.isBlank()) stringResource(R.string.handover_item_fine_detail_no_name)
-              else stringResource(R.string.handover_item_fine_detail, name),
+          detail = stringResource(R.string.handover_item_fine_detail),
           isSending = uiState.sendingCheck == ReturnCheck.ITEM_FINE,
       )
     }
