@@ -122,17 +122,17 @@ describe("submitReview", () => {
     });
   });
 
-  it("refuses a second review by the same person and writes nothing", async () => {
+  it("ignores a second review by the same person and keeps the first stars", async () => {
     const { who, id } = await closed();
-    await submitReview.run(asUser(who.borrower, { rentalId: id, stars: 5 }));
+    await submitReview.run(asUser(who.borrower, { rentalId: id, stars: 4 }));
     const before = await reviewDoc(id, who.borrower);
 
-    await expect(
-      submitReview.run(asUser(who.borrower, { rentalId: id, stars: 1 })),
-    ).rejects.toMatchObject({ code: "already-exists" });
+    const result = await submitReview.run(asUser(who.borrower, { rentalId: id, stars: 2 }));
 
+    expect(result).toEqual({});
     expect(await reviewDoc(id, who.borrower)).toEqual(before);
-    expect(await profile(who.lender)).toMatchObject({ averageRating: 5, reviewCount: 1 });
+    expect(before).toMatchObject({ stars: 4 });
+    expect(await profile(who.lender)).toMatchObject({ averageRating: 4, reviewCount: 1 });
   });
 
   it.each(["RETURNED", "DISPUTED", "ACTIVE"])("refuses a %s rental", async (status) => {
@@ -215,19 +215,17 @@ describe("submitReview", () => {
     expect(await profile(who.lender)).toBeUndefined();
   });
 
-  it("counts only one of two reviews sent at once", async () => {
+  it("accepts two reviews sent at once and counts one", async () => {
     const { who, id } = await closed();
 
-    const results = await Promise.allSettled([
+    const results = await Promise.all([
       submitReview.run(asUser(who.borrower, { rentalId: id, stars: 5 })),
-      submitReview.run(asUser(who.borrower, { rentalId: id, stars: 1 })),
+      submitReview.run(asUser(who.borrower, { rentalId: id, stars: 5 })),
     ]);
 
-    expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
-    const refused = results.find((result) => result.status === "rejected");
-    expect((refused as PromiseRejectedResult).reason).toMatchObject({ code: "already-exists" });
-    const stars = (await reviewDoc(id, who.borrower))?.stars;
-    expect(await profile(who.lender)).toMatchObject({ averageRating: stars, reviewCount: 1 });
+    expect(results).toEqual([{}, {}]);
+    expect(await reviewDoc(id, who.borrower)).toMatchObject({ stars: 5 });
+    expect(await profile(who.lender)).toMatchObject({ averageRating: 5, reviewCount: 1 });
   });
 
   it("is a callable in the app's region", () => {

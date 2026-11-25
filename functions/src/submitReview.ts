@@ -39,14 +39,14 @@ export function parseReviewInput(data: unknown): ReviewInput {
  * author's name and the item's title copied from the rental, and the reviewee's `reviewCount` goes
  * up by 1 while their `averageRating` takes in [stars] (a missing field reads as 0; not rounded).
  * The checks run in this order: the rental exists, the author is a participant, the rental has a
- * valid borrower and lender, the rental is CLOSED, the author has not reviewed it yet, the reviewee
- * has a profile, and the reviewee's stored rating is valid.
+ * valid borrower and lender, the rental is CLOSED, the author has not reviewed it yet (if they have,
+ * it returns without writing anything, so a repeat succeeds and changes nothing and the first stars
+ * stay), the reviewee has a profile, and the reviewee's stored rating is valid.
  *
  * @throws RequestError `not-found` (no rental, or no profile for the reviewee),
- *   `permission-denied` (not a participant), `failed-precondition` with the reason [NOT_CLOSED],
- *   `already-exists` (a second review by the same person) or `internal` (the rental has no valid
- *   borrower or lender, or the reviewee's stored rating is not valid, see [newRating]). Nothing is
- *   written then.
+ *   `permission-denied` (not a participant), `failed-precondition` with the reason [NOT_CLOSED] or
+ *   `internal` (the rental has no valid borrower or lender, or the reviewee's stored rating is not
+ *   valid, see [newRating]). Nothing is written then.
  */
 export async function submitReviewInTransaction(
   db: Firestore,
@@ -74,7 +74,7 @@ export async function submitReviewInTransaction(
     const revieweeRef = db.collection("users").doc(revieweeId);
     const [review, reviewee] = await Promise.all([tx.get(reviewRef), tx.get(revieweeRef)]);
     if (review.exists) {
-      throw new RequestError("already-exists", "You have already reviewed this rental.");
+      return;
     }
     if (!reviewee.exists) {
       throw new RequestError("not-found", "The other person has no profile.");
@@ -134,7 +134,8 @@ function textOf(value: unknown): string {
 /**
  * Callable `submitReview` (see docs/ARCHITECTURE.md): a participant of a closed rental gives the
  * other one 1 to 5 stars, once. Input: `{rentalId, stars}`; everything else comes from the rental.
- * A rental that is not closed is refused with `details.reason` `NOT_CLOSED`. Returns {}.
+ * A rental that is not closed is refused with `details.reason` `NOT_CLOSED`. A repeated review
+ * succeeds and changes nothing. Returns {}.
  */
 export const submitReview = onCall(async (request) => {
   try {
