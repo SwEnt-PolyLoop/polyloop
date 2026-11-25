@@ -11,10 +11,12 @@ import com.swent.polyloop.model.wallet.Wallet
 import com.swent.polyloop.model.wallet.WalletRepository
 import com.swent.polyloop.model.wallet.WalletTransaction
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -49,10 +51,18 @@ enum class RechargeStatus {
  *   unknown is not "no transactions". Transactions with the same date are ordered by id, highest
  *   first, so the order is always the same.
  * @property isLoading true until the wallet and the history are both known, or a read failed. It
- *   stays true offline while one is still unknown, so the screen shows a spinner only online.
+ *   stays true offline or unreachable while one is still unknown, so the screen shows a spinner
+ *   only while neither [isOffline] nor [isUnreachable] is set.
  * @property errorMsg null without an error, blank for the generic text.
  * @property isOffline true while the phone is offline: the wallet and the history stay readable
  *   from cache, but a recharge is refused.
+ * @property isUnreachable true when the wallet or the history is still unknown after the phone has
+ *   been online for [UNREACHABLE_AFTER_MS], with no error: the server is not answering although the
+ *   phone reports a connection (captive Wi-Fi, a router without internet). Offline, it is false.
+ *   The screen then shows the same unavailable state as offline, without the offline banner. A
+ *   confirmed snapshot that arrives later makes both known and resets it; it never replaces a value
+ *   that is already known, and [isLoading] stays true until both are known. The wait restarts on
+ *   retry and each time the phone comes back online.
  * @property rechargeStatus where the last recharge stands.
  * @property rechargeAmount the amount of the last recharge in whole PP, sent or refused; null
  *   before the first one.
@@ -65,6 +75,7 @@ data class WalletUiState(
     val isLoading: Boolean = true,
     val errorMsg: String? = null,
     val isOffline: Boolean = false,
+    val isUnreachable: Boolean = false,
     val rechargeStatus: RechargeStatus = RechargeStatus.IDLE,
     val rechargeAmount: Int? = null,
     val rechargeNewBalance: Int? = null,
@@ -109,8 +120,9 @@ class WalletViewModel(
    * Sends a recharge of [amount] CHF (the same number of PP). An amount outside
    * [WalletRepository.MIN_RECHARGE]..[WalletRepository.MAX_RECHARGE], or no signed-in user, sets
    * [RechargeStatus.ERROR] without calling the repository, and so does being offline
-   * ([WalletUiState.isOffline]). Ignored while a recharge is sending, even if the phone has gone
-   * offline since: a recharge already sent is not cancelled.
+   * ([WalletUiState.isOffline]) or unreachable ([WalletUiState.isUnreachable]). Ignored while a
+   * recharge is sending, even if the phone has gone offline since: a recharge already sent is not
+   * cancelled.
    *
    * @param amount the amount in whole CHF.
    */
@@ -119,6 +131,7 @@ class WalletViewModel(
     val uid = authRepository.getCurrentUser()?.uid
     if (
         _uiState.value.isOffline ||
+            _uiState.value.isUnreachable ||
             uid == null ||
             amount !in WalletRepository.MIN_RECHARGE..WalletRepository.MAX_RECHARGE
     ) {
@@ -160,7 +173,7 @@ class WalletViewModel(
 
   private fun observe() {
     observing?.cancel()
-    _uiState.update { it.copy(isLoading = true, errorMsg = null) }
+    _uiState.update { it.copy(isLoading = true, errorMsg = null, isUnreachable = false) }
     val uid = authRepository.getCurrentUser()?.uid
     if (uid == null) {
       _uiState.update { it.copy(isLoading = false, errorMsg = "") }
@@ -169,6 +182,23 @@ class WalletViewModel(
     val walletFlow = walletRepository.observeWallet(uid)
     val historyFlow = walletRepository.observeHistory(uid)
     observing = viewModelScope.launch {
+      // A child of this job, so a restart (retry) cancels it and starts a new wait.
+      launch {
+        // Counts only while online, and starts again each time the phone comes back online.
+        connectivityRepository.isOnline.collectLatest { online ->
+          if (!online) {
+            _uiState.update { it.copy(isUnreachable = false) }
+            return@collectLatest
+          }
+          delay(UNREACHABLE_AFTER_MS)
+          _uiState.update {
+            // Ignored once both are known or an error is shown; known values are never touched.
+            if (it.errorMsg == null && (it.wallet == null || it.history == null)) {
+              it.copy(isUnreachable = true)
+            } else it
+          }
+        }
+      }
       // Each repository flow stays silent while its data is unconfirmed (e.g. offline with an empty
       // cache), so a null first lets the other one through instead of waiting for both.
       combine(
@@ -179,7 +209,9 @@ class WalletViewModel(
           ) { wallet, history ->
             wallet to history?.sortedWith(NEWEST_FIRST)
           }
-          .catch { _uiState.update { it.copy(isLoading = false, errorMsg = "") } }
+          .catch {
+            _uiState.update { it.copy(isLoading = false, errorMsg = "", isUnreachable = false) }
+          }
           .collect { (wallet, history) ->
             _uiState.update {
               // A restart (retry) begins with nulls: keep what was known instead of dropping it.
@@ -189,6 +221,7 @@ class WalletViewModel(
                   wallet = knownWallet,
                   history = knownHistory,
                   isLoading = knownWallet == null || knownHistory == null,
+                  isUnreachable = it.isUnreachable && (knownWallet == null || knownHistory == null),
                   errorMsg = null,
               )
             }
@@ -212,6 +245,15 @@ class WalletViewModel(
   }
 
   private companion object {
+    /**
+     * How long the wallet or the history may stay unknown before the screen calls the server
+     * unreachable. A first answer on a working connection takes a few seconds at most, even on a
+     * bad mobile one, while a captive-portal Wi-Fi or a router without internet never answers, so a
+     * longer wait only keeps the spinner on dead Wi-Fi. Being wrong is cheap: a confirmed snapshot
+     * that arrives later shows the real values at once.
+     */
+    const val UNREACHABLE_AFTER_MS = 10_000L
+
     /** Newest first; for the same date, the highest id first, so the order is deterministic. */
     val NEWEST_FIRST = compareByDescending<WalletTransaction> { it.date }.thenByDescending { it.id }
   }
