@@ -19,7 +19,7 @@ export type RequestErrorCode =
 
 /**
  * The reason (`details.reason`) of a refusal because the rental's status changed meanwhile, e.g. it
- * was cancelled, or "Item is fine" was sent first (once #491 exists). The app reads it, never the message.
+ * was cancelled, or "Item is fine" was sent first. The app reads it, never the message.
  */
 export const RENTAL_CHANGED = "RENTAL_CHANGED";
 
