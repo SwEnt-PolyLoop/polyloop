@@ -11,7 +11,6 @@ import {
   requireParties,
   requireVerifiedEpfl,
 } from "./rentalRules";
-import { amountOrZero } from "./wallet";
 
 /** The reason the app reads (`details.reason`) when the rental is not closed yet. */
 export const NOT_CLOSED = "NOT_CLOSED";
@@ -45,7 +44,8 @@ export function parseReviewInput(data: unknown): ReviewInput {
  * @throws RequestError `not-found` (no rental, or no profile for the reviewee),
  *   `permission-denied` (not a participant), `failed-precondition` with the reason [NOT_CLOSED],
  *   `already-exists` (a second review by the same person) or `internal` (the rental has no valid
- *   borrower or lender). Nothing is written then.
+ *   borrower or lender, or the reviewee's stored rating is not valid, see [newRating]). Nothing is
+ *   written then.
  */
 export async function submitReviewInTransaction(
   db: Firestore,
@@ -88,29 +88,41 @@ export async function submitReviewInTransaction(
       itemTitle: listingTitleOf(rental),
       createdAt: FieldValue.serverTimestamp(),
     });
-    tx.update(revieweeRef, newRating(reviewee.data() ?? {}, stars));
+    tx.update(revieweeRef, newRating(reviewee.data() as DocumentData, stars));
   });
 }
 
 /**
  * The reviewee's rating once [stars] is added: one more review, and the average over all of them,
- * worked out from the stored average and count (a missing or invalid field reads as 0).
+ * worked out from the stored average and count. A missing or invalid count reads as 0, and the
+ * average then counts as 0 too.
+ *
+ * @throws RequestError `internal` when the count is above 0 but the stored average is not a number
+ *   from 1 to 5: the profile's rating is broken then, and adding to it would spread the error.
  */
 export function newRating(
   profile: DocumentData,
   stars: number,
 ): { averageRating: number; reviewCount: number } {
-  const count = amountOrZero(profile.reviewCount);
-  const average = ratingOrZero(profile.averageRating);
+  const count = countOrZero(profile.reviewCount);
+  const average = count === 0 ? 0 : requireAverage(profile.averageRating);
   return {
     averageRating: (average * count + stars) / (count + 1),
     reviewCount: count + 1,
   };
 }
 
-/** [value] if it is a finite number from 0 up, otherwise 0. */
-function ratingOrZero(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+/** [value] if it is a whole number from 0 up, otherwise 0. */
+function countOrZero(value: unknown): number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 0;
+}
+
+/** [value] if it is a finite number from 1 to 5, or an `internal` refusal. */
+function requireAverage(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 1 || value > 5) {
+    throw new RequestError("internal", "The other person's rating is not valid.");
+  }
+  return value;
 }
 
 /** [value] if it is a string, otherwise "". */
@@ -125,8 +137,8 @@ function textOf(value: unknown): string {
  */
 export const submitReview = onCall(async (request) => {
   try {
-    const input = parseReviewInput(request.data);
     const uid = requireVerifiedEpfl(request.auth);
+    const input = parseReviewInput(request.data);
     await submitReviewInTransaction(getFirestore(), uid, input);
     return {};
   } catch (error) {
