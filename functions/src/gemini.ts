@@ -27,6 +27,14 @@ export const GEMINI_LOCATION = "europe-west1";
  */
 export const GEMINI_TIMEOUT_MS = 120_000;
 
+/**
+ * The most tokens the model may spend thinking before it answers. gemini-2.5-flash thinks with no
+ * limit by default, which adds time against [GEMINI_TIMEOUT_MS], and each timeout is retried and
+ * billed again. There is no `maxOutputTokens`: on 2.5 models it counts the thinking too, and an
+ * answer cut short (`MAX_TOKENS`) fails for good.
+ */
+export const GEMINI_THINKING_BUDGET = 2048;
+
 /** Condition photos are JPEGs (docs/ARCHITECTURE.md). */
 const PHOTO_MIME_TYPE = "image/jpeg";
 
@@ -71,7 +79,8 @@ export class GeminiAdvisor implements SplitAdvisor {
 /**
  * The Gemini request for [request]: its instructions as the system instructions, its parts in
  * order as one user message, each photo read by Vertex AI from [bucket] in Storage, and a JSON
- * answer following its schema, at temperature 0 so that the same evidence gets the same split.
+ * answer following its schema, at temperature 0 so that the same evidence gets the same split,
+ * after at most [GEMINI_THINKING_BUDGET] tokens of thinking.
  */
 export function toGeminiRequest(
   request: AdvisorRequest,
@@ -85,6 +94,7 @@ export function toGeminiRequest(
       responseMimeType: "application/json",
       responseJsonSchema: request.schema,
       temperature: 0,
+      thinkingConfig: { thinkingBudget: GEMINI_THINKING_BUDGET },
     },
   };
 }
