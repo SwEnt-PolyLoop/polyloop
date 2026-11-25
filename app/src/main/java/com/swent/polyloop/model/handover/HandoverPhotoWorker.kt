@@ -133,12 +133,29 @@ constructor(
         null
       }
 
-  private fun isRefusal(e: Exception) =
-      (e is FirebaseFirestoreException &&
-          e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) ||
-          (e is StorageException && e.errorCode == StorageException.ERROR_NOT_AUTHORIZED)
-
   companion object {
+    private val FIRESTORE_REFUSALS =
+        setOf(
+            FirebaseFirestoreException.Code.PERMISSION_DENIED,
+            FirebaseFirestoreException.Code.INVALID_ARGUMENT,
+            FirebaseFirestoreException.Code.UNAUTHENTICATED,
+        )
+    private val STORAGE_REFUSALS =
+        setOf(StorageException.ERROR_NOT_AUTHORIZED, StorageException.ERROR_NOT_AUTHENTICATED)
+
+    /**
+     * Whether [e] means the server will never take the photo: refused by the rules, an invalid
+     * request, or a user it does not accept (e.g. a deleted account; a signed-out user is retried
+     * before this). Any other error, such as a lost connection, is retried: a copy kept too long
+     * only takes space, but a photo deleted by mistake is lost.
+     */
+    internal fun isRefusal(e: Exception): Boolean =
+        when (e) {
+          is FirebaseFirestoreException -> e.code in FIRESTORE_REFUSALS
+          is StorageException -> e.errorCode in STORAGE_REFUSALS
+          else -> false
+        }
+
     /**
      * The input: who took which photo of which rental, when it was taken (epoch ms), and its file.
      */
