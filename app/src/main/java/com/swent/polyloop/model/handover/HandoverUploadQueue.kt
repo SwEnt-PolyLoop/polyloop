@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import androidx.work.await
 import androidx.work.workDataOf
 import java.io.File
+import java.nio.file.Files
 import java.time.Instant
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -76,7 +77,9 @@ class HandoverUploadQueue(
     } catch (e: CancellationException) {
       throw e // the job may be saved already, and needs its copy
     } catch (e: Exception) {
-      copy.delete() // no job will send it (e.g. WorkManager's database failed)
+      // No job will send it (e.g. WorkManager's database failed). A copy that cannot be deleted
+      // only takes space, and must not hide the error.
+      runCatching { Files.deleteIfExists(copy.toPath()) }
       throw e
     }
   }
