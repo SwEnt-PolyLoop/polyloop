@@ -28,7 +28,16 @@ import {
 } from "./rentalRules";
 import { writeNewHandoverCode } from "./handoverCode";
 import { runSweep } from "./sweep";
-import { readWallet, requireFunds, writeDepositHold } from "./wallet";
+import {
+  PriceRelease,
+  Wallet,
+  readPriceRelease,
+  readWallet,
+  releasePrice,
+  requireFunds,
+  writeDepositHold,
+  writePriceRelease,
+} from "./wallet";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
 const RENTALS = "rentals";
@@ -42,6 +51,12 @@ interface StoredOffer {
   authorId: string;
   isCounter: boolean;
   expiresAt: Timestamp;
+}
+
+/** A declined request's held price, and the borrower's balances once it is given back. */
+interface DeclineRelease {
+  release: PriceRelease;
+  wallet: Wallet;
 }
 
 /** What a sweep did: the offers it expired, and those it could not, which the next sweep retries. */
@@ -110,7 +125,8 @@ export async function makeOffer(
  * dates to the listing's `bookedRanges` (kept sorted by first day, see `withBooking`), and declines
  * every other REQUESTED rental of the listing whose dates overlap (buffer day included). It also
  * holds the deposit, the offered amount (the counter amount after a counteroffer), in the borrower's
- * wallet, whoever accepts. The rental price is not reserved.
+ * wallet, whoever accepts. Its own rental price stays held (since the request) until the pickup;
+ * the declined requests' prices go back to their borrowers in the same transaction.
  *
  * @param db the Firestore database.
  * @param callerId the participant answering.
@@ -119,7 +135,8 @@ export async function makeOffer(
  * @throws RequestError `not-found`, `permission-denied` (not a participant, or the offer's author),
  *   `failed-precondition` (no offer waiting, expired, already countered, dates no longer free, or,
  *   on ACCEPT or COUNTER, the borrower's available balance is below the deposit) or `internal` (the
- *   stored rental or offer is broken: no valid dates, borrower, addresses or deposit). Nothing is
+ *   stored rental or offer is broken: no valid dates, borrower, addresses or deposit; or, on ACCEPT
+ *   or DECLINE, a held price to give back is broken or not covered by `heldForRentals`). Nothing is
  *   written then.
  */
 export async function respondToOffer(
@@ -137,9 +154,11 @@ export async function respondToOffer(
       case "ACCEPT":
         await accept(tx, rentalRef, rental, offer, callerId);
         return;
-      case "DECLINE":
-        decline(tx, rentalRef, "Offer declined", callerId);
+      case "DECLINE": {
+        const release = await readDeclineRelease(tx, rentalRef, rental);
+        decline(tx, rentalRef, "Offer declined", callerId, release);
         return;
+      }
       case "COUNTER":
         if (offer.isCounter) {
           throw new RequestError("failed-precondition", "A counteroffer cannot be countered.");
@@ -173,8 +192,9 @@ export async function respondToOffer(
  * @param db the Firestore database.
  * @param lenderId the caller, who must be the rental's lender.
  * @param rentalId the request to decline.
- * @throws RequestError `not-found`, `permission-denied` (not the lender) or `failed-precondition`
- *   (not requested, or an offer exists). Nothing is written then.
+ * @throws RequestError `not-found`, `permission-denied` (not the lender), `failed-precondition`
+ *   (not requested, or an offer exists) or `internal` (the held price to give back is broken or not
+ *   covered by `heldForRentals`). Nothing is written then.
  */
 export async function declineRequest(
   db: Firestore,
@@ -188,7 +208,8 @@ export async function declineRequest(
     if (rental.offer) {
       throw new RequestError("failed-precondition", "An offer is waiting for an answer.");
     }
-    decline(tx, rentalRef, "Request declined", lenderId);
+    const release = await readDeclineRelease(tx, rentalRef, rental);
+    decline(tx, rentalRef, "Request declined", lenderId, release);
   });
 }
 
@@ -235,7 +256,8 @@ export async function expireOffer(rentalRef: DocumentReference, now: Date): Prom
     if (rental?.status !== REQUESTED || !offer || !isExpired(offer, now)) {
       return false;
     }
-    decline(tx, rentalRef, "Offer expired · request declined", null);
+    const release = await readDeclineRelease(tx, rentalRef, rental);
+    decline(tx, rentalRef, "Offer expired · request declined", null, release);
     return true;
   });
 }
@@ -284,7 +306,8 @@ export async function expireRequest(rentalRef: DocumentReference, now: Date): Pr
     if (rental?.status !== REQUESTED || !isUnansweredAt(rental, now)) {
       return false;
     }
-    decline(tx, rentalRef, "Request expired · no offer sent", null);
+    const release = await readDeclineRelease(tx, rentalRef, rental);
+    decline(tx, rentalRef, "Request expired · no offer sent", null, release);
     return true;
   });
 }
@@ -300,7 +323,8 @@ function isUnansweredAt(rental: DocumentData, now: Date): boolean {
 
 /**
  * The acceptance by [callerId]: reads the listing, the addresses, the other requests and the
- * borrower's wallet, then writes it all, holding the deposit last.
+ * wallets (the borrower's, and those of the declined requests whose price goes back), then writes
+ * it all, holding the deposit last.
  */
 async function accept(
   tx: Transaction,
@@ -335,7 +359,22 @@ async function accept(
   if (!isValidDeposit(offer.amount)) {
     throw new RequestError("internal", "The offer has no valid deposit.");
   }
-  const wallet = await readWallet(tx, db, borrowerId);
+  // Every wallet this acceptance moves, read once. The overlapping requests' prices go back to
+  // their borrowers, who may be the same person twice, or this rental's own borrower (dates next to
+  // these, inside the buffer), so each move is applied to the balances left by the moves before it.
+  const wallets = new Map<string, Wallet>([[borrowerId, await readWallet(tx, db, borrowerId)]]);
+  const releases: DeclineRelease[] = [];
+  for (const doc of overlapping) {
+    const release = await readPriceRelease(tx, db, doc.id, doc.data());
+    if (!release) continue;
+    const before =
+      wallets.get(release.borrowerId) ?? (await readWallet(tx, db, release.borrowerId));
+    const wallet = releasePrice(before, release);
+    wallets.set(release.borrowerId, wallet);
+    releases.push({ release, wallet });
+  }
+  // Checked on the balance once those prices are back, which is the balance the hold is written on.
+  const wallet = wallets.get(borrowerId) as Wallet;
   requireFunds(wallet, offer.amount);
 
   tx.delete(addressesRef(rentalRef));
@@ -366,23 +405,46 @@ async function accept(
   // last range to lock the listing.
   tx.update(listing.ref, { bookedRanges: withBooking(listing.get("bookedRanges"), dates) });
   for (const doc of overlapping) {
-    decline(tx, doc.ref, "Dates booked · request declined", decliner);
+    const release = releases.find((r) => r.release.rentalId === doc.id) ?? null;
+    decline(tx, doc.ref, "Dates booked · request declined", decliner, release);
   }
-  // No hasTransaction read: a REQUESTED rental cannot have its deposit row yet.
+  // No hasTransaction read: a REQUESTED rental cannot have its deposit row yet. Written last, on
+  // the balances after the releases above, so it keeps them when this borrower's price went back.
   writeDepositHold(tx, db, borrowerId, wallet, offer.amount, rentalRef.id, listingTitleOf(rental));
 }
 
 /**
+ * Read step of a decline: the rental's held price, if any is left to give back (see
+ * `readPriceRelease`), and the borrower's balances once it is.
+ *
+ * @throws RequestError `internal` when the held price is broken or `heldForRentals` does not cover
+ *   it; nothing is written then.
+ */
+async function readDeclineRelease(
+  tx: Transaction,
+  rentalRef: DocumentReference,
+  rental: DocumentData,
+): Promise<DeclineRelease | null> {
+  const db = rentalRef.firestore;
+  const release = await readPriceRelease(tx, db, rentalRef.id, rental);
+  if (!release) return null;
+  return { release, wallet: releasePrice(await readWallet(tx, db, release.borrowerId), release) };
+}
+
+/**
  * Ends a negotiation with no rental: DECLINED, with no offer and no addresses left, and [text] in
- * the chat, seen by [actorId] (see writeWithSystemMessage). Runs inside the caller's transaction,
- * after its reads.
+ * the chat, seen by [actorId] (see writeWithSystemMessage). The price held at request goes back to
+ * the borrower in the same transaction, from [release] (null when there is nothing to give back).
+ * Runs inside the caller's transaction, after its reads, [release]'s included.
  */
 function decline(
   tx: Transaction,
   rentalRef: DocumentReference,
   text: string,
   actorId: string | null,
+  release: DeclineRelease | null,
 ): void {
+  if (release) writePriceRelease(tx, rentalRef.firestore, release.release, release.wallet);
   tx.delete(addressesRef(rentalRef));
   writeWithSystemMessage(
     tx,
