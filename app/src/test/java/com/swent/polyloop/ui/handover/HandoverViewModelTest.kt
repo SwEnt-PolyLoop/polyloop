@@ -17,6 +17,7 @@ import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.HandoverRepository
 import com.swent.polyloop.model.handover.PhotoSync
+import com.swent.polyloop.model.handover.QueuedScan
 import com.swent.polyloop.model.handover.RentalChangedException
 import com.swent.polyloop.model.handover.ScanRefusedException
 import com.swent.polyloop.model.rental.FakeRentalRepository
@@ -1363,18 +1364,15 @@ class HandoverViewModelTest {
   }
 
   @Test
-  fun offlineTheCodeStaysShownButTheScanIsDisabled() {
+  fun offlineTheCodeStaysShownAndTheScanStaysEnabled() {
     handoverRepository.photos = photos(3) + photos(3, takenBy = "owner")
     val borrowerVm = viewModel()
     signInLender()
     val lenderVm = viewModel()
 
     connectivity.setOnline(false)
-    assertFalse(borrowerVm.uiState.value.canScan)
-    assertTrue(lenderVm.uiState.value.canShowCode)
-
-    connectivity.setOnline(true)
     assertTrue(borrowerVm.uiState.value.canScan)
+    assertTrue(lenderVm.uiState.value.canShowCode)
   }
 
   @Test
@@ -1856,17 +1854,51 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun offlineARightCodeIsQueuedWithTheServersTimeAndEndsTheScan() {
+    val vm = readyToScan()
+    connectivity.setOnline(false)
+    vm.onCodeScanned("secret-code")
+
+    val state = vm.uiState.value
+    assertEquals(noonOn(pickupDay), handoverRepository.queuedScan.value?.scannedAt)
+    assertTrue(handoverRepository.scannedCodes.isEmpty()) // the queue sends it, not the screen
+    assertTrue(state.scanQueued)
+    assertNull(state.scanError)
+    assertFalse(state.canScan)
+    assertFalse(state.canAddPhoto) // the user is done, as after a confirmed scan
+
+    // Sent by the queue: nothing waits any more, and the rental moves on by itself.
+    handoverRepository.queuedScan.value = null
+    assertFalse(vm.uiState.value.scanQueued)
+  }
+
+  @Test
+  fun offlineAScanThatCannotBeQueuedCanBeScannedAgain() {
+    val vm = readyToScan()
+    connectivity.setOnline(false)
+    handoverRepository.currentUid = null // the queue refuses it
+    vm.onCodeScanned("secret-code")
+
+    assertEquals(ScanError.NOT_SENT, vm.uiState.value.scanError)
+    assertTrue(vm.uiState.value.canScan)
+  }
+
+  @Test
+  fun aQueuedScanTheServerRefusedIsReportedWhenHandoverOpens() {
+    handoverRepository.queuedScan.value = QueuedScan(noonOn(pickupDay), ScanRefusedException())
+    val vm = readyToScan() // the cause may be fixed, so it can be scanned again
+
+    assertEquals(ScanError.REFUSED, vm.uiState.value.scanError)
+    assertFalse(vm.uiState.value.scanQueued)
+  }
+
+  @Test
   fun aScanIsIgnoredWhenScanCannotBePressed() {
     handoverRepository.photos = photos(2)
     viewModel().onCodeScanned("secret-code") // 2 photos only
     signInLender()
     handoverRepository.photos = photos(3, takenBy = "owner")
     viewModel().onCodeScanned("secret-code") // the lender shows, never scans
-    authRepository.signedInUser = borrower
-    handoverRepository.currentUid = "borrower"
-    handoverRepository.photos = photos(3)
-    connectivity.setOnline(false)
-    viewModel().onCodeScanned("secret-code") // offline
 
     assertTrue(handoverRepository.scannedCodes.isEmpty())
   }
