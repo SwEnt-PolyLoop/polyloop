@@ -201,9 +201,18 @@ class ScanCodeCardTest {
   }
 
   @Test
-  fun offlineSaysScanningIsComingSoon() {
+  fun offlineTheBorrowerCanStillScanWithNoMessage() {
     setContent(ready.copy(isOffline = true))
-    assertMessage("Scanning offline is coming soon.")
+    button().assertIsEnabled()
+    node(C.Tag.handover_scan_message).assertDoesNotExist()
+  }
+
+  @Test
+  fun aQueuedScanShowsThePickupConfirmedAndWhenItIsSent() {
+    setContent(ready.copy(isOffline = true, scanQueued = true))
+    node(C.Tag.handover_scan_confirmed).performScrollTo().assertTextEquals("Pickup confirmed")
+    node(C.Tag.handover_scan_queued).assertTextEquals("It will be sent when you're back online.")
+    node(C.Tag.handover_scan_button).assertDoesNotExist()
   }
 
   @Test
