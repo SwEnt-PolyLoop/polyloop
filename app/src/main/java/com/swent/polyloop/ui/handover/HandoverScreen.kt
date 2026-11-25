@@ -244,7 +244,7 @@ fun HandoverContent(
                   uiState.deposit,
                   uiState.depositHeld,
                   uiState.isLender,
-                  givenBack = false,
+                  released = false,
               )
             }
       }
@@ -746,13 +746,13 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
 /**
  * The deposit held since acceptance, pinned under the scrolling content, then its amount (Figma
  * frames 14 to 17). [isLender] picks the label: true for the lender ("Deposit held"), false for the
- * borrower ("Your deposit, held"), unless [givenBack]: the lender's "Item is fine" was sent, which
- * gave it back to the borrower ("Deposit given back"). The amount is [held], what is left once late
+ * borrower ("Your deposit, held"), unless [released]: the lender's "Item is fine" was sent, which
+ * released it to the borrower ("Deposit released"). The amount is [held], what is left once late
  * fees are taken from [deposit], which is also what goes back. A [deposit] of 0 shows "—": an
  * accepted deposit is at least 1, so 0 means it is not known.
  */
 @Composable
-internal fun DepositFooter(deposit: Int, held: Int, isLender: Boolean, givenBack: Boolean) {
+internal fun DepositFooter(deposit: Int, held: Int, isLender: Boolean, released: Boolean) {
   Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -763,7 +763,7 @@ internal fun DepositFooter(deposit: Int, held: Int, isLender: Boolean, givenBack
           text =
               stringResource(
                   when {
-                    givenBack -> R.string.handover_deposit_given_back
+                    released -> R.string.handover_deposit_released
                     isLender -> R.string.handover_deposit_held_lender
                     else -> R.string.handover_deposit_held_borrower
                   }

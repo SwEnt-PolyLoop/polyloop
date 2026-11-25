@@ -93,7 +93,7 @@ internal fun WaitingForCheckContent(uiState: HandoverUiState) {
 
 /**
  * The header and [content] scrolling over the deposit footer pinned at the bottom, which says the
- * deposit was given back once the lender's "Item is fine" was sent.
+ * deposit was released once the lender's "Item is fine" was sent.
  */
 @Composable
 private fun ReturnedScaffold(
@@ -117,14 +117,14 @@ private fun ReturnedScaffold(
         uiState.deposit,
         uiState.depositHeld,
         uiState.isLender,
-        givenBack = uiState.checkSent == ReturnCheck.ITEM_FINE,
+        released = uiState.checkSent == ReturnCheck.ITEM_FINE,
     )
   }
 }
 
 /**
  * A green check with "Return scanned" and "The deposit stays held until you decide.", or, once the
- * lender's "Item is fine" was sent, that the deposit went back to the borrower. The time of the
+ * lender's "Item is fine" was sent, that the deposit was released to the borrower. The time of the
  * scan is not shown until rentals store it.
  */
 @Composable
@@ -158,9 +158,9 @@ private fun ReturnScannedCard(uiState: HandoverUiState) {
                   uiState.checkSent != ReturnCheck.ITEM_FINE ->
                       stringResource(R.string.handover_deposit_stays_held)
                   uiState.otherPersonName.isBlank() ->
-                      stringResource(R.string.handover_deposit_went_back_no_name)
+                      stringResource(R.string.handover_deposit_released_to_no_name)
                   else ->
-                      stringResource(R.string.handover_deposit_went_back, uiState.otherPersonName)
+                      stringResource(R.string.handover_deposit_released_to, uiState.otherPersonName)
                 },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -184,20 +184,20 @@ class HandoverReturnConfirmTest {
   }
 
   @Test
-  fun onceItemIsFineIsSentTheDepositReadsGivenBack() {
+  fun onceItemIsFineIsSentTheDepositReadsReleased() {
     setContent(check.copy(checkSent = ReturnCheck.ITEM_FINE))
 
-    composeTestRule.onNodeWithText("The deposit went back to Borrower.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("The deposit was released to Borrower.").assertIsDisplayed()
     composeTestRule.onNodeWithText("The deposit stays held until you decide.").assertDoesNotExist()
-    text(C.Tag.handover_deposit_label, "Deposit given back")
+    text(C.Tag.handover_deposit_label, "Deposit released")
     text(C.Tag.handover_deposit, "80 PP")
   }
 
   @Test
-  fun onceItemIsFineIsSentWithoutTheBorrowersNameTheDepositWentBackToTheBorrower() {
+  fun onceItemIsFineIsSentWithoutTheBorrowersNameTheDepositIsReleasedToTheBorrower() {
     setContent(check.copy(otherPersonName = "", checkSent = ReturnCheck.ITEM_FINE))
 
-    composeTestRule.onNodeWithText("The deposit went back to the borrower.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("The deposit was released to the borrower.").assertIsDisplayed()
   }
 
   @Test
@@ -314,7 +314,7 @@ class HandoverReturnConfirmTest {
   }
 
   @Test
-  fun theLenderRetriesAnAnswerWhoseReplyWasLostThenSeesItSentAndTheDepositGivenBack() {
+  fun theLenderRetriesAnAnswerWhoseReplyWasLostThenSeesItSentAndTheDepositReleased() {
     val handovers =
         FakeHandoverRepository(currentUid = "owner", confirmFailure = RuntimeException("lost"))
     handovers.photos = photos(3, HandoverPhase.PICKUP).map { StoredPhoto(rental.id, "owner", it) }
@@ -336,8 +336,8 @@ class HandoverReturnConfirmTest {
     composeTestRule.onNodeWithTag(C.Tag.handover_check_sent).performScrollTo().assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.handover_item_fine_button).assertIsNotEnabled()
     composeTestRule.onNodeWithTag(C.Tag.handover_flag_damage_button).assertIsNotEnabled()
-    composeTestRule.onNodeWithText("The deposit went back to Borrower.").assertExists()
-    text(C.Tag.handover_deposit_label, "Deposit given back")
+    composeTestRule.onNodeWithText("The deposit was released to Borrower.").assertExists()
+    text(C.Tag.handover_deposit_label, "Deposit released")
     composeTestRule.runOnIdle { assertEquals(listOf(rental.id), handovers.confirmedReturns) }
   }
 }
