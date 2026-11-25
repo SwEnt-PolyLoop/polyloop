@@ -342,6 +342,6 @@ function transactionRef(db: Firestore, uid: string, id: string): DocumentReferen
 }
 
 /** [value] if it is a whole number from 0 up, otherwise 0. */
-function amountOrZero(value: unknown): number {
+export function amountOrZero(value: unknown): number {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 0;
 }
