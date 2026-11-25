@@ -65,6 +65,25 @@ interface HandoverRepository {
   ): Result<Unit>
 
   /**
+   * Puts the [code] the signed-in user scanned offline in [phase] of [rentalId], at [scannedAt] (by
+   * `ServerClock`), into the local upload queue, which sends it through [confirmScan] once the
+   * phone is online, even after the app was closed. Queuing it again while one waits changes
+   * nothing. Fails if nobody is signed in or [rentalId] is invalid.
+   */
+  suspend fun queueScan(
+      rentalId: String,
+      phase: HandoverPhase,
+      code: String,
+      scannedAt: Instant,
+  ): Result<Unit>
+
+  /**
+   * The scan of [phase] of [rentalId] waiting in the upload queue, or the last one the server
+   * refused lately (about a day), with its refusal; null when there is none, e.g. once it is sent.
+   */
+  fun observeQueuedScan(rentalId: String, phase: HandoverPhase): Flow<QueuedScan?>
+
+  /**
    * Tells, as the signed-in lender, that the item of the returned rental [rentalId] came back fine:
    * the deposit, less any late fees, goes back to the borrower and the rental closes. Succeeds if
    * the rental was already closed by this answer. Fails with an [IllegalArgumentException] if

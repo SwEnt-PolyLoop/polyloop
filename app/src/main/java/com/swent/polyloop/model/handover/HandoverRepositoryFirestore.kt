@@ -180,6 +180,23 @@ class HandoverRepositoryFirestore(
     return result.exceptionOrNull()?.let(::scanRefusal)?.let { Result.failure(it) } ?: result
   }
 
+  override suspend fun queueScan(
+      rentalId: String,
+      phase: HandoverPhase,
+      code: String,
+      scannedAt: Instant,
+  ): Result<Unit> {
+    if (!isValidDocumentId(rentalId)) {
+      return Result.failure(IllegalArgumentException("Invalid rental id"))
+    }
+    if (auth.currentUser == null) return Result.failure(IllegalStateException("Signed out"))
+    uploadQueue.enqueueScan(rentalId, phase, code, scannedAt)
+    return Result.success(Unit)
+  }
+
+  override fun observeQueuedScan(rentalId: String, phase: HandoverPhase): Flow<QueuedScan?> =
+      if (isValidDocumentId(rentalId)) uploadQueue.observeScan(rentalId, phase) else flowOf(null)
+
   /**
    * Reads one text field with [read], for a signed-in user and a valid [rentalId]. A missing or
    * blank field, or one that is not text, gives null.
