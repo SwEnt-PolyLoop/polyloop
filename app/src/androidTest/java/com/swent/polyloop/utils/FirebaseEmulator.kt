@@ -35,6 +35,8 @@ object FirebaseEmulator {
   private const val FUNCTIONS_PORT = 5001
   private const val TIMEOUT_MS = 2000
   private const val REQUEST_TIMEOUT_MS = 10_000
+  private const val TRIES = 5
+  private const val PAUSE_MS = 1000L
 
   /** True once Firebase points at the emulators, for the rest of the app process. */
   var connected = false
@@ -42,11 +44,7 @@ object FirebaseEmulator {
 
   /** Fails the test with a clear message if the emulators are not running. */
   fun connect() {
-    // Functions is not checked: CI starts only Auth, Firestore and Storage, and no test calls a
-    // Function yet. Pointing it at the emulator still keeps a call away from the real project.
-    if (!listOf(AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT).all { isRunning(it) }) {
-      fail("The Firebase emulators are not running. Start them with: firebase emulators:start")
-    }
+    requireRunning()
     // useEmulator may only be called once per app process, before Firebase is used.
     if (connected) return
     Firebase.auth.useEmulator(HOST, AUTH_PORT)
@@ -224,6 +222,30 @@ object FirebaseEmulator {
                 )
         else -> throw IllegalArgumentException("Unsupported field value: $value")
       }
+
+  /**
+   * Fails the test unless each emulator answers [isUp] within [TRIES] tries, [pause]d [PAUSE_MS]
+   * apart: on a busy CI runner, a running emulator can be too slow to answer once.
+   */
+  internal fun requireRunning(
+      isUp: (Int) -> Boolean = ::isRunning,
+      pause: (Long) -> Unit = Thread::sleep,
+  ) {
+    // Functions is not checked: CI starts only Auth, Firestore and Storage, and no test calls a
+    // Function yet. Pointing it at the emulator still keeps a call away from the real project.
+    val ports = listOf(AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT)
+    if (!ports.all { port -> answers(port, isUp, pause) }) {
+      fail("The Firebase emulators are not running. Start them with: firebase emulators:start")
+    }
+  }
+
+  private fun answers(port: Int, isUp: (Int) -> Boolean, pause: (Long) -> Unit): Boolean {
+    repeat(TRIES - 1) {
+      if (isUp(port)) return true
+      pause(PAUSE_MS)
+    }
+    return isUp(port)
+  }
 
   /** True if an emulator answers on [port]. Any status code counts: only the answer matters. */
   private fun isRunning(port: Int): Boolean {
