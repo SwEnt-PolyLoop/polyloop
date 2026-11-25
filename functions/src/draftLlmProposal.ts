@@ -1,7 +1,10 @@
 // Made with Claude.
 
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
+import { projectID } from "firebase-functions/params";
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { createGeminiAdvisor } from "./gemini";
 import { draftLlmProposal as draft } from "./llmProposal";
 import { SplitAdvisor } from "./splitAdvisor";
 
@@ -18,11 +21,14 @@ const RETRY_FOR_MS = 24 * 60 * 60 * 1000;
  */
 const TIMEOUT_SECONDS = 300;
 
-/**
- * The model asked for the split. None until the Vertex AI client exists (#452): every proposal
- * then fails at once, so the parties can already try again or reject.
- */
-const advisor: SplitAdvisor | null = null;
+/** The model asked for the split, built on this trigger's first event: no other function does. */
+let advisor: SplitAdvisor | undefined;
+
+/** Gemini on Vertex AI in this project, reading the photos from its default Storage bucket. */
+function geminiAdvisor(): SplitAdvisor {
+  advisor ??= createGeminiAdvisor(projectID.value(), getStorage().bucket().name);
+  return advisor;
+}
 
 /**
  * When a dispute starts a new attempt at its LLM proposal (it escalated, or a party asked to try
@@ -38,7 +44,7 @@ export const draftLlmProposal = onDocumentUpdated(
       event.params.rentalId,
       event.data?.before.data(),
       event.data?.after.data(),
-      { advisor, expired: Date.now() - Date.parse(event.time) > RETRY_FOR_MS },
+      { advisor: geminiAdvisor(), expired: Date.now() - Date.parse(event.time) > RETRY_FOR_MS },
     );
   },
 );
