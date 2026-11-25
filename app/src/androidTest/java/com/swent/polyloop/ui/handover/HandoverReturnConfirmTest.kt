@@ -111,7 +111,7 @@ class HandoverReturnConfirmTest {
     composeTestRule
         .onNodeWithTag(C.Tag.handover_item_fine_button)
         .performScrollTo()
-        .assert(hasText("Releases the full deposit to Borrower"))
+        .assert(hasText("Gives the deposit, less any late fees, back to Borrower"))
   }
 
   @Test
@@ -142,18 +142,15 @@ class HandoverReturnConfirmTest {
   }
 
   @Test
-  fun onlyItemIsFineSaysItIsNotAvailableYet() {
+  fun neitherAnswerSaysItIsNotAvailableYet() {
     setContent(check)
     val notAvailable =
         InstrumentationRegistry.getInstrumentation()
             .targetContext
             .getString(R.string.not_available_yet)
 
-    composeTestRule
-        .onNodeWithTag(C.Tag.handover_item_fine_not_available)
-        .performScrollTo()
-        .assertTextEquals(notAvailable)
-    composeTestRule.onAllNodesWithText(notAvailable).assertCountEquals(1)
+    composeTestRule.onNodeWithTag(C.Tag.handover_item_fine_button).assertExists()
+    composeTestRule.onAllNodesWithText(notAvailable).assertCountEquals(0)
   }
 
   @Test
@@ -174,7 +171,13 @@ class HandoverReturnConfirmTest {
     composeTestRule
         .onNodeWithTag(C.Tag.handover_item_fine_button)
         .performScrollTo()
-        .assert(hasText("Releases the full deposit to the borrower"))
+        .assert(
+            hasText(
+                InstrumentationRegistry.getInstrumentation()
+                    .targetContext
+                    .getString(R.string.handover_item_fine_detail_no_name)
+            )
+        )
   }
 
   @Test

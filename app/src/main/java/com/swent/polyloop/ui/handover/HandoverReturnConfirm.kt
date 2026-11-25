@@ -42,7 +42,6 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
-import com.swent.polyloop.ui.components.NotAvailableYet
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import com.swent.polyloop.ui.theme.PositiveGreen
 import java.time.Instant
@@ -238,8 +237,7 @@ private fun PhotoSection(
 
 /**
  * "Is the item in the same condition?", then "Item is fine" and "Flag damage", each with what it
- * does; "Item is fine" has "Not available yet" under it, as it fails until its Cloud Function
- * exists. The one being sent shows a spinner, then a line under them says whether it was sent or
+ * does. The one being sent shows a spinner, then a line under them says whether it was sent or
  * failed.
  */
 @Composable
@@ -273,10 +271,6 @@ private fun CheckButtons(
           isSending = uiState.sendingCheck == ReturnCheck.ITEM_FINE,
       )
     }
-    NotAvailableYet(
-        C.Tag.handover_item_fine_not_available,
-        Modifier.align(Alignment.CenterHorizontally),
-    )
     val damageColor = MaterialTheme.colorScheme.secondary
     OutlinedButton(
         onClick = onFlagDamage,

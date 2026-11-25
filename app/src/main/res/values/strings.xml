@@ -633,9 +633,9 @@
     <string name="handover_no_photos">No photos</string>
     <string name="handover_same_condition">Is the item in the same condition?</string>
     <string name="handover_item_fine">Item is fine</string>
-    <!-- Under "Item is fine", e.g. "Releases the full deposit to Mara" -->
-    <string name="handover_item_fine_detail">Releases the full deposit to %1$s</string>
-    <string name="handover_item_fine_detail_no_name">Releases the full deposit to the borrower</string>
+    <!-- Under "Item is fine", e.g. "Gives the deposit, less any late fees, back to Mara" -->
+    <string name="handover_item_fine_detail">Gives the deposit, less any late fees, back to %1$s</string>
+    <string name="handover_item_fine_detail_no_name">Gives the deposit, less any late fees, back to the borrower</string>
     <string name="handover_flag_damage">Flag damage</string>
     <string name="handover_flag_damage_detail">Opens a dispute, deposit stays held</string>
     <string name="handover_check_sending">Sending your answer</string>
