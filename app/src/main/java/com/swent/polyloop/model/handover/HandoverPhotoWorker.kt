@@ -149,7 +149,7 @@ constructor(
      * before this). Any other error, such as a lost connection, is retried: a copy kept too long
      * only takes space, but a photo deleted by mistake is lost.
      */
-    internal fun isRefusal(e: Exception): Boolean =
+    private fun isRefusal(e: Exception): Boolean =
         when (e) {
           is FirebaseFirestoreException -> e.code in FIRESTORE_REFUSALS
           is StorageException -> e.errorCode in STORAGE_REFUSALS

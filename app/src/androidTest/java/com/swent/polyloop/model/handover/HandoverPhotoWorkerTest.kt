@@ -82,10 +82,7 @@ class HandoverPhotoWorkerTest {
                     appContext: Context,
                     workerClassName: String,
                     workerParameters: WorkerParameters,
-                ) =
-                    HandoverPhotoWorker(appContext, workerParameters, Firebase.auth, db) {
-                      Firebase.storage
-                    }
+                ) = HandoverPhotoWorker(appContext, workerParameters, db = db)
               }
           )
           .setInputData(
