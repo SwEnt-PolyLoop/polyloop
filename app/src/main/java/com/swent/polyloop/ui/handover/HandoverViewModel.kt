@@ -229,10 +229,12 @@ data class HandoverUiState(
 
   /**
    * True when the lender checks the returned item; the borrower only waits for them. It stays true
-   * while their answer is sent and once it is, even if the rental moves on meanwhile.
+   * while their answer is sent, once it is, and once it failed, even if the rental moves on
+   * meanwhile: an answer the server applied but whose reply was lost moves the rental on, and the
+   * lender then sees the error and sends it again, which the server accepts as already done.
    */
   val isReturnCheck: Boolean
-    get() = isLender && (isReturned || sendingCheck != null || checkSent != null)
+    get() = isLender && (isReturned || sendingCheck != null || checkSent != null || checkFailed)
 
   /** True when the lender can answer: online, with no answer being sent or already sent. */
   val canSendCheck: Boolean

@@ -1194,6 +1194,46 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun anItemFineWhoseReplyWasLostStaysOnTheCheckAndCanBeSentAgain() {
+    val live = LiveRental(rental.copy(status = RentalStatus.RETURNED), rentalRepository)
+    signInAsLender()
+    val vm = viewModel(rentals = live)
+    handoverRepository.confirmFailure = RuntimeException("reply lost")
+    val gate = CompletableDeferred<Unit>()
+    handoverRepository.gate = gate
+
+    vm.confirmItemFine()
+    live.live.value = rental.copy(status = RentalStatus.CLOSED) // the server closed it
+    gate.complete(Unit)
+    assertTrue(vm.uiState.value.checkFailed)
+    assertTrue(vm.uiState.value.isReturnCheck)
+    assertTrue(vm.uiState.value.canSendCheck)
+
+    handoverRepository.confirmFailure = null
+    vm.confirmItemFine()
+    assertEquals(ReturnCheck.ITEM_FINE, vm.uiState.value.checkSent)
+    assertTrue(vm.uiState.value.isReturnCheck)
+  }
+
+  @Test
+  fun aFlaggedDamageThatFailedBeforeTheRentalMovedOnStaysOnTheCheckAndCanBeSentAgain() {
+    val live = LiveRental(rental.copy(status = RentalStatus.RETURNED), rentalRepository)
+    signInAsLender()
+    val vm = viewModel(rentals = live)
+    disputeRepository.failure = RuntimeException("reply lost")
+
+    vm.flagDamage() // fails before the new status arrives, unlike Item is fine above
+    live.live.value = rental.copy(status = RentalStatus.DISPUTED) // the server opened it
+    assertTrue(vm.uiState.value.checkFailed)
+    assertTrue(vm.uiState.value.isReturnCheck)
+    assertTrue(vm.uiState.value.canSendCheck)
+
+    disputeRepository.failure = null
+    vm.flagDamage()
+    assertEquals(ReturnCheck.DAMAGE_FLAGGED, vm.uiState.value.checkSent)
+  }
+
+  @Test
   fun noAnswerIsSentOfflineByTheBorrowerOrTwice() {
     useStatus(RentalStatus.RETURNED)
     viewModel().confirmItemFine() // the borrower
