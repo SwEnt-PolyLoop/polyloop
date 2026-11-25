@@ -4,6 +4,7 @@ package com.swent.polyloop.ui.listingdetail
 
 import android.net.Uri
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -42,6 +43,7 @@ import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.wallet.FakeWalletRepository
 import com.swent.polyloop.model.wallet.Wallet
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.utils.FakePhotoServerRule
 import com.swent.polyloop.utils.FakePhotos
 import com.swent.polyloop.utils.waitUntilCenterIs
@@ -843,12 +845,10 @@ class ListingDetailScreenTest {
 
   @Test
   fun datesBookedMeanwhileThenNewDaysPickedSendsTheRequest() {
-    // ListingDetailScreen's picker uses the phone's date. Six days in one month, starting
-    // tomorrow, so the picker shows them all and a run past midnight still finds them selectable.
-    val first =
-        LocalDate.now().plusDays(1).let {
-          if (it.plusDays(5).month == it.month) it else it.plusMonths(1).withDayOfMonth(1)
-        }
+    // The picker and the ViewModel get the same fixed phone date. Six days in one month, starting
+    // tomorrow, so the picker shows them all.
+    val today = LocalDate.of(2026, 10, 1)
+    val first = today.plusDays(1)
     val window = listing.copy(availableFrom = first, availableTo = first.plusDays(5))
     // Someone books the first day while the user is picking: only the send reads it.
     val repository =
@@ -866,10 +866,17 @@ class ListingDetailScreenTest {
             FakeProfileRepository(),
             FakeConnectivityRepository(),
             FakeWalletRepository(wallet = Wallet(available = 489)),
+            today = { today },
         )
     val sent = mutableListOf<String>()
     composeTestRule.setContent {
-      ListingDetailScreen(viewModel = viewModel, onLenderClick = {}, onRequestSent = { sent += it })
+      CompositionLocalProvider(LocalToday provides today) {
+        ListingDetailScreen(
+            viewModel = viewModel,
+            onLenderClick = {},
+            onRequestSent = { sent += it },
+        )
+      }
     }
     waitForTag(C.Tag.listing_detail_request_button)
     composeTestRule.onNodeWithTag(C.Tag.listing_detail_request_button).performClick()

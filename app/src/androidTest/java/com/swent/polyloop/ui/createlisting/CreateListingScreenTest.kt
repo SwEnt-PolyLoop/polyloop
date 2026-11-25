@@ -383,7 +383,7 @@ class CreateListingScreenTest {
       viewModel.onCategoryChange(ListingCategory.SPORTS_OUTDOOR)
       viewModel.onPricePerDayChange("15")
       viewModel.onItemValueChange("180")
-      viewModel.selectDates(LocalDate.now().plusDays(1), LocalDate.now().plusDays(15))
+      viewModel.selectDates(LocalDate.of(2026, 10, 2), LocalDate.of(2026, 10, 16))
       viewModel.onPickupAddressChange("Route Cantonale 1, Ecublens")
       viewModel.onDropOffAddressChange("Avenue Piccard 2, Lausanne")
       repeat(Listing.MIN_PHOTOS) { viewModel.onPhotoTaken("file:///photo$it.jpg") }

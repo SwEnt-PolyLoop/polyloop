@@ -209,7 +209,8 @@ class ChatScreenTest {
 
   @Test
   fun theBarIsHiddenWhenTheServersDayIsUnknownEvenOnThePhonesPickupDay() {
-    val phoneToday = LocalDate.now()
+    // The phone's date, which the screen gets as today.
+    val phoneToday = today
     setContent(loaded.copy(pickupDate = phoneToday, serverToday = null))
     composeTestRule.onNodeWithTag(C.Tag.chat_pickup_bar).assertDoesNotExist()
 

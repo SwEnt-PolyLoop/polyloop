@@ -1030,11 +1030,14 @@ class PolyLoopAppTest {
 
   @Test
   fun aDoubleTapOnStartPickupOnRentalDetailOpensOneHandover() {
-    val today = LocalDate.now()
+    // Noon in Zurich on the pickup day, by the server's clock.
+    val pickupDay = LocalDate.of(2026, 10, 1)
     RepositoryProvider.rentalRepository =
         FakeRentalRepository(
-            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
-        )
+                rentals =
+                    listOf(rental.copy(startDate = pickupDay, endDate = pickupDay.plusDays(2)))
+            )
+            .also { it.serverNow = Instant.parse("2026-10-01T10:00:00Z") }
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {
