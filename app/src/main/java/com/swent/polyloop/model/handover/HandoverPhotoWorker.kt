@@ -29,7 +29,7 @@ import kotlinx.coroutines.tasks.await
  * Sends one condition photo saved by the upload queue, once the phone is online, even after the app
  * was closed: its file to Cloud Storage, then its document to Firestore, at the slot and with the
  * time chosen when it was taken. Sending it again is safe: a photo whose document exists is done,
- * and a file already in Storage is not uploaded twice.
+ * and a file it already uploaded (tagged with [TAKEN_AT]) is not uploaded twice.
  *
  * It succeeds once the document is written, asks to be retried when the connection failed or its
  * user is signed out, and fails with [REFUSED] in its output when the server refused the photo
@@ -62,8 +62,15 @@ class HandoverPhotoWorker(context: Context, params: WorkerParameters) :
     return try {
       if (!document.existsOnServer()) {
         val ref = RepositoryProvider.storage.reference.child("${document.path}.jpg")
-        if (!ref.exists()) {
-          ref.putFile(Uri.fromFile(file), storageMetadata { contentType = "image/jpeg" }).await()
+        // A file already there is reused only if an earlier run of this job uploaded it. Another
+        // one (e.g. a refused photo's) is not this photo: the rules refuse to replace it, so the
+        // photo ends refused instead of being saved with the wrong image.
+        if (ref.takenAtTag() != takenAt.toString()) {
+          val tagged = storageMetadata {
+            contentType = "image/jpeg"
+            setCustomMetadata(TAKEN_AT, takenAt.toString())
+          }
+          ref.putFile(Uri.fromFile(file), tagged).await()
         }
         val photo =
             mapOf(
@@ -104,13 +111,13 @@ class HandoverPhotoWorker(context: Context, params: WorkerParameters) :
 
   private suspend fun DocumentReference.existsOnServer() = get(Source.SERVER).await().exists()
 
-  private suspend fun StorageReference.exists(): Boolean =
+  /** The time the file was tagged with when it was uploaded, or null with no file or no tag. */
+  private suspend fun StorageReference.takenAtTag(): String? =
       try {
-        metadata.await()
-        true
+        metadata.await().getCustomMetadata(TAKEN_AT)
       } catch (e: StorageException) {
         if (e.errorCode != StorageException.ERROR_OBJECT_NOT_FOUND) throw e
-        false
+        null
       }
 
   private fun isRefusal(e: Exception) =

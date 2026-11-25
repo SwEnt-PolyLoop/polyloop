@@ -92,10 +92,7 @@ class HandoverPhotoWorkerTest {
   @Test
   fun sendingAgainAfterAStoppedRunIsSafe() = runBlocking {
     // An earlier run uploaded the file and was stopped before writing the document.
-    Firebase.storage.reference
-        .child("${document.path}.jpg")
-        .putBytes(BYTES, storageMetadata { contentType = "image/jpeg" })
-        .await()
+    upload(tag = takenAt.toString())
 
     assertEquals(Result.success(), runWorker())
     // Run once more, as WorkManager may: the photo is already there.
@@ -113,6 +110,24 @@ class HandoverPhotoWorkerTest {
     assertFalse(file.exists())
     // Its file is gone: nothing left to send.
     assertEquals(refused, runWorker())
+  }
+
+  @Test
+  fun aFileLeftAtTheSlotByAnotherPhotoIsNeverSavedAsThisOne() = runBlocking {
+    // E.g. a photo whose document the rules refused (too late): its file stays in Storage.
+    upload(tag = (takenAt - 86_400_000).toString())
+
+    assertEquals(Result.failure(workDataOf(HandoverPhotoWorker.REFUSED to true)), runWorker())
+    assertFalse(document.get(Source.SERVER).await().exists())
+  }
+
+  /** Puts a file at this photo's slot in Storage, tagged with the time [tag]. */
+  private suspend fun upload(tag: String) {
+    val metadata = storageMetadata {
+      contentType = "image/jpeg"
+      setCustomMetadata(HandoverPhotoWorker.TAKEN_AT, tag)
+    }
+    Firebase.storage.reference.child("${document.path}.jpg").putBytes(BYTES, metadata).await()
   }
 
   @Test
