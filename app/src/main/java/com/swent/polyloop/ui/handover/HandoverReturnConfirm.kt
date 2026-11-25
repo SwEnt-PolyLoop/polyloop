@@ -63,7 +63,7 @@ internal fun ReturnCheckContent(
     onFlagDamage: () -> Unit,
 ) {
   ReturnedScaffold(uiState, Modifier.testTag(C.Tag.handover_return_check)) {
-    ReturnScannedCard()
+    ReturnScannedCard(uiState)
     BeforeAfterCard(uiState, zone, onPhotoClick, onRetryPhotos)
     CheckButtons(uiState, onItemFine, onFlagDamage)
   }
@@ -91,7 +91,10 @@ internal fun WaitingForCheckContent(uiState: HandoverUiState) {
   }
 }
 
-/** The header and [content] scrolling over the deposit footer pinned at the bottom. */
+/**
+ * The header and [content] scrolling over the deposit footer pinned at the bottom, which says the
+ * deposit was given back once the lender's "Item is fine" was sent.
+ */
 @Composable
 private fun ReturnedScaffold(
     uiState: HandoverUiState,
@@ -110,16 +113,22 @@ private fun ReturnedScaffold(
       HandoverHeader(uiState)
       content()
     }
-    DepositFooter(uiState.deposit, uiState.depositHeld, uiState.isLender)
+    DepositFooter(
+        uiState.deposit,
+        uiState.depositHeld,
+        uiState.isLender,
+        givenBack = uiState.checkSent == ReturnCheck.ITEM_FINE,
+    )
   }
 }
 
 /**
- * A green check with "Return scanned" and "The deposit stays held until you decide.". The time of
- * the scan is not shown until rentals store it.
+ * A green check with "Return scanned" and "The deposit stays held until you decide.", or, once the
+ * lender's "Item is fine" was sent, that the deposit went back to the borrower. The time of the
+ * scan is not shown until rentals store it.
  */
 @Composable
-private fun ReturnScannedCard() {
+private fun ReturnScannedCard(uiState: HandoverUiState) {
   HandoverCard {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -144,7 +153,15 @@ private fun ReturnScannedCard() {
             modifier = Modifier.testTag(C.Tag.handover_return_scanned),
         )
         Text(
-            text = stringResource(R.string.handover_deposit_stays_held),
+            text =
+                when {
+                  uiState.checkSent != ReturnCheck.ITEM_FINE ->
+                      stringResource(R.string.handover_deposit_stays_held)
+                  uiState.otherPersonName.isBlank() ->
+                      stringResource(R.string.handover_deposit_went_back_no_name)
+                  else ->
+                      stringResource(R.string.handover_deposit_went_back, uiState.otherPersonName)
+                },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
