@@ -14,7 +14,16 @@ import {
   requireParties,
   requirePerson,
 } from "./rentalRules";
-import { DepositSettlement, readDepositSettlement, writeDepositSettlement } from "./wallet";
+import {
+  DepositSettlement,
+  Wallet,
+  readDepositSettlement,
+  readPriceRelease,
+  readWallet,
+  releasePrice,
+  writeDepositSettlement,
+  writePriceRelease,
+} from "./wallet";
 
 /** The status of a cancelled rental. */
 export const CANCELLED = "CANCELLED";
@@ -42,10 +51,12 @@ interface AcceptedReads {
  * message "Cancelled", seen by the caller. An accepted rental also gets back what its acceptance set
  * up: its days leave the listing's `bookedRanges`, both handover codes and their fingerprints are
  * deleted, and the deposit goes back to the borrower through `writeDepositSettlement`
- * (`DEPOSIT_RELEASED`), only if it was held (`deposit_held_<rentalId>` exists). The checks run in
- * this order: the rental exists, the caller is a participant, then, if it is already cancelled, the
- * call succeeds and changes nothing; otherwise it is REQUESTED (at any time) or ACCEPTED until the
- * day before its first day, in Zurich at [now].
+ * (`DEPOSIT_RELEASED`), only if it was held (`deposit_held_<rentalId>` exists). Requested or
+ * accepted, the rental price held since the request goes back to the borrower too
+ * (`writePriceRelease`, row `rental_price_released_<rentalId>`), only if it was held and not given
+ * back yet. The checks run in this order: the rental exists, the caller is a participant, then, if
+ * it is already cancelled, the call succeeds and changes nothing; otherwise it is REQUESTED (at any
+ * time) or ACCEPTED until the day before its first day, in Zurich at [now].
  *
  * @param db the Firestore database.
  * @param callerId the participant cancelling.
@@ -54,8 +65,9 @@ interface AcceptedReads {
  * @throws RequestError `not-found`; `permission-denied` (not a participant); `failed-precondition`
  *   with the reason `RENTAL_CHANGED` (neither REQUESTED nor ACCEPTED) or `TOO_LATE` (an accepted
  *   rental on or after its first day); `internal` for an accepted rental with no valid dates,
- *   listing, parties or deposit, or, from `writeDepositSettlement`, a held deposit that the
- *   borrower's `heldAsDeposits` does not cover. Nothing is written then.
+ *   listing, parties or deposit, a held deposit that the borrower's `heldAsDeposits` does not cover
+ *   (`writeDepositSettlement`), or a held price that their `heldForRentals` does not cover
+ *   (`releasePrice`). Nothing is written then.
  */
 export async function cancelInTransaction(
   db: Firestore,
@@ -80,11 +92,21 @@ export async function cancelInTransaction(
         reason: RENTAL_CHANGED,
       });
     }
-    // A request holds no money and blocks no day, so it can be withdrawn at any time, even on or
-    // after its first day. An accepted rental is locked from its first day: the 1-day buffer before
-    // it is what gives the lender time to cancel it if the previous rental went wrong.
+    // A request blocks no day, so it can be withdrawn at any time, even on or after its first day
+    // (its held price goes back below). An accepted rental is locked from its first day: the 1-day
+    // buffer before it gives the lender time to cancel it if the previous rental went wrong.
     const accepted =
       rental.status === ACCEPTED ? await readAccepted(tx, db, rentalId, rental, now) : null;
+    const release = await readPriceRelease(tx, db, rentalId, rental);
+    // The borrower's balances once the price is back. An accepted rental's deposit is settled on
+    // these same balances below, so both moves land in the wallet.
+    let releasedWallet: Wallet | null = null;
+    if (release) {
+      const before = accepted
+        ? accepted.settlement.borrower
+        : await readWallet(tx, db, release.borrowerId);
+      releasedWallet = releasePrice(before, release);
+    }
 
     tx.delete(rentalRef.collection("private").doc("addresses"));
     writeWithSystemMessage(
@@ -103,6 +125,7 @@ export async function cancelInTransaction(
       },
       callerId,
     );
+    if (release && releasedWallet) writePriceRelease(tx, db, release, releasedWallet);
     if (!accepted) return;
     // Both handover codes are made at acceptance, so a cancel removes both.
     tx.delete(rentalRef.collection(HANDOVER_CODES).doc("PICKUP"));
@@ -118,7 +141,10 @@ export async function cancelInTransaction(
       });
     }
     // Before pickup no late fee exists yet, so the whole deposit goes back.
-    writeDepositSettlement(tx, db, accepted.parties, rentalId, rental, accepted.settlement, {
+    const settlement = releasedWallet
+      ? { ...accepted.settlement, borrower: releasedWallet }
+      : accepted.settlement;
+    writeDepositSettlement(tx, db, accepted.parties, rentalId, rental, settlement, {
       kind: "release",
     });
   });
