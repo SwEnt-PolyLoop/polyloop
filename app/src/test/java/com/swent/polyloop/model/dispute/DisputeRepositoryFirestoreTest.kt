@@ -75,9 +75,9 @@ class DisputeRepositoryFirestoreTest {
   }
 
   @Test
-  fun openDisputeFailsWithoutCallingAnythingUntilItsFunctionExists() = runTest {
-    assertTrue(repository.openDispute("r1").exceptionOrNull() is UnsupportedOperationException)
-    verify(exactly = 0) { functions.getHttpsCallable(any()) }
+  fun openDisputeSendsTheRentalId() = runTest {
+    assertTrue(repository.openDispute("r1").isSuccess)
+    assertCalled("openDispute", mapOf("rentalId" to "r1"))
   }
 
   /** Makes the next call refused with [code] and [details], as an HttpsError from a Function. */
@@ -110,6 +110,8 @@ class DisputeRepositoryFirestoreTest {
         listOf(
             refusedWith(details = null),
             refusedWith(mapOf("reason" to "SOMETHING_ELSE")),
+            // A rental no longer Returned (openDispute) is a plain failure, read by no screen.
+            refusedWith(mapOf("reason" to "RENTAL_CHANGED")),
             refusedWith(
                 mapOf("reason" to "STAGE_CHANGED"),
                 code = FirebaseFunctionsException.Code.PERMISSION_DENIED,
@@ -119,6 +121,7 @@ class DisputeRepositoryFirestoreTest {
     refusals.forEach { refusal ->
       every { callable.call(any()) } returns Tasks.forException(refusal)
       assertSame(refusal, repository.propose("r1", 40).exceptionOrNull())
+      assertSame(refusal, repository.openDispute("r1").exceptionOrNull())
     }
   }
 

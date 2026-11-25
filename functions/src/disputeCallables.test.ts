@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
-import { acceptSplit, escalateDispute, proposeSplit } from "./index";
+import { acceptSplit, escalateDispute, openDispute, proposeSplit } from "./index";
 
 // Firebase loads this ES module to verify tokens, which Jest cannot load; `run` skips that step.
 jest.mock("jose", () => ({}));
@@ -60,7 +60,7 @@ async function dispute(id: string) {
 
 describe("deployment", () => {
   it("exposes every dispute callable to the app, in the app's region", () => {
-    for (const fn of [proposeSplit, acceptSplit, escalateDispute]) {
+    for (const fn of [proposeSplit, acceptSplit, escalateDispute, openDispute]) {
       expect(fn.__endpoint.region).toEqual(["europe-west1"]);
       expect(fn.__endpoint.callableTrigger).toBeDefined();
     }
@@ -99,6 +99,9 @@ describe("what can be sent", () => {
     await expect(escalateDispute.run(asUser(LENDER, {}))).rejects.toMatchObject({
       code: "invalid-argument",
     });
+    await expect(openDispute.run(asUser(LENDER, {}))).rejects.toMatchObject({
+      code: "invalid-argument",
+    });
     expect((await dispute(id))?.stage).toBe("SETTLE");
   });
 
@@ -113,6 +116,24 @@ describe("what can be sent", () => {
       code: "failed-precondition",
       details: { reason: "STAGE_CHANGED" },
     });
+  });
+});
+
+describe("openDispute", () => {
+  it("opens the dispute for its verified lender, and returns nothing", async () => {
+    const id = randomUUID();
+    await db.collection("rentals").doc(id).set({
+      ownerId: LENDER,
+      borrowerId: BORROWER,
+      status: "RETURNED",
+    });
+
+    await expect(
+      openDispute.run(asUser(LENDER, { rentalId: id }, undefined, false)),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(await dispute(id)).toBeUndefined();
+    expect(await openDispute.run(asUser(LENDER, { rentalId: id }))).toEqual({});
+    expect((await dispute(id))?.stage).toBe("SETTLE");
   });
 });
 

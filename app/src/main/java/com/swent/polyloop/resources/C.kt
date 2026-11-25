@@ -352,7 +352,6 @@ object C {
     const val handover_item_fine_button = "handover_item_fine_button"
     const val handover_flag_damage_button = "handover_flag_damage_button"
     const val handover_item_fine_not_available = "handover_item_fine_not_available"
-    const val handover_flag_damage_not_available = "handover_flag_damage_not_available"
     const val handover_check_progress = "handover_check_progress"
     const val handover_check_error = "handover_check_error"
     const val handover_check_sent = "handover_check_sent"

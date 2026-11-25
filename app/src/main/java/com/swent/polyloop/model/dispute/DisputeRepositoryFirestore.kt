@@ -21,7 +21,8 @@ import kotlinx.coroutines.flow.map
  * [DisputeRepository] backed by Firestore: one document per dispute at `disputes/{rentalId}` (see
  * "Firestore schema" in docs/ARCHITECTURE.md). The app only reads it; proposals, agreements and
  * escalations go through the Cloud Functions `proposeSplit`, `acceptSplit` and `escalateDispute`,
- * which act as the signed-in user and are the only writers of disputes.
+ * and opening one through `openDispute`, which act as the signed-in user and are the only writers
+ * of disputes.
  *
  * @param db the Firestore database.
  * @param functions gives the Cloud Functions client. A provider, not an instance, so that Firebase
@@ -59,9 +60,8 @@ class DisputeRepositoryFirestore(
   override suspend fun escalate(rentalId: String): Result<Unit> =
       callFunction("escalateDispute", mapOf("rentalId" to rentalId))
 
-  /** Always fails for now: the Cloud Function that opens a dispute does not exist yet. */
   override suspend fun openDispute(rentalId: String): Result<Unit> =
-      Result.failure(UnsupportedOperationException("Opening a dispute is not available yet"))
+      callFunction("openDispute", mapOf("rentalId" to rentalId))
 
   /**
    * Calls the Cloud Function [name] with [data]. A refusal or a lost connection is a failure; a

@@ -178,9 +178,9 @@ class FakeDisputeRepositoryTest {
   }
 
   @Test
-  fun openDisputeFailsWhenTheRentalHasOneOrNobodyIsSignedIn() = runTest {
+  fun openDisputeKeepsAnOpenDisputeAndFailsWhenNobodyIsSignedIn() = runTest {
     val repository = repository()
-    assertTrue(repository.openDispute("rental").isFailure)
+    assertTrue(repository.openDispute("rental").isSuccess)
     assertEquals(open, repository.current())
 
     uid = null
