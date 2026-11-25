@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.dispute.DisputeStage
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
@@ -85,7 +86,7 @@ fun DisputeScreen(viewModel: DisputeViewModel) {
 fun DisputeContent(
     uiState: DisputeUiState,
     actions: DisputeActions,
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
 ) {
   Column(
       modifier =

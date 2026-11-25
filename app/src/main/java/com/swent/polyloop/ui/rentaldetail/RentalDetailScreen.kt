@@ -59,6 +59,7 @@ import com.swent.polyloop.model.location.MapPoint
 import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.components.PickupMap
 import com.swent.polyloop.ui.components.RatingLine
 import com.swent.polyloop.ui.components.badgeColors
@@ -77,9 +78,10 @@ import java.util.Locale
  * The Rental detail screen, showing the rental loaded by [viewModel]. [onChatClick] opens the
  * rental's chat, [onPersonClick] the other person's profile, [onStartPickupClick] the pickup
  * (Handover) of an accepted rental, [onStartReturnClick] the return (Handover) of an active one,
- * [onViewDisputeClick] the dispute of a disputed one and [onReviewRequestClick] Review request, for
- * the lender of a request with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel].
- * The app's top bar is drawn by the navigation scaffold, not here.
+ * [onViewDisputeClick] the dispute of a disputed one, [onCheckItemClick] the lender's return check
+ * (Handover) of a returned one, and [onReviewRequestClick] Review request, for the lender of a
+ * request with no offer. Confirming a cancel calls [RentalDetailViewModel.cancel]. The app's top
+ * bar is drawn by the navigation scaffold, not here.
  */
 @Composable
 fun RentalDetailScreen(
@@ -89,6 +91,7 @@ fun RentalDetailScreen(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
+    onCheckItemClick: () -> Unit,
     onReviewRequestClick: () -> Unit = {},
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -105,6 +108,7 @@ fun RentalDetailScreen(
       onStartPickupClick = onStartPickupClick,
       onStartReturnClick = onStartReturnClick,
       onViewDisputeClick = onViewDisputeClick,
+      onCheckItemClick = onCheckItemClick,
       onCancelClick = viewModel::cancel,
       onReviewRequestClick = onReviewRequestClick,
   )
@@ -112,18 +116,20 @@ fun RentalDetailScreen(
 
 /**
  * Stateless Rental detail content: a loading indicator, an error with a Retry button, a not-found
- * message, a placeholder for a status not built yet, or the Requested, Accepted, Active, Disputed
- * or Cancelled rental, depending on [uiState]. An Accepted rental has "Start Pickup"
- * ([onStartPickupClick]) pinned at the bottom, an Active one "Start Return" ([onStartReturnClick])
- * and a Disputed one "View Dispute" ([onViewDisputeClick]); a request with no offer has "Review
- * request" ([onReviewRequestClick]) for its lender. A Cancelled rental has only its status, its
- * details and the person card: no stage strip, meeting point, cancel row or bottom button. A
- * Requested or Accepted rental has a cancel row (see [CancelRow]) whose button opens a confirm
- * sheet; "Yes" there calls [onCancelClick]. [today] and [zone] decide how dates are written (e.g.
- * whether the year is shown, and the day of a cancel date); tests pass fixed values so their
- * expected texts do not depend on the day they run. [today] is the phone's date, so it is only used
- * to write dates: Start Pickup, Start Return and the cancel window of an accepted rental go by
- * [RentalDetailUiState.serverToday] instead, and stay grey while
+ * message, a placeholder for a status not built yet, or the Requested, Accepted, Active, Returned,
+ * Disputed, Cancelled or Declined rental, depending on [uiState]. An Accepted rental has "Start
+ * Pickup" ([onStartPickupClick]) pinned at the bottom, an Active one "Start Return"
+ * ([onStartReturnClick]) and a Disputed one "View Dispute" ([onViewDisputeClick]); a request with
+ * no offer has "Review request" ([onReviewRequestClick]) for its lender. A Returned rental has its
+ * stage strip, status, details, the person card and, for the lender only, "Check the item"
+ * ([onCheckItemClick]), with no meeting point or cancel row. A Cancelled or Declined rental has
+ * only its status, its details and the person card: no stage strip, meeting point, cancel row or
+ * bottom button. A Requested or Accepted rental has a cancel row (see [CancelRow]) whose button
+ * opens a confirm sheet; "Yes" there calls [onCancelClick]. [today] and [zone] decide how dates are
+ * written (e.g. whether the year is shown, and the day of a cancel or return date); tests pass
+ * fixed values so their expected texts do not depend on the day they run. [today] is the phone's
+ * date, so it is only used to write dates: Start Pickup, Start Return and the cancel window of an
+ * accepted rental go by [RentalDetailUiState.serverToday] instead, and stay grey while
  * [RentalDetailUiState.isReadingServerToday]. A request has no cancel window. [locale] decides the
  * language of the month and weekday names; tests pass a fixed one so their expected dates do not
  * depend on the device's language.
@@ -137,10 +143,11 @@ fun RentalDetailContent(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
+    onCheckItemClick: () -> Unit,
     onCancelClick: () -> Unit,
     modifier: Modifier = Modifier,
     onReviewRequestClick: () -> Unit = {},
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
     zone: ZoneId = ZoneId.systemDefault(),
     locale: Locale = LocalConfiguration.current.locales[0],
 ) {
@@ -190,8 +197,10 @@ fun RentalDetailContent(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
           RentalTitle(title = uiState.itemTitle)
-          // A cancelled rental never started, so it has no stage to show.
-          if (uiState.status != RentalStatus.CANCELLED) StageStrip(status = uiState.status)
+          // A cancelled or declined rental never started, so it has no stage to show.
+          if (uiState.status != RentalStatus.CANCELLED && uiState.status != RentalStatus.DECLINED) {
+            StageStrip(status = uiState.status)
+          }
           StatusCard(uiState = uiState, today = today, zone = zone, locale = locale)
           DetailsCard(uiState = uiState, today = today, locale = locale)
           uiState.otherPerson?.let { person ->
@@ -202,10 +211,12 @@ fun RentalDetailContent(
             )
           }
           when (uiState.status) {
-            // A disputed rental shows no meeting point: the item is already back. Nor does a
-            // cancelled one, where nobody meets any more.
+            // A returned or disputed rental shows no meeting point: the item is already back. Nor
+            // does a cancelled or declined one, where nobody meets any more.
+            RentalStatus.RETURNED,
             RentalStatus.DISPUTED,
-            RentalStatus.CANCELLED -> Unit
+            RentalStatus.CANCELLED,
+            RentalStatus.DECLINED -> Unit
             RentalStatus.ACCEPTED ->
                 PickupPoint(
                     label = stringResource(R.string.rental_detail_pickup_point_label),
@@ -267,6 +278,7 @@ fun RentalDetailContent(
             onStartPickupClick = onStartPickupClick,
             onStartReturnClick = onStartReturnClick,
             onViewDisputeClick = onViewDisputeClick,
+            onCheckItemClick = onCheckItemClick,
             onReviewRequestClick = onReviewRequestClick,
         )
         if (isCancelSheetOpen && uiState.canCancel) {
@@ -285,7 +297,8 @@ fun RentalDetailContent(
 
 /**
  * The main action at the bottom of the screen, for both roles: "Start Pickup" once accepted, "Start
- * Return" once active, "View Dispute" once disputed, and, for the lender of a request with no
+ * Return" once active, "Check the item" once returned, for the lender only ([onCheckItemClick];
+ * nothing for the borrower), "View Dispute" once disputed, and, for the lender of a request with no
  * offer, "Review request"; nothing otherwise for a request. Start Pickup opens on the pickup day
  * and Start Return on the return day, both by the server's date (see [ServerDayButton]); before
  * that day, the day it opens is written in [locale].
@@ -298,6 +311,7 @@ private fun ActionBar(
     onStartPickupClick: () -> Unit,
     onStartReturnClick: () -> Unit,
     onViewDisputeClick: () -> Unit,
+    onCheckItemClick: () -> Unit,
     onReviewRequestClick: () -> Unit,
 ) {
   val start = uiState.startDate
@@ -347,6 +361,20 @@ private fun ActionBar(
               enabled = true,
               onClick = onViewDisputeClick,
           )
+        }
+    RentalStatus.RETURNED ->
+        // The lender's check ("Item is fine" / "Flag damage") lives on Handover, and nothing else
+        // leads back to it once the rental is Returned. The borrower has nothing to do until the
+        // lender answers. Never disabled, offline included, as Handover shows its own offline
+        // state.
+        if (uiState.isLender) {
+          ActionBarSurface {
+            ActionButton(
+                text = stringResource(R.string.rental_detail_check_item),
+                enabled = true,
+                onClick = onCheckItemClick,
+            )
+          }
         }
     RentalStatus.REQUESTED ->
         if (uiState.canReviewRequest) {
@@ -432,8 +460,9 @@ private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 /**
  * The stages after the request, one bar each; the reached ones are red and the current one has a
  * bold label. A Requested rental has reached none of them, so all four stay grey; an Accepted one
- * has reached the first, an Active one the first two, up to In use, and a Disputed one the first
- * three, up to Returned. A Cancelled rental never started, so the screen does not draw it.
+ * has reached the first, an Active one the first two, up to In use, and a Returned or Disputed one
+ * the first three, up to Returned. A Cancelled or Declined rental never started, so the screen does
+ * not draw it.
  */
 @Composable
 private fun StageStrip(status: RentalStatus?) {
@@ -448,6 +477,7 @@ private fun StageStrip(status: RentalStatus?) {
       when (status) {
         RentalStatus.ACCEPTED -> 1
         RentalStatus.ACTIVE -> 2
+        RentalStatus.RETURNED,
         RentalStatus.DISPUTED -> 3
         else -> 0
       }
@@ -493,9 +523,13 @@ private fun StageStrip(status: RentalStatus?) {
  * written in [locale], with its year only when it is not [today]'s year. While an offer waits for
  * an answer, the card says where it stands instead (Figma frame 13.10). Once accepted, it gives the
  * pickup day (Figma frame 13.01); once active, the return day (Figma frame 13.02-active). Once
- * disputed, it says that damage was flagged and the deposit stays held (Figma frame 13.09). Once
- * cancelled, it gives the cancel day and says that the rental price, and the deposit if there was
- * one, are given back, the same for both roles (Figma frame 13.07-cancelled).
+ * returned, it gives the return day, then asks the lender to check the item against their pickup
+ * photos (Figma frame 13.04b-returned-lender) and tells the borrower the item is being checked
+ * (Figma frame 13.04-returned). Once disputed, it says that damage was flagged and the deposit
+ * stays held (Figma frame 13.09). Once cancelled, it gives the cancel day and says that the rental
+ * price, and the deposit if there was one, are given back, the same for both roles (Figma frame
+ * 13.07-cancelled). Once declined, it says the request was declined and the rental price is given
+ * back, with no date, the same for both roles (Figma frame 13.06-declined).
  */
 @Composable
 private fun StatusCard(
@@ -528,6 +562,11 @@ private fun StatusCard(
           when {
             status == RentalStatus.ACCEPTED -> stringResource(R.string.rental_detail_accepted_body)
             status == RentalStatus.ACTIVE -> stringResource(R.string.rental_detail_active_body)
+            status == RentalStatus.RETURNED ->
+                stringResource(
+                    if (uiState.isLender) R.string.rental_detail_returned_body
+                    else R.string.rental_detail_returned_body_borrower
+                )
             status == RentalStatus.DISPUTED -> stringResource(R.string.rental_detail_disputed_body)
             // A rental cancelled while requested had no deposit yet; one cancelled once accepted
             // with a deposit of 0 (unknown) has none to show either, so the body leaves it out.
@@ -536,6 +575,10 @@ private fun StatusCard(
                     if (uiState.deposit > 0) R.string.rental_detail_cancelled_body
                     else R.string.rental_detail_cancelled_body_no_deposit
                 )
+            // Role-neutral and without naming who declined: the lender, the borrower (declining
+            // the offer), an expired offer or request, or another request accepted can each decline
+            // it, and the rental does not record which.
+            status == RentalStatus.DECLINED -> stringResource(R.string.rental_detail_declined_body)
             offer != null && uiState.isOfferExpired ->
                 stringResource(R.string.rental_detail_offer_body_expired, offer.amount)
             offer != null -> offerBody(offer, uiState.isOfferMine, zone, locale)
@@ -562,9 +605,11 @@ private fun StatusCard(
 
 /**
  * The headline of the status card: the cancel day once cancelled (read in [zone]), or "Cancelled"
- * alone when it is unknown; "Damage flagged" once disputed, the return day once active, the pickup
- * day once accepted, else where the offer stands. Days are written in [locale], with their year
- * only when it is not [today]'s year.
+ * alone when it is unknown; the day the item was given back once returned (read in [zone]), or
+ * "Returned" alone when it is unknown; "Request declined" once declined, with no date (the rental
+ * records none); "Damage flagged" once disputed, the return day once active, the pickup day once
+ * accepted, else where the offer stands. Days are written in [locale], with their year only when it
+ * is not [today]'s year.
  */
 @Composable
 private fun statusHeadline(
@@ -581,6 +626,19 @@ private fun statusHeadline(
         R.string.rental_detail_cancelled_headline,
         formatDay(cancelledDay, withYear = cancelledDay.year != today.year, locale = locale),
     )
+  }
+  if (uiState.status == RentalStatus.RETURNED) {
+    val returnedDay =
+        uiState.returnedAt?.atZone(zone)?.toLocalDate()
+            ?: return stringResource(R.string.rental_detail_returned_headline_no_date)
+    return stringResource(
+        R.string.rental_detail_returned_headline,
+        formatDay(returnedDay, withYear = returnedDay.year != today.year, locale = locale),
+    )
+  }
+  // Says only that the request was declined, not by whom, for the reason given on the body.
+  if (uiState.status == RentalStatus.DECLINED) {
+    return stringResource(R.string.rental_detail_declined_headline)
   }
   if (uiState.status == RentalStatus.DISPUTED) {
     return stringResource(R.string.rental_detail_disputed_headline)
@@ -636,18 +694,23 @@ private fun offerBody(offer: DepositOffer, isMine: Boolean, zone: ZoneId, locale
 /**
  * The dates, the return day, the reserved rental price, and the deposit held since acceptance
  * (Figma frame 13.01), the offer or the suggested deposit; a held deposit of 0 is unknown and shows
- * "—". A disputed rental shows the dates without the return day, the price as paid, the deposit as
- * held and the late fees, even when they are 0 (Figma frame 13.09). An active rental shows the
- * dates, the "Return by" day, the price as paid and the deposit as held, without late fees (Figma
- * frame 13.02-active). A cancelled rental shows the dates, the price as returned and the deposit as
- * released, with no deposit row when it is 0 (Figma frame 13.07-cancelled). The dates are written
- * in [locale].
+ * "—". A returned or disputed rental shows the dates without the return day, the price as paid, the
+ * deposit as held and the late fees, even when they are 0 (Figma frames 13.04-returned and 13.09).
+ * An active rental shows the dates, the "Return by" day, the price as paid and the deposit as held,
+ * without late fees (Figma frame 13.02-active). A cancelled or declined rental shows the dates, the
+ * price as returned and the deposit as released, with no deposit row when it is 0 (Figma frames
+ * 13.07-cancelled and 13.06-declined). The dates are written in [locale].
  */
 @Composable
 private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: Locale) {
-  val isDisputed = uiState.status == RentalStatus.DISPUTED
+  // Returned and Disputed show the same rows: the item is back with the lender and the deposit is
+  // still held.
+  val isHandedBack =
+      uiState.status == RentalStatus.RETURNED || uiState.status == RentalStatus.DISPUTED
   val isActive = uiState.status == RentalStatus.ACTIVE
-  val isCancelled = uiState.status == RentalStatus.CANCELLED
+  // Cancelled and Declined show the same rows: the rental ended before the item changed hands.
+  val endedBeforePickup =
+      uiState.status == RentalStatus.CANCELLED || uiState.status == RentalStatus.DECLINED
   OutlinedCard(modifier = Modifier.fillMaxWidth()) {
     Column(
         modifier = Modifier.padding(16.dp),
@@ -667,7 +730,7 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: 
             value = stringResource(R.string.listing_detail_date_range, from, to),
             valueTag = C.Tag.rental_detail_dates,
         )
-        if (!isDisputed && !isCancelled) {
+        if (!isHandedBack && !endedBeforePickup) {
           InfoRow(
               label =
                   stringResource(
@@ -684,8 +747,8 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: 
           value =
               stringResource(
                   when {
-                    isDisputed || isActive -> R.string.rental_detail_price_paid
-                    isCancelled -> R.string.rental_detail_price_returned
+                    isHandedBack || isActive -> R.string.rental_detail_price_paid
+                    endedBeforePickup -> R.string.rental_detail_price_returned
                     else -> R.string.rental_detail_price
                   },
                   uiState.rentalPrice,
@@ -694,15 +757,16 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: 
       )
       // A rental cancelled while requested had no deposit yet. Once accepted, 0 would mean unknown
       // ("—" above), but a cancelled rental has no deposit left to show either way, so the row
-      // goes.
-      if (isCancelled && uiState.deposit > 0) {
+      // goes. A declined rental never had its deposit held, so today it never shows the row; it is
+      // kept behind the same check because the row is shared with Cancelled.
+      if (endedBeforePickup && uiState.deposit > 0) {
         InfoRow(
             label = stringResource(R.string.rental_detail_accepted_deposit_label),
             value = stringResource(R.string.rental_detail_deposit_released, uiState.deposit),
             valueTag = C.Tag.rental_detail_accepted_deposit,
         )
       }
-      if (uiState.status == RentalStatus.ACCEPTED || isActive || isDisputed) {
+      if (uiState.status == RentalStatus.ACCEPTED || isActive || isHandedBack) {
         // An accepted deposit is at least 1, so 0 means it is unknown: "—", not "0 PP · held".
         InfoRow(
             label = stringResource(R.string.rental_detail_accepted_deposit_label),
@@ -715,7 +779,8 @@ private fun DetailsCard(uiState: RentalDetailUiState, today: LocalDate, locale: 
             valueTag = C.Tag.rental_detail_accepted_deposit,
         )
       }
-      if (isDisputed) {
+      // Shown even at 0, so both sides see that nothing was taken from the deposit for lateness.
+      if (isHandedBack) {
         InfoRow(
             label = stringResource(R.string.rental_detail_late_fees_label),
             value = stringResource(R.string.rental_detail_late_fees, uiState.lateFees),
@@ -971,9 +1036,9 @@ private fun CancelRow(
     if (cancelError != null) {
       // Always the generic text, never cancelError's message: it is a raw Firebase text the user
       // cannot act on. It does not say "Try again" either, as some refusals are final (e.g. an
-      // accepted rental whose pickup day has come by the server's clock). Once #429 sends a
-      // details.reason, the repository should read it and the screen show a matching message, as
-      // DisputeRepositoryFirestore does; not yet, as #429 does not define the reasons.
+      // accepted rental whose pickup day has come by the server's clock). #429 sends RENTAL_CHANGED
+      // and TOO_LATE in details.reason; the repository should read them and the screen show a
+      // matching message, as DisputeRepositoryFirestore does. The app does not read them yet.
       Text(
           text = stringResource(R.string.rental_detail_cancel_error_fallback),
           style = MaterialTheme.typography.bodySmall,
@@ -1142,6 +1207,7 @@ private fun RentalDetailContentPreview() {
           onStartPickupClick = {},
           onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCheckItemClick = {},
           onCancelClick = {},
           today = LocalDate.of(2026, 9, 28),
       )
@@ -1173,6 +1239,7 @@ private fun RentalDetailDisputedPreview() {
           onStartPickupClick = {},
           onStartReturnClick = {},
           onViewDisputeClick = {},
+          onCheckItemClick = {},
           onCancelClick = {},
           today = LocalDate.of(2026, 10, 12),
       )

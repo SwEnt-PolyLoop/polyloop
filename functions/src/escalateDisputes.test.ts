@@ -216,7 +216,7 @@ describe("an agreement racing the sweep", () => {
     expect((await ref.get()).get("stage")).toBe("SETTLE");
     expect((await db.doc(`rentals/${ref.id}`).get()).get("status")).toBe("CLOSED");
     expect(await messages(ref)).toEqual([
-      "Dispute settled · 20 PP to the lender, 20 PP back to the borrower",
+      "Dispute settled · 50% to the lender",
     ]);
   });
 });

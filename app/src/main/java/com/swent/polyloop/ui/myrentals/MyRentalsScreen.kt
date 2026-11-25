@@ -49,6 +49,7 @@ import com.swent.polyloop.model.rental.DepositOffer
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.ListingPhoto
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.components.badgeColors
 import com.swent.polyloop.ui.components.formatDay
 import com.swent.polyloop.ui.listingdetail.formatRangeEnds
@@ -94,7 +95,7 @@ fun MyRentalsContent(
     onRentalClick: (String) -> Unit,
     onRetry: () -> Unit,
     onReviewRequest: (String) -> Unit = {},
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
     onOpenChat: (String) -> Unit = {},
 ) {
   Column(
@@ -180,6 +181,7 @@ fun MyRentalsContent(
                     row = row,
                     offer = row.offer,
                     personLine = row.personLine(tab),
+                    today = today,
                     onOpenChat = { onOpenChat(row.rentalId) },
                     onClick = if (isBorrowing) ({ onRentalClick(row.rentalId) }) else null,
                 )
@@ -191,7 +193,11 @@ fun MyRentalsContent(
                     onClick = { onRentalClick(row.rentalId) },
                 )
               } else {
-                RequestCard(row = row, onReviewRequest = { onReviewRequest(row.rentalId) })
+                RequestCard(
+                    row = row,
+                    today = today,
+                    onReviewRequest = { onReviewRequest(row.rentalId) },
+                )
               }
             }
           }
@@ -231,8 +237,8 @@ private fun SectionHeader(@StringRes textRes: Int, testTag: String) {
  * button calling [onReviewRequest]. Only the button reacts: the card itself is not clickable.
  */
 @Composable
-private fun RequestCard(row: RentalRow, onReviewRequest: () -> Unit) {
-  val (from, to) = formatRangeEnds(row.startDate, row.returnDate)
+private fun RequestCard(row: RentalRow, today: LocalDate, onReviewRequest: () -> Unit) {
+  val (from, to) = formatRangeEnds(row.startDate, row.returnDate, today = today)
   OutlinedCard(
       modifier = Modifier.fillMaxWidth().testTag(C.Tag.my_rentals_request_ + row.rentalId),
   ) {
@@ -277,11 +283,12 @@ private fun OfferRequestCard(
     row: RentalRow,
     offer: DepositOffer,
     personLine: String,
+    today: LocalDate,
     onOpenChat: () -> Unit,
     onClick: (() -> Unit)?,
 ) {
   val locale = LocalConfiguration.current.locales[0]
-  val (from, to) = formatRangeEnds(row.startDate, row.returnDate)
+  val (from, to) = formatRangeEnds(row.startDate, row.returnDate, today = today)
   val expiry =
       formatDay(offer.expiresAt.atZone(ZoneId.systemDefault()).toLocalDate(), locale = locale)
   val badge =
@@ -442,7 +449,7 @@ private fun RentalRow.currentLine(today: LocalDate): String? {
   val date =
       when (status) {
         RentalStatus.REQUESTED -> {
-          val (from, to) = formatRangeEnds(startDate, returnDate)
+          val (from, to) = formatRangeEnds(startDate, returnDate, today = today)
           stringResource(R.string.my_rentals_date_range, from, to)
         }
         RentalStatus.ACCEPTED ->

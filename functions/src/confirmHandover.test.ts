@@ -3,7 +3,7 @@
 import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { confirmHandover } from "./index";
 import { zurichDay } from "./serverToday";
-import { asUser, fund, heldRental, people, wallet } from "./testing/walletFixtures";
+import { asUser, fund, heldRental, people, rental, wallet } from "./testing/walletFixtures";
 
 // Firebase loads this ES module to verify tokens, which Jest cannot load; `run` skips that step.
 jest.mock("jose", () => ({}));
@@ -49,6 +49,30 @@ describe("confirmHandover", () => {
     expect(await wallet(who.lender)).toMatchObject({ available: 15 });
   });
 
+  it("confirms the return the lender scanned", async () => {
+    const who = people();
+    const id = await rental(who, "ACTIVE", { endDate: zurichDay(new Date()) });
+    await db.doc(`rentals/${id}/handoverCodes/RETURN`).set({ code: CODE });
+
+    const result = await confirmHandover.run(
+      asUser(who.lender, { rentalId: id, phase: "RETURN", code: CODE }),
+    );
+
+    expect(result).toEqual({});
+    expect(await status(id)).toBe("RETURNED");
+  });
+
+  it("lets only the lender confirm a return", async () => {
+    const who = people();
+    const id = await rental(who, "ACTIVE", { endDate: zurichDay(new Date()) });
+    await db.doc(`rentals/${id}/handoverCodes/RETURN`).set({ code: CODE });
+
+    await expect(
+      confirmHandover.run(asUser(who.borrower, { rentalId: id, phase: "RETURN", code: CODE })),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(await status(id)).toBe("ACTIVE");
+  });
+
   it("gives the app the reason of a refusal it tells apart", async () => {
     const { who, id } = await readyToScan();
 
@@ -62,15 +86,16 @@ describe("confirmHandover", () => {
     ).rejects.toMatchObject({ code: "failed-precondition", details: { reason: "RENTAL_CHANGED" } });
   });
 
-  it("refuses an input that is not a pickup scan, changing nothing", async () => {
+  it("refuses an input that is not a handover scan, changing nothing", async () => {
     const { who, id } = await readyToScan();
     const inputs = [
       { phase: "PICKUP", code: CODE }, // no rentalId
       { rentalId: " ", phase: "PICKUP", code: CODE },
       { rentalId: id, code: CODE }, // no phase
-      { rentalId: id, phase: "RETURN", code: CODE }, // not yet
       { rentalId: id, phase: "pickup", code: CODE },
+      { rentalId: id, phase: "return", code: CODE },
       { rentalId: id, phase: "PICKUP" }, // no code
+      { rentalId: id, phase: "RETURN" }, // no code
       { rentalId: id, phase: "PICKUP", code: "" },
       { rentalId: id, phase: "PICKUP", code: 42 },
       { rentalId: id, phase: "PICKUP", code: "x".repeat(201) },

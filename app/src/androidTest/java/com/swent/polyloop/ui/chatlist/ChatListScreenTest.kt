@@ -24,6 +24,7 @@ import com.swent.polyloop.ui.myrentals.labelRes
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -36,6 +37,7 @@ class ChatListScreenTest {
 
   // The expected times are built with formatMessageTime too, so the tests pass in any time zone.
   private val now = Instant.parse("2026-10-13T12:00:00Z")
+  private val today = now.atZone(ZoneId.systemDefault()).toLocalDate()
 
   private val tent =
       ChatListRow("tent", "Ana", "Camping tent", "See you at 5?", now, RentalStatus.ACCEPTED)
@@ -59,7 +61,7 @@ class ChatListScreenTest {
             uiState = uiState,
             onConversationClick = { clicked = it },
             onRetry = { retries++ },
-            now = now,
+            today = today,
         )
       }
     }
@@ -124,7 +126,7 @@ class ChatListScreenTest {
             )
         )
     rowNode("tent", C.Tag.chat_list_row_message).assertTextEquals("See you at 5?")
-    rowNode("tent", C.Tag.chat_list_row_time).assertTextEquals(formatMessageTime(now, now))
+    rowNode("tent", C.Tag.chat_list_row_time).assertTextEquals(formatMessageTime(now, today))
   }
 
   @Test
@@ -136,7 +138,7 @@ class ChatListScreenTest {
     rowNode("drill", C.Tag.chat_list_row_message)
         .assertTextEquals(context.getString(R.string.chat_list_no_messages))
     rowNode("drill", C.Tag.chat_list_row_time)
-        .assertTextEquals(formatMessageTime(drill.lastMessageAt, now))
+        .assertTextEquals(formatMessageTime(drill.lastMessageAt, today))
   }
 
   @Test

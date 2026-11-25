@@ -41,6 +41,7 @@ import com.swent.polyloop.model.wallet.Wallet
 import com.swent.polyloop.model.wallet.WalletTransaction
 import com.swent.polyloop.model.wallet.WalletTransactionType
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.components.NotAvailableYet
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.components.formatDay
@@ -83,7 +84,7 @@ fun WalletContent(
     uiState: WalletUiState,
     onRetry: () -> Unit,
     onRecharge: () -> Unit,
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
 ) {
   Column(
       modifier =

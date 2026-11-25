@@ -66,6 +66,7 @@ class RentalDetailDisputedTest {
           onStartPickupClick = {},
           onStartReturnClick = {},
           onViewDisputeClick = { viewDisputeClicks++ },
+          onCheckItemClick = {},
           onCancelClick = {},
           today = LocalDate.of(2026, 10, 12),
           zone = ZoneOffset.UTC,

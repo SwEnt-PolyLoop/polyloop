@@ -134,6 +134,44 @@ class FakeRentalRepositoryTest {
   }
 
   @Test
+  fun setStatusWithAReturnDateSetsBoth() = runTest {
+    val repository = repository()
+    val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val returnedAt = Instant.parse("2026-10-08T16:40:00Z")
+
+    repository.setStatus(rental.id, RentalStatus.RETURNED, returnedAt = returnedAt)
+
+    assertEquals(
+        rental.copy(status = RentalStatus.RETURNED, returnedAt = returnedAt),
+        repository.getRental(rental.id).getOrThrow(),
+    )
+  }
+
+  @Test
+  fun setStatusWithoutAReturnDateKeepsTheOneStored() = runTest {
+    val repository = repository()
+    val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+    val returnedAt = Instant.parse("2026-10-08T16:40:00Z")
+    repository.setStatus(rental.id, RentalStatus.RETURNED, returnedAt = returnedAt)
+
+    repository.setStatus(rental.id, RentalStatus.CLOSED)
+
+    val stored = repository.getRental(rental.id).getOrThrow()
+    assertEquals(RentalStatus.CLOSED, stored?.status)
+    assertEquals(returnedAt, stored?.returnedAt)
+  }
+
+  @Test
+  fun setStatusWithoutAReturnDateLeavesItNull() = runTest {
+    val repository = repository()
+    val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()
+
+    repository.setStatus(rental.id, RentalStatus.ACTIVE)
+
+    assertNull(repository.getRental(rental.id).getOrThrow()?.returnedAt)
+  }
+
+  @Test
   fun removeLeavesItsFollowersWithNull() = runTest {
     val repository = repository()
     val rental = repository.requestRental(listing, "Vida", borrower, start, end).getOrThrow()

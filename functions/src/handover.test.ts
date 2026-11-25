@@ -2,7 +2,15 @@
 
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, getFirestore } from "firebase-admin/firestore";
-import { RENTAL_CHANGED, WRONG_CODE, confirmPickup } from "./handover";
+import { codeFingerprint } from "./handoverCode";
+import {
+  RENTAL_CHANGED,
+  ALREADY_RETURNED_STATUSES,
+  WRONG_CODE,
+  confirmPickup,
+  confirmReturn,
+  isReturnDay,
+} from "./handover";
 import { hasSeenLastMessage } from "./testing/readTimes";
 import {
   People,
@@ -57,15 +65,23 @@ async function accepted(who: People, fields: object = {}, held = true): Promise<
 const scan = (rentalId: string, code = CODE) => ({ rentalId, code });
 
 const rentalData = async (id: string) => (await db.doc(`rentals/${id}`).get()).data();
-const codeExists = async (id: string) =>
-  (await db.doc(`rentals/${id}/handoverCodes/PICKUP`).get()).exists;
+const codeOf = async (id: string, phase: string) =>
+  (await db.doc(`rentals/${id}/handoverCodes/${phase}`).get()).get("code");
+const codeExists = async (id: string, phase = "PICKUP") =>
+  (await db.doc(`rentals/${id}/handoverCodes/${phase}`).get()).exists;
 const messages = async (id: string) =>
   (await db.collection(`rentals/${id}/messages`).get()).docs.map((doc) => doc.data());
 
-/** Expects [id] untouched: still ACCEPTED, with its code, and no message. */
+/**
+ * Expects [id] untouched: still ACCEPTED, with its code, no message, and no return code made by
+ * the safety net (the rental from [accepted] has none).
+ */
 async function expectUnchanged(id: string): Promise<void> {
-  expect((await rentalData(id))?.status).toBe("ACCEPTED");
+  const data = await rentalData(id);
+  expect(data?.status).toBe("ACCEPTED");
+  expect(data?.returnCodeHash).toBeUndefined();
   expect(await codeExists(id)).toBe(true);
+  expect(await codeExists(id, "RETURN")).toBe(false);
   expect(await messages(id)).toEqual([]);
 }
 
@@ -102,6 +118,28 @@ describe("confirming the pickup", () => {
     await confirmPickup(db, who.borrower, scan(id), new Date("2026-11-30T23:30:00Z"));
 
     expect((await rentalData(id))?.status).toBe("ACTIVE");
+  });
+
+  it("makes the return code of a rental accepted before it existed", async () => {
+    const who = people();
+    const id = await accepted(who);
+
+    await confirmPickup(db, who.borrower, scan(id), NOW);
+
+    const code = await codeOf(id, "RETURN");
+    expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect((await rentalData(id))?.returnCodeHash).toBe(codeFingerprint(code));
+  });
+
+  it("keeps the return code made at acceptance", async () => {
+    const who = people();
+    const id = await accepted(who, { returnCodeHash: "return-fingerprint" });
+    await db.doc(`rentals/${id}/handoverCodes/RETURN`).set({ code: "return-code" });
+
+    await confirmPickup(db, who.borrower, scan(id), NOW);
+
+    expect(await codeOf(id, "RETURN")).toBe("return-code");
+    expect((await rentalData(id))?.returnCodeHash).toBe("return-fingerprint");
   });
 
   it("succeeds and changes nothing once the rental was picked up", async () => {
@@ -274,5 +312,218 @@ describe("refusing a pickup", () => {
     await expect(
       confirmPickup(db, "borrower-uid", scan("no-such-rental"), NOW),
     ).rejects.toMatchObject({ code: "not-found" });
+  });
+});
+
+// 10:00 in Zurich on the rental's last day, the first return day.
+const RETURN_NOW = new Date("2026-12-03T09:00:00Z");
+const LAST_DAY = "2026-12-03";
+const RETURN_CODE = "Rt7_w-1AbCdEfGhIjKlMnOpQrStUvWxYz9876543210";
+
+/**
+ * An ACTIVE rental whose last day is today, overridden by [fields], with its return code, and the
+ * borrower's 40 PP deposit held.
+ */
+async function out(who: People, fields: object = {}): Promise<string> {
+  await fund(who.borrower, { available: 60, heldAsDeposits: 40 });
+  const id = await newRental(who, "ACTIVE", {
+    startDate: PICKUP_DAY,
+    endDate: LAST_DAY,
+    returnCodeHash: "return-fingerprint",
+    ...fields,
+  });
+  await db.doc(`rentals/${id}/handoverCodes/RETURN`).set({ code: RETURN_CODE });
+  return id;
+}
+
+const returnScan = (rentalId: string, code = RETURN_CODE) => ({ rentalId, code });
+
+/** Expects [id] untouched: still [status], with its return code, and no message. */
+async function expectNotReturned(id: string, status = "ACTIVE"): Promise<void> {
+  const data = await rentalData(id);
+  expect(data?.status).toBe(status);
+  expect(data?.returnedAt).toBeUndefined();
+  expect(data?.returnCodeHash).toBe("return-fingerprint");
+  expect(await codeExists(id, "RETURN")).toBe(true);
+  expect(await messages(id)).toEqual([]);
+}
+
+describe("confirming the return", () => {
+  it("makes the rental returned, says so in the chat and uses the code up", async () => {
+    const who = people();
+    const id = await out(who);
+
+    await confirmReturn(db, who.lender, returnScan(id), RETURN_NOW);
+
+    const data = await rentalData(id);
+    expect(data?.status).toBe("RETURNED");
+    expect(data?.returnedAt.toMillis()).toBeGreaterThan(0);
+    expect(data?.returnCodeHash).toBeUndefined();
+    expect(data?.lastMessage).toBe("Returned · waiting for the lender's check");
+    expect(await codeExists(id, "RETURN")).toBe(false);
+    expect(await messages(id)).toEqual([
+      expect.objectContaining({
+        text: "Returned · waiting for the lender's check",
+        type: "SYSTEM",
+        senderId: "",
+      }),
+    ]);
+    // The lender scanned: no red dot for them; the borrower has news.
+    expect(hasSeenLastMessage(data, who.lender)).toBe(true);
+    expect(hasSeenLastMessage(data, who.borrower)).toBe(false);
+  });
+
+  it("moves no money: the deposit stays held for the lender's check", async () => {
+    const who = people();
+    const id = await out(who);
+
+    await confirmReturn(db, who.lender, returnScan(id), RETURN_NOW);
+
+    expect(await wallet(who.borrower)).toEqual({ available: 60, heldAsDeposits: 40 });
+    expect(await wallet(who.lender)).toBeUndefined();
+  });
+
+  it("takes back a late item, on a later day", async () => {
+    const who = people();
+    for (const status of ["ACTIVE", "OVERDUE"]) {
+      const id = await out(who, { status });
+
+      await confirmReturn(db, who.lender, returnScan(id), new Date("2026-12-05T12:00:00Z"));
+
+      expect((await rentalData(id))?.status).toBe("RETURNED");
+    }
+  });
+
+  it("is on the last day in Zurich, even when it is still the day before in UTC", async () => {
+    const who = people();
+    const id = await out(who);
+
+    // 00:30 in Zurich on 3 December is 23:30 UTC on 2 December.
+    await confirmReturn(db, who.lender, returnScan(id), new Date("2026-12-02T23:30:00Z"));
+
+    expect((await rentalData(id))?.status).toBe("RETURNED");
+  });
+
+  it("succeeds and changes nothing once the rental was returned", async () => {
+    const who = people();
+    for (const status of ALREADY_RETURNED_STATUSES) {
+      const id = await newRental(who, status, { endDate: LAST_DAY });
+
+      // Even with no code left, or a wrong one: the return already happened.
+      await confirmReturn(db, who.lender, returnScan(id, "anything"), RETURN_NOW);
+
+      expect((await rentalData(id))?.status).toBe(status);
+      expect(await messages(id)).toEqual([]);
+    }
+  });
+
+  it("confirms once when the same scan is sent again", async () => {
+    const who = people();
+    const id = await out(who);
+
+    await confirmReturn(db, who.lender, returnScan(id), RETURN_NOW);
+    await confirmReturn(db, who.lender, returnScan(id), RETURN_NOW);
+
+    expect((await rentalData(id))?.status).toBe("RETURNED");
+    expect(await messages(id)).toHaveLength(1);
+  });
+
+  it("confirms once when two scans arrive at the same time", async () => {
+    const who = people();
+    const id = await out(who);
+
+    await Promise.all([
+      confirmReturn(db, who.lender, returnScan(id), RETURN_NOW),
+      confirmReturn(db, who.lender, returnScan(id), RETURN_NOW),
+    ]);
+
+    expect((await rentalData(id))?.status).toBe("RETURNED");
+    expect(await messages(id)).toHaveLength(1);
+  }, 15000);
+});
+
+describe("refusing a return", () => {
+  it("refuses a wrong code with WRONG_CODE, changing nothing", async () => {
+    const who = people();
+    const id = await out(who);
+
+    for (const code of ["wrong", CODE, RETURN_CODE.slice(1), `${RETURN_CODE} `]) {
+      await expect(
+        confirmReturn(db, who.lender, returnScan(id, code), RETURN_NOW),
+      ).rejects.toMatchObject({ code: "failed-precondition", details: { reason: WRONG_CODE } });
+    }
+    await expectNotReturned(id);
+  });
+
+  it("refuses any code when the rental has none", async () => {
+    const who = people();
+    const id = await out(who);
+    await db.doc(`rentals/${id}/handoverCodes/RETURN`).delete();
+
+    await expect(
+      confirmReturn(db, who.lender, returnScan(id), RETURN_NOW),
+    ).rejects.toMatchObject({ details: { reason: WRONG_CODE } });
+    expect((await rentalData(id))?.status).toBe("ACTIVE");
+  });
+
+  it("refuses a rental that is not out with RENTAL_CHANGED", async () => {
+    const who = people();
+    for (const status of ["ACCEPTED", "LOST", "CANCELLED"]) {
+      const id = await out(who, { status });
+
+      await expect(
+        confirmReturn(db, who.lender, returnScan(id), RETURN_NOW),
+      ).rejects.toMatchObject({ code: "failed-precondition", details: { reason: RENTAL_CHANGED } });
+      await expectNotReturned(id, status);
+    }
+  });
+
+  it("refuses a scan before the last day, with no reason", async () => {
+    const who = people();
+    const id = await out(who);
+
+    // 23:30 in Zurich on 2 December, the day before the last one.
+    const error = await confirmReturn(
+      db,
+      who.lender,
+      returnScan(id),
+      new Date("2026-12-02T22:30:00Z"),
+    ).catch((e) => e);
+
+    expect(error).toMatchObject({ code: "failed-precondition" });
+    expect(error.details).toBeUndefined();
+    await expectNotReturned(id);
+  });
+
+  it("lets only the lender confirm, not the borrower or a stranger", async () => {
+    const who = people();
+    const id = await out(who);
+
+    for (const caller of [who.borrower, "stranger-uid"]) {
+      await expect(
+        confirmReturn(db, caller, returnScan(id), RETURN_NOW),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+    }
+    await expectNotReturned(id);
+  });
+
+  it("refuses a rental that does not exist", async () => {
+    await expect(
+      confirmReturn(db, "lender-uid", returnScan("no-such-rental"), RETURN_NOW),
+    ).rejects.toMatchObject({ code: "not-found" });
+  });
+});
+
+describe("isReturnDay", () => {
+  it("is the last day and every day after it", () => {
+    expect(isReturnDay("2026-12-02", LAST_DAY)).toBe(false);
+    expect(isReturnDay("2026-12-03", LAST_DAY)).toBe(true);
+    expect(isReturnDay("2027-01-10", LAST_DAY)).toBe(true);
+  });
+
+  it("is never true for a last day that is not a date", () => {
+    for (const endDate of [undefined, "", "1", "2026-13-01", 20261203]) {
+      expect(isReturnDay("2026-12-03", endDate)).toBe(false);
+    }
   });
 });
