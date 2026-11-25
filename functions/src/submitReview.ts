@@ -38,9 +38,10 @@ export function parseReviewInput(data: unknown): ReviewInput {
 
 /**
  * Saves the review of [authorId] on the closed or lost rental [rentalId] and updates the other
- * participant's rating, in one transaction: `reviews/{rentalId}_{authorId}` is created with the
- * author's name and the item's title copied from the rental, and the reviewee's `reviewCount` goes
- * up by 1 while their `averageRating` takes in [stars] (a missing field reads as 0; not rounded).
+ * participant's rating, in one transaction: `users/{revieweeId}/reviews/{rentalId}` is created with
+ * the author's name and the item's title copied from the rental, and the reviewee's `reviewCount`
+ * goes up by 1 while their `averageRating` takes in [stars] (a missing field reads as 0; not
+ * rounded).
  * The checks run in this order: the rental exists, the author is a participant, the rental has a
  * valid borrower and lender, the rental is CLOSED or LOST, the author has not reviewed it yet (if
  * they have, it returns without writing anything, so a repeat succeeds and changes nothing and the
@@ -57,7 +58,6 @@ export async function submitReviewInTransaction(
   { rentalId, stars }: ReviewInput,
 ): Promise<void> {
   const rentalRef = db.collection("rentals").doc(rentalId);
-  const reviewRef = db.collection("reviews").doc(`${rentalId}_${authorId}`);
   await db.runTransaction(async (tx) => {
     const rental = (await tx.get(rentalRef)).data();
     if (!rental) {
@@ -77,6 +77,9 @@ export async function submitReviewInTransaction(
     const authorIsLender = authorId === lenderId;
     const revieweeId = authorIsLender ? borrowerId : lenderId;
     const revieweeRef = db.collection("users").doc(revieweeId);
+    // One review per rental per reviewee, so the rental id alone is the id, and a review there is
+    // the author's own.
+    const reviewRef = revieweeRef.collection("reviews").doc(rentalId);
     const [review, reviewee] = await Promise.all([tx.get(reviewRef), tx.get(revieweeRef)]);
     if (review.exists) {
       return;
@@ -89,7 +92,6 @@ export async function submitReviewInTransaction(
       rentalId,
       authorId,
       authorName: textOf(authorIsLender ? rental.ownerName : rental.borrowerName),
-      revieweeId,
       stars,
       itemTitle: listingTitleOf(rental),
       createdAt: FieldValue.serverTimestamp(),

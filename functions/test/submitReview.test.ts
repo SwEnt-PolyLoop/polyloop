@@ -37,8 +37,8 @@ async function closed(status = "CLOSED") {
 const review = (id: string, author: string) =>
   submitReview.run(asUser(author, { rentalId: id, stars: 4 }));
 const profile = async (uid: string) => (await db.doc(`users/${uid}`).get()).data();
-const reviewDoc = async (id: string, author: string) =>
-  (await db.doc(`reviews/${id}_${author}`).get()).data();
+const reviewDoc = async (id: string, reviewee: string) =>
+  (await db.doc(`users/${reviewee}/reviews/${id}`).get()).data();
 
 /** Checks that [run] fails with [code] and that nothing was written for [who] on [id]. */
 async function refusedUnchanged(
@@ -63,18 +63,17 @@ describe("submitReview", () => {
       const result = await submitReview.run(asUser(who.borrower, { rentalId: id, stars: 4 }));
 
       expect(result).toEqual({});
-      const saved = await reviewDoc(id, who.borrower);
+      const saved = await reviewDoc(id, who.lender);
       expect(saved).toMatchObject({
         rentalId: id,
         authorId: who.borrower,
         authorName: "Bo",
-        revieweeId: who.lender,
         stars: 4,
         itemTitle: "Camping tent",
       });
       expect(saved?.createdAt).toBeInstanceOf(Timestamp);
       expect(Object.keys(saved ?? {}).sort()).toEqual(
-        ["authorId", "authorName", "createdAt", "itemTitle", "rentalId", "revieweeId", "stars"],
+        ["authorId", "authorName", "createdAt", "itemTitle", "rentalId", "stars"],
       );
       expect(await profile(who.lender)).toMatchObject({ averageRating: 4, reviewCount: 1 });
       expect(await profile(who.borrower)).not.toHaveProperty("reviewCount");
@@ -118,9 +117,9 @@ describe("submitReview", () => {
 
     expect(await profile(who.lender)).toMatchObject({ averageRating: 5, reviewCount: 1 });
     expect(await profile(who.borrower)).toMatchObject({ averageRating: 2, reviewCount: 1 });
-    expect(await reviewDoc(id, who.lender)).toMatchObject({
+    expect(await reviewDoc(id, who.borrower)).toMatchObject({
+      authorId: who.lender,
       authorName: "Lena",
-      revieweeId: who.borrower,
       stars: 2,
     });
   });
@@ -128,12 +127,12 @@ describe("submitReview", () => {
   it("ignores a second review by the same person and keeps the first stars", async () => {
     const { who, id } = await closed();
     await submitReview.run(asUser(who.borrower, { rentalId: id, stars: 4 }));
-    const before = await reviewDoc(id, who.borrower);
+    const before = await reviewDoc(id, who.lender);
 
     const result = await submitReview.run(asUser(who.borrower, { rentalId: id, stars: 2 }));
 
     expect(result).toEqual({});
-    expect(await reviewDoc(id, who.borrower)).toEqual(before);
+    expect(await reviewDoc(id, who.lender)).toEqual(before);
     expect(before).toMatchObject({ stars: 4 });
     expect(await profile(who.lender)).toMatchObject({ averageRating: 4, reviewCount: 1 });
   });
@@ -214,7 +213,7 @@ describe("submitReview", () => {
     await db.doc(`users/${who.lender}`).delete();
 
     await expect(review(id, who.borrower)).rejects.toMatchObject({ code: "not-found" });
-    expect(await reviewDoc(id, who.borrower)).toBeUndefined();
+    expect(await reviewDoc(id, who.lender)).toBeUndefined();
     expect(await profile(who.lender)).toBeUndefined();
   });
 
@@ -227,7 +226,7 @@ describe("submitReview", () => {
     ]);
 
     expect(results).toEqual([{}, {}]);
-    expect(await reviewDoc(id, who.borrower)).toMatchObject({ stars: 5 });
+    expect(await reviewDoc(id, who.lender)).toMatchObject({ stars: 5 });
     expect(await profile(who.lender)).toMatchObject({ averageRating: 5, reviewCount: 1 });
   });
 
