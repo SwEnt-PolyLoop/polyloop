@@ -199,9 +199,4 @@ class HandoverRepositoryFirestoreEmulatorTest {
     assertTrue(results.all { it.isSuccess })
     assertEquals(List(3) { "${uid}_PICKUP_$it" }, myPhotoIds(rentalId))
   }
-
-  @Test
-  fun confirmReturnOkFailsUntilItsFunctionExists() = runBlocking {
-    assertTrue(repository.confirmReturnOk("r1").exceptionOrNull() is UnsupportedOperationException)
-  }
 }
