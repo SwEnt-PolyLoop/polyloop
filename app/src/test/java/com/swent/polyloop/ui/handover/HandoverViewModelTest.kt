@@ -84,6 +84,9 @@ class HandoverViewModelTest {
   // The time since the phone booted, sleep included, as the ViewModel reads it.
   private var elapsed = 0L
 
+  // The phone's boot count; changing it drops the pair the server clock saved.
+  private var boot = 0
+
   // Also runs the server clock's reads, so they finish before each assertion.
   private val testDispatcher = UnconfinedTestDispatcher()
 
@@ -135,7 +138,7 @@ class HandoverViewModelTest {
           InMemoryServerClockStore(),
           // The same time since boot as the ViewModel's, so offline the clock moves on with it.
           elapsedRealtime = { elapsed },
-          bootCount = { 0 },
+          bootCount = { boot },
           ioDispatcher = testDispatcher,
       )
 
@@ -775,6 +778,29 @@ class HandoverViewModelTest {
     assertFalse(vm.uiState.value.isUploading)
     assertEquals(1, vm.uiState.value.photos.size)
     assertEquals(listOf("file1"), deleted)
+  }
+
+  @Test
+  fun aPhotoTakesTheServersTimeFromTheSavedPairWithoutAskingTheServer() {
+    val vm = viewModel()
+    val asked = rentalRepository.serverNowCalls
+    elapsed += 5 * 60_000L
+
+    vm.addPhoto("file1")
+
+    assertEquals(noonOn(pickupDay).plusSeconds(5 * 60), vm.uiState.value.photos.single().takenAt)
+    assertEquals(asked, rentalRepository.serverNowCalls)
+  }
+
+  @Test
+  fun aPhotoWhoseTimeIsUnknownFailsWithoutBeingQueued() {
+    val vm = viewModel()
+    boot = 1 // no saved pair for this boot
+
+    vm.addPhoto("file1")
+
+    assertEquals("file1", vm.uiState.value.failedPhotoUri)
+    assertEquals(0, handoverRepository.addPhotoCalls)
   }
 
   @Test

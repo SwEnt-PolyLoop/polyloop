@@ -29,3 +29,5 @@ export { openDispute } from "./openDispute";
 export { confirmReturnOk } from "./confirmReturnOk";
 export { confirmHandover } from "./confirmHandover";
 export { draftLlmProposal } from "./draftLlmProposal";
+export { rejectLlmProposal } from "./rejectLlmProposal";
+export { retryLlmProposal } from "./retryLlmProposal";

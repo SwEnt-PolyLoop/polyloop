@@ -56,6 +56,7 @@ class WalletScreenTest {
       isLoading: Boolean = false,
       errorMsg: String? = null,
       isOffline: Boolean = false,
+      isUnreachable: Boolean = false,
   ) =
       WalletUiState(
           wallet = wallet,
@@ -63,6 +64,7 @@ class WalletScreenTest {
           isLoading = isLoading,
           errorMsg = errorMsg,
           isOffline = isOffline,
+          isUnreachable = isUnreachable,
       )
 
   private fun setContent(
@@ -237,6 +239,58 @@ class WalletScreenTest {
     composeTestRule.onNodeWithTag(C.Tag.wallet_unavailable).assertDoesNotExist()
     composeTestRule.onNodeWithTag(C.Tag.wallet_history_unavailable).assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.wallet_history_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun anUnreachableWalletShowsDashesAndTheUnreachableLinesWithoutTheOfflineBanner() {
+    setContent(state(wallet = null, history = null, isLoading = true, isUnreachable = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.wallet_available).assertTextEquals("—")
+    composeTestRule.onNodeWithTag(C.Tag.wallet_held_deposits).assertTextEquals("—")
+    composeTestRule
+        .onNodeWithTag(C.Tag.wallet_unavailable)
+        .assertTextEquals("Your balance is unavailable. The server can't be reached right now.")
+    composeTestRule
+        .onNodeWithTag(C.Tag.wallet_history_unavailable)
+        .assertTextEquals("Your history is unavailable. The server can't be reached right now.")
+    composeTestRule.onNodeWithTag(C.Tag.wallet_history_empty).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertDoesNotExist()
+  }
+
+  @Test
+  fun anUnreachableWalletShowsNoSpinnerAndKeepsRechargeDisabled() {
+    setContent(state(wallet = null, history = null, isLoading = true, isUnreachable = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.wallet_loading).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.wallet_recharge_button).assertIsNotEnabled()
+  }
+
+  @Test
+  fun anUnreachableHistoryNextToAKnownWalletKeepsTheBalanceAndIsUnavailableNotEmpty() {
+    setContent(state(history = null, isLoading = true, isUnreachable = true))
+
+    composeTestRule.onNodeWithTag(C.Tag.wallet_available).assertTextEquals("120")
+    composeTestRule.onNodeWithTag(C.Tag.wallet_unavailable).assertDoesNotExist()
+    composeTestRule.onNodeWithTag(C.Tag.wallet_history_unavailable).assertIsDisplayed()
+    composeTestRule.onNodeWithTag(C.Tag.wallet_history_empty).assertDoesNotExist()
+  }
+
+  @Test
+  fun anOfflineAndUnreachableWalletUsesTheOfflineWording() {
+    setContent(
+        state(
+            wallet = null,
+            history = null,
+            isLoading = true,
+            isOffline = true,
+            isUnreachable = true,
+        )
+    )
+
+    composeTestRule
+        .onNodeWithTag(C.Tag.wallet_unavailable)
+        .assertTextEquals("Your balance is unavailable until your phone is back online.")
+    composeTestRule.onNodeWithTag(C.Tag.offline_banner).assertIsDisplayed()
   }
 
   @Test

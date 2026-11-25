@@ -888,6 +888,46 @@ class FirestoreRulesTest {
       }
 
   @Test
+  fun aPhotoTakenOfflineKeepsItsTimeAndMayArriveAfterItsScan() =
+      runBlocking<Unit> {
+        val owner = newAccount()
+        val borrower = newAccount()
+        // Minutes apart, so a small gap between the phone's and the emulator's clocks never
+        // matters.
+        fun minutesAgo(minutes: Long) = Timestamp(Timestamp.now().seconds - minutes * 60, 0)
+        fun takenAt(time: Timestamp, phase: String = "PICKUP") =
+            photo(borrower.uid, phase = phase) + ("takenAt" to time)
+        val accepted = seedRental(owner.uid, borrower.uid, status = "ACCEPTED").collection("photos")
+        val pickedUp = seedRental(owner.uid, borrower.uid, status = "ACTIVE")
+        FirebaseEmulator.updateDocumentAsAdmin(pickedUp.path, mapOf("pickedUpAt" to minutesAgo(10)))
+        val afterScan = pickedUp.collection("photos")
+        val returned = seedRental(owner.uid, borrower.uid, status = "RETURNED")
+        FirebaseEmulator.updateDocumentAsAdmin(returned.path, mapOf("returnedAt" to minutesAgo(10)))
+        val afterReturn = returned.collection("photos")
+        val returnSlot = { n: Int -> slot(borrower.uid, n, phase = "RETURN") }
+
+        // Taken offline an hour ago, sent now: it keeps its time.
+        accepted.document(slot(borrower.uid, 0)).set(takenAt(minutesAgo(60))).await()
+        // Dated in the future, or taken more than a day ago.
+        assertDenied {
+          accepted.document(slot(borrower.uid, 1)).set(takenAt(minutesAgo(-60))).await()
+        }
+        assertDenied {
+          accepted.document(slot(borrower.uid, 1)).set(takenAt(minutesAgo(25 * 60))).await()
+        }
+        // Taken before the scan, sent after it; one taken after the scan is refused.
+        afterScan.document(slot(borrower.uid, 0)).set(takenAt(minutesAgo(11))).await()
+        assertDenied {
+          afterScan.document(slot(borrower.uid, 1)).set(takenAt(minutesAgo(9))).await()
+        }
+        // The same at return, with the return scan's time.
+        afterReturn.document(returnSlot(0)).set(takenAt(minutesAgo(11), "RETURN")).await()
+        assertDenied {
+          afterReturn.document(returnSlot(1)).set(takenAt(minutesAgo(9), "RETURN")).await()
+        }
+      }
+
+  @Test
   fun returnPhotosAreAddedOnlyWhileTheRentalIsActiveOrOverdue() =
       runBlocking<Unit> {
         val owner = newAccount()
@@ -1170,6 +1210,10 @@ class FirestoreRulesTest {
           signInAs(account)
           assertDenied { dispute.update("agreedAt", FieldValue.serverTimestamp()).await() }
           assertDenied { dispute.update("stage", "COURT").await() }
+          // Retrying the LLM proposal goes through Cloud Functions only.
+          assertDenied {
+            dispute.update("llmProposal", mapOf("status" to "PENDING", "attempt" to 2)).await()
+          }
           assertDenied { dispute.delete().await() }
           assertDenied { noDispute.set(mapOf("stage" to "SETTLE")).await() }
         }

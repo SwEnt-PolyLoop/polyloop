@@ -9,6 +9,10 @@ import { RequestError, asFields, parseText } from "./rentalRules";
 /** The stages of a dispute, as stored in `disputes/{rentalId}.stage`. */
 export const SETTLE = "SETTLE";
 export const LLM_PROPOSAL = "LLM_PROPOSAL";
+export const COURT = "COURT";
+
+/** The most attempts at the LLM proposal: the first one, then up to two retries. */
+export const MAX_LLM_ATTEMPTS = 3;
 
 /**
  * How many days a dispute stays in direct settlement before it escalates by itself to the LLM
@@ -30,6 +34,7 @@ export const FAILED = "FAILED";
  */
 export const PROPOSAL_CHANGED = "PROPOSAL_CHANGED";
 export const STAGE_CHANGED = "STAGE_CHANGED";
+export const LLM_PROPOSAL_CHANGED = "LLM_PROPOSAL_CHANGED";
 
 /** A split sent by the app: the dispute's rental and the lender's share, in percent. */
 export interface SplitInput {

@@ -488,8 +488,13 @@ class HandoverViewModel(
     val phase = _uiState.value.phase ?: return
     _uiState.update { it.copy(isUploading = true, failedPhoto = null) }
     viewModelScope.launch {
-      val uploaded = handoverRepository.addPhoto(rentalId, phase, photoUri).isSuccess
-      if (uploaded) deletePhoto(photoUri) // the copy in Storage is the one shown now
+      // Taken now by the server's clock, from the pair saved when Handover read the day, so it
+      // needs no network; the queue sends it with this time, even much later.
+      val takenAt = serverClock.savedNow()
+      val uploaded =
+          takenAt != null &&
+              handoverRepository.addPhoto(rentalId, phase, photoUri, takenAt).isSuccess
+      if (uploaded) deletePhoto(photoUri) // the queue keeps its own copy
       _uiState.update {
         it.copy(
             isUploading = false,
