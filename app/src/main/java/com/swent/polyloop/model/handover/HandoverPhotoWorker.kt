@@ -31,23 +31,25 @@ import kotlinx.coroutines.tasks.await
  * time chosen when it was taken. Sending it again is safe: a photo whose document exists is done,
  * and a file already in Storage is not uploaded twice.
  *
- * It succeeds once the document is written, asks to be retried when the connection failed, and
- * fails with [REFUSED] in its output when the server refused the photo (e.g. it arrived more than a
- * day after it was taken), as sending it again would be refused too. The phone's copy of the file
- * is deleted unless it is retried.
+ * It succeeds once the document is written, asks to be retried when the connection failed or its
+ * user is signed out, and fails with [REFUSED] in its output when the server refused the photo
+ * (e.g. it arrived more than a day after it was taken), as sending it again would be refused too.
+ * The phone's copy of the file is deleted unless it is retried.
  */
 class HandoverPhotoWorker(context: Context, params: WorkerParameters) :
     CoroutineWorker(context, params) {
 
   override suspend fun doWork(): Result {
-    val uid = Firebase.auth.currentUser?.uid
+    val uid = inputData.getString(UID)
     val rentalId = inputData.getString(RENTAL_ID)
     val slotId = inputData.getString(SLOT_ID)
     val phase = enumOrNull<HandoverPhase>(inputData.getString(PHASE))
     val takenAt = inputData.getLong(TAKEN_AT, -1)
     val file = inputData.getString(FILE)?.let(::File)
-    // Nothing to send, or nobody signed in to send it as: sending it again would not help.
-    if (uid == null || rentalId == null || slotId == null || phase == null || takenAt < 0) {
+    // Signed out: kept, and sent once its user signs in again.
+    val signedIn = Firebase.auth.currentUser?.uid ?: return Result.retry()
+    // Nothing to send, or another user signed in, whom the rules would refuse it from.
+    if (uid != signedIn || rentalId == null || slotId == null || phase == null || takenAt < 0) {
       return refused(file)
     }
     if (file == null || !file.exists()) return refused(file)
@@ -78,7 +80,8 @@ class HandoverPhotoWorker(context: Context, params: WorkerParameters) :
       throw e
     } catch (e: Exception) {
       when {
-        !isRefusal(e) -> Result.retry()
+        // Also a refusal because the user signed out meanwhile: kept for when they are back.
+        !isRefusal(e) || Firebase.auth.currentUser == null -> Result.retry()
         // A write left queued by an earlier run that was stopped may have created it meanwhile.
         document.existsOnServer() -> Result.success().also { deleteCopy(file) }
         else -> refused(file)
@@ -116,7 +119,10 @@ class HandoverPhotoWorker(context: Context, params: WorkerParameters) :
           (e is StorageException && e.errorCode == StorageException.ERROR_NOT_AUTHORIZED)
 
   companion object {
-    /** The input: which photo of which rental, when it was taken (epoch ms), and its file. */
+    /**
+     * The input: who took which photo of which rental, when it was taken (epoch ms), and its file.
+     */
+    const val UID = "uid"
     const val RENTAL_ID = "rentalId"
     const val PHASE = "phase"
     const val SLOT_ID = "slotId"

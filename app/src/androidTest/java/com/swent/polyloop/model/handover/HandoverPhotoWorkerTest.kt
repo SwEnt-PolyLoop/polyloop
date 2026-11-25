@@ -23,6 +23,7 @@ import kotlinx.coroutines.tasks.await
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -62,10 +63,11 @@ class HandoverPhotoWorkerTest {
             )
           }
 
-  private suspend fun runWorker(rental: String = rentalId): Result =
+  private suspend fun runWorker(rental: String = rentalId, takenBy: String = uid): Result =
       TestListenableWorkerBuilder<HandoverPhotoWorker>(context)
           .setInputData(
               workDataOf(
+                  HandoverPhotoWorker.UID to takenBy,
                   HandoverPhotoWorker.RENTAL_ID to rental,
                   HandoverPhotoWorker.PHASE to HandoverPhase.PICKUP.name,
                   HandoverPhotoWorker.SLOT_ID to slotId,
@@ -111,6 +113,18 @@ class HandoverPhotoWorkerTest {
     assertFalse(file.exists())
     // Its file is gone: nothing left to send.
     assertEquals(refused, runWorker())
+  }
+
+  @Test
+  fun aPhotoWaitsWhileItsUserIsSignedOutButNotForAnotherUser() = runBlocking {
+    Firebase.auth.signOut()
+    assertEquals(Result.retry(), runWorker())
+    assertTrue(file.exists())
+
+    // Someone else signs in on the phone: the rules would refuse the photo from them.
+    FirebaseEmulator.signUpVerified()
+    assertEquals(Result.failure(workDataOf(HandoverPhotoWorker.REFUSED to true)), runWorker())
+    assertFalse(file.exists())
   }
 
   private companion object {

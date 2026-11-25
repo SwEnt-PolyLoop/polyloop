@@ -37,13 +37,14 @@ class HandoverUploadQueue(
   private val folder = File(context.filesDir, FOLDER)
 
   /**
-   * Copies the photo at [photo] and queues it as [slotId] of [rentalId] in [phase], taken at
-   * [takenAt]. Queuing the same slot again changes nothing. Returns once the job is saved, so
+   * Copies the photo at [photo] and queues it as [slotId] of [rentalId] in [phase], taken by [uid]
+   * at [takenAt]. Queuing the same slot again changes nothing. Returns once the job is saved, so
    * [observe] lists it from then on.
    */
   suspend fun enqueue(
       rentalId: String,
       phase: HandoverPhase,
+      uid: String,
       slotId: String,
       takenAt: Instant,
       photo: File,
@@ -55,6 +56,7 @@ class HandoverUploadQueue(
             .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))
             .setInputData(
                 workDataOf(
+                    HandoverPhotoWorker.UID to uid,
                     HandoverPhotoWorker.RENTAL_ID to rentalId,
                     HandoverPhotoWorker.PHASE to phase.name,
                     HandoverPhotoWorker.SLOT_ID to slotId,

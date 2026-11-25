@@ -123,7 +123,8 @@ class HandoverRepositoryFirestore(
                 photoUri.toUri().path?.let(::File)
                     ?: return@withLock Result.failure(IllegalArgumentException("Not a file"))
             try {
-              uploadQueue.enqueue(rentalId, phase, photoSlotId(uid, phase, slot), takenAt, file)
+              val slotId = photoSlotId(uid, phase, slot)
+              uploadQueue.enqueue(rentalId, phase, uid, slotId, takenAt, file)
               Result.success(Unit)
             } catch (e: IOException) {
               Result.failure(e) // the photo could not be copied, e.g. the phone is full

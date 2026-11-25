@@ -54,7 +54,9 @@ class HandoverUploadQueueTest {
 
   private fun enqueue(slotId: String, phase: HandoverPhase = HandoverPhase.PICKUP) {
     val photo = File(context.cacheDir, "camera-$slotId.jpg").apply { writeBytes(byteArrayOf(7)) }
-    runBlocking { queue.enqueue("rental1", phase, slotId, Instant.ofEpochMilli(TAKEN_AT), photo) }
+    runBlocking {
+      queue.enqueue("rental1", phase, "me", slotId, Instant.ofEpochMilli(TAKEN_AT), photo)
+    }
     photo.delete() // the screen deletes the camera's file once it is queued
   }
 
