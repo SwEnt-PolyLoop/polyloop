@@ -1170,7 +1170,10 @@ class FirestoreRulesTest {
           signInAs(account)
           assertDenied { dispute.update("agreedAt", FieldValue.serverTimestamp()).await() }
           assertDenied { dispute.update("stage", "COURT").await() }
-          // Retrying the LLM proposal goes through Cloud Functions only.
+          // Accepting or retrying the LLM proposal goes through Cloud Functions only.
+          assertDenied {
+            dispute.update("llmProposal.acceptedBy", FieldValue.arrayUnion(account.uid)).await()
+          }
           assertDenied {
             dispute.update("llmProposal", mapOf("status" to "PENDING", "attempt" to 2)).await()
           }

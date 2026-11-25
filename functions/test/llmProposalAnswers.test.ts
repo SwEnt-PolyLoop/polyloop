@@ -5,16 +5,17 @@ import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import {
   REJECTED_MESSAGE,
+  acceptLlmProposal,
   rejectLlmProposal,
   retryLlmProposal,
 } from "../src/llmProposalAnswers";
 import { hasSeenLastMessage } from "../src/testing/readTimes";
-import { People, fund, people, wallet } from "../src/testing/walletFixtures";
+import { People, fund, people, rows, wallet } from "../src/testing/walletFixtures";
 
 // Firebase loads this ES module to verify tokens, which Jest cannot load; these tests do not sign in.
 jest.mock("jose", () => ({}));
 
-// The transactions are tested on the emulator; the input checks are in rentalRules.test.ts.
+// The transactions are tested on the emulator; the input check is in disputeRules.test.ts.
 let db: Firestore;
 
 beforeAll(() => {
@@ -131,6 +132,133 @@ async function expectUnchanged(id: string, who: People, llmProposal: object) {
   expect(await systemMessages(id)).toEqual([]);
 }
 
+describe("acceptLlmProposal", () => {
+  it("records one acceptance, without settling and without a chat message", async () => {
+    const { id, who } = await escalated(ready());
+
+    await acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW);
+
+    expect(await dispute(id)).toMatchObject({
+      agreedAt: null,
+      llmProposal: { ...ready(), acceptedBy: [who.lender] },
+    });
+    expect((await rental(id))?.status).toBe("DISPUTED");
+    expect(await balances(who)).toEqual({ borrower: [10, DEPOSIT], lender: [5, 0] });
+    expect(await systemMessages(id)).toEqual([]);
+  });
+
+  it("settles on both acceptances: rental closed, deposit split, shares in the chat", async () => {
+    const { id, who } = await escalated(ready(50));
+
+    await acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW);
+    await acceptLlmProposal(db, who.borrower, { rentalId: id, attempt: 1 }, NOW);
+
+    const settled = await dispute(id);
+    expect(settled?.agreedAt.toDate()).toEqual(NOW);
+    expect(settled?.llmProposal.acceptedBy).toEqual([who.lender, who.borrower]);
+    expect(settled?.stage).toBe("LLM_PROPOSAL");
+    const message = "Dispute settled · 17 PP to the lender, 16 PP back to the borrower";
+    expect(await rental(id)).toMatchObject({ status: "CLOSED", lastMessage: message });
+    expect(await systemMessages(id)).toEqual([message]);
+    // 50% of 33 PP: 16 PP back to the borrower (rounded down), 17 PP to the lender.
+    expect(await balances(who)).toEqual({ borrower: [26, 0], lender: [22, 0] });
+    expect((await rows(who.lender)).map((row) => row.id)).toEqual([`deposit_split_${id}`]);
+    expect(hasSeenLastMessage(await rental(id), who.borrower)).toBe(true);
+    expect(hasSeenLastMessage(await rental(id), who.lender)).toBe(false);
+  });
+
+  it("takes the late fees off the deposit before splitting it", async () => {
+    const { id, who } = await escalated(ready(50), {}, { lateFees: 13 });
+    await fund(who.borrower, { available: 10, heldAsDeposits: 20, heldForRentals: 0 });
+
+    await acceptLlmProposal(db, who.borrower, { rentalId: id, attempt: 1 }, NOW);
+    await acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW);
+
+    expect((await rental(id))?.lastMessage).toBe(
+      "Dispute settled · 10 PP to the lender, 10 PP back to the borrower",
+    );
+    expect(await balances(who)).toEqual({ borrower: [20, 0], lender: [15, 0] });
+  });
+
+  it("changes nothing when the same party accepts again", async () => {
+    const { id, who } = await escalated(ready());
+
+    await acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW);
+    await acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW);
+
+    expect(await dispute(id)).toMatchObject({
+      agreedAt: null,
+      llmProposal: { acceptedBy: [who.lender] },
+    });
+  });
+
+  it("refuses an attempt other than the one on the table, so nobody accepts an unseen proposal", async () => {
+    const proposal = ready(80, { attempt: 2 });
+    const { id, who } = await escalated(proposal);
+
+    await expect(
+      acceptLlmProposal(db, who.borrower, { rentalId: id, attempt: 1 }, NOW),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "LLM_PROPOSAL_CHANGED" },
+    });
+    await expectUnchanged(id, who, proposal);
+  });
+
+  it("refuses a pending or failed proposal, without the race reason", async () => {
+    for (const proposal of [{ status: "PENDING", attempt: 1 }, failed()]) {
+      const { id, who } = await escalated(proposal);
+
+      const error = await acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW)
+        .then(() => null)
+        .catch((e) => e);
+
+      expect(error).toMatchObject({ code: "failed-precondition" });
+      expect(error.details).toBeUndefined();
+      await expectUnchanged(id, who, proposal);
+    }
+  });
+
+  it("refuses a ready proposal whose split is not a whole percentage", async () => {
+    const proposal = ready(50, { lenderPercent: 50.5 });
+    const { id, who } = await escalated(proposal);
+
+    await expect(
+      acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+    await expectUnchanged(id, who, proposal);
+  });
+
+  it("settles once when both parties accept at the same time", async () => {
+    const { id, who } = await escalated(ready(50));
+
+    await Promise.all([
+      acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW),
+      acceptLlmProposal(db, who.borrower, { rentalId: id, attempt: 1 }, NOW),
+    ]);
+
+    expect((await rental(id))?.status).toBe("CLOSED");
+    expect(await systemMessages(id)).toHaveLength(1);
+    expect(await balances(who)).toEqual({ borrower: [26, 0], lender: [22, 0] });
+  });
+
+  it("settles nothing when the held deposits are below the deposit", async () => {
+    const { id, who } = await escalated(ready(50, { acceptedBy: [] }));
+    await acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW);
+    await fund(who.borrower, { available: 10, heldAsDeposits: 5, heldForRentals: 0 });
+
+    await expect(
+      acceptLlmProposal(db, who.borrower, { rentalId: id, attempt: 1 }, NOW),
+    ).rejects.toMatchObject({ code: "internal" });
+
+    expect(await dispute(id)).toMatchObject({
+      agreedAt: null,
+      llmProposal: { acceptedBy: [who.lender] },
+    });
+    expect((await rental(id))?.status).toBe("DISPUTED");
+  });
+});
+
 describe("rejectLlmProposal", () => {
   it("sends a ready or a failed proposal to court, with the caller and a chat message", async () => {
     for (const proposal of [ready(), failed(3)]) {
@@ -150,6 +278,26 @@ describe("rejectLlmProposal", () => {
       expect(hasSeenLastMessage(await rental(id), who.lender)).toBe(false);
       // The deposit stays held.
       expect(await balances(who)).toEqual({ borrower: [10, DEPOSIT], lender: [5, 0] });
+    }
+  });
+
+  it("rejects after one party accepted, the accepting party included", async () => {
+    const lenderAccepted = await escalated(ready());
+    const borrowerAccepted = await escalated(ready());
+    await acceptLlmProposal(db, lenderAccepted.who.lender, {
+      rentalId: lenderAccepted.id,
+      attempt: 1,
+    });
+    await acceptLlmProposal(db, borrowerAccepted.who.borrower, {
+      rentalId: borrowerAccepted.id,
+      attempt: 1,
+    });
+
+    await rejectLlmProposal(db, lenderAccepted.who.borrower, lenderAccepted.id);
+    await rejectLlmProposal(db, borrowerAccepted.who.borrower, borrowerAccepted.id);
+
+    for (const { id } of [lenderAccepted, borrowerAccepted]) {
+      expect(await dispute(id)).toMatchObject({ stage: "COURT", agreedAt: null });
     }
   });
 
@@ -176,6 +324,25 @@ describe("rejectLlmProposal", () => {
       reason: { code: "failed-precondition", details: { reason: "STAGE_CHANGED" } },
     });
     expect(await systemMessages(id)).toEqual([REJECTED_MESSAGE]);
+  });
+
+  it("lets only one of an acceptance and a rejection sent together win", async () => {
+    const { id, who } = await escalated(ready(50, { acceptedBy: [] }));
+    await acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW);
+
+    const results = await Promise.allSettled([
+      acceptLlmProposal(db, who.borrower, { rentalId: id, attempt: 1 }, NOW),
+      rejectLlmProposal(db, who.lender, id),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((r) => r.status === "rejected")).toMatchObject({
+      reason: { code: "failed-precondition", details: { reason: "STAGE_CHANGED" } },
+    });
+    const after = await dispute(id);
+    // Either settled on the LLM proposal, or in court: never both.
+    expect(after?.stage === "COURT").toBe(!after?.agreedAt);
+    expect(await systemMessages(id)).toHaveLength(1);
   });
 
   it("lets only one of a rejection and a retry sent together win", async () => {
@@ -243,6 +410,8 @@ describe("retryLlmProposal", () => {
 describe("every answer", () => {
   /** Each answer, called by [caller] on the dispute of [id]. */
   const answers = [
+    (id: string, caller: string) =>
+      acceptLlmProposal(db, caller, { rentalId: id, attempt: 1 }, NOW),
     (id: string, caller: string) => rejectLlmProposal(db, caller, id),
     (id: string, caller: string) => retryLlmProposal(db, caller, id),
   ];

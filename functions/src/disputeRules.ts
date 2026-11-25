@@ -28,6 +28,7 @@ export const FAILED = "FAILED";
  */
 export const PROPOSAL_CHANGED = "PROPOSAL_CHANGED";
 export const STAGE_CHANGED = "STAGE_CHANGED";
+export const LLM_PROPOSAL_CHANGED = "LLM_PROPOSAL_CHANGED";
 
 /** A split sent by the app: the dispute's rental and the lender's share, in percent. */
 export interface SplitInput {
@@ -35,6 +36,11 @@ export interface SplitInput {
   lenderPercent: number;
 }
 
+/** An acceptance of the LLM proposal sent by the app: the dispute's rental and the attempt seen. */
+export interface LlmAcceptInput {
+  rentalId: string;
+  attempt: number;
+}
 
 /** The two shares of a deposit, in whole PolyPoints, adding up to the deposit. */
 export interface DepositSplit {
@@ -62,6 +68,20 @@ export function parseSplitInput(data: unknown): SplitInput {
     );
   }
   return { rentalId, lenderPercent };
+}
+
+/**
+ * The input of `acceptLlmProposal`: a rental id and the attempt the caller saw, a whole number from
+ * 1. Throws an `invalid-argument` error if one is wrong.
+ */
+export function parseLlmAcceptInput(data: unknown): LlmAcceptInput {
+  const fields = asFields(data);
+  const rentalId = parseText(fields.rentalId, "rentalId");
+  const attempt = fields.attempt;
+  if (typeof attempt !== "number" || !Number.isInteger(attempt) || attempt < 1) {
+    throw new RequestError("invalid-argument", "attempt must be a whole number from 1.");
+  }
+  return { rentalId, attempt };
 }
 
 /**

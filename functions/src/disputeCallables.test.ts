@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import {
+  acceptLlmProposal,
   acceptSplit,
   escalateDispute,
   proposeSplit,
@@ -70,6 +71,7 @@ describe("deployment", () => {
       proposeSplit,
       acceptSplit,
       escalateDispute,
+      acceptLlmProposal,
       rejectLlmProposal,
       retryLlmProposal,
     ]) {
@@ -111,6 +113,9 @@ describe("what can be sent", () => {
     await expect(escalateDispute.run(asUser(LENDER, {}))).rejects.toMatchObject({
       code: "invalid-argument",
     });
+    await expect(
+      acceptLlmProposal.run(asUser(LENDER, { rentalId: id, attempt: 0 })),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
     for (const fn of [rejectLlmProposal, retryLlmProposal]) {
       await expect(fn.run(asUser(LENDER, {}))).rejects.toMatchObject({
         code: "invalid-argument",
@@ -158,6 +163,38 @@ describe("the whole direct settlement", () => {
 });
 
 describe("the whole LLM proposal stage", () => {
+  it("goes from a failed proposal and a retry to both acceptances that close the rental", async () => {
+    const id = await disputed();
+    await escalateDispute.run(asUser(LENDER, { rentalId: id }));
+    // No model is configured in the tests: the proposal fails as draftLlmProposal would write it.
+    await db
+      .collection("disputes")
+      .doc(id)
+      .update({ llmProposal: { status: "FAILED", attempt: 1 } });
+
+    await retryLlmProposal.run(asUser(BORROWER, { rentalId: id }));
+    expect((await dispute(id))?.llmProposal).toEqual({ status: "PENDING", attempt: 2 });
+    await db
+      .collection("disputes")
+      .doc(id)
+      .update({ llmProposal: { status: "READY", attempt: 2, lenderPercent: 70 } });
+    const stale = await acceptLlmProposal
+      .run(asUser(LENDER, { rentalId: id, attempt: 1 }))
+      .catch((e) => e);
+    await acceptLlmProposal.run(asUser(LENDER, { rentalId: id, attempt: 2 }));
+    const result = await acceptLlmProposal.run(asUser(BORROWER, { rentalId: id, attempt: 2 }));
+
+    expect(stale).toBeInstanceOf(HttpsError);
+    expect(stale).toMatchObject({ details: { reason: "LLM_PROPOSAL_CHANGED" } });
+    expect(result).toEqual({});
+    const rental = (await db.collection("rentals").doc(id).get()).data();
+    // No deposit was held here, so the chat only says the agreed split.
+    expect(rental).toMatchObject({
+      status: "CLOSED",
+      lastMessage: "Dispute settled · 70% to the lender",
+    });
+  });
+
   it("retries a failed proposal, then sends the dispute to court when a party rejects", async () => {
     const id = await disputed();
     await escalateDispute.run(asUser(LENDER, { rentalId: id }));
