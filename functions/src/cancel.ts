@@ -1,7 +1,7 @@
 // Made with Claude.
 
 import { DocumentData, FieldValue, Firestore, Transaction } from "firebase-admin/firestore";
-import { RENTAL_CHANGED } from "./handover";
+import { RENTAL_CHANGED } from "./rentalRules";
 import { CODE_HASH_FIELDS, HANDOVER_CODES } from "./handoverCode";
 import { writeWithSystemMessage } from "./negotiation";
 import {

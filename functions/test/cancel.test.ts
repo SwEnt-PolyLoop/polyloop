@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { CANCELLED, TOO_LATE, cancelInTransaction } from "../src/cancel";
-import { RENTAL_CHANGED } from "../src/handover";
+import { RENTAL_CHANGED } from "../src/rentalRules";
 import { hasSeenLastMessage } from "../src/testing/readTimes";
 import {
   People,
