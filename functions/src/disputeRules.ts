@@ -9,6 +9,10 @@ import { RequestError, asFields, parseText } from "./rentalRules";
 /** The stages of a dispute, as stored in `disputes/{rentalId}.stage`. */
 export const SETTLE = "SETTLE";
 export const LLM_PROPOSAL = "LLM_PROPOSAL";
+export const COURT = "COURT";
+
+/** The most attempts at the LLM proposal: the first one, then up to two retries. */
+export const MAX_LLM_ATTEMPTS = 3;
 
 /**
  * The states of the LLM proposal, as stored in `disputes/{rentalId}.llmProposal.status`: waiting
@@ -30,6 +34,7 @@ export interface SplitInput {
   rentalId: string;
   lenderPercent: number;
 }
+
 
 /** The two shares of a deposit, in whole PolyPoints, adding up to the deposit. */
 export interface DepositSplit {

@@ -3,7 +3,13 @@
 import { randomUUID } from "node:crypto";
 import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
-import { acceptSplit, escalateDispute, proposeSplit } from "./index";
+import {
+  acceptSplit,
+  escalateDispute,
+  proposeSplit,
+  rejectLlmProposal,
+  retryLlmProposal,
+} from "./index";
 
 // Firebase loads this ES module to verify tokens, which Jest cannot load; `run` skips that step.
 jest.mock("jose", () => ({}));
@@ -60,7 +66,13 @@ async function dispute(id: string) {
 
 describe("deployment", () => {
   it("exposes every dispute callable to the app, in the app's region", () => {
-    for (const fn of [proposeSplit, acceptSplit, escalateDispute]) {
+    for (const fn of [
+      proposeSplit,
+      acceptSplit,
+      escalateDispute,
+      rejectLlmProposal,
+      retryLlmProposal,
+    ]) {
       expect(fn.__endpoint.region).toEqual(["europe-west1"]);
       expect(fn.__endpoint.callableTrigger).toBeDefined();
     }
@@ -99,6 +111,11 @@ describe("what can be sent", () => {
     await expect(escalateDispute.run(asUser(LENDER, {}))).rejects.toMatchObject({
       code: "invalid-argument",
     });
+    for (const fn of [rejectLlmProposal, retryLlmProposal]) {
+      await expect(fn.run(asUser(LENDER, {}))).rejects.toMatchObject({
+        code: "invalid-argument",
+      });
+    }
     expect((await dispute(id))?.stage).toBe("SETTLE");
   });
 
@@ -137,5 +154,29 @@ describe("the whole direct settlement", () => {
       status: "CLOSED",
       lastMessage: "Dispute settled · 70% to the lender",
     });
+  });
+});
+
+describe("the whole LLM proposal stage", () => {
+  it("retries a failed proposal, then sends the dispute to court when a party rejects", async () => {
+    const id = await disputed();
+    await escalateDispute.run(asUser(LENDER, { rentalId: id }));
+    // No model is configured in the tests: the proposal fails as draftLlmProposal would write it.
+    await db
+      .collection("disputes")
+      .doc(id)
+      .update({ llmProposal: { status: "FAILED", attempt: 1 } });
+
+    const retried = await retryLlmProposal.run(asUser(BORROWER, { rentalId: id }));
+    expect((await dispute(id))?.llmProposal).toEqual({ status: "PENDING", attempt: 2 });
+    await db
+      .collection("disputes")
+      .doc(id)
+      .update({ llmProposal: { status: "FAILED", attempt: 2 } });
+    const rejected = await rejectLlmProposal.run(asUser(BORROWER, { rentalId: id }));
+
+    expect(retried).toEqual({});
+    expect(rejected).toEqual({});
+    expect(await dispute(id)).toMatchObject({ stage: "COURT", escalatedBy: BORROWER });
   });
 });
