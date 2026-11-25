@@ -196,12 +196,15 @@ class AuthViewModel(
 
   /**
    * "Forgot password?" on the log-in form: opens the "Forgot password" step, with the typed email.
-   * Ignored while a request runs, so its result cannot land on the step.
+   * Empties the password, the one that was forgotten, so it is not still filled in when the user
+   * comes back to log in with the new one. Ignored while a request runs, so its result cannot land
+   * on the step.
    */
   fun openPasswordReset() {
     if (_uiState.value.isLoading) return
     _uiState.update {
       it.copy(
+          password = "",
           isResettingPassword = true,
           isResetEmailSent = false,
           error = null,
@@ -213,18 +216,25 @@ class AuthViewModel(
   /**
    * "Send reset email" on the "Forgot password" step. Only marks the attempt if the email is not an
    * EPFL address, and does nothing while a request runs or during the countdown.
+   *
+   * The email field can still be edited while the email is sent, so the answer is about the address
+   * sent, not the one typed when it arrives: the countdown applies to the address sent, and the
+   * confirmation or the error shows only if the field still holds that address.
    */
   fun sendPasswordReset() {
     _uiState.update { it.copy(hasAttemptedSubmit = true) }
     val state = _uiState.value
     if (!state.isEmailValid || !state.canSendReset) return
+    val sentTo = EpflEmail.normalize(state.email)
     launchAction(onStart = { it.copy(isResetEmailSent = false) }) {
-      when (val result = authRepository.sendPasswordResetEmail(state.email)) {
-        is AuthResult.Success -> {
-          _uiState.update { it.copy(isResetEmailSent = true) }
-          startResetCooldown()
+      val result = authRepository.sendPasswordResetEmail(state.email)
+      if (result is AuthResult.Success) startResetCooldown(sentTo)
+      _uiState.update {
+        when {
+          EpflEmail.normalize(it.email) != sentTo -> it
+          result is AuthResult.Failure -> it.copy(error = result.error)
+          else -> it.copy(isResetEmailSent = true)
         }
-        is AuthResult.Failure -> _uiState.update { it.copy(error = result.error) }
       }
     }
   }
@@ -388,10 +398,13 @@ class AuthViewModel(
     }
   }
 
-  /** Disables "Send reset email" the same way, with its own countdown. */
-  private fun startResetCooldown() {
+  /**
+   * Disables "Send reset email" the same way, with its own countdown, for [email], the normalized
+   * address the reset email went to.
+   */
+  private fun startResetCooldown(email: String) {
     resetCooldownJob?.cancel()
-    _uiState.update { it.copy(resetCooldownEmail = EpflEmail.normalize(it.email)) }
+    _uiState.update { it.copy(resetCooldownEmail = email) }
     resetCooldownJob = countDown { seconds ->
       _uiState.update { it.copy(resetCooldownSeconds = seconds) }
     }

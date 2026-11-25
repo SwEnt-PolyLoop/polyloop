@@ -117,7 +117,8 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
       // has an account (toAuthError would call it wrong credentials).
       AuthResult.Success(Unit)
     } catch (e: FirebaseAuthInvalidCredentialsException) {
-      // Firebase refused the address itself; toAuthError would call it wrong credentials too.
+      // Firebase found the address malformed. EpflEmail.isValid has already passed, so this should
+      // not happen in practice; toAuthError would call it wrong credentials too.
       AuthResult.Failure(AuthError.INVALID_DOMAIN)
     } catch (e: FirebaseException) {
       AuthResult.Failure(toAuthError(e))

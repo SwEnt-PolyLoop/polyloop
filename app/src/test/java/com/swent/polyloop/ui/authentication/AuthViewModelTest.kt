@@ -750,6 +750,18 @@ class AuthViewModelTest {
   }
 
   @Test
+  fun openPasswordResetEmptiesThePasswordSoItIsGoneBackOnTheForm() {
+    fillLogIn()
+
+    viewModel.openPasswordReset()
+    assertEquals("", state.password)
+    viewModel.backToForm()
+
+    assertEquals("", state.password)
+    assertEquals("john@epfl.ch", state.email)
+  }
+
+  @Test
   fun openPasswordResetIsIgnoredWhileARequestRuns() {
     val gate = CompletableDeferred<Unit>()
     repository.gate = gate
@@ -881,6 +893,56 @@ class AuthViewModelTest {
     viewModel.onEmailChange("jane@epfl.ch")
 
     assertFalse(state.isResetEmailSent)
+  }
+
+  @Test
+  fun editingTheEmailWhileSendingConfirmsOnlyTheAddressSent() {
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+    openReset()
+    viewModel.sendPasswordReset()
+
+    viewModel.onEmailChange("jane@epfl.ch")
+    gate.complete(Unit)
+
+    assertFalse(state.isResetEmailSent)
+    assertEquals(0, state.resetSecondsLeft)
+    assertTrue(state.canSendReset)
+    // The countdown applies to the address the email went to.
+    viewModel.onEmailChange(" John@EPFL.ch ")
+    assertEquals(60, state.resetSecondsLeft)
+    assertFalse(state.canSendReset)
+  }
+
+  @Test
+  fun editingTheEmailWhileSendingShowsNoErrorForTheNewAddress() {
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+    repository.resetResult = AuthResult.Failure(AuthError.TOO_MANY_REQUESTS)
+    openReset()
+    viewModel.sendPasswordReset()
+
+    viewModel.onEmailChange("jane@epfl.ch")
+    gate.complete(Unit)
+
+    assertNull(state.error)
+    assertFalse(state.isResetEmailSent)
+    assertFalse(state.isLoading)
+  }
+
+  @Test
+  fun editingTheEmailBackBeforeTheAnswerStillConfirms() {
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+    openReset()
+    viewModel.sendPasswordReset()
+
+    viewModel.onEmailChange("jane@epfl.ch")
+    viewModel.onEmailChange("john@epfl.ch")
+    gate.complete(Unit)
+
+    assertTrue(state.isResetEmailSent)
+    assertEquals(60, state.resetSecondsLeft)
   }
 
   @Test
