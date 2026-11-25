@@ -12,8 +12,11 @@ import {
   requireVerifiedEpfl,
 } from "./rentalRules";
 
-/** The reason the app reads (`details.reason`) when the rental is not closed yet. */
+/** The reason the app reads (`details.reason`) when the rental is neither closed nor lost. */
 export const NOT_CLOSED = "NOT_CLOSED";
+
+/** The statuses a rental can be reviewed in: closed, or lost (the item was never returned). */
+const REVIEWABLE = ["CLOSED", "LOST"];
 
 /** What the app sends: the rental and the stars given to the other participant. */
 export interface ReviewInput {
@@ -34,14 +37,14 @@ export function parseReviewInput(data: unknown): ReviewInput {
 }
 
 /**
- * Saves the review of [authorId] on the closed rental [rentalId] and updates the other
+ * Saves the review of [authorId] on the closed or lost rental [rentalId] and updates the other
  * participant's rating, in one transaction: `reviews/{rentalId}_{authorId}` is created with the
  * author's name and the item's title copied from the rental, and the reviewee's `reviewCount` goes
  * up by 1 while their `averageRating` takes in [stars] (a missing field reads as 0; not rounded).
  * The checks run in this order: the rental exists, the author is a participant, the rental has a
- * valid borrower and lender, the rental is CLOSED, the author has not reviewed it yet (if they have,
- * it returns without writing anything, so a repeat succeeds and changes nothing and the first stars
- * stay), the reviewee has a profile, and the reviewee's stored rating is valid.
+ * valid borrower and lender, the rental is CLOSED or LOST, the author has not reviewed it yet (if
+ * they have, it returns without writing anything, so a repeat succeeds and changes nothing and the
+ * first stars stay), the reviewee has a profile, and the reviewee's stored rating is valid.
  *
  * @throws RequestError `not-found` (no rental, or no profile for the reviewee),
  *   `permission-denied` (not a participant), `failed-precondition` with the reason [NOT_CLOSED] or
@@ -64,10 +67,12 @@ export async function submitReviewInTransaction(
       throw new RequestError("permission-denied", "Only the two participants can do this.");
     }
     const { borrowerId, lenderId } = requireParties(rental);
-    if (rental.status !== "CLOSED") {
-      throw new RequestError("failed-precondition", "Only a closed rental can be reviewed.", {
-        reason: NOT_CLOSED,
-      });
+    if (!REVIEWABLE.includes(rental.status)) {
+      throw new RequestError(
+        "failed-precondition",
+        "Only a closed or lost rental can be reviewed.",
+        { reason: NOT_CLOSED },
+      );
     }
     const authorIsLender = authorId === lenderId;
     const revieweeId = authorIsLender ? borrowerId : lenderId;
@@ -132,10 +137,10 @@ function textOf(value: unknown): string {
 }
 
 /**
- * Callable `submitReview` (see docs/ARCHITECTURE.md): a participant of a closed rental gives the
- * other one 1 to 5 stars, once. Input: `{rentalId, stars}`; everything else comes from the rental.
- * A rental that is not closed is refused with `details.reason` `NOT_CLOSED`. A repeated review
- * succeeds and changes nothing. Returns {}.
+ * Callable `submitReview` (see docs/ARCHITECTURE.md): a participant of a closed or lost rental
+ * gives the other one 1 to 5 stars, once. Input: `{rentalId, stars}`; everything else comes from
+ * the rental. A rental that is neither closed nor lost is refused with `details.reason`
+ * `NOT_CLOSED`. A repeated review succeeds and changes nothing. Returns {}.
  */
 export const submitReview = onCall(async (request) => {
   try {

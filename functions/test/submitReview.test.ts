@@ -55,28 +55,31 @@ async function refusedUnchanged(
 }
 
 describe("submitReview", () => {
-  it("saves a first review and gives the reviewee their first rating", async () => {
-    const { who, id } = await closed();
+  it.each(["CLOSED", "LOST"])(
+    "saves a first review on a %s rental and gives the reviewee their first rating",
+    async (status) => {
+      const { who, id } = await closed(status);
 
-    const result = await submitReview.run(asUser(who.borrower, { rentalId: id, stars: 4 }));
+      const result = await submitReview.run(asUser(who.borrower, { rentalId: id, stars: 4 }));
 
-    expect(result).toEqual({});
-    const saved = await reviewDoc(id, who.borrower);
-    expect(saved).toMatchObject({
-      rentalId: id,
-      authorId: who.borrower,
-      authorName: "Bo",
-      revieweeId: who.lender,
-      stars: 4,
-      itemTitle: "Camping tent",
-    });
-    expect(saved?.createdAt).toBeInstanceOf(Timestamp);
-    expect(Object.keys(saved ?? {}).sort()).toEqual(
-      ["authorId", "authorName", "createdAt", "itemTitle", "rentalId", "revieweeId", "stars"],
-    );
-    expect(await profile(who.lender)).toMatchObject({ averageRating: 4, reviewCount: 1 });
-    expect(await profile(who.borrower)).not.toHaveProperty("reviewCount");
-  });
+      expect(result).toEqual({});
+      const saved = await reviewDoc(id, who.borrower);
+      expect(saved).toMatchObject({
+        rentalId: id,
+        authorId: who.borrower,
+        authorName: "Bo",
+        revieweeId: who.lender,
+        stars: 4,
+        itemTitle: "Camping tent",
+      });
+      expect(saved?.createdAt).toBeInstanceOf(Timestamp);
+      expect(Object.keys(saved ?? {}).sort()).toEqual(
+        ["authorId", "authorName", "createdAt", "itemTitle", "rentalId", "revieweeId", "stars"],
+      );
+      expect(await profile(who.lender)).toMatchObject({ averageRating: 4, reviewCount: 1 });
+      expect(await profile(who.borrower)).not.toHaveProperty("reviewCount");
+    },
+  );
 
   it.each([
     { stored: {}, stars: [5, 2], average: 3.5, count: 2 },
