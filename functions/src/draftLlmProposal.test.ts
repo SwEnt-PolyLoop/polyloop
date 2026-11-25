@@ -2,17 +2,26 @@
 
 import { getApps, initializeApp } from "firebase-admin/app";
 import { draftLlmProposal } from "./draftLlmProposal";
+import { GeminiAdvisor, createGeminiAdvisor } from "./gemini";
 import { draftLlmProposal as draft } from "./llmProposal";
 
 // The Firestore logic is tested on the emulator in llmProposal.test.ts; here only the wiring.
 // Imported from its own file, not index.ts: index also loads Firebase Auth, which Jest cannot load.
 jest.mock("./llmProposal");
+jest.mock("./gemini");
 
 const drafted = jest.mocked(draft);
+const created = jest.mocked(createGeminiAdvisor);
+const gemini = { model: "fake-model", advise: jest.fn() } as unknown as GeminiAdvisor;
 
-// index.ts does this in the deployed functions; the trigger needs it to call getFirestore().
+// index.ts does this in the deployed functions; the trigger needs it to call getFirestore() and
+// getStorage(). The project id comes from FIREBASE_CONFIG, as in the deployed functions.
 beforeAll(() => {
-  if (getApps().length === 0) initializeApp({ projectId: "demo-polyloop" });
+  process.env.FIREBASE_CONFIG = JSON.stringify({ projectId: "demo-polyloop" });
+  if (getApps().length === 0) {
+    initializeApp({ projectId: "demo-polyloop", storageBucket: "demo-polyloop.appspot.com" });
+  }
+  created.mockReturnValue(gemini);
 });
 
 beforeEach(() => drafted.mockClear());
@@ -46,16 +55,25 @@ describe("draftLlmProposal", () => {
     expect(endpoint.timeoutSeconds).toBe(300);
   });
 
-  it("passes the dispute before and after the update, with no model configured yet", async () => {
+  it("passes the dispute before and after the update, with Gemini", async () => {
     const before = { stage: "SETTLE" };
     const after = { stage: "LLM_PROPOSAL", llmProposal: { status: "PENDING", attempt: 1 } };
 
     await draftLlmProposal.run(disputeUpdated("rental-1", before, after));
 
     expect(drafted).toHaveBeenCalledWith(expect.anything(), "rental-1", before, after, {
-      advisor: null,
+      advisor: gemini,
       expired: false,
     });
+  });
+
+  it("builds Gemini once, in this project, reading photos from its default bucket", async () => {
+    await draftLlmProposal.run(disputeUpdated("rental-1", {}, {}));
+    await draftLlmProposal.run(disputeUpdated("rental-2", {}, {}));
+
+    expect(created).toHaveBeenCalledTimes(1);
+    expect(created).toHaveBeenCalledWith("demo-polyloop", "demo-polyloop.appspot.com");
+    expect(drafted.mock.calls.map((call) => call[4].advisor)).toEqual([gemini, gemini]);
   });
 
   it("marks an event older than a day as expired", async () => {
