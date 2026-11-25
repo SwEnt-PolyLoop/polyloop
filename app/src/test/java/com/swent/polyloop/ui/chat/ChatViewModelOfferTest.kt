@@ -389,7 +389,7 @@ class ChatViewModelOfferTest {
   }
 
   @Test
-  fun anotherServerDayIsNotThePickupDay() {
+  fun theDaysBeforeAndAfterThePickupDayAreNotThePickupDay() {
     rentals = rentalsWith(request.copy(status = RentalStatus.ACCEPTED))
     rentals.serverNow = Instant.parse("2026-12-09T12:00:00Z")
 
@@ -397,6 +397,9 @@ class ChatViewModelOfferTest {
 
     assertEquals(LocalDate.of(2026, 12, 9), state.serverToday)
     assertFalse(state.isPickupDay)
+
+    rentals.serverNow = Instant.parse("2026-12-11T12:00:00Z")
+    assertFalse(viewModel().uiState.value.isPickupDay)
   }
 
   @Test

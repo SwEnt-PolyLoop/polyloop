@@ -251,5 +251,6 @@ class DateRangeSelectionTest {
     assertEquals(oct(6), firstRequestDay(oct(5)))
     assertFalse(requestable(5, 7, today = oct(5)))
     assertTrue(requestable(6, 7, today = oct(5)))
+    assertTrue(requestable(7, 8, today = oct(5)))
   }
 }

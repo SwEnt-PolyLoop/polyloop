@@ -350,6 +350,10 @@ class HandoverViewModelTest {
     rentalRepository.serverNow = noonOn(returnDay)
     assertTrue(viewModel().uiState.value.isHandoverDay)
 
+    // Still Active the day after, before the late-fee job marks it Overdue.
+    rentalRepository.serverNow = noonOn(returnDay.plusDays(1))
+    assertTrue(viewModel().uiState.value.isHandoverDay)
+
     useStatus(RentalStatus.OVERDUE)
     rentalRepository.serverNow = noonOn(returnDay.plusDays(2))
     assertTrue(viewModel().uiState.value.isHandoverDay)
