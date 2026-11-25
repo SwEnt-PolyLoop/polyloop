@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { getApps, initializeApp } from "firebase-admin/app";
-import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
+import { FieldValue, Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import {
   REJECTED_MESSAGE,
   acceptLlmProposal,
@@ -301,12 +301,13 @@ describe("rejectLlmProposal", () => {
     }
   });
 
-  it("refuses a pending proposal", async () => {
+  it("refuses a pending proposal as changed: the other party asked for a new attempt", async () => {
     const proposal = { status: "PENDING", attempt: 2 };
     const { id, who } = await escalated(proposal);
 
     await expect(rejectLlmProposal(db, who.lender, id)).rejects.toMatchObject({
       code: "failed-precondition",
+      details: { reason: "LLM_PROPOSAL_CHANGED" },
     });
     await expectUnchanged(id, who, proposal);
   });
@@ -354,6 +355,9 @@ describe("rejectLlmProposal", () => {
     ]);
 
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    // The loser lost a race, so the app follows the dispute instead of showing an error.
+    const loser = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(["STAGE_CHANGED", "LLM_PROPOSAL_CHANGED"]).toContain(loser.reason.details?.reason);
     const after = await dispute(id);
     // Either in court with the failed proposal, or waiting for the second attempt: never both.
     expect(after?.stage === "COURT").toBe(after?.llmProposal.status === "FAILED");
@@ -383,15 +387,38 @@ describe("retryLlmProposal", () => {
     await expectUnchanged(id, who, proposal);
   });
 
-  it("refuses a proposal that did not fail", async () => {
+  it("refuses a proposal that did not fail as changed, so a lost answer reads as a race", async () => {
     for (const proposal of [ready(), { status: "PENDING", attempt: 1 }]) {
       const { id, who } = await escalated(proposal);
 
       await expect(retryLlmProposal(db, who.lender, id)).rejects.toMatchObject({
         code: "failed-precondition",
+        details: { reason: "LLM_PROPOSAL_CHANGED" },
       });
       await expectUnchanged(id, who, proposal);
     }
+  });
+
+  it("refuses the same retry sent again after its answer was lost", async () => {
+    const { id, who } = await escalated(failed(1));
+    await retryLlmProposal(db, who.lender, id);
+
+    await expect(retryLlmProposal(db, who.lender, id)).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "LLM_PROPOSAL_CHANGED" },
+    });
+    expect((await dispute(id))?.llmProposal).toEqual({ status: "PENDING", attempt: 2 });
+  });
+
+  it("refuses an invalid attempt number without a reason", async () => {
+    const proposal = { status: "FAILED", attempt: "1" };
+    const { id, who } = await escalated(proposal);
+
+    const error = await retryLlmProposal(db, who.lender, id).catch((e) => e);
+
+    expect(error).toMatchObject({ code: "failed-precondition" });
+    expect(error.details).toBeUndefined();
+    await expectUnchanged(id, who, proposal);
   });
 
   it("starts one attempt when both parties retry at the same time", async () => {
@@ -403,6 +430,9 @@ describe("retryLlmProposal", () => {
     ]);
 
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((r) => r.status === "rejected")).toMatchObject({
+      reason: { code: "failed-precondition", details: { reason: "LLM_PROPOSAL_CHANGED" } },
+    });
     expect((await dispute(id))?.llmProposal).toEqual({ status: "PENDING", attempt: 2 });
   });
 });
@@ -446,6 +476,19 @@ describe("every answer", () => {
         });
         expect(await systemMessages(id)).toEqual([]);
       }
+    }
+  });
+
+  it("refuses a dispute escalated before the LLM proposal existed, without a reason", async () => {
+    for (const answer of answers) {
+      const { id, who } = await escalated({});
+      await db.collection("disputes").doc(id).update({ llmProposal: FieldValue.delete() });
+
+      const error = await answer(id, who.lender).catch((e) => e);
+
+      expect(error).toMatchObject({ code: "failed-precondition" });
+      expect(error.details).toBeUndefined();
+      expect((await dispute(id))?.stage).toBe("LLM_PROPOSAL");
     }
   });
 
