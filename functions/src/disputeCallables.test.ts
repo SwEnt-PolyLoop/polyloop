@@ -7,6 +7,7 @@ import {
   acceptLlmProposal,
   acceptSplit,
   escalateDispute,
+  openDispute,
   proposeSplit,
   rejectLlmProposal,
   retryLlmProposal,
@@ -72,6 +73,7 @@ describe("deployment", () => {
       acceptSplit,
       escalateDispute,
       acceptLlmProposal,
+      openDispute,
       rejectLlmProposal,
       retryLlmProposal,
     ]) {
@@ -116,7 +118,7 @@ describe("what can be sent", () => {
     await expect(
       acceptLlmProposal.run(asUser(LENDER, { rentalId: id, attempt: 0 })),
     ).rejects.toMatchObject({ code: "invalid-argument" });
-    for (const fn of [rejectLlmProposal, retryLlmProposal]) {
+    for (const fn of [openDispute, rejectLlmProposal, retryLlmProposal]) {
       await expect(fn.run(asUser(LENDER, {}))).rejects.toMatchObject({
         code: "invalid-argument",
       });
@@ -135,6 +137,24 @@ describe("what can be sent", () => {
       code: "failed-precondition",
       details: { reason: "STAGE_CHANGED" },
     });
+  });
+});
+
+describe("openDispute", () => {
+  it("opens the dispute for its verified lender, and returns nothing", async () => {
+    const id = randomUUID();
+    await db.collection("rentals").doc(id).set({
+      ownerId: LENDER,
+      borrowerId: BORROWER,
+      status: "RETURNED",
+    });
+
+    await expect(
+      openDispute.run(asUser(LENDER, { rentalId: id }, undefined, false)),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(await dispute(id)).toBeUndefined();
+    expect(await openDispute.run(asUser(LENDER, { rentalId: id }))).toEqual({});
+    expect((await dispute(id))?.stage).toBe("SETTLE");
   });
 });
 
