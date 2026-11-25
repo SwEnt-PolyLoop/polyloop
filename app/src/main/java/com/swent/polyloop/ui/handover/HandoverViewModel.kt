@@ -451,8 +451,9 @@ class HandoverViewModel(
     _uiState.update { it.copy(isSendingScan = true, scanError = null) }
     viewModelScope.launch {
       if (state.isOffline) {
-        // The queue sends it later; followQueuedScan shows it as queued, then its outcome.
-        val scannedAt = serverClock.now()
+        // The queue sends it later; followQueuedScan shows it as queued, then its outcome. Its
+        // time comes from the saved pair, like a photo's, so it never waits for the server.
+        val scannedAt = serverClock.savedNow()
         val queued =
             scannedAt != null &&
                 handoverRepository.queueScan(rentalId, phase, code, scannedAt).isSuccess

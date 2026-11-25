@@ -1857,10 +1857,14 @@ class HandoverViewModelTest {
   fun offlineARightCodeIsQueuedWithTheServersTimeAndEndsTheScan() {
     val vm = readyToScan()
     connectivity.setOnline(false)
+    val asked = rentalRepository.serverNowCalls
+    elapsed += 60_000L
     vm.onCodeScanned("secret-code")
 
     val state = vm.uiState.value
-    assertEquals(noonOn(pickupDay), handoverRepository.queuedScan.value?.scannedAt)
+    // The server's time a minute after the day was read, from the saved pair: no server call.
+    assertEquals(noonOn(pickupDay).plusSeconds(60), handoverRepository.queuedScan.value?.scannedAt)
+    assertEquals(asked, rentalRepository.serverNowCalls)
     assertTrue(handoverRepository.scannedCodes.isEmpty()) // the queue sends it, not the screen
     assertTrue(state.scanQueued)
     assertNull(state.scanError)
