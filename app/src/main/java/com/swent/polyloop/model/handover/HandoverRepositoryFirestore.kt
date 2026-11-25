@@ -44,7 +44,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * photo's slot, see [photoSlotId]. The code to show is at
  * `rentals/{rentalId}/handoverCodes/{phase}`, readable only by the person who shows it; the
  * fingerprint of the code to scan is on the rental. A scan goes to the Cloud Function
- * `confirmHandover`, the only one that moves the rental on.
+ * `confirmHandover`, and "Item is fine" to `confirmReturnOk`: only Cloud Functions move the rental
+ * on.
  *
  * A slot whose file exists in Storage without a document (an upload that finished but whose
  * document was never written) can never be written again, as the rules refuse to replace a file:
@@ -268,9 +269,14 @@ class HandoverRepositoryFirestore(
 
   private fun rental(rentalId: String) = db.collection(HandoverFields.RENTALS).document(rentalId)
 
-  /** Always fails for now: the Cloud Function that releases the deposit does not exist yet. */
-  override suspend fun confirmReturnOk(rentalId: String): Result<Unit> =
-      Result.failure(UnsupportedOperationException("Confirming a return is not available yet"))
+  /** Calls the Cloud Function `confirmReturnOk`; its refusals are passed on as they come. */
+  override suspend fun confirmReturnOk(rentalId: String): Result<Unit> {
+    if (!isValidDocumentId(rentalId)) {
+      return Result.failure(IllegalArgumentException("Invalid rental id"))
+    }
+    if (auth.currentUser == null) return Result.failure(IllegalStateException("Signed out"))
+    return callCloudFunction(functions(), CONFIRM_RETURN_OK, mapOf("rentalId" to rentalId))
+  }
 
   private fun photos(rentalId: String) =
       db.collection(HandoverFields.RENTALS).document(rentalId).collection(HandoverFields.PHOTOS)
@@ -284,6 +290,7 @@ class HandoverRepositoryFirestore(
     const val METADATA_TIMEOUT_MS = 10_000L
     const val SCAN_TIMEOUT_MS = 30_000L
     const val CONFIRM_HANDOVER = "confirmHandover"
+    const val CONFIRM_RETURN_OK = "confirmReturnOk"
 
     /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */
     const val WRONG_CODE = "WRONG_CODE"

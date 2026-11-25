@@ -49,8 +49,11 @@ interface HandoverRepository {
 
   /**
    * Tells, as the signed-in lender, that the item of the returned rental [rentalId] came back fine:
-   * the whole deposit goes back to the borrower and the rental closes. Fails if nobody is signed
-   * in, the user is not the lender, the rental is not Returned, or it cannot be sent.
+   * the deposit, less any late fees, goes back to the borrower and the rental closes. Succeeds if
+   * the rental was already closed by this answer. Fails with an [IllegalArgumentException] if
+   * [rentalId] is invalid, with an [IllegalStateException] if nobody is signed in, or with the
+   * cause if the user is not the lender, the rental is no longer Returned (e.g. damage was flagged
+   * first), or it cannot be sent.
    */
   suspend fun confirmReturnOk(rentalId: String): Result<Unit>
 }
