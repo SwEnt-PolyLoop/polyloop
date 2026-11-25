@@ -17,6 +17,7 @@ class FakeAuthRepository(
     var signInResult: AuthResult<AuthUser> =
         AuthResult.Success(AuthUser(uid = "uid1", email = "john@epfl.ch", name = "John")),
     var resendResult: AuthResult<Unit> = AuthResult.Success(Unit),
+    var resetResult: AuthResult<Unit> = AuthResult.Success(Unit),
     var gate: CompletableDeferred<Unit>? = null,
     var exception: Exception? = null,
     // The user returned by getCurrentUser; null means nobody is signed in.
@@ -47,6 +48,13 @@ class FakeAuthRepository(
     gate?.await()
     exception?.let { throw it }
     return resendResult
+  }
+
+  override suspend fun sendPasswordResetEmail(email: String): AuthResult<Unit> {
+    calls += "sendPasswordResetEmail($email)"
+    gate?.await()
+    exception?.let { throw it }
+    return resetResult
   }
 
   override fun getCurrentUser(): AuthUser? = signedInUser
