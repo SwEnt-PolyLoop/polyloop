@@ -184,4 +184,73 @@ describe("confirmReturnOk", () => {
     expect(await messages(id)).toEqual([]);
     expect(await newRows(who, id)).toEqual([]);
   });
+
+  it("releases the deposit once when two calls race", async () => {
+    const who = people();
+    const id = await heldRental(who, "RETURNED");
+
+    await Promise.all([confirmReturnOk(db, who.lender, id), confirmReturnOk(db, who.lender, id)]);
+
+    expect(await messages(id)).toEqual([RELEASED]);
+    expect(await newRows(who, id)).toHaveLength(1);
+    expect(await wallet(who.borrower)).toMatchObject({ available: 50, heldAsDeposits: 0 });
+  });
+
+  it("lets only one of Item is fine and Flag damage through when they race", async () => {
+    const who = people();
+    const id = await heldRental(who, "RETURNED");
+
+    const [fine, damage] = await Promise.allSettled([
+      confirmReturnOk(db, who.lender, id),
+      openDispute(db, who.lender, id, NOW),
+    ]);
+
+    const loser = fine.status === "rejected" ? fine : damage;
+    expect([fine.status, damage.status].sort()).toEqual(["fulfilled", "rejected"]);
+    expect(loser).toMatchObject({ reason: { details: { reason: "RENTAL_CHANGED" } } });
+    const dispute = await db.collection("disputes").doc(id).get();
+    if (fine.status === "fulfilled") {
+      expect((await rentalData(id))?.status).toBe("CLOSED");
+      expect(dispute.exists).toBe(false);
+      expect(await wallet(who.borrower)).toMatchObject({ available: 50, heldAsDeposits: 0 });
+    } else {
+      expect((await rentalData(id))?.status).toBe("DISPUTED");
+      expect(dispute.exists).toBe(true);
+      expect(await wallet(who.borrower)).toMatchObject({ available: 10, heldAsDeposits: 40 });
+      expect(await newRows(who, id)).toEqual([]);
+    }
+    expect(await messages(id)).toHaveLength(1);
+  });
+});
+
+describe("the confirmReturnOk callable", () => {
+  it("is exposed to the app in the app's region", () => {
+    expect(confirmReturnOkCallable.__endpoint.region).toEqual(["europe-west1"]);
+    expect(confirmReturnOkCallable.__endpoint.callableTrigger).toBeDefined();
+  });
+
+  it("refuses an unverified caller, one not signed in, and a missing rental id", async () => {
+    const who = people();
+    const id = await heldRental(who, "RETURNED");
+
+    await expect(
+      confirmReturnOkCallable.run({ data: { rentalId: id } } as never),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+    await expect(
+      confirmReturnOkCallable.run(asUser(who.lender, { rentalId: id }, undefined, false)),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(confirmReturnOkCallable.run(asUser(who.lender, {}))).rejects.toMatchObject({
+      code: "invalid-argument",
+    });
+    expect((await rentalData(id))?.status).toBe("RETURNED");
+  });
+
+  it("closes the rental for its lender and returns an empty object", async () => {
+    const who = people();
+    const id = await heldRental(who, "RETURNED");
+
+    expect(await confirmReturnOkCallable.run(asUser(who.lender, { rentalId: id }))).toEqual({});
+
+    expect((await rentalData(id))?.status).toBe("CLOSED");
+  });
 });
