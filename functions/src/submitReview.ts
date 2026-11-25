@@ -38,8 +38,9 @@ export function parseReviewInput(data: unknown): ReviewInput {
  * participant's rating, in one transaction: `reviews/{rentalId}_{authorId}` is created with the
  * author's name and the item's title copied from the rental, and the reviewee's `reviewCount` goes
  * up by 1 while their `averageRating` takes in [stars] (a missing field reads as 0; not rounded).
- * The checks run in this order: the rental exists, the author is a participant, the rental is
- * CLOSED, the author has not reviewed it yet, the reviewee has a profile.
+ * The checks run in this order: the rental exists, the author is a participant, the rental has a
+ * valid borrower and lender, the rental is CLOSED, the author has not reviewed it yet, the reviewee
+ * has a profile, and the reviewee's stored rating is valid.
  *
  * @throws RequestError `not-found` (no rental, or no profile for the reviewee),
  *   `permission-denied` (not a participant), `failed-precondition` with the reason [NOT_CLOSED],
