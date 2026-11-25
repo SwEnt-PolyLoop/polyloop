@@ -21,14 +21,14 @@ beforeAll(() => {
   db = getFirestore();
 });
 
-/** A rental with [status] between new people, who both have a profile with [profile]. */
-async function closed(status = "CLOSED", profile: object = {}) {
+/** A rental with [status] between new people, who both have a profile. */
+async function closed(status = "CLOSED") {
   const who = people();
   for (const [uid, name] of [
     [who.lender, "Lena"],
     [who.borrower, "Bo"],
   ]) {
-    await db.doc(`users/${uid}`).set({ name, email: `${uid}@epfl.ch`, ...profile });
+    await db.doc(`users/${uid}`).set({ name, email: `${uid}@epfl.ch` });
   }
   const id = await rental(who, status, { ownerName: "Lena", borrowerName: "Bo" });
   return { who, id };
@@ -41,9 +41,14 @@ const reviewDoc = async (id: string, author: string) =>
   (await db.doc(`reviews/${id}_${author}`).get()).data();
 
 /** Checks that [run] fails with [code] and that nothing was written for [who] on [id]. */
-async function refusedUnchanged(who: People, id: string, run: Promise<unknown>, code: object) {
+async function refusedUnchanged(
+  who: People,
+  id: string,
+  run: () => Promise<unknown>,
+  code: object,
+) {
   const before = [await profile(who.lender), await profile(who.borrower)];
-  await expect(run).rejects.toMatchObject(code);
+  await expect(run()).rejects.toMatchObject(code);
   expect([await profile(who.lender), await profile(who.borrower)]).toEqual(before);
   expect(await reviewDoc(id, who.borrower)).toBeUndefined();
   expect(await reviewDoc(id, who.lender)).toBeUndefined();
@@ -133,7 +138,7 @@ describe("submitReview", () => {
   it.each(["RETURNED", "DISPUTED", "ACTIVE"])("refuses a %s rental", async (status) => {
     const { who, id } = await closed(status);
 
-    await refusedUnchanged(who, id, review(id, who.borrower), {
+    await refusedUnchanged(who, id, () => review(id, who.borrower), {
       code: "failed-precondition",
       details: { reason: "NOT_CLOSED" },
     });
@@ -149,14 +154,32 @@ describe("submitReview", () => {
       [asUser(who.borrower, data, `${who.borrower}@epfl.ch`, false), "permission-denied"],
       [asUser(who.borrower, data, "bo@gmail.com"), "permission-denied"],
     ] as const) {
-      await refusedUnchanged(who, id, submitReview.run(request as never), { code });
+      await refusedUnchanged(who, id, () => submitReview.run(request as never), { code });
+    }
+  });
+
+  it("checks the caller before the input", async () => {
+    const { who, id } = await closed();
+    const unverified = (data: object) =>
+      asUser(who.borrower, data, `${who.borrower}@epfl.ch`, false);
+
+    for (const data of [{ rentalId: id, stars: 0 }, { stars: 4 }]) {
+      for (const [request, code] of [
+        [{ data }, "unauthenticated"],
+        [unverified(data), "permission-denied"],
+        [asUser(who.borrower, data, "bo@gmail.com"), "permission-denied"],
+      ] as const) {
+        await refusedUnchanged(who, id, () => submitReview.run(request as never), { code });
+      }
     }
   });
 
   it.each([0, 6, 2.5, "4", null, undefined])("refuses %p stars", async (stars) => {
     const { who, id } = await closed();
 
-    await refusedUnchanged(who, id, submitReview.run(asUser(who.borrower, { rentalId: id, stars })), {
+    const request = asUser(who.borrower, { rentalId: id, stars });
+
+    await refusedUnchanged(who, id, () => submitReview.run(request), {
       code: "invalid-argument",
     });
   });
@@ -168,6 +191,16 @@ describe("submitReview", () => {
       });
     }
   });
+
+  it.each([{ reviewCount: 3 }, { reviewCount: 3, averageRating: 7 }])(
+    "refuses a reviewee whose stored rating is %p and writes nothing",
+    async (stored) => {
+      const { who, id } = await closed();
+      await db.doc(`users/${who.lender}`).set(stored, { merge: true });
+
+      await refusedUnchanged(who, id, () => review(id, who.borrower), { code: "internal" });
+    },
+  );
 
   it("refuses a missing rental", async () => {
     await expect(review("no-such-rental", "someone")).rejects.toMatchObject({ code: "not-found" });
