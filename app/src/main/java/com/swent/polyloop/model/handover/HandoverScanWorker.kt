@@ -62,5 +62,14 @@ class HandoverScanWorker(context: Context, params: WorkerParameters) :
           is ScanRefusedException -> REFUSED
           else -> null
         }
+
+    /** The error of a refusal kept as [name] by [refusalName], or null if it is not one. */
+    fun refusalError(name: String?): Exception? =
+        when (name) {
+          WRONG_CODE -> WrongCodeException()
+          RENTAL_CHANGED -> RentalChangedException()
+          REFUSED -> ScanRefusedException()
+          else -> null
+        }
   }
 }

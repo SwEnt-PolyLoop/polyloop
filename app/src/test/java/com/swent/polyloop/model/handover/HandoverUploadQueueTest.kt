@@ -18,6 +18,7 @@ import java.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -60,10 +61,19 @@ class HandoverUploadQueueTest {
     photo.delete() // the screen deletes the camera's file once it is queued
   }
 
-  private fun goOnline() {
+  private fun goOnline(jobs: String = PHOTOS) {
     val driver = WorkManagerTestInitHelper.getTestDriver(context)!!
-    runBlocking { WorkManager.getInstance(context).getWorkInfosByTagFlow(ALL).first() }
+    runBlocking { WorkManager.getInstance(context).getWorkInfosByTagFlow(jobs).first() }
+        .filter { !it.state.isFinished }
         .forEach { driver.setAllConstraintsMet(it.id) }
+  }
+
+  private fun enqueueScan(scannedAt: Long) = runBlocking {
+    queue.enqueueScan("rental1", HandoverPhase.PICKUP, "code", Instant.ofEpochMilli(scannedAt))
+  }
+
+  private fun observeScan() = runBlocking {
+    queue.observeScan("rental1", HandoverPhase.PICKUP).first()
   }
 
   private fun observe() = runBlocking { queue.observe("rental1", HandoverPhase.PICKUP).first() }
@@ -93,9 +103,28 @@ class HandoverUploadQueueTest {
     assertTrue(observe().single().refused)
   }
 
+  @Test
+  fun aQueuedScanWaitsKeepsItsRefusalAndIsReplacedByANewScan() {
+    enqueueScan(TAKEN_AT)
+    enqueueScan(TAKEN_AT + 1) // one is already waiting: kept as it is
+    assertEquals(QueuedScan(Instant.ofEpochMilli(TAKEN_AT)), observeScan())
+
+    result = ListenableWorker.Result.failure(workDataOf(HandoverScanWorker.REFUSAL to "WRONG_CODE"))
+    goOnline(SCANS)
+    assertTrue(observeScan()?.refusal is WrongCodeException)
+
+    // Scanned again after the refusal: the new scan is queued, then sent.
+    result = ListenableWorker.Result.success()
+    enqueueScan(TAKEN_AT + 1)
+    assertEquals(QueuedScan(Instant.ofEpochMilli(TAKEN_AT + 1)), observeScan())
+    goOnline(SCANS)
+    assertNull(observeScan())
+  }
+
   private companion object {
     const val TAKEN_AT = 1_000L
-    // Every job is a HandoverPhotoWorker, whose class name WorkManager adds as a tag.
-    val ALL: String = HandoverPhotoWorker::class.java.name
+    // WorkManager tags each job with its worker's class name.
+    val PHOTOS: String = HandoverPhotoWorker::class.java.name
+    val SCANS: String = HandoverScanWorker::class.java.name
   }
 }
