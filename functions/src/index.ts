@@ -26,5 +26,6 @@ export { acceptSplit } from "./acceptSplit";
 export { escalateDispute } from "./escalateDispute";
 export { escalateDisputes } from "./escalateDisputes";
 export { openDispute } from "./openDispute";
+export { confirmReturnOk } from "./confirmReturnOk";
 export { confirmHandover } from "./confirmHandover";
 export { draftLlmProposal } from "./draftLlmProposal";
