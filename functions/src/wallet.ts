@@ -17,7 +17,9 @@ import { Parties, RequestError, listingTitleOf } from "./rentalRules";
  * and `wallets/{uid}/transactions/{id}` the history. Only Cloud Functions write them. As in every
  * Firestore transaction, read first (`readWallet`, `hasTransaction`), check (`requireFunds`), then
  * write (`writeWallet`, or `writeDepositHold` for a deposit, whose row id is `depositRowId`, and
- * `writeRentalHold` for a rental price, whose row id is `rentalHeldRowId`).
+ * `writeRentalHold` for a rental price, whose row id is `rentalHeldRowId`). A held rental price
+ * goes back with `readPriceRelease`, `releasePrice` and `writePriceRelease` (row id
+ * `rentalReleasedRowId`).
  */
 
 /** The balances of a wallet, in whole PolyPoints. */
@@ -217,6 +219,112 @@ export function writeRentalHold(
     },
     { id: rentalHeldRowId(rentalId), type: RENTAL_PAYMENT, amount: -price, itemTitle },
   );
+}
+
+/**
+ * The id of the history row of a rental's held price given back, when the request ends without a
+ * rental (declined, expired or cancelled). A fixed id makes the release idempotent.
+ */
+export function rentalReleasedRowId(rentalId: string): string {
+  return `rental_price_released_${rentalId}`;
+}
+
+/** A rental's held price to give back, read in the caller's transaction ([readPriceRelease]). */
+export interface PriceRelease {
+  borrowerId: string;
+  rentalId: string;
+  /** What the hold took, read from its row, from 1 up. */
+  amount: number;
+  /** The title of the item, or "". */
+  itemTitle: string;
+}
+
+/**
+ * Read step of a rental price release, inside the caller's transaction before its writes. The
+ * amount is the one the hold took (its `rental_price_held_<rentalId>` row), not the rental's
+ * `totalPrice`, so exactly what was held goes back. There is nothing to give back when the rental
+ * has no valid borrower, when its price was never held (a request sent before prices were held), or
+ * when it was already given back (its `rental_price_released_<rentalId>` row exists).
+ *
+ * @param tx the transaction to read in.
+ * @param db the Firestore database.
+ * @param rentalId the rental whose price was held.
+ * @param rental the rental document's data: the borrower and the item title.
+ * @returns the price to give back, or null when there is nothing to give back.
+ * @throws RequestError `internal` when the held row's amount is not a whole number below 0: the
+ *   data is broken, and nothing is written.
+ */
+export async function readPriceRelease(
+  tx: Transaction,
+  db: Firestore,
+  rentalId: string,
+  rental: DocumentData,
+): Promise<PriceRelease | null> {
+  const borrowerId = rental.borrowerId;
+  if (typeof borrowerId !== "string" || borrowerId === "") return null;
+  const [held, released] = await Promise.all([
+    tx.get(transactionRef(db, borrowerId, rentalHeldRowId(rentalId))),
+    tx.get(transactionRef(db, borrowerId, rentalReleasedRowId(rentalId))),
+  ]);
+  if (!held.exists || released.exists) return null;
+  const amount = -held.get("amount");
+  if (!Number.isInteger(amount) || amount <= 0) {
+    logger.error("The held rental price row has no valid amount", { rentalId });
+    throw new RequestError("internal", "The held rental price has no valid amount.");
+  }
+  return { borrowerId, rentalId, amount, itemTitle: listingTitleOf(rental) };
+}
+
+/**
+ * The borrower's balances once [release] is given back: `available += amount` and
+ * `heldForRentals -= amount`. Nothing is written, so a caller moving the same wallet more than once
+ * in a transaction applies every move before writing it.
+ *
+ * @param wallet the borrower's balances, as read in the transaction or after earlier moves.
+ * @param release what [readPriceRelease] read.
+ * @returns the new balances.
+ * @throws RequestError `internal` when `heldForRentals` is below the amount: giving it back would
+ *   create PolyPoints, so nothing is written.
+ */
+export function releasePrice(wallet: Wallet, release: PriceRelease): Wallet {
+  if (wallet.heldForRentals < release.amount) {
+    logger.error("Held rental prices do not cover the release", {
+      rentalId: release.rentalId,
+      amount: release.amount,
+      heldForRentals: wallet.heldForRentals,
+    });
+    throw new RequestError("internal", "The borrower's held rental prices do not cover the price.");
+  }
+  return {
+    ...wallet,
+    available: wallet.available + release.amount,
+    heldForRentals: wallet.heldForRentals - release.amount,
+  };
+}
+
+/**
+ * Write step of a rental price release, inside the caller's transaction after its reads: sets the
+ * borrower's balances to [wallet] and adds the `RENTAL_PAYMENT` row
+ * `rental_price_released_<rentalId>` with the amount `+amount`.
+ *
+ * @param tx the transaction to write in.
+ * @param db the Firestore database.
+ * @param release what [readPriceRelease] read.
+ * @param wallet the borrower's balances after [releasePrice], and after every earlier move of the
+ *   same wallet in this transaction.
+ */
+export function writePriceRelease(
+  tx: Transaction,
+  db: Firestore,
+  release: PriceRelease,
+  wallet: Wallet,
+): void {
+  writeWallet(tx, db, release.borrowerId, wallet, {
+    id: rentalReleasedRowId(release.rentalId),
+    type: RENTAL_PAYMENT,
+    amount: release.amount,
+    itemTitle: release.itemTitle,
+  });
 }
 
 /** The `type` of the history row of a deposit given back whole after a clean return. */
