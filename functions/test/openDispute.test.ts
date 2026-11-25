@@ -8,8 +8,8 @@ import {
   escalateOverdueDisputes,
   openDispute,
   proposeSplit,
-} from "./dispute";
-import { hasSeenLastMessage } from "./testing/readTimes";
+} from "../src/dispute";
+import { hasSeenLastMessage } from "../src/testing/readTimes";
 
 // The transaction is tested on the emulator; disputeCallables.test.ts checks the callable.
 let db: Firestore;
