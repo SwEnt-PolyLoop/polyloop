@@ -43,7 +43,11 @@ export async function rental(who: People, status: string, fields: object = {}): 
  * `rental_price_held_<id>` row, which tells `payLender` to pay from `heldForRentals`. The wallet's
  * balances are left to the test (`fund`).
  */
-export async function heldRental(who: People, status: string, fields: object = {}): Promise<string> {
+export async function heldRental(
+  who: People,
+  status: string,
+  fields: object = {},
+): Promise<string> {
   const id = await rental(who, status, fields);
   const price = (fields as { totalPrice?: number }).totalPrice ?? 15;
   await getFirestore()

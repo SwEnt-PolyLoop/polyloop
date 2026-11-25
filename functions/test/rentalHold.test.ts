@@ -36,10 +36,21 @@ describe("requireFunds", () => {
   });
 
   it("refuses one PP more with the reason the app reads and the caller's message", () => {
-    expect(() => requireFunds(funds(35), 36, "Insufficient funds to hold the rental price.")).toThrow(
+    const message = "Insufficient funds to hold the rental price.";
+    expect(() => requireFunds(funds(35), 36, message)).toThrow(
       expect.objectContaining({
         code: "failed-precondition",
-        message: "Insufficient funds to hold the rental price.",
+        message,
+        details: { reason: INSUFFICIENT_FUNDS },
+      }),
+    );
+  });
+
+  it("refuses a deposit with the same reason and the deposit message by default", () => {
+    expect(() => requireFunds(funds(35), 36)).toThrow(
+      expect.objectContaining({
+        code: "failed-precondition",
+        message: "Insufficient funds to hold the deposit.",
         details: { reason: INSUFFICIENT_FUNDS },
       }),
     );

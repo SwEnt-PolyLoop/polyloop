@@ -187,7 +187,8 @@ function paymentRowId(rentalId: string): string {
 /**
  * Callable `payLender` (see docs/ARCHITECTURE.md): moves a picked-up rental's price from what the
  * borrower holds for rentals (or, for a rental sent before the price was held, their available
- * balance) to the lender's available balance. Input: `{rentalId}` only. Returns nothing, so the lender learns only whether the price is covered, never the borrower's balances.
+ * balance) to the lender's available balance. Input: `{rentalId}` only. Returns nothing, so the
+ * lender learns only whether the price is covered, never the borrower's balances.
  */
 export const payLender = onCall(async (request) => {
   try {

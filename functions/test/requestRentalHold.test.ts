@@ -94,7 +94,10 @@ describe("holding the price when a request is sent", () => {
 
   it("does not count what is already held as available", async () => {
     const { lender, borrower } = await people(PRICE - 1);
-    await db.collection("wallets").doc(borrower).update({ heldAsDeposits: 500, heldForRentals: 500 });
+    await db
+      .collection("wallets")
+      .doc(borrower)
+      .update({ heldAsDeposits: 500, heldForRentals: 500 });
     const listingId = await listing(lender);
 
     await expect(createRentalRequest(db, borrower, input(listingId), NOW)).rejects.toEqual(
@@ -152,7 +155,7 @@ describe("holding the price when a request is sent", () => {
     expect(await rows(borrower)).toEqual(expect.arrayContaining(ids.map(heldRow)));
   });
 
-  it("refuses the second of two requests sent at once when the balance covers only one", async () => {
+  it("refuses the second of two requests at once when the balance covers only one", async () => {
     const { lender, borrower } = await people(PRICE + 10);
     const tent = await listing(lender);
     const bike = await listing(lender);
