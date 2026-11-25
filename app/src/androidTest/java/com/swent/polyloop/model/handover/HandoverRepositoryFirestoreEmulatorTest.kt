@@ -5,6 +5,10 @@ package com.swent.polyloop.model.handover
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.work.Configuration
+import androidx.work.WorkManager
+import androidx.work.testing.SynchronousExecutor
+import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
@@ -35,7 +39,12 @@ class HandoverRepositoryFirestoreEmulatorTest {
   @Before
   fun setUp() {
     FirebaseEmulator.connect()
-    repository = HandoverRepositoryFirestore()
+    // A test WorkManager, whose jobs run only when a test says so (sendQueuedPhotos).
+    WorkManagerTestInitHelper.initializeTestWorkManager(
+        context,
+        Configuration.Builder().setExecutor(SynchronousExecutor()).build(),
+    )
+    repository = HandoverRepositoryFirestore(uploadQueueProvider = { HandoverUploadQueue(context) })
     uid = runBlocking { FirebaseEmulator.signUpVerified() }
   }
 
@@ -79,9 +88,21 @@ class HandoverRepositoryFirestoreEmulatorTest {
     return Uri.fromFile(file).toString()
   }
 
-  /** Adds a pickup photo to [rentalId], taken a minute ago. */
+  /** Runs every queued photo's job, as WorkManager does once the phone is online. */
+  private suspend fun sendQueuedPhotos() {
+    val driver = WorkManagerTestInitHelper.getTestDriver(context)!!
+    WorkManager.getInstance(context)
+        .getWorkInfosByTagFlow(HandoverPhotoWorker::class.java.name)
+        .first()
+        .forEach { driver.setAllConstraintsMet(it.id) }
+  }
+
+  /**
+   * Adds a pickup photo to [rentalId], taken 5 minutes ago: the rules refuse a photo from the
+   * future by the emulator's clock, and the device's may run a little ahead of it.
+   */
   private suspend fun addPhoto(rentalId: String, photoUri: String = photoFile()) =
-      repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoUri, Instant.now().minusSeconds(60))
+      repository.addPhoto(rentalId, HandoverPhase.PICKUP, photoUri, Instant.now().minusSeconds(300))
 
   @Test
   fun anAddedPhotoShowsAtOnceAndThenWithItsUrlOnceTheQueueSentIt() =
@@ -93,7 +114,8 @@ class HandoverRepositoryFirestoreEmulatorTest {
         val photos = repository.observeMyPhotos(rentalId, HandoverPhase.PICKUP)
         // Waiting in the queue: shown from the phone's copy.
         assertTrue(photos.first().single().url.startsWith("file:"))
-        // Sent by the queue's job (the emulator is online).
+        // Sent by the queue's job, once the phone is online.
+        sendQueuedPhotos()
         withTimeout(20_000) { photos.first { it.singleOrNull()?.url?.startsWith("http") == true } }
       }
 

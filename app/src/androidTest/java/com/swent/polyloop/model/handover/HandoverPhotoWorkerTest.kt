@@ -41,7 +41,9 @@ class HandoverPhotoWorkerTest {
   private lateinit var uid: String
   private lateinit var rentalId: String
   private lateinit var file: File
-  private val takenAt = System.currentTimeMillis() - 60_000
+  // 5 minutes ago: the rules refuse a photo from the future by the emulator's clock, and the
+  // device's may run a little ahead of it.
+  private val takenAt = System.currentTimeMillis() - 5 * 60_000
   private val slotId by lazy { photoSlotId(uid, HandoverPhase.PICKUP, 0) }
   private val document by lazy { Firebase.firestore.document("rentals/$rentalId/photos/$slotId") }
 
