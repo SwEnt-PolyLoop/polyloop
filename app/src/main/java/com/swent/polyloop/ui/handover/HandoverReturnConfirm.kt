@@ -282,14 +282,10 @@ private fun CheckButtons(
         onClick = onFlagDamage,
         enabled = uiState.canSendCheck,
         shape = shape,
-        // Disabled, the border turns the grey of the disabled text, still visible (Material's own
-        // disabled border is almost invisible).
         border =
-            BorderStroke(
-                dimensionResource(R.dimen.handover_check_button_border),
-                if (uiState.canSendCheck) damageColor
-                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-            ),
+            if (uiState.canSendCheck)
+                BorderStroke(dimensionResource(R.dimen.handover_check_button_border), damageColor)
+            else ButtonDefaults.outlinedButtonBorder(enabled = false),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = damageColor),
         modifier = Modifier.fillMaxWidth().testTag(C.Tag.handover_flag_damage_button),
     ) {
@@ -312,8 +308,7 @@ private fun CheckButtons(
           text = stringResource(R.string.handover_check_sent),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier =
-              Modifier.align(Alignment.CenterHorizontally).testTag(C.Tag.handover_check_sent),
+          modifier = Modifier.testTag(C.Tag.handover_check_sent),
       )
     }
   }
