@@ -84,7 +84,7 @@ class HandoverRepositoryFirestore(
           .whereEqualTo(HandoverFields.PHASE, phase.name)
 
   override fun observeMyPhotos(rentalId: String, phase: HandoverPhase): Flow<List<HandoverPhoto>> {
-    val uid = auth.currentUser?.uid ?: return flow { throw IllegalStateException("Signed out") }
+    val uid = auth.currentUser?.uid ?: return flow { throw IllegalStateException(SIGNED_OUT) }
     if (!isValidDocumentId(rentalId)) return flowOf(emptyList())
     // Sorted here: sorting on a third field in Firestore would need a composite index.
     return myPhotos(rentalId, uid, phase)
@@ -105,9 +105,9 @@ class HandoverRepositoryFirestore(
       photoUri: String,
   ): Result<Unit> {
     if (!isValidDocumentId(rentalId)) {
-      return Result.failure(IllegalArgumentException("Invalid rental id"))
+      return Result.failure(IllegalArgumentException(INVALID_RENTAL_ID))
     }
-    val uid = auth.currentUser?.uid ?: return Result.failure(IllegalStateException("Signed out"))
+    val uid = auth.currentUser?.uid ?: return Result.failure(IllegalStateException(SIGNED_OUT))
     return withFirebaseErrors {
       // At most one attempt per slot: a slot whose file already exists is burned, the next is
       // tried.
@@ -246,9 +246,9 @@ class HandoverRepositoryFirestore(
    */
   private suspend fun readText(rentalId: String, read: suspend () -> Any?): Result<String?> {
     if (!isValidDocumentId(rentalId)) {
-      return Result.failure(IllegalArgumentException("Invalid rental id"))
+      return Result.failure(IllegalArgumentException(INVALID_RENTAL_ID))
     }
-    if (auth.currentUser == null) return Result.failure(IllegalStateException("Signed out"))
+    if (auth.currentUser == null) return Result.failure(IllegalStateException(SIGNED_OUT))
     return withFirebaseErrors { Result.success((read() as? String)?.takeIf { it.isNotBlank() }) }
   }
 
@@ -272,9 +272,9 @@ class HandoverRepositoryFirestore(
   /** Calls the Cloud Function `confirmReturnOk`; its refusals are passed on as they come. */
   override suspend fun confirmReturnOk(rentalId: String): Result<Unit> {
     if (!isValidDocumentId(rentalId)) {
-      return Result.failure(IllegalArgumentException("Invalid rental id"))
+      return Result.failure(IllegalArgumentException(INVALID_RENTAL_ID))
     }
-    if (auth.currentUser == null) return Result.failure(IllegalStateException("Signed out"))
+    if (auth.currentUser == null) return Result.failure(IllegalStateException(SIGNED_OUT))
     return callCloudFunction(functions(), CONFIRM_RETURN_OK, mapOf("rentalId" to rentalId))
   }
 
@@ -291,6 +291,8 @@ class HandoverRepositoryFirestore(
     const val SCAN_TIMEOUT_MS = 30_000L
     const val CONFIRM_HANDOVER = "confirmHandover"
     const val CONFIRM_RETURN_OK = "confirmReturnOk"
+    const val INVALID_RENTAL_ID = "Invalid rental id"
+    const val SIGNED_OUT = "Signed out"
 
     /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */
     const val WRONG_CODE = "WRONG_CODE"
