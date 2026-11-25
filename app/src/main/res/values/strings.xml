@@ -630,7 +630,7 @@
     <string name="handover_flag_damage_detail">Opens a dispute, deposit stays held</string>
     <string name="handover_check_sending">Sending your answer</string>
     <string name="handover_check_failed">Could not send your answer. Try again.</string>
-    <string name="handover_check_sent">Your answer was sent.</string>
+    <string name="handover_check_sent">Your answer was sent</string>
     <!-- The borrower once the return is scanned, while the lender checks the item -->
     <string name="handover_waiting_check">The return was scanned. %1$s now checks the item against the pickup photos.</string>
     <string name="handover_waiting_check_no_name">The return was scanned. The lender now checks the item against the pickup photos.</string>
