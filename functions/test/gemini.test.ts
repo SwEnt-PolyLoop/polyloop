@@ -76,7 +76,7 @@ function failingModels(error: unknown): GeminiModels {
 }
 
 describe("toGeminiRequest", () => {
-  it("asks the pinned model for JSON following the schema, at temperature 0", () => {
+  it("asks the pinned model for JSON by the schema, at temperature 0, with little thinking", () => {
     const gemini = toGeminiRequest(request, BUCKET);
 
     expect(gemini.model).toBe(GEMINI_MODEL);
@@ -85,6 +85,7 @@ describe("toGeminiRequest", () => {
       responseMimeType: "application/json",
       responseJsonSchema: ANSWER_SCHEMA,
       temperature: 0,
+      thinkingConfig: { thinkingBudget: 2048 },
     });
   });
 
