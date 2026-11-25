@@ -70,6 +70,16 @@ class ServerClock(
   }
 
   /**
+   * The server's time now, worked out from the last saved pair only, so it never waits for the
+   * server. Null when there is no pair for this boot. For a moment stamped at once, such as a
+   * photo, once [now] or [today] has reached the server.
+   */
+  suspend fun savedNow(): Instant? {
+    val elapsed = elapsedRealtime()
+    return withContext(ioDispatcher) { timeFromSaved(elapsed) }
+  }
+
+  /**
    * The time worked out from the saved pair at [elapsed], or null if there is none for this boot.
    */
   private fun timeFromSaved(elapsed: Long): Instant? {
