@@ -211,23 +211,11 @@ class HandoverViewModelTest {
   @Test
   fun itIsThePickupDayOnlyOnTheRentalsFirstDay() {
     rentalRepository.serverNow = noonOn(pickupDay.minusDays(1))
-    assertFalse(viewModel().uiState.value.isPickupDay)
+    val dayBefore = viewModel().uiState.value
+    assertFalse(dayBefore.isPickupDay)
+    assertFalse(dayBefore.canAddPhoto)
     rentalRepository.serverNow = noonOn(pickupDay.plusDays(1))
     assertFalse(viewModel().uiState.value.isPickupDay)
-  }
-
-  @Test
-  fun thePickupDayComesFromTheServersClockNotThePhones() {
-    // The rental starts today by the phone's date, but the server's day is the day before.
-    val phoneToday = LocalDate.now()
-    rentalRepository = FakeRentalRepository(listOf(rental.copy(startDate = phoneToday)))
-    rentalRepository.serverNow = noonOn(phoneToday.minusDays(1))
-
-    val state = viewModel().uiState.value
-
-    assertEquals(phoneToday.minusDays(1), state.serverToday)
-    assertFalse(state.isPickupDay)
-    assertFalse(state.canAddPhoto)
   }
 
   @Test

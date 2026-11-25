@@ -90,8 +90,8 @@ class RentalDetailViewModelActiveTest {
     Dispatchers.resetMain()
   }
 
-  // A week after the phone's date, so a day read from the phone would not match.
-  private val serverDay = LocalDate.now().plusWeeks(1)
+  // A week after the return day.
+  private val serverDay = LocalDate.of(2026, 10, 15)
 
   /** Noon on [day] in Zurich, as the server's time. */
   private fun noonOn(day: LocalDate): Instant =

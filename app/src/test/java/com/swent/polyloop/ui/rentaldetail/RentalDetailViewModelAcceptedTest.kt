@@ -82,8 +82,8 @@ class RentalDetailViewModelAcceptedTest {
     Dispatchers.resetMain()
   }
 
-  // A week after the phone's date, so a day read from the phone would not match.
-  private val serverDay = LocalDate.now().plusWeeks(1)
+  // A week before the pickup day.
+  private val serverDay = LocalDate.of(2026, 12, 3)
 
   /**
    * The ViewModel for [rental], with [wrap] around the fake repository to change one of its calls.

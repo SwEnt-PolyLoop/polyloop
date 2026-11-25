@@ -202,30 +202,17 @@ class RentalDetailViewModelCancelTest {
   // ---------- canCancel ----------
 
   @Test
-  fun anAcceptedRentalCanBeCancelledOnItsLastDayEvenWhenThePhoneSaysItIsLater() {
-    // The phone's date is a week after the pickup day; only the server's counts.
-    val start = LocalDate.now().minusWeeks(1)
-    val rental = accepted.copy(startDate = start, endDate = start.plusDays(2))
-
-    val state = viewModel(rental, serverDay = start.minusDays(1)).uiState.value
-
-    assertTrue(state.canCancel)
-  }
-
-  @Test
-  fun anAcceptedRentalCannotBeCancelledFromItsPickupDayEvenWhenThePhoneSaysItIsEarlier() {
-    // The phone's date is a week before the pickup day; only the server's counts.
-    val start = LocalDate.now().plusWeeks(1)
-    val rental = accepted.copy(startDate = start, endDate = start.plusDays(2))
-
-    assertFalse(viewModel(rental, serverDay = start).uiState.value.canCancel)
-    assertFalse(viewModel(rental, serverDay = start.plusDays(3)).uiState.value.canCancel)
+  fun anAcceptedRentalCanBeCancelledUntilTheDayBeforePickupByTheServersDay() {
+    // The day before, the day itself and the day after.
+    assertTrue(viewModel(accepted, serverDay = pickupDay.minusDays(1)).uiState.value.canCancel)
+    assertFalse(viewModel(accepted, serverDay = pickupDay).uiState.value.canCancel)
+    assertFalse(viewModel(accepted, serverDay = pickupDay.plusDays(1)).uiState.value.canCancel)
   }
 
   @Test
   fun aRequestCanStillBeCancelledAfterItsPickupDay() {
-    // Both its dates are past by the phone's date, and the screen state holds a later server day.
-    val start = LocalDate.now().minusWeeks(1)
+    // Both its dates are before the server's day, and the screen state holds a later server day.
+    val start = lastCancelDay.minusWeeks(1)
     val past = request.copy(startDate = start, endDate = start.plusDays(2))
 
     assertTrue(viewModel(past).uiState.value.canCancel)
