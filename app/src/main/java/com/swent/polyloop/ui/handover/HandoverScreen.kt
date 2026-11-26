@@ -465,6 +465,14 @@ internal fun HandoverCard(
   }
 }
 
+/** The text [forReturn] at return, otherwise [pickup]. */
+@Composable
+internal fun phaseString(
+    phase: HandoverPhase?,
+    @StringRes pickup: Int,
+    @StringRes forReturn: Int,
+): String = stringResource(if (phase == HandoverPhase.RETURN) forReturn else pickup)
+
 /** "The photos could not be loaded." in red, then a Retry button calling [onRetry]. */
 @Composable
 internal fun PhotosLoadError(onRetry: () -> Unit) {

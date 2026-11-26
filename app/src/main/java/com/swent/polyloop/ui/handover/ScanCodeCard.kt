@@ -2,7 +2,6 @@
 
 package com.swent.polyloop.ui.handover
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -225,14 +224,6 @@ private fun scanTitle(isLender: Boolean, name: String): String =
       isLender -> stringResource(R.string.handover_scan_title_borrower)
       else -> stringResource(R.string.handover_scan_title_lender)
     }
-
-/** The text [forReturn] at return, otherwise [pickup]. */
-@Composable
-internal fun phaseString(
-    phase: HandoverPhase?,
-    @StringRes pickup: Int,
-    @StringRes forReturn: Int,
-): String = stringResource(if (phase == HandoverPhase.RETURN) forReturn else pickup)
 
 @Composable
 private fun wrongCodeMessage(name: String): String =
