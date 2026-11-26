@@ -42,7 +42,6 @@ import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
-import com.swent.polyloop.ui.components.NotAvailableYet
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import com.swent.polyloop.ui.theme.PositiveGreen
 import java.time.Instant
@@ -64,7 +63,7 @@ internal fun ReturnCheckContent(
     onFlagDamage: () -> Unit,
 ) {
   ReturnedScaffold(uiState, Modifier.testTag(C.Tag.handover_return_check)) {
-    ReturnScannedCard()
+    ReturnScannedCard(uiState)
     BeforeAfterCard(uiState, zone, onPhotoClick, onRetryPhotos)
     CheckButtons(uiState, onItemFine, onFlagDamage)
   }
@@ -92,7 +91,10 @@ internal fun WaitingForCheckContent(uiState: HandoverUiState) {
   }
 }
 
-/** The header and [content] scrolling over the deposit footer pinned at the bottom. */
+/**
+ * The header and [content] scrolling over the deposit footer pinned at the bottom, which says the
+ * deposit was released once the lender's "Item is fine" was sent.
+ */
 @Composable
 private fun ReturnedScaffold(
     uiState: HandoverUiState,
@@ -111,16 +113,22 @@ private fun ReturnedScaffold(
       HandoverHeader(uiState)
       content()
     }
-    DepositFooter(uiState.deposit, uiState.depositHeld, uiState.isLender)
+    DepositFooter(
+        uiState.deposit,
+        uiState.depositHeld,
+        uiState.isLender,
+        released = uiState.checkSent == ReturnCheck.ITEM_FINE,
+    )
   }
 }
 
 /**
- * A green check with "Return scanned" and "The deposit stays held until you decide.". The time of
- * the scan is not shown until rentals store it.
+ * A green check with "Return scanned" and "The deposit stays held until you decide.", or, once the
+ * lender's "Item is fine" was sent, that the deposit was released to the borrower. The time of the
+ * scan is not shown until rentals store it.
  */
 @Composable
-private fun ReturnScannedCard() {
+private fun ReturnScannedCard(uiState: HandoverUiState) {
   HandoverCard {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -145,7 +153,15 @@ private fun ReturnScannedCard() {
             modifier = Modifier.testTag(C.Tag.handover_return_scanned),
         )
         Text(
-            text = stringResource(R.string.handover_deposit_stays_held),
+            text =
+                when {
+                  uiState.checkSent != ReturnCheck.ITEM_FINE ->
+                      stringResource(R.string.handover_deposit_stays_held)
+                  uiState.otherPersonName.isBlank() ->
+                      stringResource(R.string.handover_deposit_released_to_no_name)
+                  else ->
+                      stringResource(R.string.handover_deposit_released_to, uiState.otherPersonName)
+                },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -238,8 +254,7 @@ private fun PhotoSection(
 
 /**
  * "Is the item in the same condition?", then "Item is fine" and "Flag damage", each with what it
- * does; "Item is fine" has "Not available yet" under it, as it fails until its Cloud Function
- * exists. The one being sent shows a spinner, then a line under them says whether it was sent or
+ * does. The one being sent shows a spinner, then a line under them says whether it was sent or
  * failed.
  */
 @Composable
@@ -257,7 +272,6 @@ private fun CheckButtons(
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.Bold,
     )
-    val name = uiState.otherPersonName
     val shape = RoundedCornerShape(dimensionResource(R.dimen.handover_check_button_corner))
     Button(
         onClick = onItemFine,
@@ -267,16 +281,10 @@ private fun CheckButtons(
     ) {
       CheckButtonContent(
           title = stringResource(R.string.handover_item_fine),
-          detail =
-              if (name.isBlank()) stringResource(R.string.handover_item_fine_detail_no_name)
-              else stringResource(R.string.handover_item_fine_detail, name),
+          detail = stringResource(R.string.handover_item_fine_detail),
           isSending = uiState.sendingCheck == ReturnCheck.ITEM_FINE,
       )
     }
-    NotAvailableYet(
-        C.Tag.handover_item_fine_not_available,
-        Modifier.align(Alignment.CenterHorizontally),
-    )
     val damageColor = MaterialTheme.colorScheme.secondary
     OutlinedButton(
         onClick = onFlagDamage,

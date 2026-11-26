@@ -30,7 +30,7 @@ import org.junit.Test
 /**
  * The handover code methods of [HandoverRepositoryFirestore], with Firebase mocked: they read the
  * right document and field, and send a scan to `confirmHandover`, turning its refusals into the
- * exceptions the app expects.
+ * exceptions the app expects. "Item is fine" goes to `confirmReturnOk`.
  */
 class HandoverRepositoryFirestoreCodesTest {
 
@@ -218,5 +218,37 @@ class HandoverRepositoryFirestoreCodesTest {
 
     assertTrue(scanError() is TimeoutException)
     assertEquals(30_000L, testScheduler.currentTime - started)
+  }
+
+  // ---------- the lender's "Item is fine" ----------
+
+  @Test
+  fun itemIsFineIsSentToConfirmReturnOk() = runTest {
+    assertTrue(repository.confirmReturnOk("r1").isSuccess)
+
+    verify { functions.getHttpsCallable("confirmReturnOk") }
+    assertEquals(mapOf("rentalId" to "r1"), sent.captured)
+  }
+
+  @Test
+  fun aRefusedItemIsFineIsPassedOnAsItIs() = runTest {
+    // Unlike a scan, a rental that changed meanwhile gets no exception of its own.
+    val refusal = refusedWith(mapOf("reason" to "RENTAL_CHANGED"))
+
+    assertSame(refusal, repository.confirmReturnOk("r1").exceptionOrNull())
+  }
+
+  @Test
+  fun itemIsFineIsNotSentWithAnInvalidRentalId() = runTest {
+    assertTrue(repository.confirmReturnOk("a/b").exceptionOrNull() is IllegalArgumentException)
+    verify(exactly = 0) { functions.getHttpsCallable(any()) }
+  }
+
+  @Test
+  fun itemIsFineIsNotSentWhenNobodyIsSignedIn() = runTest {
+    every { auth.currentUser } returns null
+
+    assertTrue(repository.confirmReturnOk("r1").exceptionOrNull() is IllegalStateException)
+    verify(exactly = 0) { functions.getHttpsCallable(any()) }
   }
 }

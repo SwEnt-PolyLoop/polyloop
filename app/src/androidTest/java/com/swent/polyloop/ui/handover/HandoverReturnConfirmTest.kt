@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -34,12 +35,15 @@ import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.rental.FakeRentalRepository
 import com.swent.polyloop.model.rental.InMemoryServerClockStore
 import com.swent.polyloop.model.rental.Rental
+import com.swent.polyloop.model.rental.RentalRepository
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.model.rental.ServerClock
 import com.swent.polyloop.resources.C
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -111,7 +115,7 @@ class HandoverReturnConfirmTest {
     composeTestRule
         .onNodeWithTag(C.Tag.handover_item_fine_button)
         .performScrollTo()
-        .assert(hasText("Releases the full deposit to Borrower"))
+        .assert(hasText("Closes the rental, deposit is released"))
   }
 
   @Test
@@ -142,18 +146,15 @@ class HandoverReturnConfirmTest {
   }
 
   @Test
-  fun onlyItemIsFineSaysItIsNotAvailableYet() {
+  fun neitherAnswerSaysItIsNotAvailableYet() {
     setContent(check)
     val notAvailable =
         InstrumentationRegistry.getInstrumentation()
             .targetContext
             .getString(R.string.not_available_yet)
 
-    composeTestRule
-        .onNodeWithTag(C.Tag.handover_item_fine_not_available)
-        .performScrollTo()
-        .assertTextEquals(notAvailable)
-    composeTestRule.onAllNodesWithText(notAvailable).assertCountEquals(1)
+    composeTestRule.onNodeWithTag(C.Tag.handover_item_fine_button).assertExists()
+    composeTestRule.onAllNodesWithText(notAvailable).assertCountEquals(0)
   }
 
   @Test
@@ -165,16 +166,6 @@ class HandoverReturnConfirmTest {
         .performScrollTo()
         .performClick()
     assertEquals(1, damageFlagged)
-  }
-
-  @Test
-  fun withoutTheBorrowersNameItemIsFineReleasesTheDepositToTheBorrower() {
-    setContent(check.copy(otherPersonName = ""))
-
-    composeTestRule
-        .onNodeWithTag(C.Tag.handover_item_fine_button)
-        .performScrollTo()
-        .assert(hasText("Releases the full deposit to the borrower"))
   }
 
   @Test
@@ -190,6 +181,31 @@ class HandoverReturnConfirmTest {
         .onNodeWithTag(C.Tag.handover_check_progress, useUnmergedTree = true)
         .assertIsDisplayed()
         .assertContentDescriptionEquals("Sending your answer")
+  }
+
+  @Test
+  fun onceItemIsFineIsSentTheDepositReadsReleased() {
+    setContent(check.copy(checkSent = ReturnCheck.ITEM_FINE))
+
+    composeTestRule.onNodeWithText("The deposit was released to Borrower.").assertIsDisplayed()
+    composeTestRule.onNodeWithText("The deposit stays held until you decide.").assertDoesNotExist()
+    text(C.Tag.handover_deposit_label, "Deposit released")
+    text(C.Tag.handover_deposit, "80 PP")
+  }
+
+  @Test
+  fun onceItemIsFineIsSentWithoutTheBorrowersNameTheDepositIsReleasedToTheBorrower() {
+    setContent(check.copy(otherPersonName = "", checkSent = ReturnCheck.ITEM_FINE))
+
+    composeTestRule.onNodeWithText("The deposit was released to the borrower.").assertIsDisplayed()
+  }
+
+  @Test
+  fun onceDamageIsFlaggedTheDepositStaysHeld() {
+    setContent(check.copy(checkSent = ReturnCheck.DAMAGE_FLAGGED))
+
+    composeTestRule.onNodeWithText("The deposit stays held until you decide.").assertIsDisplayed()
+    text(C.Tag.handover_deposit_label, "Deposit held")
   }
 
   @Test
@@ -260,9 +276,18 @@ class HandoverReturnConfirmTest {
           createdAt = Instant.parse("2026-10-01T09:30:00Z"),
       )
 
-  /** The ViewModel of the returned [rental], seen by its lender, with [handovers]. */
-  private fun lenderViewModel(handovers: FakeHandoverRepository): HandoverViewModel {
-    val rentals = FakeRentalRepository(listOf(rental))
+  /** The rentals, with [live] standing for [rental] as the server changes it. */
+  private class LiveRental(initial: Rental, base: RentalRepository) : RentalRepository by base {
+    val live = MutableStateFlow<Rental?>(initial)
+
+    override fun observeRental(id: String): Flow<Rental?> = live
+  }
+
+  /** The ViewModel of the returned [rental], seen by its lender, with [handovers] and [rentals]. */
+  private fun lenderViewModel(
+      handovers: FakeHandoverRepository,
+      rentals: RentalRepository = FakeRentalRepository(listOf(rental)),
+  ): HandoverViewModel {
     return HandoverViewModel(
         rental.id,
         rentals,
@@ -289,14 +314,18 @@ class HandoverReturnConfirmTest {
   }
 
   @Test
-  fun theLenderRetriesAFailedAnswerThenSeesItSentAndBothButtonsDisabled() {
+  fun theLenderRetriesAnAnswerWhoseReplyWasLostThenSeesItSentAndTheDepositReleased() {
     val handovers =
-        FakeHandoverRepository(currentUid = "owner", confirmFailure = RuntimeException("down"))
+        FakeHandoverRepository(currentUid = "owner", confirmFailure = RuntimeException("lost"))
     handovers.photos = photos(3, HandoverPhase.PICKUP).map { StoredPhoto(rental.id, "owner", it) }
-    composeTestRule.setContent { HandoverScreen(lenderViewModel(handovers)) }
+    val rentals = LiveRental(rental, FakeRentalRepository(listOf(rental)))
+    composeTestRule.setContent { HandoverScreen(lenderViewModel(handovers, rentals)) }
     composeTestRule.onAllNodesWithTag(C.Tag.handover_before_photo).assertCountEquals(3)
 
     composeTestRule.onNodeWithTag(C.Tag.handover_item_fine_button).performScrollTo().performClick()
+    // The server closed the rental, but its reply was lost: the lender keeps the check and the
+    // error.
+    composeTestRule.runOnIdle { rentals.live.value = rental.copy(status = RentalStatus.CLOSED) }
     composeTestRule.onNodeWithTag(C.Tag.handover_check_error).performScrollTo().assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.handover_check_sent).assertDoesNotExist()
     composeTestRule.runOnIdle { assertEquals(emptyList<String>(), handovers.confirmedReturns) }
@@ -307,6 +336,8 @@ class HandoverReturnConfirmTest {
     composeTestRule.onNodeWithTag(C.Tag.handover_check_sent).performScrollTo().assertIsDisplayed()
     composeTestRule.onNodeWithTag(C.Tag.handover_item_fine_button).assertIsNotEnabled()
     composeTestRule.onNodeWithTag(C.Tag.handover_flag_damage_button).assertIsNotEnabled()
+    composeTestRule.onNodeWithText("The deposit was released to Borrower.").assertExists()
+    text(C.Tag.handover_deposit_label, "Deposit released")
     composeTestRule.runOnIdle { assertEquals(listOf(rental.id), handovers.confirmedReturns) }
   }
 }

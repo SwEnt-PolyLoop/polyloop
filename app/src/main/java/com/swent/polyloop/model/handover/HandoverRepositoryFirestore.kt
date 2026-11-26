@@ -40,7 +40,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * photo's slot, see [photoSlotId]. The code to show is at
  * `rentals/{rentalId}/handoverCodes/{phase}`, readable only by the person who shows it; the
  * fingerprint of the code to scan is on the rental. A scan goes to the Cloud Function
- * `confirmHandover`, the only one that moves the rental on.
+ * `confirmHandover`, and "Item is fine" to `confirmReturnOk`: only Cloud Functions move the rental
+ * on.
  *
  * A photo is not uploaded here: [addPhoto] picks its slot and hands it to the
  * [HandoverUploadQueue], whose [HandoverPhotoWorker] sends it once the phone is online.
@@ -71,7 +72,7 @@ class HandoverRepositoryFirestore(
           .whereEqualTo(HandoverFields.PHASE, phase.name)
 
   override fun observeMyPhotos(rentalId: String, phase: HandoverPhase): Flow<List<HandoverPhoto>> {
-    val uid = auth.currentUser?.uid ?: return flow { throw IllegalStateException("Signed out") }
+    val uid = auth.currentUser?.uid ?: return flow { throw IllegalStateException(SIGNED_OUT) }
     if (!isValidDocumentId(rentalId)) return flowOf(emptyList())
     // Sorted here: sorting on a third field in Firestore would need a composite index.
     val sent =
@@ -101,9 +102,9 @@ class HandoverRepositoryFirestore(
       takenAt: Instant,
   ): Result<Unit> {
     if (!isValidDocumentId(rentalId)) {
-      return Result.failure(IllegalArgumentException("Invalid rental id"))
+      return Result.failure(IllegalArgumentException(INVALID_RENTAL_ID))
     }
-    val uid = auth.currentUser?.uid ?: return Result.failure(IllegalStateException("Signed out"))
+    val uid = auth.currentUser?.uid ?: return Result.failure(IllegalStateException(SIGNED_OUT))
     return withFirebaseErrors {
       // The lowest slot neither sent (the local snapshot includes writes still waiting to be sent)
       // nor in the queue. Queued inside the lock, so the next call sees it.
@@ -179,9 +180,9 @@ class HandoverRepositoryFirestore(
    */
   private suspend fun readText(rentalId: String, read: suspend () -> Any?): Result<String?> {
     if (!isValidDocumentId(rentalId)) {
-      return Result.failure(IllegalArgumentException("Invalid rental id"))
+      return Result.failure(IllegalArgumentException(INVALID_RENTAL_ID))
     }
-    if (auth.currentUser == null) return Result.failure(IllegalStateException("Signed out"))
+    if (auth.currentUser == null) return Result.failure(IllegalStateException(SIGNED_OUT))
     return withFirebaseErrors { Result.success((read() as? String)?.takeIf { it.isNotBlank() }) }
   }
 
@@ -202,9 +203,14 @@ class HandoverRepositoryFirestore(
 
   private fun rental(rentalId: String) = db.collection(HandoverFields.RENTALS).document(rentalId)
 
-  /** Always fails for now: the Cloud Function that releases the deposit does not exist yet. */
-  override suspend fun confirmReturnOk(rentalId: String): Result<Unit> =
-      Result.failure(UnsupportedOperationException("Confirming a return is not available yet"))
+  /** Calls the Cloud Function `confirmReturnOk`; its refusals are passed on as they come. */
+  override suspend fun confirmReturnOk(rentalId: String): Result<Unit> {
+    if (!isValidDocumentId(rentalId)) {
+      return Result.failure(IllegalArgumentException(INVALID_RENTAL_ID))
+    }
+    if (auth.currentUser == null) return Result.failure(IllegalStateException(SIGNED_OUT))
+    return callCloudFunction(functions(), CONFIRM_RETURN_OK, mapOf("rentalId" to rentalId))
+  }
 
   private fun photos(rentalId: String) =
       db.collection(HandoverFields.RENTALS).document(rentalId).collection(HandoverFields.PHOTOS)
@@ -212,6 +218,9 @@ class HandoverRepositoryFirestore(
   private companion object {
     const val SCAN_TIMEOUT_MS = 30_000L
     const val CONFIRM_HANDOVER = "confirmHandover"
+    const val CONFIRM_RETURN_OK = "confirmReturnOk"
+    const val INVALID_RENTAL_ID = "Invalid rental id"
+    const val SIGNED_OUT = "Signed out"
 
     /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */
     const val WRONG_CODE = "WRONG_CODE"

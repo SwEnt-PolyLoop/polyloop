@@ -24,6 +24,7 @@ import {
   requireParties,
 } from "./rentalRules";
 import { zurichDay } from "./serverToday";
+import { readDepositSettlement, writeDepositSettlement } from "./wallet";
 
 /**
  * The reason (`details.reason`) of a refused scan whose code is wrong, read by the app, see
@@ -215,5 +216,60 @@ export async function confirmReturn(
       },
       callerId,
     );
+  });
+}
+
+/**
+ * Answers "Item is fine" for [rentalId], sent by [callerId], in one transaction: the deposit left
+ * after the late fees goes back to the borrower (`writeDepositSettlement`, a release), the rental
+ * becomes CLOSED, and a SYSTEM message, seen by the lender, says how much came back ("Item is fine
+ * · N PP back to the borrower"), or only that the rental closed when nothing moved (a deposit of 0,
+ * or one that was never held). The checks run in this order: the rental exists, the caller is its
+ * lender, then, if the rental is CLOSED and has no dispute, the call succeeds and changes nothing
+ * (the same answer sent twice); otherwise the rental must be RETURNED. All reads come before the
+ * first write.
+ *
+ * @param db the Firestore database.
+ * @param callerId the user answering, who must be the rental's lender.
+ * @param rentalId the rental whose returned item is fine.
+ * @throws RequestError `not-found`; `permission-denied` (not the lender); `failed-precondition`
+ *   with the reason `RENTAL_CHANGED` when the rental is no longer RETURNED (e.g. damage was
+ *   flagged first, or it closed through a dispute); `internal` for a rental with no valid borrower
+ *   or lender, or when the borrower's held deposits do not cover the deposit. Nothing is written
+ *   then.
+ */
+export async function confirmReturnOk(
+  db: Firestore,
+  callerId: string,
+  rentalId: string,
+): Promise<void> {
+  const rentalRef = db.collection("rentals").doc(rentalId);
+  const disputeRef = db.collection("disputes").doc(rentalId);
+  await db.runTransaction(async (tx) => {
+    const [rentalSnap, disputeSnap] = await Promise.all([tx.get(rentalRef), tx.get(disputeRef)]);
+    const rental = rentalSnap.data();
+    if (!rental) {
+      throw new RequestError("not-found", "This rental does not exist.");
+    }
+    if (callerId !== rental.ownerId) {
+      throw new RequestError("permission-denied", "Only the lender confirms the item is fine.");
+    }
+    // A rental closed by a dispute has its document: that is not this answer.
+    if (rental.status === "CLOSED" && !disputeSnap.exists) return;
+    if (rental.status !== "RETURNED") {
+      throw new RequestError("failed-precondition", "This rental is no longer returned.", {
+        reason: RENTAL_CHANGED,
+      });
+    }
+    const parties = requireParties(rental);
+    const state = await readDepositSettlement(tx, db, parties, rentalId);
+    const shares = writeDepositSettlement(tx, db, parties, rentalId, rental, state, {
+      kind: "release",
+    });
+    const text =
+      shares.borrower > 0
+        ? `Item is fine · ${shares.borrower} PP back to the borrower`
+        : "Item is fine · rental closed";
+    writeWithSystemMessage(tx, rentalRef, text, { status: "CLOSED" }, callerId);
   });
 }

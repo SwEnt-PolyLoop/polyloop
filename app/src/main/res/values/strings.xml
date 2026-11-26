@@ -594,6 +594,8 @@
     <string name="handover_close_photo">Close the photo</string>
     <string name="handover_deposit_held_lender">Deposit held</string>
     <string name="handover_deposit_held_borrower">Your deposit, held</string>
+    <!-- The lender's footer once "Item is fine" was sent -->
+    <string name="handover_deposit_released">Deposit released</string>
     <!-- The deposit on Handover, in PolyPoints, e.g. "80 PP" -->
     <string name="handover_deposit_amount">%1$d PP</string>
     <!-- The deposit on Handover when it is not known (stored as 0) -->
@@ -639,13 +641,14 @@
     <!-- The lender's check of the returned item (Figma 17b) -->
     <string name="handover_return_scanned">Return scanned</string>
     <string name="handover_deposit_stays_held">The deposit stays held until you decide.</string>
+    <!-- Once "Item is fine" was sent, e.g. "The deposit was released to Mara." -->
+    <string name="handover_deposit_released_to">The deposit was released to %1$s.</string>
+    <string name="handover_deposit_released_to_no_name">The deposit was released to the borrower.</string>
     <string name="handover_before_after">Before and after</string>
     <string name="handover_no_photos">No photos</string>
     <string name="handover_same_condition">Is the item in the same condition?</string>
     <string name="handover_item_fine">Item is fine</string>
-    <!-- Under "Item is fine", e.g. "Releases the full deposit to Mara" -->
-    <string name="handover_item_fine_detail">Releases the full deposit to %1$s</string>
-    <string name="handover_item_fine_detail_no_name">Releases the full deposit to the borrower</string>
+    <string name="handover_item_fine_detail">Closes the rental, deposit is released</string>
     <string name="handover_flag_damage">Flag damage</string>
     <string name="handover_flag_damage_detail">Opens a dispute, deposit stays held</string>
     <string name="handover_check_sending">Sending your answer</string>

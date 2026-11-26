@@ -184,7 +184,7 @@ export async function escalateDispute(
  * @param rentalId the rental whose item came back damaged.
  * @param now the current time, from which `escalatesAt` is counted; passed so tests can set it.
  * @throws RequestError `not-found`; `permission-denied` (not the lender); `failed-precondition`
- *   with the reason `RENTAL_CHANGED` (no longer RETURNED, e.g. the lender's "Item is fine" won, once #491 exists).
+ *   with the reason `RENTAL_CHANGED` (no longer RETURNED, e.g. the lender's "Item is fine" won).
  *   Nothing is written then.
  */
 export async function openDispute(
