@@ -295,7 +295,9 @@ class HandoverScreenTest {
   @Test
   fun waitingPhotosAreMarkedNotSyncedAndRefusedOnesAreCounted() {
     val (sent, waiting) = photos(3).let { it.take(2) to it.last().copy(sync = PhotoSync.WAITING) }
-    val pills = composeTestRule.onAllNodesWithTag(C.Tag.handover_photo_not_synced)
+    // The pill is inside the clickable tile, whose merged node keeps only the tile's tag.
+    val pills =
+        composeTestRule.onAllNodesWithTag(C.Tag.handover_photo_not_synced, useUnmergedTree = true)
     setContent(pickup.copy(photos = sent + waiting, isOffline = true))
 
     pills.assertCountEquals(1)
