@@ -42,10 +42,24 @@ export interface SplitInput {
   lenderPercent: number;
 }
 
+/** An acceptance of the LLM proposal sent by the app: the dispute's rental and the attempt seen. */
+export interface LlmAcceptInput {
+  rentalId: string;
+  attempt: number;
+}
+
 /** The two shares of a deposit, in whole PolyPoints, adding up to the deposit. */
 export interface DepositSplit {
   lender: number;
   borrower: number;
+}
+
+/**
+ * Whether [value] is a valid split: the lender's share as a whole percentage from 0 to 100. The
+ * one definition for the parties' proposals, the LLM's answer and the stored LLM proposal.
+ */
+export function isWholePercent(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 100;
 }
 
 /**
@@ -56,18 +70,27 @@ export function parseSplitInput(data: unknown): SplitInput {
   const fields = asFields(data);
   const rentalId = parseText(fields.rentalId, "rentalId");
   const lenderPercent = fields.lenderPercent;
-  if (
-    typeof lenderPercent !== "number" ||
-    !Number.isInteger(lenderPercent) ||
-    lenderPercent < 0 ||
-    lenderPercent > 100
-  ) {
+  if (!isWholePercent(lenderPercent)) {
     throw new RequestError(
       "invalid-argument",
       "lenderPercent must be a whole number from 0 to 100.",
     );
   }
   return { rentalId, lenderPercent };
+}
+
+/**
+ * The input of `acceptLlmProposal`: a rental id and the attempt the caller saw, a whole number from
+ * 1. Throws an `invalid-argument` error if one is wrong.
+ */
+export function parseLlmAcceptInput(data: unknown): LlmAcceptInput {
+  const fields = asFields(data);
+  const rentalId = parseText(fields.rentalId, "rentalId");
+  const attempt = fields.attempt;
+  if (typeof attempt !== "number" || !Number.isInteger(attempt) || attempt < 1) {
+    throw new RequestError("invalid-argument", "attempt must be a whole number from 1.");
+  }
+  return { rentalId, attempt };
 }
 
 /**

@@ -6,6 +6,7 @@
  * change with the provider (docs/adr/0001). The model never sees the parties' split proposals nor
  * the chat (docs/adr/0002).
  */
+import { isWholePercent } from "./disputeRules";
 import { dayNumber, isDateString } from "./rentalRules";
 import { JsonSchema, PromptPart } from "./splitAdvisor";
 
@@ -165,14 +166,7 @@ export function photoPath(rentalId: string, photoId: string): string {
 export function checkAnswer(answer: unknown): CheckedAnswer | null {
   if (typeof answer !== "object" || answer === null) return null;
   const { lenderPercent, reasoning } = answer as Record<string, unknown>;
-  if (
-    typeof lenderPercent !== "number" ||
-    !Number.isInteger(lenderPercent) ||
-    lenderPercent < 0 ||
-    lenderPercent > MAX_PERCENT
-  ) {
-    return null;
-  }
+  if (!isWholePercent(lenderPercent)) return null;
   if (typeof reasoning !== "string") return null;
   const trimmed = reasoning.trim();
   if (trimmed === "" || trimmed.length > MAX_REASONING_LENGTH) return null;

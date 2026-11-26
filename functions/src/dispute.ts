@@ -353,7 +353,7 @@ function moveToLlmProposal(
 }
 
 /**
- * Ends a dispute on the split [lenderPercent], accepted by [acceptedBy]: `agreedAt` on the dispute,
+ * Ends a dispute on the split [lenderPercent], accepted last by [seenBy]: `agreedAt` on the dispute,
  * the rental CLOSED and the shares in the chat (only the agreed percentage when nothing moved
  * because no deposit was held). The shares are those of the deposit left after the
  * late fees (`depositToSettle`), which the late-fee job already paid to the lender, and the held
@@ -366,17 +366,19 @@ function moveToLlmProposal(
  * @param open the dispute and its rental.
  * @param lenderPercent the accepted split, the lender's share in percent.
  * @param now the current time, stored as `agreedAt`.
- * @param acceptedBy the participant accepting, who has seen the system message.
+ * @param seenBy the participant whose acceptance settles the dispute, who has seen the message.
+ * @param disputeFields other fields of the dispute to write with `agreedAt`, in the same update.
  * @throws RequestError `internal` when the rental's people are not valid and different, or when
  *   the borrower's held deposits do not cover the amount. Nothing is written then.
  */
-async function settle(
+export async function settle(
   tx: Transaction,
   db: Firestore,
   open: OpenDispute,
   lenderPercent: number,
   now: Date,
-  acceptedBy: string,
+  seenBy: string,
+  disputeFields: DocumentData = {},
 ): Promise<void> {
   const parties = requireParties(open.rental);
   const state = await readDepositSettlement(tx, db, parties, open.rentalRef.id);
@@ -391,8 +393,8 @@ async function settle(
   const text = nothingMoved
     ? `Dispute settled · ${lenderPercent}% to the lender`
     : `Dispute settled · ${lender} PP to the lender, ${borrower} PP back to the borrower`;
-  tx.update(open.disputeRef, { agreedAt: Timestamp.fromDate(now) });
-  writeWithSystemMessage(tx, open.rentalRef, text, { status: CLOSED }, acceptedBy);
+  tx.update(open.disputeRef, { ...disputeFields, agreedAt: Timestamp.fromDate(now) });
+  writeWithSystemMessage(tx, open.rentalRef, text, { status: CLOSED }, seenBy);
 }
 
 /**
