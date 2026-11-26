@@ -1863,7 +1863,7 @@ class HandoverViewModelTest {
 
     val state = vm.uiState.value
     // The server's time a minute after the day was read, from the saved pair: no server call.
-    assertEquals(noonOn(pickupDay).plusSeconds(60), handoverRepository.queuedScan.value?.scannedAt)
+    assertEquals(noonOn(pickupDay).plusSeconds(60), handoverRepository.queuedScan?.scannedAt)
     assertEquals(asked, rentalRepository.serverNowCalls)
     assertTrue(handoverRepository.scannedCodes.isEmpty()) // the queue sends it, not the screen
     assertTrue(state.scanQueued)
@@ -1872,7 +1872,7 @@ class HandoverViewModelTest {
     assertFalse(state.canAddPhoto) // the user is done, as after a confirmed scan
 
     // Sent by the queue: nothing waits any more, and the rental moves on by itself.
-    handoverRepository.queuedScan.value = null
+    handoverRepository.queuedScan = null
     assertFalse(vm.uiState.value.scanQueued)
   }
 
@@ -1889,7 +1889,7 @@ class HandoverViewModelTest {
 
   @Test
   fun aQueuedScanTheServerRefusedIsReportedWhenHandoverOpens() {
-    handoverRepository.queuedScan.value = QueuedScan(noonOn(pickupDay), ScanRefusedException())
+    handoverRepository.queuedScan = QueuedScan(noonOn(pickupDay), ScanRefusedException())
     val vm = readyToScan() // the cause may be fixed, so it can be scanned again
 
     assertEquals(ScanError.REFUSED, vm.uiState.value.scanError)

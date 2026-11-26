@@ -187,9 +187,9 @@ class HandoverRepositoryFirestore(
       scannedAt: Instant,
   ): Result<Unit> {
     if (!isValidDocumentId(rentalId)) {
-      return Result.failure(IllegalArgumentException("Invalid rental id"))
+      return Result.failure(IllegalArgumentException(INVALID_RENTAL_ID))
     }
-    if (auth.currentUser == null) return Result.failure(IllegalStateException("Signed out"))
+    if (auth.currentUser == null) return Result.failure(IllegalStateException(SIGNED_OUT))
     uploadQueue.enqueueScan(rentalId, phase, code, scannedAt)
     return Result.success(Unit)
   }
@@ -242,6 +242,8 @@ class HandoverRepositoryFirestore(
     const val SCAN_TIMEOUT_MS = 30_000L
     const val CONFIRM_HANDOVER = "confirmHandover"
     const val CONFIRM_RETURN_OK = "confirmReturnOk"
+
+    /** The messages of the failures returned before anything is sent. */
     const val INVALID_RENTAL_ID = "Invalid rental id"
     const val SIGNED_OUT = "Signed out"
 
