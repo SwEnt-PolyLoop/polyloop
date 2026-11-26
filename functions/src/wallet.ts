@@ -16,7 +16,8 @@ import { Parties, RequestError, listingTitleOf } from "./rentalRules";
  * PolyPoints (see "Firestore schema" in docs/ARCHITECTURE.md): `wallets/{uid}` holds the balances,
  * and `wallets/{uid}/transactions/{id}` the history. Only Cloud Functions write them. As in every
  * Firestore transaction, read first (`readWallet`, `hasTransaction`), check (`requireFunds`), then
- * write (`writeWallet`, or `writeDepositHold` for a deposit, whose row id is `depositRowId`).
+ * write (`writeWallet`, or `writeDepositHold` for a deposit, whose row id is `depositRowId`, and
+ * `writeRentalHold` for a rental price, whose row id is `rentalHeldRowId`).
  */
 
 /** The balances of a wallet, in whole PolyPoints. */
@@ -112,16 +113,28 @@ export function depositRowId(rentalId: string): string {
 }
 
 /**
+ * The `details.reason` of a refusal because the borrower's `available` balance cannot cover a
+ * hold, which the app reads (never the message).
+ */
+export const INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS";
+
+/**
  * Refuses a hold of [amount] if [wallet] cannot cover it. Called after the caller's other checks,
  * so the order of refusals stays the caller's.
  *
  * @param wallet the borrower's wallet, as read in the same transaction.
- * @param amount the deposit to hold.
- * @throws RequestError `failed-precondition` when `available` is below [amount].
+ * @param amount the deposit or the rental price to hold.
+ * @param message the refusal's message, which names what is held.
+ * @throws RequestError `failed-precondition` with `details.reason` [INSUFFICIENT_FUNDS] when
+ *   `available` is below [amount].
  */
-export function requireFunds(wallet: Wallet, amount: number): void {
+export function requireFunds(
+  wallet: Wallet,
+  amount: number,
+  message = "Insufficient funds to hold the deposit.",
+): void {
   if (wallet.available < amount) {
-    throw new RequestError("failed-precondition", "Insufficient funds to hold the deposit.");
+    throw new RequestError("failed-precondition", message, { reason: INSUFFICIENT_FUNDS });
   }
 }
 
@@ -157,6 +170,52 @@ export function writeDepositHold(
       heldAsDeposits: wallet.heldAsDeposits + deposit,
     },
     { id: depositRowId(rentalId), type: DEPOSIT_HELD, amount: -deposit, itemTitle },
+  );
+}
+
+/** The `type` of the history rows of a rental price: held at request, then paid to the lender. */
+export const RENTAL_PAYMENT = "RENTAL_PAYMENT";
+
+/**
+ * The id of the history row of a rental's price held at request. A fixed id makes the hold
+ * idempotent, and tells `payLender` that this rental's price is in `heldForRentals`.
+ */
+export function rentalHeldRowId(rentalId: string): string {
+  return `rental_price_held_${rentalId}`;
+}
+
+/**
+ * Write step of a rental price hold, inside the caller's transaction after its reads: `available -=
+ * price`, `heldForRentals += price`, and the `RENTAL_PAYMENT` row `rental_price_held_<rentalId>`
+ * with the amount `-price`. The funds are checked before, with `requireFunds`.
+ *
+ * @param tx the transaction to write in.
+ * @param db the Firestore database.
+ * @param borrowerId the owner of the wallet.
+ * @param wallet the borrower's wallet, as read in the same transaction.
+ * @param price the rental's total price.
+ * @param rentalId the rental the price belongs to.
+ * @param itemTitle the title of the item, or "".
+ */
+export function writeRentalHold(
+  tx: Transaction,
+  db: Firestore,
+  borrowerId: string,
+  wallet: Wallet,
+  price: number,
+  rentalId: string,
+  itemTitle: string,
+): void {
+  writeWallet(
+    tx,
+    db,
+    borrowerId,
+    {
+      ...wallet,
+      available: wallet.available - price,
+      heldForRentals: wallet.heldForRentals + price,
+    },
+    { id: rentalHeldRowId(rentalId), type: RENTAL_PAYMENT, amount: -price, itemTitle },
   );
 }
 

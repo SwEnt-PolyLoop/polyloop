@@ -156,12 +156,12 @@ describe("the prompt", () => {
     expect(INSTRUCTIONS).toContain("Answer in English");
   });
 
-  it("asks for a whole percentage from 0 to 100 and a reasoning", () => {
+  it("asks for a whole percentage from 0 to 100 and a reasoning of at most 2,000 chars", () => {
     expect(ANSWER_SCHEMA).toEqual({
       type: "object",
       properties: {
         lenderPercent: { type: "integer", minimum: 0, maximum: 100 },
-        reasoning: { type: "string" },
+        reasoning: { type: "string", maxLength: 2000 },
       },
       required: ["lenderPercent", "reasoning"],
     });
