@@ -565,6 +565,14 @@
     <string name="handover_take_photo">Take a photo</string>
     <string name="handover_photos_done">Pickup photos done</string>
     <string name="handover_return_photos_done">Return photos done</string>
+    <string name="handover_photos_done_offline">Pickup photos done. They upload when you\'re back online.</string>
+    <string name="handover_return_photos_done_offline">Return photos done. They upload when you\'re back online.</string>
+    <!-- On a photo still waiting in the upload queue -->
+    <string name="handover_photo_not_synced">Not synced</string>
+    <plurals name="handover_photos_refused">
+        <item quantity="one">%1$d photo couldn\'t be saved.</item>
+        <item quantity="other">%1$d photos couldn\'t be saved.</item>
+    </plurals>
     <plurals name="handover_photos_missing">
         <item quantity="one">Take %1$d more photo</item>
         <item quantity="other">Take %1$d more photos</item>
