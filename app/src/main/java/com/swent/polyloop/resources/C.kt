@@ -143,6 +143,10 @@ object C {
     const val auth_email_resent = "auth_email_resent"
     const val auth_back_to_form_button = "auth_back_to_form_button"
     const val auth_name_continue_button = "auth_name_continue_button"
+    const val auth_forgot_password_link = "auth_forgot_password_link"
+    const val auth_reset_screen = "auth_reset_screen"
+    const val auth_reset_send_button = "auth_reset_send_button"
+    const val auth_reset_sent = "auth_reset_sent"
 
     const val chat_list_screen = "chat_list_screen"
     const val chat_list_title = "chat_list_title"
@@ -348,7 +352,6 @@ object C {
     const val handover_item_fine_button = "handover_item_fine_button"
     const val handover_flag_damage_button = "handover_flag_damage_button"
     const val handover_item_fine_not_available = "handover_item_fine_not_available"
-    const val handover_flag_damage_not_available = "handover_flag_damage_not_available"
     const val handover_check_progress = "handover_check_progress"
     const val handover_check_error = "handover_check_error"
     const val handover_check_sent = "handover_check_sent"

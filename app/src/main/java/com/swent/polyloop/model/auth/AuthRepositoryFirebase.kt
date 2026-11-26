@@ -105,6 +105,26 @@ class AuthRepositoryFirebase(private val auth: FirebaseAuth = Firebase.auth) : A
     }
   }
 
+  override suspend fun sendPasswordResetEmail(email: String): AuthResult<Unit> {
+    if (!EpflEmail.isValid(email)) return AuthResult.Failure(AuthError.INVALID_DOMAIN)
+
+    return try {
+      auth.sendPasswordResetEmail(EpflEmail.normalize(email)).await()
+      AuthResult.Success(Unit)
+    } catch (e: FirebaseAuthInvalidUserException) {
+      // No account for this address, said only when email enumeration protection is off. Nothing
+      // was sent, but the answer is the same as for a sent email, so that nobody can find out who
+      // has an account (toAuthError would call it wrong credentials).
+      AuthResult.Success(Unit)
+    } catch (e: FirebaseAuthInvalidCredentialsException) {
+      // Firebase found the address malformed. EpflEmail.isValid has already passed, so this should
+      // not happen in practice; toAuthError would call it wrong credentials too.
+      AuthResult.Failure(AuthError.INVALID_DOMAIN)
+    } catch (e: FirebaseException) {
+      AuthResult.Failure(toAuthError(e))
+    }
+  }
+
   override fun getCurrentUser(): AuthUser? {
     val user = auth.currentUser ?: return null
     // An unverified user is only left over if the app was killed in the middle of a sign-in step.

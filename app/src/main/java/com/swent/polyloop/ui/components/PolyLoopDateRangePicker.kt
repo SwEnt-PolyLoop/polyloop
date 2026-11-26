@@ -102,7 +102,7 @@ fun PolyLoopDateRangePicker(
     onConfirm: (start: LocalDate, end: LocalDate) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
     isSending: Boolean = false,
     errorMsg: String? = null,
     onDayPicked: () -> Unit = {},
@@ -165,12 +165,17 @@ internal fun DateRangePickerBody(
       },
       onConfirm = onConfirm,
       today = firstDay,
+      phoneToday = today,
       isSending = isSending,
       errorMsg = errorMsg,
   )
 }
 
-/** Stateless sheet content: header, month grid, legend, summary, send error and main button. */
+/**
+ * Stateless sheet content: header, month grid, legend, summary, send error and main button. [today]
+ * is the first day that can be picked, and [phoneToday] the phone's date, which decides whether the
+ * window's year is written.
+ */
 @Composable
 internal fun DateRangePickerContent(
     window: ClosedRange<LocalDate>,
@@ -180,6 +185,7 @@ internal fun DateRangePickerContent(
     onDayClick: (LocalDate) -> Unit,
     onConfirm: (start: LocalDate, end: LocalDate) -> Unit,
     today: LocalDate,
+    phoneToday: LocalDate,
     modifier: Modifier = Modifier,
     isSending: Boolean = false,
     errorMsg: String? = null,
@@ -201,6 +207,7 @@ internal fun DateRangePickerContent(
         month = month,
         window = window,
         mode = mode,
+        today = phoneToday,
         showArrows = firstMonth != lastMonth,
         onPrevious = { month = month.minusMonths(1) }.takeIf { month > firstMonth },
         onNext = { month = month.plusMonths(1) }.takeIf { month < lastMonth },
@@ -248,14 +255,15 @@ internal fun DateRangePickerContent(
 }
 
 /**
- * The month title with its arrows and, in request mode, the window. A null [onPrevious] or [onNext]
- * disables that arrow.
+ * The month title with its arrows and, in request mode, the window, with its year only when it is
+ * not [today]'s. A null [onPrevious] or [onNext] disables that arrow.
  */
 @Composable
 private fun Header(
     month: YearMonth,
     window: ClosedRange<LocalDate>,
     mode: DateRangePickerMode,
+    today: LocalDate,
     showArrows: Boolean,
     onPrevious: (() -> Unit)?,
     onNext: (() -> Unit)?,
@@ -292,7 +300,7 @@ private fun Header(
     }
     Spacer(Modifier.weight(1f))
     if (mode is DateRangePickerMode.Request) {
-      val (from, to) = formatRangeEnds(window.start, window.endInclusive, locale)
+      val (from, to) = formatRangeEnds(window.start, window.endInclusive, locale, today)
       Text(
           text = stringResource(R.string.date_picker_available, from, to),
           style = MaterialTheme.typography.bodyMedium,
@@ -555,6 +563,7 @@ private fun DateRangePickerRequestPreview() {
         onDayClick = {},
         onConfirm = { _, _ -> },
         today = LocalDate.of(2026, 10, 1),
+        phoneToday = LocalDate.of(2026, 9, 30),
     )
   }
 }
@@ -572,6 +581,7 @@ private fun DateRangePickerAvailabilityPreview() {
         onDayClick = {},
         onConfirm = { _, _ -> },
         today = today,
+        phoneToday = today,
     )
   }
 }

@@ -89,7 +89,7 @@ class PolyLoopDateRangePickerTest {
   fun requestModeShowsMonthAvailableLegendAndSendRequest() {
     setBody()
 
-    val (from, to) = formatRangeEnds(oct(6), oct(20), locale)
+    val (from, to) = formatRangeEnds(oct(6), oct(20), locale, today)
     node(C.Tag.date_picker_month_title).assertTextEquals(monthTitle(2026, 10))
     node(C.Tag.date_picker_available)
         .assertTextEquals(context.getString(R.string.date_picker_available, from, to))

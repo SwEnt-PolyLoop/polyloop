@@ -23,8 +23,6 @@ class FakeHandoverRepository(
     // When set, addPhoto, confirmScan and confirmReturnOk wait until it is completed, so tests can
     // see them run.
     var gate: CompletableDeferred<Unit>? = null,
-    // The time given to the next photo added.
-    var now: Instant = Instant.parse("2026-10-13T15:00:00Z"),
     // The secret code of every rental and phase: shown as it is, scanned against its fingerprint.
     var code: String? = "secret-code",
     // When set, getCodeToShow and getCodeFingerprint fail with this error.
@@ -68,6 +66,7 @@ class FakeHandoverRepository(
       rentalId: String,
       phase: HandoverPhase,
       photoUri: String,
+      takenAt: Instant,
   ): Result<Unit> {
     addPhotoCalls++
     gate?.await()
@@ -96,7 +95,7 @@ class FakeHandoverRepository(
               StoredPhoto(
                   rentalId,
                   uid,
-                  HandoverPhoto(photoSlotId(uid, phase, slot), phase, now, photoUri),
+                  HandoverPhoto(photoSlotId(uid, phase, slot), phase, takenAt, photoUri),
               )
     }
     if (full) {

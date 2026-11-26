@@ -55,6 +55,27 @@ service cloud.firestore {
       return value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
     }
 
+    // Today as YYYY-MM-DD, never later than the date in Zurich, where rental dates are counted. The
+    // rules only know UTC, and Zurich is UTC+1 in winter and UTC+2 in summer, so this is Zurich's
+    // date in winter, and in summer it changes at 1 a.m. instead of midnight.
+    function today() {
+      let now = request.time + duration.value(1, 'h');
+      return string(now.year()) + '-' + twoDigits(now.month()) + '-' + twoDigits(now.day());
+    }
+
+    function twoDigits(number) {
+      return (number < 10 ? '0' : '') + string(number);
+    }
+
+    // A listing is locked, so its owner can neither change nor delete it, while an accepted rental
+    // of it ends today or later (#341). Rules cannot loop over a list, so they read only the last
+    // of its bookedRanges: Cloud Functions keep them sorted by first day, and they never overlap,
+    // so that one ends last. A rental still active or overdue after its last day does not lock it.
+    function isLocked(listing) {
+      let ranges = listing.get('bookedRanges', []);
+      return ranges.size() > 0 && ranges[ranges.size() - 1].end >= today();
+    }
+
     // True if every item of a list of 3 to 10 items is a string. Rules cannot loop, so each index is
     // checked; an index past the end is skipped.
     function areStrings(list) {
@@ -109,11 +130,12 @@ service cloud.firestore {
           && isValidListing(request.resource.data);
 
       allow update: if isUser(resource.data.ownerId)
+          && !isLocked(resource.data)
           && !changedKeys().hasAny(['ownerId', 'bookedRanges', 'pickupArea', 'dropOffArea',
               'pickupPoint', 'dropOffPoint'])
           && isValidListing(request.resource.data);
 
-      allow delete: if isUser(resource.data.ownerId);
+      allow delete: if isUser(resource.data.ownerId) && !isLocked(resource.data);
 
       // The same checks as Listing.canPublish in the app, for every status.
       function isValidListing(listing) {
@@ -147,24 +169,34 @@ service cloud.firestore {
       }
 
       // Exact addresses, readable only by the owner. getAfter() lets the owner write them in the
-      // same batch that creates the listing; get() lets them be deleted with it.
+      // same batch that creates the listing; get() lets them be deleted with it. They are locked
+      // with their listing.
       match /private/{docId} {
         allow read: if docId == 'addresses'
             && isUser(get(listingPath(listingId)).data.ownerId);
 
         allow create, update: if docId == 'addresses'
             && isOwnerBeforeOrAfter(listingId)
+            && !isListingLocked(listingId)
             && request.resource.data.keys().hasOnly(['pickup', 'dropOff'])
             && isNonBlankString(request.resource.data.pickup)
             && isNonBlankString(request.resource.data.dropOff);
 
-        allow delete: if docId == 'addresses' && isOwnerBeforeOrAfter(listingId);
+        allow delete: if docId == 'addresses'
+            && isOwnerBeforeOrAfter(listingId)
+            && !isListingLocked(listingId);
 
         function isOwnerBeforeOrAfter(listingId) {
           return (exists(listingPath(listingId))
                   && isUser(get(listingPath(listingId)).data.ownerId))
               || (existsAfter(listingPath(listingId))
                   && isUser(getAfter(listingPath(listingId)).data.ownerId));
+        }
+
+        // The stored listing is locked. A listing being created in the same batch is not stored
+        // yet, and has no bookedRanges: clients never write them.
+        function isListingLocked(listingId) {
+          return exists(listingPath(listingId)) && isLocked(get(listingPath(listingId)).data);
         }
       }
     }
@@ -234,6 +266,10 @@ service cloud.firestore {
       // back the same way). They are evidence: never changed. Rules cannot count documents, so the
       // cap of 20 photos per person and phase (#428) is the id: a fixed slot, {uid}_{phase}_{0..19},
       // written once because photos are never replaced.
+      // A photo taken offline is sent later by the upload queue (#511), so takenAt is when the
+      // phone took it, by the server's clock, not when it arrives. It may not be in the future and
+      // must arrive within a day. A pickup photo taken before the pickup scan is still accepted
+      // after it, since the other phone may have scanned first.
       match /photos/{photoId} {
         allow read: if isVerifiedEpfl()
             && request.auth.uid in get(rentalPath(rentalId)).data.participants;
@@ -243,18 +279,29 @@ service cloud.firestore {
             && request.resource.data.keys().hasOnly(['takenBy', 'phase', 'takenAt', 'url'])
             && request.resource.data.keys().hasAll(['takenBy', 'phase', 'takenAt', 'url'])
             && request.resource.data.takenBy == request.auth.uid
-            && request.resource.data.takenAt == request.time
+            && request.resource.data.takenAt is timestamp
+            && request.resource.data.takenAt <= request.time
+            && request.resource.data.takenAt > request.time - duration.value(1, 'd')
             && request.resource.data.url is string
             && request.resource.data.phase in phaseStatuses().keys()
             && photoId.matches(
                 request.auth.uid + '_' + request.resource.data.phase + '_([0-9]|1[0-9])')
-            && get(rentalPath(rentalId)).data.status
-                in phaseStatuses()[request.resource.data.phase];
+            && (get(rentalPath(rentalId)).data.status
+                    in phaseStatuses()[request.resource.data.phase]
+                || isPhotoTakenBeforeItsScan(get(rentalPath(rentalId)).data));
       }
 
       // The statuses a rental must have for photos of each phase.
       function phaseStatuses() {
         return {'PICKUP': ['ACCEPTED'], 'RETURN': ['ACTIVE', 'OVERDUE']};
+      }
+
+      // A photo taken before its phase's scan that arrives after it (#511): the time of the scan is
+      // pickedUpAt at pickup and returnedAt at return, both set by confirmHandover.
+      function isPhotoTakenBeforeItsScan(rental) {
+        let scanFields = {'PICKUP': 'pickedUpAt', 'RETURN': 'returnedAt'};
+        let scannedAt = scanFields[request.resource.data.phase];
+        return scannedAt in rental && request.resource.data.takenAt < rental[scannedAt];
       }
 
       // The secret code of each handover's QR code (#434, #435), one document per phase (PICKUP,
@@ -289,8 +336,9 @@ service cloud.firestore {
     // ---------- disputes ----------
 
     // One dispute per rental, at the rental's id, visible only to the rental's two participants.
-    // Only Cloud Functions write it (proposeSplit, acceptSplit, escalateDispute and the hourly
-    // escalateDisputes): no client write.
+    // Only Cloud Functions write it (proposeSplit, acceptSplit, escalateDispute, the hourly
+    // escalateDisputes, draftLlmProposal, rejectLlmProposal and retryLlmProposal): no client
+    // write.
     // Reading the dispute of a rental that has none is allowed, so the app can read a missing
     // dispute as none.
     match /disputes/{rentalId} {

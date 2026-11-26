@@ -38,10 +38,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.swent.polyloop.R
 import com.swent.polyloop.model.rental.RentalStatus
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.myrentals.labelRes
 import com.swent.polyloop.ui.theme.PolyLoopTheme
 import com.swent.polyloop.ui.theme.PolyRed
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -59,7 +61,7 @@ fun ChatListScreen(viewModel: ChatListViewModel, onConversationClick: (String) -
 
 /**
  * Stateless Chat list content: the title, then a loading indicator, an error with a Retry button,
- * the empty state or the conversations, depending on [uiState]. [now] decides which messages are
+ * the empty state or the conversations, depending on [uiState]. [today] decides which messages are
  * from today.
  */
 @Composable
@@ -67,7 +69,7 @@ fun ChatListContent(
     uiState: ChatListUiState,
     onConversationClick: (String) -> Unit,
     onRetry: () -> Unit,
-    now: Instant = Instant.now(),
+    today: LocalDate = LocalToday.current,
 ) {
   Column(
       modifier =
@@ -107,7 +109,7 @@ fun ChatListContent(
             items(uiState.rows, key = { it.rentalId }) { row ->
               ConversationRow(
                   row = row,
-                  now = now,
+                  today = today,
                   onClick = { onConversationClick(row.rentalId) },
               )
               HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -122,7 +124,7 @@ fun ChatListContent(
  * the last message.
  */
 @Composable
-private fun ConversationRow(row: ChatListRow, now: Instant, onClick: () -> Unit) {
+private fun ConversationRow(row: ChatListRow, today: LocalDate, onClick: () -> Unit) {
   Row(
       modifier =
           Modifier.fillMaxWidth()
@@ -145,7 +147,7 @@ private fun ConversationRow(row: ChatListRow, now: Instant, onClick: () -> Unit)
             modifier = Modifier.weight(1f).testTag(C.Tag.chat_list_row_name),
         )
         Text(
-            text = formatMessageTime(row.lastMessageAt, now),
+            text = formatMessageTime(row.lastMessageAt, today),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 8.dp).testTag(C.Tag.chat_list_row_time),
@@ -232,17 +234,17 @@ internal fun initialOf(name: String): String =
     name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
 
 /**
- * When a message was sent, as seen in [zone]: the time for today's messages ("15:02"), the day
- * otherwise ("13 Oct").
+ * When a message was sent, as seen in [zone]: the time for messages sent on [today] ("15:02"), the
+ * day otherwise ("13 Oct").
  */
 internal fun formatMessageTime(
     at: Instant,
-    now: Instant,
+    today: LocalDate,
     zone: ZoneId = ZoneId.systemDefault(),
     locale: Locale = Locale.getDefault(),
 ): String {
   val sent = at.atZone(zone)
-  val pattern = if (sent.toLocalDate() == now.atZone(zone).toLocalDate()) "HH:mm" else "d MMM"
+  val pattern = if (sent.toLocalDate() == today) "HH:mm" else "d MMM"
   return sent.format(DateTimeFormatter.ofPattern(pattern, locale))
 }
 
@@ -278,7 +280,7 @@ private fun ChatListContentPreview() {
             ),
         onConversationClick = {},
         onRetry = {},
-        now = now,
+        today = LocalDate.of(2026, 10, 13),
     )
   }
 }

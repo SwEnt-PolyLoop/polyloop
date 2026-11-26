@@ -32,12 +32,14 @@ import com.swent.polyloop.model.RepositoryProvider
 import com.swent.polyloop.ui.authentication.AuthScreen
 import com.swent.polyloop.ui.authentication.AuthViewModel
 import com.swent.polyloop.ui.authentication.CheckInboxScreen
+import com.swent.polyloop.ui.authentication.ForgotPasswordScreen
 import com.swent.polyloop.ui.browse.BrowseScreen
 import com.swent.polyloop.ui.browse.BrowseViewModel
 import com.swent.polyloop.ui.chat.ChatScreen
 import com.swent.polyloop.ui.chat.ChatViewModel
 import com.swent.polyloop.ui.chatlist.ChatListScreen
 import com.swent.polyloop.ui.chatlist.ChatListViewModel
+import com.swent.polyloop.ui.components.ProvideToday
 import com.swent.polyloop.ui.createlisting.CreateListingScreen
 import com.swent.polyloop.ui.createlisting.CreateListingViewModel
 import com.swent.polyloop.ui.dispute.DisputeScreen
@@ -122,8 +124,11 @@ fun PolyLoopApp(
         )
       },
   ) {
-    PolyLoopScaffold(navController, navigationActions, currentRoute, startDestination) {
-      scope.launch { drawerState.open() }
+    // Today's date for every screen, kept up to date across midnight (see LocalToday).
+    ProvideToday {
+      PolyLoopScaffold(navController, navigationActions, currentRoute, startDestination) {
+        scope.launch { drawerState.open() }
+      }
     }
   }
 }
@@ -164,11 +169,13 @@ private fun PolyLoopScaffold(
           if (authState.isSignedIn) navigationActions.navigateAfterSignIn()
         }
         // "Check your inbox" is a step of this screen, not a route: both share the ViewModel, which
-        // holds the email and password needed to resend the email and to log in again.
+        // holds the email and password needed to resend the email and to log in again. So is
+        // "Forgot password", which uses the typed email.
         when {
           // Nothing while leaving for Browse, so the form does not flash during the fade.
           authState.isSignedIn -> Unit
           authState.isAwaitingVerification -> CheckInboxScreen(viewModel = authViewModel)
+          authState.isResettingPassword -> ForgotPasswordScreen(viewModel = authViewModel)
           else -> AuthScreen(viewModel = authViewModel)
         }
       }
@@ -337,6 +344,13 @@ private fun PolyLoopScaffold(
               }
             },
             onViewDisputeClick = { navController.navigate(Screen.Dispute.createRoute(rentalId)) },
+            // The lender's return check lives on Handover. Single top: a fast double tap opens it
+            // once.
+            onCheckItemClick = {
+              navController.navigate(Screen.Handover.createRoute(rentalId)) {
+                launchSingleTop = true
+              }
+            },
             onReviewRequestClick = {
               navController.navigate(Screen.ReviewRequest.createRoute(rentalId)) {
                 launchSingleTop = true

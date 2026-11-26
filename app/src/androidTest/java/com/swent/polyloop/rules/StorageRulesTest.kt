@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.storage.StorageException
 import com.google.firebase.storage.StorageReference
@@ -14,6 +15,8 @@ import com.google.firebase.storage.storageMetadata
 import com.swent.polyloop.utils.FirebaseEmulator
 import java.io.File
 import java.io.RandomAccessFile
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.tasks.await
@@ -35,6 +38,9 @@ class StorageRulesTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val listingId = "listing-${UUID.randomUUID()}"
   private val bytes = byteArrayOf(1, 2, 3, 4)
+
+  // Today in Zurich, where rental dates are counted.
+  private val today = LocalDate.now(ZoneId.of("Europe/Zurich"))
 
   // A JPEG tagged with the uid of the user signed in when it is uploaded, as
   // ListingRepositoryFirestore tags listing photos. The profile photo rules ignore the tag.
@@ -72,6 +78,20 @@ class StorageRulesTest {
     FirebaseEmulator.createDocumentAsAdmin(
         "listings/$listingId",
         mapOf("ownerId" to ownerUid, "title" to "Camping tent"),
+    )
+  }
+
+  /**
+   * Books the listing on [ranges] (first and last day), oldest first, as accepting rentals stores
+   * them (Cloud Functions keep `bookedRanges` sorted).
+   */
+  private fun bookListing(vararg ranges: Pair<LocalDate, LocalDate>) {
+    FirebaseEmulator.updateDocumentAsAdmin(
+        "listings/$listingId",
+        mapOf(
+            "bookedRanges" to
+                ranges.map { (start, end) -> mapOf("start" to "$start", "end" to "$end") }
+        ),
     )
   }
 
@@ -122,6 +142,35 @@ class StorageRulesTest {
         assertDenied { photo().delete().await() }
 
         signInAsOwner()
+        photo("1.jpg").putBytes(bytes, jpeg).await()
+        photo().delete().await()
+      }
+
+  @Test
+  fun ownerCannotChangeThePhotosOfAListingWhileABookingEndsTodayOrLater() =
+      runBlocking<Unit> {
+        photo().putBytes(bytes, jpeg).await()
+        publishListing()
+        bookListing(today.minusDays(30) to today.minusDays(28), today.minusDays(2) to today)
+
+        assertDenied { photo().putBytes(bytes, jpeg).await() }
+        assertDenied { photo("1.jpg").putBytes(bytes, jpeg).await() }
+        assertDenied { photo().updateMetadata(jpeg).await() }
+        assertDenied { photo().delete().await() }
+        assertArrayEquals(bytes, photo().getBytes(MAX_BYTES).await())
+      }
+
+  @Test
+  fun ownerChangesThePhotosAgainOnceTheBookingsAreOverOrCancelled() =
+      runBlocking<Unit> {
+        photo().putBytes(bytes, jpeg).await()
+        publishListing()
+        val over = today.minusDays(4) to today.minusDays(2)
+        bookListing(over, today.plusDays(5) to today.plusDays(7))
+        assertDenied { photo().delete().await() }
+
+        // Cancelling a rental removes its range, as cancelRental does.
+        bookListing(over)
         photo("1.jpg").putBytes(bytes, jpeg).await()
         photo().delete().await()
       }
@@ -272,14 +321,19 @@ class StorageRulesTest {
   private fun pickupPhoto(rentalId: String, name: String = slotName(ownerUid, 0)) =
       Firebase.storage.reference.child("rentals/$rentalId/photos/$name")
 
-  /** A rental between the owner and [borrowerUid], written as an admin. Returns its id. */
-  private fun seedRental(borrowerUid: String, status: String = "ACCEPTED") =
+  /**
+   * A rental between the owner and [borrowerUid], written as an admin, with the times of its scans
+   * in [scans] (e.g. "pickedUpAt"). Returns its id.
+   */
+  private fun seedRental(
+      borrowerUid: String,
+      status: String = "ACCEPTED",
+      scans: Map<String, Timestamp> = emptyMap(),
+  ) =
       "rental-${UUID.randomUUID()}"
           .also {
-            FirebaseEmulator.createDocumentAsAdmin(
-                "rentals/$it",
-                mapOf("participants" to listOf(ownerUid, borrowerUid), "status" to status),
-            )
+            val rental = mapOf("participants" to listOf(ownerUid, borrowerUid), "status" to status)
+            FirebaseEmulator.createDocumentAsAdmin("rentals/$it", rental + scans)
           }
 
   @Test
@@ -362,6 +416,23 @@ class StorageRulesTest {
         assertDenied { pickupPhoto(returned, returnSlot).putBytes(bytes, jpeg).await() }
         // A pickup slot is not taken once the item is out.
         assertDenied { pickupPhoto(active).putBytes(bytes, jpeg).await() }
+      }
+
+  @Test
+  fun aPhotoTakenOfflineIsStillUploadedUpToADayAfterItsScan() =
+      runBlocking<Unit> {
+        fun hoursAgo(hours: Long) = Timestamp(Timestamp.now().seconds - hours * 3600, 0)
+        fun scanned(field: String, hours: Long) = mapOf(field to hoursAgo(hours))
+        val justPickedUp = seedRental(OTHER_UID, "ACTIVE", scanned("pickedUpAt", 1))
+        pickupPhoto(justPickedUp).putBytes(bytes, jpeg).await()
+        val pickedUpLongAgo = seedRental(OTHER_UID, "ACTIVE", scanned("pickedUpAt", 25))
+        assertDenied { pickupPhoto(pickedUpLongAgo).putBytes(bytes, jpeg).await() }
+
+        val returnPhoto = slotName(ownerUid, 0, phase = "RETURN")
+        val justReturned = seedRental(OTHER_UID, "RETURNED", scanned("returnedAt", 1))
+        pickupPhoto(justReturned, returnPhoto).putBytes(bytes, jpeg).await()
+        val returnedLongAgo = seedRental(OTHER_UID, "RETURNED", scanned("returnedAt", 25))
+        assertDenied { pickupPhoto(returnedLongAgo, returnPhoto).putBytes(bytes, jpeg).await() }
       }
 
   @Test

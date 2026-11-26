@@ -15,6 +15,12 @@ _Avoid_: Settlement (that is the first stage of a dispute)
 A deposit amount waiting for an answer during the deposit negotiation: the lender's offer, which comes with the pickup and drop-off addresses, or the borrower's counteroffer.
 _Avoid_: Proposal (that is a split in a dispute), bid
 
+### Connectivity
+
+**Unreachable**:
+The phone counts as online, but the server has not confirmed a screen's data within a timeout, e.g. on a captive-portal Wi-Fi or a router without internet. The screen shows the same unavailable state as offline, without the offline banner, and shows the real values as soon as the server confirms them.
+_Avoid_: Offline (the phone's network status says online), timed out
+
 ### Disputes
 
 **Dispute**:

@@ -43,7 +43,8 @@ class MyRentalsScreenTest {
 
   /** The dates of [request] as its card writes them. */
   private val requestDates =
-      formatRangeEnds(LocalDate.of(2026, 10, 15), LocalDate.of(2026, 10, 17)).let { (from, to) ->
+      formatRangeEnds(LocalDate.of(2026, 10, 15), LocalDate.of(2026, 10, 17), today = TODAY).let {
+          (from, to) ->
         context.getString(R.string.my_rentals_date_range, from, to)
       }
 

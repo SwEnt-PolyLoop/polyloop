@@ -187,10 +187,10 @@ class RentalDetailViewModelOfferTest {
   }
 
   @Test
-  fun aRentalThatLeavesRequestedShowsThePlaceholder() = runTest {
+  fun aRentalThatMovesToAStatusNotBuiltShowsThePlaceholder() = runTest {
     val vm = viewModel()
 
-    rentals.declineRequest("r1").getOrThrow()
+    rentals.setStatus("r1", RentalStatus.CLOSED)
 
     assertFalse(vm.uiState.value.isSupported)
     assertEquals("Camping tent", vm.uiState.value.itemTitle)

@@ -139,6 +139,8 @@
     <string name="wallet_amount_unknown_description">Unknown</string>
     <string name="wallet_unavailable_offline">Your balance is unavailable until your phone is back online.</string>
     <string name="wallet_history_unavailable_offline">Your history is unavailable until your phone is back online.</string>
+    <string name="wallet_unavailable_unreachable">Your balance is unavailable. The server can\'t be reached right now.</string>
+    <string name="wallet_history_unavailable_unreachable">Your history is unavailable. The server can\'t be reached right now.</string>
     <string name="wallet_footer">1 CHF = 1 PolyPoint. PolyPoints can\'t be withdrawn.</string>
     <string name="wallet_error_fallback">Could not load your wallet</string>
     <string name="wallet_retry">Retry</string>
@@ -298,6 +300,12 @@
     <string name="auth_resend_email_countdown">Resend email (%1$d s)</string>
     <string name="auth_email_resent">We sent the email again.</string>
     <string name="auth_back_to_form">Back to the form</string>
+    <string name="auth_forgot_password">Forgot password?</string>
+    <string name="auth_reset_title">Reset your password</string>
+    <string name="auth_reset_body">Enter your EPFL email. We\'ll send you a link to set a new password.</string>
+    <string name="auth_reset_send">Send reset email</string>
+    <string name="auth_reset_send_countdown">Send reset email (%1$d s)</string>
+    <string name="auth_reset_sent">If an account exists for this address, we sent a reset link to it. Set a new password from the link, then log in.</string>
 
     <!-- Chat list -->
     <string name="chat_list_title">Chats</string>
@@ -444,10 +452,21 @@
     <string name="rental_detail_cancelled_body">Cancelled before pickup, so the rental price and the deposit are given back.</string>
     <!-- The body of a cancelled rental that had no deposit (cancelled while requested) -->
     <string name="rental_detail_cancelled_body_no_deposit">Cancelled before pickup, so the rental price is given back.</string>
+    <!-- The headline of a declined rental, the same for both roles -->
+    <string name="rental_detail_declined_headline">Request declined</string>
+    <!-- The body of a declined rental, the same for both roles -->
+    <string name="rental_detail_declined_body">The rental price is given back.</string>
     <!-- The total rental price of a cancelled rental, e.g. "120 PP · returned" -->
     <string name="rental_detail_price_returned">%1$d PP · returned</string>
     <!-- The deposit of a cancelled rental, e.g. "60 PP · released" -->
     <string name="rental_detail_deposit_released">%1$d PP · released</string>
+    <!-- The headline of a returned rental, e.g. "Returned on 8 Oct" -->
+    <string name="rental_detail_returned_headline">Returned on %1$s</string>
+    <!-- The headline of a returned rental whose return date is not known -->
+    <string name="rental_detail_returned_headline_no_date">Returned</string>
+    <string name="rental_detail_check_item">Check the item</string>
+    <string name="rental_detail_returned_body">Check the item against your pickup photos. The deposit stays held until a decision.</string>
+    <string name="rental_detail_returned_body_borrower">The item is being checked against the pickup photos. The deposit is released once everything is confirmed fine.</string>
 
     <!-- Dispute -->
     <string name="dispute_title">Dispute</string>

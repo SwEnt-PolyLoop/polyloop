@@ -41,6 +41,7 @@ import com.swent.polyloop.model.wallet.Wallet
 import com.swent.polyloop.model.wallet.WalletTransaction
 import com.swent.polyloop.model.wallet.WalletTransactionType
 import com.swent.polyloop.resources.C
+import com.swent.polyloop.ui.components.LocalToday
 import com.swent.polyloop.ui.components.NotAvailableYet
 import com.swent.polyloop.ui.components.OfflineBanner
 import com.swent.polyloop.ui.components.formatDay
@@ -64,10 +65,12 @@ fun WalletScreen(viewModel: WalletViewModel, onRecharge: () -> Unit = {}) {
 
 /**
  * Stateless Wallet content. While offline it shows the offline banner and disables "Recharge", but
- * the wallet and the history stay readable. While loading online with nothing known it shows a
- * spinner; on an error with nothing known, the error with a Retry button; otherwise the balance
- * card, the history (newest first, as [uiState] gives it) and the footer, with a progress bar or
- * the error above them while a reload or a failure is pending.
+ * the wallet and the history stay readable. While unreachable (online, but the server has not
+ * answered in time) it shows the same unavailable state without the banner, with its own wording.
+ * While loading online with nothing known it shows a spinner; on an error with nothing known, the
+ * error with a Retry button; otherwise the balance card, the history (newest first, as [uiState]
+ * gives it) and the footer, with a progress bar or the error above them while a reload or a failure
+ * is pending.
  *
  * Unknown is never shown as 0: an unknown balance (and held amounts) shows "—", and offline it adds
  * a line saying it is unavailable until the phone is back online; an unknown history shows the same
@@ -83,7 +86,7 @@ fun WalletContent(
     uiState: WalletUiState,
     onRetry: () -> Unit,
     onRecharge: () -> Unit,
-    today: LocalDate = LocalDate.now(),
+    today: LocalDate = LocalToday.current,
 ) {
   Column(
       modifier =
@@ -99,9 +102,10 @@ fun WalletContent(
         modifier = Modifier.padding(horizontal = 16.dp).testTag(C.Tag.wallet_title),
     )
     val nothingKnown = uiState.wallet == null && uiState.history == null
+    // Offline or unreachable, a spinner would never end: the layout shows what is unknown instead.
+    val unavailable = uiState.isOffline || uiState.isUnreachable
     when {
-      // Offline, a spinner would never end: the layout shows what is unknown instead.
-      uiState.isLoading && !uiState.isOffline && nothingKnown ->
+      uiState.isLoading && !unavailable && nothingKnown ->
           Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(modifier = Modifier.testTag(C.Tag.wallet_loading))
           }
@@ -116,7 +120,7 @@ fun WalletContent(
               modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
               verticalArrangement = Arrangement.spacedBy(16.dp),
           ) {
-            if (uiState.isLoading && !uiState.isOffline) {
+            if (uiState.isLoading && !unavailable) {
               LinearProgressIndicator(
                   modifier = Modifier.fillMaxWidth().testTag(C.Tag.wallet_loading)
               )
@@ -124,17 +128,18 @@ fun WalletContent(
             uiState.errorMsg?.let {
               WalletError(errorMsg = it, onRetry = onRetry, modifier = Modifier.fillMaxWidth())
             }
-            BalanceCard(uiState.wallet, enabled = !uiState.isOffline, onRecharge = onRecharge)
-            if (uiState.wallet == null && uiState.isOffline) {
+            BalanceCard(uiState.wallet, enabled = !unavailable, onRecharge = onRecharge)
+            if (uiState.wallet == null && unavailable) {
               UnavailableLine(
-                  R.string.wallet_unavailable_offline,
+                  if (uiState.isOffline) R.string.wallet_unavailable_offline
+                  else R.string.wallet_unavailable_unreachable,
                   C.Tag.wallet_unavailable,
                   Modifier.padding(horizontal = 16.dp),
               )
             }
             // Online with no history yet, the progress bar above says it is coming.
-            if (uiState.history != null || uiState.isOffline) {
-              HistorySection(uiState.history, today)
+            if (uiState.history != null || unavailable) {
+              HistorySection(uiState.history, today, uiState.isOffline)
             }
             Text(
                 text = stringResource(R.string.wallet_footer),
@@ -267,9 +272,10 @@ private fun UnavailableLine(
  * @param history the transactions to show, in the order given; null while unknown, which is not the
  *   same as empty.
  * @param today the current day, to leave the year out of this year's dates.
+ * @param offline whether the phone is offline, which picks the wording of the unavailable line.
  */
 @Composable
-private fun HistorySection(history: List<WalletTransaction>?, today: LocalDate) {
+private fun HistorySection(history: List<WalletTransaction>?, today: LocalDate, offline: Boolean) {
   Column(
       modifier = Modifier.padding(horizontal = 16.dp),
       verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -282,7 +288,8 @@ private fun HistorySection(history: List<WalletTransaction>?, today: LocalDate) 
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
       if (history == null) {
         UnavailableLine(
-            R.string.wallet_history_unavailable_offline,
+            if (offline) R.string.wallet_history_unavailable_offline
+            else R.string.wallet_history_unavailable_unreachable,
             C.Tag.wallet_history_unavailable,
             Modifier.padding(16.dp),
         )
