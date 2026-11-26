@@ -213,6 +213,9 @@ class ScanCodeCardTest {
     node(C.Tag.handover_scan_confirmed).performScrollTo().assertTextEquals("Pickup confirmed")
     node(C.Tag.handover_scan_queued).assertTextEquals("It will be sent when you're back online.")
     node(C.Tag.handover_scan_button).assertDoesNotExist()
+    // The next day it still waits, and the server still accepts it: the card stays.
+    uiState = uiState.copy(serverToday = LocalDate.of(2026, 10, 7))
+    node(C.Tag.handover_scan_queued).performScrollTo().assertIsDisplayed()
   }
 
   @Test
