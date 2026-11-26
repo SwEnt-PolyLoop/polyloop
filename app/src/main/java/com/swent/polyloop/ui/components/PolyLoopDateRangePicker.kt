@@ -79,9 +79,16 @@ sealed interface DateRangePickerMode {
    * Listing detail: the borrower picks rental dates and sees the price.
    *
    * The [balance] check here only guides the user; it is not a security check. The real check is
-   * done server-side when the request is sent (docs/ARCHITECTURE.md, "Money").
+   * done server-side when the request is sent (docs/ARCHITECTURE.md, "Money"). [balanceRefused] is
+   * true when the server found the balance too low for the request just sent: the balance message
+   * then shows even while [balance] still covers the price (the wallet changed on another phone),
+   * and only once when [balance] no longer does.
    */
-  data class Request(val pricePerDay: Int, val balance: Int) : DateRangePickerMode
+  data class Request(
+      val pricePerDay: Int,
+      val balance: Int,
+      val balanceRefused: Boolean = false,
+  ) : DateRangePickerMode
 }
 
 /**
@@ -228,7 +235,7 @@ internal fun DateRangePickerContent(
         )
       }
       if (selection.isComplete) Summary(selection = selection, mode = mode)
-      if (selection.exceedsBalance(mode.pricePerDay, mode.balance)) {
+      if (mode.balanceRefused || selection.exceedsBalance(mode.pricePerDay, mode.balance)) {
         Text(
             text = stringResource(R.string.date_picker_not_enough_balance),
             style = MaterialTheme.typography.bodySmall,

@@ -12,6 +12,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -825,14 +826,34 @@ class ListingDetailScreenTest {
                 isDatePickerOpen = true,
                 availableBalance = 120,
                 refusal = RequestRefusal.NOT_ENOUGH_BALANCE,
-                sendError = "Network down",
             )
     )
 
+    composeTestRule.onAllNodesWithTag(C.Tag.date_picker_balance_error).assertCountEquals(1)
     composeTestRule
-        .onNodeWithTag(C.Tag.date_picker_send_error)
+        .onNodeWithTag(C.Tag.date_picker_balance_error)
         .performScrollTo()
         .assertTextEquals(context.getString(R.string.date_picker_not_enough_balance))
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_send_error).assertDoesNotExist()
+  }
+
+  @Test
+  fun aBalanceRefusalThatTheNewBalanceConfirmsShowsItsMessageOnce() {
+    // The wallet now read on the phone (120 PP) no longer covers 3 days at 50 PP either.
+    setContent(
+        uiState =
+            ListingDetailUiState(
+                listing = listing.copy(pricePerDay = 50),
+                isDatePickerOpen = true,
+                availableBalance = 120,
+                refusal = RequestRefusal.NOT_ENOUGH_BALANCE,
+            )
+    )
+
+    tapDays(oct(15), oct(17))
+
+    composeTestRule.onAllNodesWithTag(C.Tag.date_picker_balance_error).assertCountEquals(1)
+    composeTestRule.onNodeWithTag(C.Tag.date_picker_send_error).assertDoesNotExist()
   }
 
   @Test

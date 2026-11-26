@@ -166,6 +166,7 @@ fun ListingDetailContent(
                   DateRangePickerMode.Request(
                       pricePerDay = listing.pricePerDay,
                       balance = balance,
+                      balanceRefused = uiState.refusal == RequestRefusal.NOT_ENOUGH_BALANCE,
                   ),
               onConfirm = onConfirmDates,
               onDismiss = onDismissDatePicker,
@@ -175,9 +176,8 @@ fun ListingDetailContent(
                   when (uiState.refusal) {
                     RequestRefusal.DATES_TAKEN ->
                         stringResource(R.string.listing_detail_dates_taken)
-                    // The same text as the picker's own check, which the server confirmed.
-                    RequestRefusal.NOT_ENOUGH_BALANCE ->
-                        stringResource(R.string.date_picker_not_enough_balance)
+                    // Shown by the picker's own balance line, so it never shows twice.
+                    RequestRefusal.NOT_ENOUGH_BALANCE -> null
                     null -> uiState.sendError
                   },
               onDayPicked = onDayPicked,
