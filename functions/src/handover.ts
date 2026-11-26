@@ -15,12 +15,21 @@ import {
   readLenderPayment,
   writeLenderPayment,
 } from "./payLender";
-import { RequestError, asFields, isDateString, parseText, requireParties } from "./rentalRules";
+import {
+  RENTAL_CHANGED,
+  RequestError,
+  asFields,
+  isDateString,
+  parseText,
+  requireParties,
+} from "./rentalRules";
 import { zurichDay } from "./serverToday";
 
-/** The reasons of a refusal the app reads (`details.reason`), see docs/ARCHITECTURE.md. */
+/**
+ * The reason (`details.reason`) of a refused scan whose code is wrong, read by the app, see
+ * docs/ARCHITECTURE.md. A rental that changed meanwhile is `RENTAL_CHANGED` (rentalRules.ts).
+ */
 export const WRONG_CODE = "WRONG_CODE";
-export const RENTAL_CHANGED = "RENTAL_CHANGED";
 
 /**
  * The statuses a rental reaches only once its item is back: a return scan on one of them was

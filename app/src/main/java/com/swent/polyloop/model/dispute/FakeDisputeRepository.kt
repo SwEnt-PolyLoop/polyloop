@@ -85,7 +85,8 @@ class FakeDisputeRepository(
 
   /**
    * Opens a dispute in direct settlement, with no proposal, escalating [SETTLE_DAYS] from now.
-   * Fails if nobody is signed in or the rental has a dispute already.
+   * Succeeds without a change if the rental has a dispute already, as the Cloud Function does.
+   * Fails if nobody is signed in.
    */
   override suspend fun openDispute(rentalId: String): Result<Unit> {
     gate?.await()
@@ -94,8 +95,9 @@ class FakeDisputeRepository(
     }
     return runCatching {
       checkNotNull(currentUid()) { "Nobody is signed in" }
-      check(stored.value[rentalId] == null) { "Rental $rentalId has a dispute already" }
-      put(Dispute(rentalId, DisputeStage.SETTLE, emptyList(), clock().plus(SETTLE_DAYS)))
+      if (stored.value[rentalId] == null) {
+        put(Dispute(rentalId, DisputeStage.SETTLE, emptyList(), clock().plus(SETTLE_DAYS)))
+      }
     }
   }
 

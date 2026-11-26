@@ -287,6 +287,42 @@ class AuthScreenTest {
     composeTestRule.runOnIdle { assertFalse(viewModel.uiState.value.isSignedIn) }
   }
 
+  @Test
+  fun forgotPasswordShowsOnlyWhenLoggingIn() {
+    composeTestRule.onNodeWithTag(C.Tag.auth_forgot_password_link).assertIsEnabled()
+
+    tap(C.Tag.auth_signup_tab)
+
+    composeTestRule.onNodeWithTag(C.Tag.auth_forgot_password_link).assertDoesNotExist()
+  }
+
+  @Test
+  fun forgotPasswordOpensTheResetStepWithTheTypedEmail() {
+    type(C.Tag.auth_email_field, VALID_EMAIL)
+
+    tap(C.Tag.auth_forgot_password_link)
+
+    composeTestRule.runOnIdle {
+      assertTrue(viewModel.uiState.value.isResettingPassword)
+      assertEquals(VALID_EMAIL, viewModel.uiState.value.email)
+      assertTrue(repository.calls.isEmpty())
+    }
+  }
+
+  @Test
+  fun forgotPasswordIsDisabledWhileLoggingIn() {
+    val gate = CompletableDeferred<Unit>()
+    repository.gate = gate
+    try {
+      fillLogin()
+      tap(C.Tag.auth_login_button)
+
+      composeTestRule.onNodeWithTag(C.Tag.auth_forgot_password_link).assertIsNotEnabled()
+    } finally {
+      gate.complete(Unit)
+    }
+  }
+
   private fun loginWithoutName() {
     repository.signInResult =
         AuthResult.Success(AuthUser(uid = "uid1", email = VALID_EMAIL, name = ""))

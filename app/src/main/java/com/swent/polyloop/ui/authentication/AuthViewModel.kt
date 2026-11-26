@@ -46,6 +46,14 @@ enum class AuthMode {
  * @property isAskingName true on the "What's your name?" step, reached after a verified log-in
  *   whose account has no name (it could not be saved at sign-up); the profile is created once the
  *   user types it.
+ * @property isResettingPassword true on the "Forgot password" step, opened from the log-in form. It
+ *   uses the form's [email], so the typed address is filled in and a corrected one stays.
+ * @property isResetEmailSent true once "Send reset email" succeeded for the current [email]. It
+ *   cannot tell whether the address has an account, so the screen does not either.
+ * @property resetCooldownSeconds seconds left before "Send reset email" can be pressed again, like
+ *   [resendCooldownSeconds].
+ * @property resetCooldownEmail the normalized address the last reset email went to; the countdown
+ *   only applies to it, like [resendCooldownEmail].
  * @property isSignedIn true once a verified user is signed in; the app then leaves this screen.
  */
 data class AuthUiState(
@@ -61,6 +69,10 @@ data class AuthUiState(
     val resendCooldownSeconds: Int = 0,
     val resendCooldownEmail: String = "",
     val isAskingName: Boolean = false,
+    val isResettingPassword: Boolean = false,
+    val isResetEmailSent: Boolean = false,
+    val resetCooldownSeconds: Int = 0,
+    val resetCooldownEmail: String = "",
     val isSignedIn: Boolean = false,
 ) {
   /** Only checked when signing up, where the name is required. */
@@ -106,11 +118,19 @@ data class AuthUiState(
   /** True when "Resend email" can be pressed: nothing running and the countdown is over. */
   val canResend: Boolean
     get() = !isLoading && resendSecondsLeft == 0
+
+  /** Seconds left before "Send reset email" can be pressed for the current [email], 0 if none. */
+  val resetSecondsLeft: Int
+    get() = if (resetCooldownEmail == EpflEmail.normalize(email)) resetCooldownSeconds else 0
+
+  /** True when "Send reset email" can be pressed: nothing running and the countdown is over. */
+  val canSendReset: Boolean
+    get() = !isLoading && resetSecondsLeft == 0
 }
 
 /**
- * Logs in and signs up EPFL users, including the email verification step, and creates the profile
- * of a verified user the first time they log in.
+ * Logs in and signs up EPFL users, including the email verification step, creates the profile of a
+ * verified user the first time they log in, and sends password reset emails.
  */
 class AuthViewModel(
     private val authRepository: AuthRepository,
@@ -121,13 +141,17 @@ class AuthViewModel(
   val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
   private var resendCooldownJob: Job? = null
+  private var resetCooldownJob: Job? = null
 
   /** The signed-in user who still has to type their name before their profile is created. */
   private var userWithoutName: AuthUser? = null
 
   fun onNameChange(name: String) = _uiState.update { it.copy(name = name, error = null) }
 
-  fun onEmailChange(email: String) = _uiState.update { it.copy(email = email, error = null) }
+  /** Also hides "reset email sent", which was about the address before the change. */
+  fun onEmailChange(email: String) = _uiState.update {
+    it.copy(email = email, error = null, isResetEmailSent = false)
+  }
 
   fun onPasswordChange(password: String) = _uiState.update {
     it.copy(password = password, error = null)
@@ -171,12 +195,57 @@ class AuthViewModel(
   }
 
   /**
-   * Leaves "Check your inbox" for the form it came from, keeping what was typed, e.g. when the
-   * email had a typo (a valid EPFL address, but not the user's) and the verification email never
-   * arrives.
+   * "Forgot password?" on the log-in form: opens the "Forgot password" step, with the typed email.
+   * Empties the password, the one that was forgotten, so it is not still filled in when the user
+   * comes back to log in with the new one. Ignored while a request runs, so its result cannot land
+   * on the step.
+   */
+  fun openPasswordReset() {
+    if (_uiState.value.isLoading) return
+    _uiState.update {
+      it.copy(
+          password = "",
+          isResettingPassword = true,
+          isResetEmailSent = false,
+          error = null,
+          hasAttemptedSubmit = false,
+      )
+    }
+  }
+
+  /**
+   * "Send reset email" on the "Forgot password" step. Only marks the attempt if the email is not an
+   * EPFL address, and does nothing while a request runs or during the countdown.
    *
-   * Ignored while a request runs, so its result cannot land on the form. The resend countdown keeps
-   * running for the address it was sent to: going back must not be a way around it.
+   * The email field can still be edited while the email is sent, so the answer is about the address
+   * sent, not the one typed when it arrives: the countdown applies to the address sent, and the
+   * confirmation or the error shows only if the field still holds that address.
+   */
+  fun sendPasswordReset() {
+    _uiState.update { it.copy(hasAttemptedSubmit = true) }
+    val state = _uiState.value
+    if (!state.isEmailValid || !state.canSendReset) return
+    val sentTo = EpflEmail.normalize(state.email)
+    launchAction(onStart = { it.copy(isResetEmailSent = false) }) {
+      val result = authRepository.sendPasswordResetEmail(state.email)
+      if (result is AuthResult.Success) startResetCooldown(sentTo)
+      _uiState.update {
+        when {
+          EpflEmail.normalize(it.email) != sentTo -> it
+          result is AuthResult.Failure -> it.copy(error = result.error)
+          else -> it.copy(isResetEmailSent = true)
+        }
+      }
+    }
+  }
+
+  /**
+   * Leaves "Check your inbox" or "Forgot password" for the form it came from, keeping what was
+   * typed, e.g. when the email had a typo (a valid EPFL address, but not the user's) and the
+   * verification email never arrives.
+   *
+   * Ignored while a request runs, so its result cannot land on the form. The countdowns keep
+   * running for the address the email was sent to: going back must not be a way around them.
    *
    * @return true if the step was left, false if it was ignored.
    */
@@ -186,6 +255,8 @@ class AuthViewModel(
       it.copy(
           isAwaitingVerification = false,
           isVerificationEmailResent = false,
+          isResettingPassword = false,
+          isResetEmailSent = false,
           error = null,
           hasAttemptedSubmit = false,
       )
@@ -322,13 +393,30 @@ class AuthViewModel(
   private fun startResendCooldown() {
     resendCooldownJob?.cancel()
     _uiState.update { it.copy(resendCooldownEmail = EpflEmail.normalize(it.email)) }
-    resendCooldownJob = viewModelScope.launch {
-      for (seconds in RESEND_COOLDOWN_SECONDS downTo 1) {
-        _uiState.update { it.copy(resendCooldownSeconds = seconds) }
-        delay(1_000)
-      }
-      _uiState.update { it.copy(resendCooldownSeconds = 0) }
+    resendCooldownJob = countDown { seconds ->
+      _uiState.update { it.copy(resendCooldownSeconds = seconds) }
     }
+  }
+
+  /**
+   * Disables "Send reset email" the same way, with its own countdown, for [email], the normalized
+   * address the reset email went to.
+   */
+  private fun startResetCooldown(email: String) {
+    resetCooldownJob?.cancel()
+    _uiState.update { it.copy(resetCooldownEmail = email) }
+    resetCooldownJob = countDown { seconds ->
+      _uiState.update { it.copy(resetCooldownSeconds = seconds) }
+    }
+  }
+
+  /** Calls [onTick] with the seconds left, from [RESEND_COOLDOWN_SECONDS] down to 0. */
+  private fun countDown(onTick: (Int) -> Unit): Job = viewModelScope.launch {
+    for (seconds in RESEND_COOLDOWN_SECONDS downTo 1) {
+      onTick(seconds)
+      delay(1_000)
+    }
+    onTick(0)
   }
 
   /**
@@ -376,7 +464,7 @@ class AuthViewModel(
      */
     const val SIGN_UP_EXPIRY_MINUTES = 5
 
-    /** How long "Resend email" stays disabled after a verification email was sent. */
+    /** How long "Resend email" or "Send reset email" stays disabled after an email was sent. */
     private const val RESEND_COOLDOWN_SECONDS = 60
 
     /** Sign-up failures that still created the account and sent (or tried to send) the email. */

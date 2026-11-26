@@ -50,8 +50,10 @@ interface DisputeRepository {
 
   /**
    * Opens a dispute, as the signed-in lender, on the returned rental [rentalId] whose item came
-   * back damaged; the deposit stays held. Fails if nobody is signed in, the user is not the lender,
-   * the rental is not Returned, or it cannot be sent.
+   * back damaged; the deposit stays held. Succeeds without a change if the rental has a dispute
+   * already, whatever its status by now. Fails if nobody is signed in, the user is not the lender,
+   * the rental is no longer Returned (e.g. "Item is fine" was sent first; a plain failure, with no
+   * dedicated exception), or it cannot be sent.
    */
   suspend fun openDispute(rentalId: String): Result<Unit>
 }

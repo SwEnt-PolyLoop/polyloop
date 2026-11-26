@@ -3,6 +3,7 @@
 package com.swent.polyloop.model.handover
 
 import java.io.IOException
+import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -23,22 +24,29 @@ class FakeHandoverRepositoryTest {
 
   private val repository = FakeHandoverRepository(currentUid = "u1")
 
+  /** Adds a photo taken at [NOW]. */
+  private suspend fun FakeHandoverRepository.add(
+      rentalId: String,
+      phase: HandoverPhase,
+      uri: String,
+  ) = addPhoto(rentalId, phase, uri, NOW)
+
   private fun photoIds(phase: HandoverPhase = HandoverPhase.PICKUP) = runBlocking {
     repository.observeMyPhotos("r1", phase).first().map { it.id }
   }
 
   @Test
   fun addedPhotosGetTheLowestFreeSlots() = runBlocking {
-    repeat(3) { repository.addPhoto("r1", HandoverPhase.PICKUP, "file://$it") }
+    repeat(3) { repository.add("r1", HandoverPhase.PICKUP, "file://$it") }
 
     assertEquals(listOf("u1_PICKUP_0", "u1_PICKUP_1", "u1_PICKUP_2"), photoIds())
   }
 
   @Test
   fun eachPhaseAndEachRentalCountsItsOwnSlots() = runBlocking {
-    repository.addPhoto("r1", HandoverPhase.PICKUP, "file://a")
-    repository.addPhoto("r1", HandoverPhase.RETURN, "file://b")
-    repository.addPhoto("r2", HandoverPhase.PICKUP, "file://c")
+    repository.add("r1", HandoverPhase.PICKUP, "file://a")
+    repository.add("r1", HandoverPhase.RETURN, "file://b")
+    repository.add("r2", HandoverPhase.PICKUP, "file://c")
 
     assertEquals(listOf("u1_PICKUP_0"), photoIds(HandoverPhase.PICKUP))
     assertEquals(listOf("u1_RETURN_0"), photoIds(HandoverPhase.RETURN))
@@ -55,32 +63,30 @@ class FakeHandoverRepositoryTest {
             FakeHandoverRepository.StoredPhoto(
                 "r1",
                 "u1",
-                HandoverPhoto("random-id", HandoverPhase.PICKUP, repository.now, "file://old"),
+                HandoverPhoto("random-id", HandoverPhase.PICKUP, NOW, "file://old"),
             )
         )
 
-    repository.addPhoto("r1", HandoverPhase.PICKUP, "file://new")
+    repository.add("r1", HandoverPhase.PICKUP, "file://new")
 
     assertEquals(listOf("random-id", "u1_PICKUP_0"), photoIds())
   }
 
   @Test
   fun aFreedSlotIsTakenAgain() = runBlocking {
-    repeat(3) { repository.addPhoto("r1", HandoverPhase.PICKUP, "file://$it") }
+    repeat(3) { repository.add("r1", HandoverPhase.PICKUP, "file://$it") }
     repository.photos = repository.photos.filter { it.photo.id != "u1_PICKUP_1" }
 
-    repository.addPhoto("r1", HandoverPhase.PICKUP, "file://again")
+    repository.add("r1", HandoverPhase.PICKUP, "file://again")
 
     assertTrue("u1_PICKUP_1" in photoIds())
   }
 
   @Test
   fun withAllSlotsUsedAddPhotoFailsAndAddsNothing() = runBlocking {
-    repeat(HandoverPhoto.MAX_PHOTOS) {
-      repository.addPhoto("r1", HandoverPhase.PICKUP, "file://$it")
-    }
+    repeat(HandoverPhoto.MAX_PHOTOS) { repository.add("r1", HandoverPhase.PICKUP, "file://$it") }
 
-    val result = repository.addPhoto("r1", HandoverPhase.PICKUP, "file://extra")
+    val result = repository.add("r1", HandoverPhase.PICKUP, "file://extra")
 
     assertTrue(result.exceptionOrNull() is IllegalStateException)
     assertEquals(HandoverPhoto.MAX_PHOTOS, photoIds().size)
@@ -190,7 +196,7 @@ class FakeHandoverRepositoryTest {
         coroutineScope {
           List(count) {
                 async(Dispatchers.Default) {
-                  repository.addPhoto("r1", HandoverPhase.PICKUP, "file://$it")
+                  repository.add("r1", HandoverPhase.PICKUP, "file://$it")
                 }
               }
               .awaitAll()
@@ -270,5 +276,9 @@ class FakeHandoverRepositoryTest {
     val signedOut = FakeHandoverRepository(currentUid = null)
     assertTrue(signedOut.confirmReturnOk("r1").exceptionOrNull() is IllegalStateException)
     assertEquals(emptyList<String>(), refused.confirmedReturns + signedOut.confirmedReturns)
+  }
+
+  private companion object {
+    val NOW: Instant = Instant.parse("2026-10-13T15:00:00Z")
   }
 }

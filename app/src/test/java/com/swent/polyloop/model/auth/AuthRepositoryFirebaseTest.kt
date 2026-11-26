@@ -353,6 +353,79 @@ class AuthRepositoryFirebaseTest {
     verify(exactly = 0) { auth.signInWithEmailAndPassword(any(), any()) }
   }
 
+  // ---------- sendPasswordResetEmail ----------
+
+  @Test
+  fun sendPasswordResetEmailSendsToTheNormalizedAddress() = runTest {
+    every { auth.sendPasswordResetEmail(any()) } returns Tasks.forResult(null)
+
+    val result = repository.sendPasswordResetEmail("  John@EPFL.ch ")
+
+    assertEquals(AuthResult.Success(Unit), result)
+    verify { auth.sendPasswordResetEmail("john@epfl.ch") }
+  }
+
+  @Test
+  fun sendPasswordResetEmailWithNonEpflEmailReturnsInvalidDomainWithoutCallingFirebase() = runTest {
+    val result = repository.sendPasswordResetEmail("john@gmail.com")
+
+    assertEquals(AuthResult.Failure(AuthError.INVALID_DOMAIN), result)
+    verify(exactly = 0) { auth.sendPasswordResetEmail(any()) }
+  }
+
+  @Test
+  fun sendPasswordResetEmailForAnAddressWithoutAccountSucceedsLikeASentEmail() = runTest {
+    // What Firebase says when email enumeration protection is off and nobody has this address.
+    every { auth.sendPasswordResetEmail(any()) } returns
+        Tasks.forException(FirebaseAuthInvalidUserException("ERROR_USER_NOT_FOUND", "message"))
+
+    val result = repository.sendPasswordResetEmail("nobody@epfl.ch")
+
+    assertEquals(AuthResult.Success(Unit), result)
+  }
+
+  @Test
+  fun sendPasswordResetEmailForARefusedAddressReturnsInvalidDomain() = runTest {
+    every { auth.sendPasswordResetEmail(any()) } returns
+        Tasks.forException(
+            FirebaseAuthInvalidCredentialsException("ERROR_INVALID_EMAIL", "message")
+        )
+
+    val result = repository.sendPasswordResetEmail("john@epfl.ch")
+
+    assertEquals(AuthResult.Failure(AuthError.INVALID_DOMAIN), result)
+  }
+
+  @Test
+  fun sendPasswordResetEmailWithoutNetworkReturnsNetwork() = runTest {
+    every { auth.sendPasswordResetEmail(any()) } returns
+        Tasks.forException(FirebaseNetworkException("offline"))
+
+    val result = repository.sendPasswordResetEmail("john@epfl.ch")
+
+    assertEquals(AuthResult.Failure(AuthError.NETWORK), result)
+  }
+
+  @Test
+  fun sendPasswordResetEmailWithTooManyAttemptsReturnsTooManyRequests() = runTest {
+    every { auth.sendPasswordResetEmail(any()) } returns
+        Tasks.forException(FirebaseTooManyRequestsException("code"))
+
+    val result = repository.sendPasswordResetEmail("john@epfl.ch")
+
+    assertEquals(AuthResult.Failure(AuthError.TOO_MANY_REQUESTS), result)
+  }
+
+  @Test
+  fun sendPasswordResetEmailWithUnknownFirebaseErrorReturnsUnknown() = runTest {
+    every { auth.sendPasswordResetEmail(any()) } returns
+        Tasks.forException(FirebaseException("msg"))
+
+    val result = repository.sendPasswordResetEmail("john@epfl.ch")
+
+    assertEquals(AuthResult.Failure(AuthError.UNKNOWN), result)
+  }
+
   // ---------- getCurrentUser ----------
 
   @Test
