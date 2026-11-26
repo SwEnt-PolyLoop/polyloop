@@ -12,6 +12,7 @@ import {
   readRange,
 } from "./rentalRules";
 import { zurichDay } from "./serverToday";
+import { readWallet, requireFunds, writeRentalHold } from "./wallet";
 
 /** Firestore names, as in "Firestore schema" in docs/ARCHITECTURE.md. */
 const RENTALS = "rentals";
@@ -58,12 +59,16 @@ export function parseRentalRequestInput(data: unknown): RentalRequestInput {
  * Creates the request of [borrowerId] for [input], in one transaction, and returns its id. Only
  * the days come from the borrower: every other field is copied from the listing and the two
  * profiles. The listing is read in the same transaction as the rental is written, so two requests
- * sent at once are both checked against the same `bookedRanges`. No money is reserved yet.
+ * sent at once are both checked against the same `bookedRanges`. The same transaction holds the
+ * rental price in the borrower's wallet (`writeRentalHold`): `available -= totalPrice`,
+ * `heldForRentals += totalPrice`, and the row `rental_price_held_<rentalId>`. Two requests sent at
+ * once by the same borrower read the same wallet, so Firestore retries one of them on the new
+ * balance, and each holds its own price.
  *
  * Sending the same request again is safe: if the caller already has a `REQUESTED` rental of this
- * listing for exactly these days, its id is returned and nothing is written. So when the answer is
- * lost after the server committed, or the app cannot read the new rental, a retry gets the same
- * rental instead of a second one.
+ * listing for exactly these days, its id is returned and nothing is written, price included. So
+ * when the answer is lost after the server committed, or the app cannot read the new rental, a
+ * retry gets the same rental instead of a second one, and pays once.
  *
  * @param db the Firestore database.
  * @param borrowerId the caller.
@@ -73,7 +78,9 @@ export function parseRentalRequestInput(data: unknown): RentalRequestInput {
  *   listing), `already-exists` (the caller already has a request for this listing with other
  *   days in common) or `failed-precondition` (the listing is not published, or, with `details.reason`
  *   [DATES_UNAVAILABLE], the first day is not after today, the days are outside the listing's
- *   availability or they conflict with a booking, buffer day included). Nothing is written then.
+ *   availability or they conflict with a booking, buffer day included; or, with `details.reason`
+ *   `INSUFFICIENT_FUNDS`, the borrower's `available` balance is below the price, checked last).
+ *   Nothing is written then.
  */
 export async function createRentalRequest(
   db: Firestore,
@@ -131,10 +138,15 @@ export async function createRentalRequest(
     if (typeof pricePerDay !== "number" || !Number.isInteger(pricePerDay)) {
       throw new RequestError("internal", "The listing has no valid price.");
     }
+    const totalPrice = pricePerDay * (dayNumber(dates.end) - dayNumber(dates.start) + 1);
+    const wallet = await readWallet(tx, db, borrowerId);
+    requireFunds(wallet, totalPrice, "Insufficient funds to hold the rental price.");
+
+    const listingTitle = textOf(listing.title);
     const created = FieldValue.serverTimestamp();
     tx.create(rentalRef, {
       listingId: listingRef.id,
-      listingTitle: textOf(listing.title),
+      listingTitle,
       listingPhotoUrl: firstPhoto(listing.photoUrls),
       ownerId,
       ownerName: textOf(owner.get("name")),
@@ -145,7 +157,7 @@ export async function createRentalRequest(
       endDate: dates.end,
       status: "REQUESTED",
       pricePerDay,
-      totalPrice: pricePerDay * (dayNumber(dates.end) - dayNumber(dates.start) + 1),
+      totalPrice,
       pickupArea: textOf(listing.pickupArea),
       dropOffArea: textOf(listing.dropOffArea),
       pickupAddress: "",
@@ -154,6 +166,7 @@ export async function createRentalRequest(
       lastMessage: "",
       lastMessageAt: created,
     });
+    writeRentalHold(tx, db, borrowerId, wallet, totalPrice, rentalRef.id, listingTitle);
     return rentalRef.id;
   });
 }
