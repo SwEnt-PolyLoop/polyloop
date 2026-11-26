@@ -83,11 +83,14 @@ class HandoverRepositoryFirestore(
         }
     return combine(sent, uploadQueue.observe(rentalId, phase)) { sentPhotos, queued ->
           val sentIds = sentPhotos.map { it.id }.toSet()
-          val waiting =
+          val notSent =
               queued
-                  .filter { !it.refused && it.slotId !in sentIds }
-                  .map { HandoverPhoto(it.slotId, phase, it.takenAt, it.file.toUri().toString()) }
-          (sentPhotos + waiting).sortedBy { it.takenAt }
+                  .filter { it.slotId !in sentIds }
+                  .map {
+                    val sync = if (it.refused) PhotoSync.REFUSED else PhotoSync.WAITING
+                    HandoverPhoto(it.slotId, phase, it.takenAt, it.file.toUri().toString(), sync)
+                  }
+          (sentPhotos + notSent).sortedBy { it.takenAt }
         }
         .distinctUntilChanged()
   }

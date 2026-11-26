@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
+import com.swent.polyloop.model.handover.PhotoSync
 import com.swent.polyloop.resources.C
 import com.swent.polyloop.ui.components.formatDay
 import java.time.Instant
@@ -292,6 +293,27 @@ class HandoverScreenTest {
   }
 
   @Test
+  fun waitingPhotosAreMarkedNotSyncedAndRefusedOnesAreCounted() {
+    val (sent, waiting) = photos(3).let { it.take(2) to it.last().copy(sync = PhotoSync.WAITING) }
+    // The pill is inside the clickable tile, whose merged node keeps only the tile's tag.
+    val pills =
+        composeTestRule.onAllNodesWithTag(C.Tag.handover_photo_not_synced, useUnmergedTree = true)
+    setContent(pickup.copy(photos = sent + waiting, isOffline = true))
+
+    pills.assertCountEquals(1)
+    text(
+        C.Tag.handover_photos_status,
+        "Pickup photos done. They upload when you're back online.",
+    )
+    assertAbsent(C.Tag.handover_photos_refused)
+
+    // Back online, the last photo was refused instead: it left the grid and is counted.
+    uiState = pickup.copy(photos = sent, refusedPhotos = 1)
+    pills.assertCountEquals(0)
+    text(C.Tag.handover_photos_refused, "1 photo couldn't be saved.")
+  }
+
+  @Test
   fun thePhotoBeingUploadedTakesATileWithASpinner() {
     setContent(pickup.copy(photos = photos(1), isUploading = true))
 
@@ -352,12 +374,12 @@ class HandoverScreenTest {
   }
 
   @Test
-  fun offlineTheBannerShowsAndTheCameraTilesDoNothing() {
+  fun offlineTheBannerShowsAndTheCameraStillOpens() {
     setContent(pickup.copy(isOffline = true))
 
     assertShown(C.Tag.offline_banner)
     composeTestRule.onAllNodesWithTag(C.Tag.handover_add_photo)[0].performClick()
-    assertEquals(0, cameraOpenings)
+    assertEquals(1, cameraOpenings)
   }
 
   @Test

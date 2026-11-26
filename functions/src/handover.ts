@@ -135,7 +135,7 @@ export async function confirmPickup(
     const parties = requireParties(rental);
     const payment = (await isLenderPaid(tx, db, parties, scan.rentalId))
       ? null
-      : await readLenderPayment(tx, db, rental, parties);
+      : await readLenderPayment(tx, db, rental, parties, scan.rentalId);
     // The return code and its fingerprint are always written together, so a rental with no return
     // fingerprint has no return code: it was accepted before the return code existed.
     const hasReturnCode = typeof rental[CODE_HASH_FIELDS.RETURN] === "string";

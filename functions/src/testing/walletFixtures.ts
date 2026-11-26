@@ -38,6 +38,27 @@ export async function rental(who: People, status: string, fields: object = {}): 
   return id;
 }
 
+/**
+ * Like [rental], for a rental whose request held its price: also writes the borrower's
+ * `rental_price_held_<id>` row, which tells `payLender` to pay from `heldForRentals`. The wallet's
+ * balances are left to the test (`fund`).
+ */
+export async function heldRental(
+  who: People,
+  status: string,
+  fields: object = {},
+): Promise<string> {
+  const id = await rental(who, status, fields);
+  const price = (fields as { totalPrice?: number }).totalPrice ?? 15;
+  await getFirestore()
+    .collection("wallets")
+    .doc(who.borrower)
+    .collection("transactions")
+    .doc(`rental_price_held_${id}`)
+    .set({ type: "RENTAL_PAYMENT", amount: -price, itemTitle: "Camping tent" });
+  return id;
+}
+
 export async function fund(uid: string, wallet: object): Promise<void> {
   await getFirestore().collection("wallets").doc(uid).set(wallet);
 }
@@ -53,4 +74,12 @@ export async function rows(uid: string) {
     .collection("transactions")
     .get();
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+/**
+ * The history of [uid] without the rows of prices held at request ([heldRental]): the rows a
+ * payment wrote.
+ */
+export async function rowsBesidesHeld(uid: string) {
+  return (await rows(uid)).filter((row) => !row.id.startsWith("rental_price_held_"));
 }

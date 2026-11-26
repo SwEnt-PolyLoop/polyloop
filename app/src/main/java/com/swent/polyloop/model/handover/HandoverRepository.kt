@@ -10,9 +10,10 @@ interface HandoverRepository {
 
   /**
    * The photos the signed-in user took of the rental [rentalId] in [phase], oldest first, including
-   * those still waiting in the upload queue (their url is then the phone's file). Emits again when
-   * one is added. The flow fails with an [IllegalStateException] if nobody is signed in, or with
-   * the cause if they cannot be loaded.
+   * those still waiting in the upload queue (their url is then the phone's file) and those the
+   * server refused, each marked by its [HandoverPhoto.sync]. Emits again when one is added. The
+   * flow fails with an [IllegalStateException] if nobody is signed in, or with the cause if they
+   * cannot be loaded.
    */
   fun observeMyPhotos(rentalId: String, phase: HandoverPhase): Flow<List<HandoverPhoto>>
 

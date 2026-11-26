@@ -113,10 +113,29 @@ class HandoverRepositoryFirestoreEmulatorTest {
 
         val photos = repository.observeMyPhotos(rentalId, HandoverPhase.PICKUP)
         // Waiting in the queue: shown from the phone's copy.
-        assertTrue(photos.first().single().url.startsWith("file:"))
+        val waiting = photos.first().single()
+        assertTrue(waiting.url.startsWith("file:"))
+        assertEquals(PhotoSync.WAITING, waiting.sync)
         // Sent by the queue's job, once the phone is online.
         sendQueuedPhotos()
-        withTimeout(20_000) { photos.first { it.singleOrNull()?.url?.startsWith("http") == true } }
+        val sent =
+            withTimeout(20_000) {
+              photos.first { it.singleOrNull()?.url?.startsWith("http") == true }
+            }
+        assertEquals(PhotoSync.SENT, sent.single().sync)
+      }
+
+  @Test
+  fun aPhotoTheServerRefusesIsListedAsRefused() =
+      runBlocking<Unit> {
+        // A requested rental takes no photos, so the rules refuse it when the queue sends it.
+        val rentalId = seedRental(status = "REQUESTED")
+
+        assertTrue(addPhoto(rentalId).isSuccess)
+
+        val photos = repository.observeMyPhotos(rentalId, HandoverPhase.PICKUP)
+        sendQueuedPhotos()
+        withTimeout(20_000) { photos.first { it.singleOrNull()?.sync == PhotoSync.REFUSED } }
       }
 
   @Test
