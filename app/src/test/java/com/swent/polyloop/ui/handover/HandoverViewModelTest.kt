@@ -16,6 +16,7 @@ import com.swent.polyloop.model.handover.HandoverCode
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.model.handover.HandoverRepository
+import com.swent.polyloop.model.handover.PhotoSync
 import com.swent.polyloop.model.handover.RentalChangedException
 import com.swent.polyloop.model.handover.ScanRefusedException
 import com.swent.polyloop.model.rental.FakeRentalRepository
@@ -956,23 +957,36 @@ class HandoverViewModelTest {
   }
 
   @Test
-  fun offlineNoPhotoIsUploadedAndTheStateSaysSo() {
+  fun offlineAPhotoStillGoesIntoTheUploadQueue() {
     val vm = viewModel()
-    handoverRepository.failure = RuntimeException("down")
-    vm.addPhoto("file1")
-
     connectivity.setOnline(false)
     assertTrue(vm.uiState.value.isOffline)
-    assertFalse(vm.uiState.value.canUpload)
+
+    handoverRepository.failure = RuntimeException("disk full")
+    vm.addPhoto("file1")
+    handoverRepository.failure = null
     vm.retryUpload()
     vm.addPhoto("file2")
-    assertEquals(1, handoverRepository.addPhotoCalls)
-    assertEquals(listOf("file2"), deleted)
 
-    handoverRepository.failure = null
-    connectivity.setOnline(true)
-    vm.retryUpload()
     assertNull(vm.uiState.value.failedPhotoUri)
+    assertEquals(3, handoverRepository.addPhotoCalls)
+    assertEquals(2, vm.uiState.value.photos.size)
+  }
+
+  @Test
+  fun waitingPhotosCountTowardThreeAndRefusedOnesAreOnlyCounted() {
+    val (sent, waiting, refused) = photos(3)
+    handoverRepository.photos =
+        listOf(
+            sent,
+            waiting.copy(photo = waiting.photo.copy(sync = PhotoSync.WAITING)),
+            refused.copy(photo = refused.photo.copy(sync = PhotoSync.REFUSED)),
+        )
+    val vm = viewModel()
+
+    assertEquals(listOf("borrower0", "borrower1"), vm.uiState.value.photos.map { it.id })
+    assertEquals(1, vm.uiState.value.photosNeeded)
+    assertEquals(1, vm.uiState.value.refusedPhotos)
   }
 
   @Test
