@@ -30,3 +30,4 @@ export { confirmHandover } from "./confirmHandover";
 export { draftLlmProposal } from "./draftLlmProposal";
 export { rejectLlmProposal } from "./rejectLlmProposal";
 export { retryLlmProposal } from "./retryLlmProposal";
+export { submitReview } from "./submitReview";
