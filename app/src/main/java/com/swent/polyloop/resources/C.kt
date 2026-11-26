@@ -343,6 +343,7 @@ object C {
     const val handover_scan_message = "handover_scan_message"
     const val handover_scan_retry_button = "handover_scan_retry_button"
     const val handover_scan_confirmed = "handover_scan_confirmed"
+    const val handover_scan_queued = "handover_scan_queued"
     const val handover_code_picked_up = "handover_code_picked_up"
     const val handover_return_check = "handover_return_check"
     const val handover_return_scanned = "handover_return_scanned"

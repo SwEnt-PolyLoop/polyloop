@@ -231,11 +231,13 @@ fun HandoverContent(
                 // it scans. Off the handover day, and at midnight while the new day is read (the
                 // return days have no end, so the cards come back once it is), neither card is
                 // shown, except for a scan sent before midnight, which keeps its card for its
-                // answer (the ViewModel clears older messages at midnight).
+                // answer (the ViewModel clears older messages at midnight), and a pickup scan
+                // still in the queue, which the server accepts until the end of the next day.
                 if (
                     (uiState.isHandoverDay && !uiState.isDayOver) ||
                         uiState.isSendingScan ||
                         uiState.scanConfirmed ||
+                        uiState.scanQueued ||
                         uiState.scanError != null
                 ) {
                   if (uiState.showsCode) ShowCodeCard(uiState, onRetry)

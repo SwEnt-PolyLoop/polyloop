@@ -629,8 +629,11 @@
         <item quantity="other">Take %1$d more photos first.</item>
     </plurals>
     <string name="handover_scan_error">Couldn\'t prepare the scan.</string>
-    <!-- Until scans can wait in the upload queue (#467) -->
-    <string name="handover_scan_offline">Scanning offline is coming soon.</string>
+    <!-- A pickup scanned offline, waiting in the upload queue (Figma 15.13) -->
+    <string name="handover_scan_queued">Pickup confirmed</string>
+    <string name="handover_scan_queued_hint">It will be sent when you\'re back online.</string>
+    <!-- The return scan is not queued offline yet -->
+    <string name="handover_scan_offline_return">Connect to the internet to scan the return.</string>
     <string name="handover_scan_wrong_code">This isn\'t the right code. Scan %1$s\'s code on their Handover screen.</string>
     <string name="handover_scan_wrong_code_no_name">This isn\'t the right code. Scan the code on their Handover screen.</string>
     <string name="handover_scan_not_sent">The scan couldn\'t be sent. Try again in a moment.</string>

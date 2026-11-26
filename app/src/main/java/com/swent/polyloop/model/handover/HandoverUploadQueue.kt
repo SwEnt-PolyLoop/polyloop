@@ -27,10 +27,11 @@ data class QueuedPhoto(
 )
 
 /**
- * The local upload queue for condition photos (see docs/ARCHITECTURE.md): each photo is copied to
- * its own folder in the app's files, so the camera's cleanup never deletes it, and sent by a
- * [HandoverPhotoWorker] once the phone is online, even after the app was closed or the phone
- * restarted. What waits is read from WorkManager itself, with no other storage.
+ * The local upload queue for condition photos and QR scans (see docs/ARCHITECTURE.md): each photo
+ * is copied to its own folder in the app's files, so the camera's cleanup never deletes it, and
+ * sent by a [HandoverPhotoWorker] once the phone is online, even after the app was closed or the
+ * phone restarted; a scan is sent the same way by a [HandoverScanWorker]. What waits is read from
+ * WorkManager itself, with no other storage.
  */
 class HandoverUploadQueue(
     context: Context,
@@ -93,6 +94,52 @@ class HandoverUploadQueue(
         jobs.mapNotNull { job -> queuedPhoto(rentalId, job) }.sortedBy { it.takenAt }
       }
 
+  /**
+   * Queues the [code] scanned offline in [phase] of [rentalId] at [scannedAt], for a
+   * [HandoverScanWorker]. Queuing it again while one waits changes nothing; a refused one is
+   * replaced. Returns once the job is saved, so [observeScan] lists it from then on.
+   */
+  suspend fun enqueueScan(
+      rentalId: String,
+      phase: HandoverPhase,
+      code: String,
+      scannedAt: Instant,
+  ) {
+    val request =
+        OneTimeWorkRequestBuilder<HandoverScanWorker>()
+            .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))
+            .setInputData(
+                workDataOf(
+                    HandoverScanWorker.RENTAL_ID to rentalId,
+                    HandoverScanWorker.PHASE to phase.name,
+                    HandoverScanWorker.CODE to code,
+                    HandoverScanWorker.SCANNED_AT to scannedAt.toEpochMilli(),
+                )
+            )
+            .addTag(SCANNED_AT + scannedAt.toEpochMilli())
+            .build()
+    workManager
+        .enqueueUniqueWork(scanName(rentalId, phase), ExistingWorkPolicy.KEEP, request)
+        .await()
+  }
+
+  /**
+   * The scan of [phase] of [rentalId] still waiting to be sent, or the last one the server refused
+   * lately (WorkManager forgets finished jobs after about a day), or null if there is none.
+   */
+  fun observeScan(rentalId: String, phase: HandoverPhase): Flow<QueuedScan?> =
+      workManager.getWorkInfosForUniqueWorkFlow(scanName(rentalId, phase)).map { jobs ->
+        jobs.firstNotNullOfOrNull(::queuedScan)
+      }
+
+  private fun queuedScan(job: WorkInfo): QueuedScan? {
+    val refusal =
+        HandoverScanWorker.refusalError(job.outputData.getString(HandoverScanWorker.REFUSAL))
+    if (job.state.isFinished && refusal == null) return null
+    val scannedAt = job.tags.tagValue(SCANNED_AT)?.toLongOrNull() ?: return null
+    return QueuedScan(Instant.ofEpochMilli(scannedAt), refusal)
+  }
+
   private fun queuedPhoto(rentalId: String, job: WorkInfo): QueuedPhoto? {
     val refused = job.outputData.getBoolean(HandoverPhotoWorker.REFUSED, false)
     if (job.state.isFinished && !refused) return null
@@ -110,9 +157,13 @@ class HandoverUploadQueue(
 
   private fun photosTag(rentalId: String, phase: HandoverPhase) = "handover/$rentalId/${phase.name}"
 
+  // One scan per handover: each person scans once, at pickup or at return.
+  private fun scanName(rentalId: String, phase: HandoverPhase) = "scan/$rentalId/${phase.name}"
+
   private companion object {
     const val FOLDER = "handover_upload_queue"
     const val SLOT = "slot:"
     const val TAKEN_AT = "takenAt:"
+    const val SCANNED_AT = "scannedAt:"
   }
 }

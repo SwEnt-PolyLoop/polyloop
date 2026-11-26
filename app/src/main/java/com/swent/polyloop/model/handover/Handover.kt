@@ -49,3 +49,9 @@ enum class PhotoSync {
   WAITING,
   REFUSED,
 }
+
+/**
+ * A QR scan checked offline and made at [scannedAt]: waiting in the upload queue, or refused by the
+ * server with [refusal], one of the errors of [HandoverRepository.confirmScan].
+ */
+data class QueuedScan(val scannedAt: Instant, val refusal: Exception? = null)

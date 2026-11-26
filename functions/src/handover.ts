@@ -19,6 +19,7 @@ import {
   RENTAL_CHANGED,
   RequestError,
   asFields,
+  dayNumber,
   isDateString,
   parseText,
   requireParties,
@@ -45,6 +46,11 @@ const RETURNABLE_STATUSES = ["ACTIVE", "OVERDUE"];
 export interface HandoverScan {
   rentalId: string;
   code: string;
+  /**
+   * When a scan made offline was made, by the server's clock as the phone works it out offline
+   * (`ServerClock`); missing for a scan sent at once.
+   */
+  scannedAt?: Date;
 }
 
 /** A scan with the handover it belongs to, as `confirmHandover` receives it. */
@@ -55,10 +61,13 @@ export interface PhaseScan extends HandoverScan {
 /** The longest code accepted: real codes have 43 characters (see handoverCode.ts). */
 const MAX_CODE_LENGTH = 200;
 
+/** How many days after the pickup day a pickup scanned offline on that day may still arrive. */
+export const LATE_SCAN_DAYS = 1;
+
 /**
- * The input of `confirmHandover`: `{rentalId, phase, code}`, with `phase` `PICKUP` or `RETURN`.
- * The code is kept exactly as scanned, not trimmed. Throws an `invalid-argument` error if a field
- * is wrong.
+ * The input of `confirmHandover`: `{rentalId, phase, code, scannedAt?}`, with `phase` `PICKUP` or
+ * `RETURN` and `scannedAt` in epoch milliseconds. The code is kept exactly as scanned, not trimmed.
+ * Throws an `invalid-argument` error if a field is wrong.
  */
 export function parseHandoverScan(data: unknown): PhaseScan {
   const fields = asFields(data);
@@ -71,7 +80,30 @@ export function parseHandoverScan(data: unknown): PhaseScan {
   if (typeof code !== "string" || code === "" || code.length > MAX_CODE_LENGTH) {
     throw new RequestError("invalid-argument", "code is required.");
   }
-  return { rentalId, phase, code };
+  const scannedAt = fields.scannedAt;
+  if (scannedAt == null) return { rentalId, phase, code };
+  if (typeof scannedAt !== "number" || !Number.isSafeInteger(scannedAt) || scannedAt < 0) {
+    throw new RequestError("invalid-argument", "scannedAt must be a time in milliseconds.");
+  }
+  return { rentalId, phase, code, scannedAt: new Date(scannedAt) };
+}
+
+/**
+ * True when a pickup scan of a rental starting on [startDate] may be confirmed at [now]. A scan
+ * sent at once ([scannedAt] missing) must arrive on that day, in Zurich. A scan made offline must
+ * have been made on that day and not after [now], and may arrive up to [LATE_SCAN_DAYS] later, so
+ * a phone that is back online only the next day still confirms it. The code still proves that the
+ * two phones met.
+ */
+export function isPickupOnTime(startDate: unknown, now: Date, scannedAt?: Date): boolean {
+  const today = zurichDay(now);
+  if (scannedAt === undefined) return today === startDate;
+  const scanDay = zurichDay(scannedAt);
+  return (
+    scanDay === startDate &&
+    scannedAt.getTime() <= now.getTime() &&
+    dayNumber(today) <= dayNumber(scanDay) + LATE_SCAN_DAYS
+  );
 }
 
 /**
@@ -90,10 +122,10 @@ export function isReturnDay(today: string, endDate: unknown): boolean {
  * code and its fingerprint are deleted, as they are used up. The checks run in this order: the
  * rental exists, the caller is its borrower (the person receiving the item), then, if the rental
  * was already picked up, the call succeeds and changes nothing (a second scan, or one sent twice);
- * otherwise the rental is ACCEPTED, today in Zurich at [now] is its first day, the code is the one
- * the lender's phone shows, and the price is held. The server trusts the app's order: the photos
- * are not checked. A rental accepted before the return code existed gets it here, in the same
- * transaction, so it can still be given back.
+ * otherwise the rental is ACCEPTED, the scan is on its first day ([isPickupOnTime]), the code is
+ * the one the lender's phone shows, and the price is held. The server trusts the app's order: the
+ * photos are not checked. A rental accepted before the return code existed gets it here, in the
+ * same transaction, so it can still be given back.
  *
  * @throws RequestError `not-found`; `permission-denied` (not the borrower); `failed-precondition`
  *   with the reason `RENTAL_CHANGED` (no longer ACCEPTED, e.g. cancelled) or `WRONG_CODE`, or with
@@ -122,7 +154,7 @@ export async function confirmPickup(
         reason: RENTAL_CHANGED,
       });
     }
-    if (zurichDay(now) !== rental.startDate) {
+    if (!isPickupOnTime(rental.startDate, now, scan.scannedAt)) {
       throw new RequestError("failed-precondition", "The pickup is on the rental's first day.");
     }
     const code = (await tx.get(codeRef)).get("code");

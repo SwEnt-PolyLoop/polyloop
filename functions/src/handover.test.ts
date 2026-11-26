@@ -8,6 +8,7 @@ import {
   WRONG_CODE,
   confirmPickup,
   confirmReturn,
+  isPickupOnTime,
   isReturnDay,
 } from "./handover";
 import { RENTAL_CHANGED } from "./rentalRules";
@@ -312,6 +313,36 @@ describe("refusing a pickup", () => {
     await expect(
       confirmPickup(db, "borrower-uid", scan("no-such-rental"), NOW),
     ).rejects.toMatchObject({ code: "not-found" });
+  });
+});
+
+describe("a pickup scanned offline", () => {
+  // 23:30 in Zurich on the day after the pickup day: the last moment a late scan is accepted.
+  const NEXT_DAY_LATE = new Date("2026-12-02T22:30:00Z");
+
+  it("is confirmed when it reaches the server the next day", async () => {
+    const who = people();
+    const id = await accepted(who);
+
+    await confirmPickup(db, who.borrower, { ...scan(id), scannedAt: NOW }, NEXT_DAY_LATE);
+
+    expect((await rentalData(id))?.status).toBe("ACTIVE");
+  });
+
+  it("must be made on the pickup day in Zurich, at most a day before it arrives", () => {
+    // 00:30 in Zurich on the pickup day, still the day before in UTC.
+    expect(isPickupOnTime(PICKUP_DAY, NEXT_DAY_LATE, new Date("2026-11-30T23:30:00Z"))).toBe(true);
+    // Made the day before, or the day after, the pickup day.
+    expect(isPickupOnTime(PICKUP_DAY, NOW, new Date("2026-11-30T12:00:00Z"))).toBe(false);
+    expect(isPickupOnTime(PICKUP_DAY, NEXT_DAY_LATE, new Date("2026-12-02T09:00:00Z"))).toBe(false);
+    // Arriving two days after the pickup day (00:30 in Zurich), or made after it arrives.
+    expect(isPickupOnTime(PICKUP_DAY, new Date("2026-12-02T23:30:00Z"), NOW)).toBe(false);
+    expect(isPickupOnTime(PICKUP_DAY, NOW, new Date(NOW.getTime() + 1))).toBe(false);
+  });
+
+  it("does not move the day of a scan sent at once", () => {
+    expect(isPickupOnTime(PICKUP_DAY, NOW)).toBe(true);
+    expect(isPickupOnTime(PICKUP_DAY, NEXT_DAY_LATE)).toBe(false);
   });
 });
 

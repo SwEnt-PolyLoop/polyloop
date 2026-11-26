@@ -40,8 +40,9 @@ import com.swent.polyloop.ui.theme.PositiveGreen
 /**
  * The card of the person receiving the item, the borrower at pickup (Figma 15, 15.10 to 15.15) and
  * the lender at return (Figma 17): "Scan QR code", which calls [onScan], and why it is off or what
- * the last scan gave; once the pickup scan is confirmed, only "Picked up". [onRetry] reads the
- * code's fingerprint again after it failed.
+ * the last scan gave; once the pickup scan is confirmed, only "Picked up", and once a pickup scan
+ * made offline is queued, only "Pickup confirmed" with when it is sent. [onRetry] reads the code's
+ * fingerprint again after it failed.
  */
 @Composable
 internal fun ScanCodeCard(uiState: HandoverUiState, onScan: () -> Unit, onRetry: () -> Unit) {
@@ -55,7 +56,18 @@ internal fun ScanCodeCard(uiState: HandoverUiState, onScan: () -> Unit, onRetry:
       // confirmed return leaves Handover's phase once the rental is seen Returned, so it never
       // says "Picked up".
       if ((uiState.scanConfirmed && uiState.phase == HandoverPhase.PICKUP) || uiState.isPickedUp) {
-        Confirmed()
+        Confirmed(stringResource(R.string.handover_code_picked_up_no_name))
+        return@Column
+      }
+      // Checked offline and waiting in the upload queue (Figma 15.13): done for the user.
+      if (uiState.scanQueued) {
+        Confirmed(stringResource(R.string.handover_scan_queued))
+        Text(
+            text = stringResource(R.string.handover_scan_queued_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag(C.Tag.handover_scan_queued),
+        )
         return@Column
       }
       Text(
@@ -116,8 +128,8 @@ private fun ScanButton(enabled: Boolean, isSending: Boolean, onClick: () -> Unit
 
 /**
  * Under the button: what is missing first, then a code that could not be read, a rental that
- * changed, offline, and last the scan's error (a wrong code, a scan not sent or refused, or a
- * scanner that could not open). Nothing when the button can simply be pressed.
+ * changed, and last the scan's error (a wrong code, a scan not sent or refused, or a scanner that
+ * could not open). Nothing when the button can simply be pressed.
  */
 @Composable
 private fun ColumnScope.ScanMessage(uiState: HandoverUiState, onRetry: () -> Unit) {
@@ -162,7 +174,9 @@ private fun ColumnScope.ScanMessage(uiState: HandoverUiState, onRetry: () -> Uni
             ),
             red,
         )
-    uiState.isOffline -> Message(stringResource(R.string.handover_scan_offline), grey)
+    // Only the pickup scan can wait in the upload queue; the return needs a connection.
+    uiState.isOffline && uiState.phase == HandoverPhase.RETURN ->
+        Message(stringResource(R.string.handover_scan_offline_return), grey)
     uiState.scanError == ScanError.WRONG_CODE ->
         Message(wrongCodeMessage(uiState.otherPersonName), red)
     uiState.scanError == ScanError.NOT_SENT ->
@@ -193,9 +207,9 @@ private fun Message(text: String, color: Color) {
   )
 }
 
-/** A green check with "Picked up · the rental has started". */
+/** A green check with [text], e.g. "Picked up · the rental has started". */
 @Composable
-private fun Confirmed() {
+private fun Confirmed(text: String) {
   Row(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -207,7 +221,7 @@ private fun Confirmed() {
         modifier = Modifier.size(20.dp),
     )
     Text(
-        text = stringResource(R.string.handover_code_picked_up_no_name),
+        text = text,
         style = MaterialTheme.typography.bodyLarge,
         fontWeight = FontWeight.Medium,
         color = PositiveGreen,

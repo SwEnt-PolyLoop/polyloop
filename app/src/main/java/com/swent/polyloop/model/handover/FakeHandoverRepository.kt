@@ -111,6 +111,9 @@ class FakeHandoverRepository(
   // The codes sent to confirmScan, in order, including the wrong ones.
   val scannedCodes = mutableListOf<String>()
 
+  // The scannedAt sent with each of them: null for a scan sent at once.
+  val scanTimes = mutableListOf<Instant?>()
+
   override suspend fun getCodeToShow(rentalId: String, phase: HandoverPhase): Result<String?> =
       readCode {
         code
@@ -125,8 +128,10 @@ class FakeHandoverRepository(
       rentalId: String,
       phase: HandoverPhase,
       code: String,
+      scannedAt: Instant?,
   ): Result<Unit> {
     scannedCodes += code
+    scanTimes += scannedAt
     gate?.await()
     return when {
       currentUid == null -> Result.failure(IllegalStateException(NOT_SIGNED_IN))
@@ -134,6 +139,30 @@ class FakeHandoverRepository(
       else -> scanFailure?.let { Result.failure(it) } ?: Result.success(Unit)
     }
   }
+
+  // The scan waiting in the queue, for any rental and phase. Setting it makes observeQueuedScan
+  // emit, e.g. with a refusal, as the queue would once the server refused it.
+  var queuedScan: QueuedScan?
+    get() = queued.value
+    set(value) {
+      queued.value = value
+    }
+
+  private val queued = MutableStateFlow<QueuedScan?>(null)
+
+  // Like the queue, a new scan replaces only a refused one.
+  override suspend fun queueScan(
+      rentalId: String,
+      phase: HandoverPhase,
+      code: String,
+      scannedAt: Instant,
+  ): Result<Unit> {
+    if (currentUid == null) return Result.failure(IllegalStateException(NOT_SIGNED_IN))
+    queued.update { if (it == null || it.refusal != null) QueuedScan(scannedAt) else it }
+    return Result.success(Unit)
+  }
+
+  override fun observeQueuedScan(rentalId: String, phase: HandoverPhase): Flow<QueuedScan?> = queued
 
   private fun readCode(read: () -> String?): Result<String?> {
     codeFailure?.let {

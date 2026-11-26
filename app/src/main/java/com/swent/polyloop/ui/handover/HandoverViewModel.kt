@@ -103,7 +103,10 @@ enum class ReturnCheck {
  *   yet; [HandoverViewModel.retry] reads it again, and so does the phone coming back online.
  * @property isSendingScan true while a scanned code is being sent to the server.
  * @property scanConfirmed true once the server confirmed the scan.
- * @property scanError why the last scan was not confirmed, or null.
+ * @property scanQueued true while a scan checked offline waits in the upload queue, which sends it
+ *   once the phone is back online: the user is done, as after [scanConfirmed].
+ * @property scanError why the last scan was not confirmed, or null; for a queued scan the server
+ *   refused, the reason it gave.
  * @property isPickedUp true once the rental is picked up (ACTIVE or later) while the screen shows
  *   its pickup, seen live on both phones: no more photos, no QR and no scan. A screen opened on a
  *   picked-up rental shows its return instead.
@@ -140,6 +143,7 @@ data class HandoverUiState(
     val codeFailed: Boolean = false,
     val isSendingScan: Boolean = false,
     val scanConfirmed: Boolean = false,
+    val scanQueued: Boolean = false,
     val scanError: ScanError? = null,
     val isPickedUp: Boolean = false,
     val sendingCheck: ReturnCheck? = null,
@@ -183,13 +187,15 @@ data class HandoverUiState(
 
   /**
    * True when a photo can be added to the upload queue, online or offline: on the handover day and
-   * not past its end, before the pickup is confirmed, under 20, none being added.
+   * not past its end, before the pickup is confirmed or its scan queued, under 20, none being
+   * added.
    */
   val canUpload: Boolean
     get() =
         isHandoverDay &&
             !isDayOver &&
             !isPickedUp &&
+            !scanQueued &&
             photos.size < HandoverPhoto.MAX_PHOTOS &&
             !isUploading
 
@@ -214,21 +220,22 @@ data class HandoverUiState(
 
   /**
    * True when "Scan QR code" can be pressed: on the handover day and not past its end, once the
-   * user has 3 photos and the fingerprint, online until scans can wait in the upload queue, and not
-   * while a scan is being sent, once one is confirmed or the rental is picked up, or once the
-   * server said the rental changed.
+   * user has 3 photos and the fingerprint, and not while a scan is being sent, once one is
+   * confirmed, queued or the rental is picked up, or once the server said the rental changed.
+   * Offline, only the pickup can be scanned (into the upload queue); the return needs a connection.
    */
   val canScan: Boolean
     get() =
         phase != null &&
+            (phase == HandoverPhase.PICKUP || !isOffline) &&
             !showsCode &&
             isHandoverDay &&
             !isDayOver &&
             photosNeeded == 0 &&
             codeFingerprint != null &&
-            !isOffline &&
             !isSendingScan &&
             !scanConfirmed &&
+            !scanQueued &&
             scanError != ScanError.RENTAL_CHANGED &&
             !isPickedUp
 
@@ -278,6 +285,7 @@ class HandoverViewModel(
   private var rentalJob: Job? = null
   private var photosJob: Job? = null
   private var codeJob: Job? = null
+  private var queuedScanJob: Job? = null
   private var serverTodayRead: Job? = null
   private var midnightRead: Job? = null
 
@@ -427,8 +435,9 @@ class HandoverViewModel(
   }
 
   /**
-   * Checks the [code] the user scanned against its fingerprint, then sends it to the server. A
-   * wrong code is refused on the phone and not sent. Ignored when Scan cannot be pressed (see
+   * Checks the [code] the user scanned against its fingerprint, then sends it to the server, or,
+   * offline, puts it in the upload queue with the time it was scanned by [serverClock]. A wrong
+   * code is refused on the phone and not sent. Ignored when Scan cannot be pressed (see
    * [HandoverUiState.canScan]).
    */
   fun onCodeScanned(code: String) {
@@ -442,17 +451,56 @@ class HandoverViewModel(
     }
     _uiState.update { it.copy(isSendingScan = true, scanError = null) }
     viewModelScope.launch {
+      if (state.isOffline) {
+        // The queue sends it later; followQueuedScan shows it as queued, then its outcome. Its
+        // time comes from the saved pair, like a photo's, so it never waits for the server.
+        val scannedAt = serverClock.savedNow()
+        val queued =
+            scannedAt != null &&
+                handoverRepository.queueScan(rentalId, phase, code, scannedAt).isSuccess
+        val error = ScanError.NOT_SENT.takeUnless { queued }
+        _uiState.update { it.copy(isSendingScan = false, scanError = error) }
+        return@launch
+      }
       val failure = handoverRepository.confirmScan(rentalId, phase, code).exceptionOrNull()
-      val error =
-          when (failure) {
-            null -> null
-            is WrongCodeException -> ScanError.WRONG_CODE
-            is RentalChangedException -> ScanError.RENTAL_CHANGED
-            is ScanRefusedException -> ScanError.REFUSED
-            else -> ScanError.NOT_SENT
-          }
       _uiState.update {
-        it.copy(isSendingScan = false, scanConfirmed = failure == null, scanError = error)
+        it.copy(
+            isSendingScan = false,
+            scanConfirmed = failure == null,
+            scanError = failure?.let(::scanErrorOf),
+        )
+      }
+    }
+  }
+
+  /** The message for a scan [failure] of [HandoverRepository.confirmScan]. */
+  private fun scanErrorOf(failure: Throwable): ScanError =
+      when (failure) {
+        is WrongCodeException -> ScanError.WRONG_CODE
+        is RentalChangedException -> ScanError.RENTAL_CHANGED
+        is ScanRefusedException -> ScanError.REFUSED
+        else -> ScanError.NOT_SENT
+      }
+
+  /**
+   * Follows the scan of [phase] waiting in the upload queue, if any: [HandoverUiState.scanQueued]
+   * while it waits, then nothing once it is sent (the rental then moves on), or its refusal as the
+   * scan's error, which also shows a refusal that came while the screen was closed. Follows none
+   * when [phase] is null.
+   */
+  private fun followQueuedScan(phase: HandoverPhase?) {
+    queuedScanJob?.cancel()
+    _uiState.update { it.copy(scanQueued = false) }
+    if (phase == null) return
+    queuedScanJob = viewModelScope.launch {
+      handoverRepository.observeQueuedScan(rentalId, phase).collect { queued ->
+        val refusal = queued?.refusal
+        _uiState.update {
+          it.copy(
+              scanQueued = queued != null && refusal == null,
+              scanError = refusal?.let(::scanErrorOf) ?: it.scanError,
+          )
+        }
       }
     }
   }
@@ -531,6 +579,7 @@ class HandoverViewModel(
     rentalJob?.cancel()
     codeJob?.cancel()
     followPhotos(null)
+    followQueuedScan(null)
     show(HandoverUiState())
     val uid = authRepository.getCurrentUser()?.uid
     if (uid == null) {
@@ -600,6 +649,7 @@ class HandoverViewModel(
       // cancels it too, so this matters when no phase is shown any more.
       codeJob?.cancel()
       phase?.let { loadCode(it, _uiState.value.showsCode) }
+      followQueuedScan(phase)
       // Read after the rental is shown, not awaited with it: the Function can take seconds on a
       // cold start. Only a rental that takes photos needs the day, read when its phase is first
       // shown and kept on later changes; an unknown day is read again by retryServerToday, not on

@@ -163,8 +163,14 @@ class HandoverRepositoryFirestore(
       rentalId: String,
       phase: HandoverPhase,
       code: String,
+      scannedAt: Instant?,
   ): Result<Unit> {
-    val data = mapOf("rentalId" to rentalId, "phase" to phase.name, "code" to code)
+    val data = buildMap {
+      put("rentalId", rentalId)
+      put("phase", phase.name)
+      put("code", code)
+      if (scannedAt != null) put("scannedAt", scannedAt.toEpochMilli())
+    }
     // Back waits for the answer, and a stalled call would only fail after about 70 s, so stop
     // waiting sooner. Sending it again is safe: a pickup already confirmed changes nothing.
     val result =
@@ -173,6 +179,23 @@ class HandoverRepositoryFirestore(
         } ?: return Result.failure(TimeoutException("Scan not sent in time"))
     return result.exceptionOrNull()?.let(::scanRefusal)?.let { Result.failure(it) } ?: result
   }
+
+  override suspend fun queueScan(
+      rentalId: String,
+      phase: HandoverPhase,
+      code: String,
+      scannedAt: Instant,
+  ): Result<Unit> {
+    if (!isValidDocumentId(rentalId)) {
+      return Result.failure(IllegalArgumentException(INVALID_RENTAL_ID))
+    }
+    if (auth.currentUser == null) return Result.failure(IllegalStateException(SIGNED_OUT))
+    uploadQueue.enqueueScan(rentalId, phase, code, scannedAt)
+    return Result.success(Unit)
+  }
+
+  override fun observeQueuedScan(rentalId: String, phase: HandoverPhase): Flow<QueuedScan?> =
+      if (isValidDocumentId(rentalId)) uploadQueue.observeScan(rentalId, phase) else flowOf(null)
 
   /**
    * Reads one text field with [read], for a signed-in user and a valid [rentalId]. A missing or
@@ -219,10 +242,12 @@ class HandoverRepositoryFirestore(
     const val SCAN_TIMEOUT_MS = 30_000L
     const val CONFIRM_HANDOVER = "confirmHandover"
     const val CONFIRM_RETURN_OK = "confirmReturnOk"
+
+    // The messages of the failures returned before anything is sent.
     const val INVALID_RENTAL_ID = "Invalid rental id"
     const val SIGNED_OUT = "Signed out"
 
-    /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */
+    // The reasons of a refusal by `confirmHandover` (see `refusalReason`).
     const val WRONG_CODE = "WRONG_CODE"
     const val RENTAL_CHANGED = "RENTAL_CHANGED"
 
