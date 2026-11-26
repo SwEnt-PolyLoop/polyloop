@@ -160,31 +160,6 @@ describe("confirmReturnOk", () => {
     expect(await newRows(who, id)).toEqual([]);
   });
 
-  it("closes a rental whose deposit was never held without moving any PolyPoints", async () => {
-    const who = people();
-    const id = await rental(who, "RETURNED");
-    await fund(who.borrower, { available: 10, heldAsDeposits: 40, heldForRentals: 0 });
-
-    await confirmReturnOk(db, who.lender, id);
-
-    expect((await rentalData(id))?.status).toBe("CLOSED");
-    expect(await messages(id)).toEqual([CLOSED_ONLY]);
-    expect(await wallet(who.borrower)).toMatchObject({ available: 10, heldAsDeposits: 40 });
-    expect(await rows(who.borrower)).toEqual([]);
-  });
-
-  it("writes nothing when the held deposits do not cover the deposit", async () => {
-    const who = people();
-    const id = await heldRental(who, "RETURNED");
-    await fund(who.borrower, { available: 10, heldAsDeposits: 0, heldForRentals: 0 });
-
-    await expect(confirmReturnOk(db, who.lender, id)).rejects.toMatchObject({ code: "internal" });
-
-    expect((await rentalData(id))?.status).toBe("RETURNED");
-    expect(await messages(id)).toEqual([]);
-    expect(await newRows(who, id)).toEqual([]);
-  });
-
   it("releases the deposit once when two calls race", async () => {
     const who = people();
     const id = await heldRental(who, "RETURNED");

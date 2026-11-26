@@ -244,12 +244,7 @@ fun HandoverContent(
                 }
                 CameraPermissionMessage(cameraPermissionGranted)
               }
-              DepositFooter(
-                  uiState.deposit,
-                  uiState.depositHeld,
-                  uiState.isLender,
-                  released = false,
-              )
+              DepositFooter(uiState.deposit, uiState.depositHeld, uiState.isLender)
             }
       }
     }
@@ -803,7 +798,7 @@ private fun PhotoViewer(photo: HandoverPhoto, zone: ZoneId, onClose: () -> Unit)
  * accepted deposit is at least 1, so 0 means it is not known.
  */
 @Composable
-internal fun DepositFooter(deposit: Int, held: Int, isLender: Boolean, released: Boolean) {
+internal fun DepositFooter(deposit: Int, held: Int, isLender: Boolean, released: Boolean = false) {
   Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
