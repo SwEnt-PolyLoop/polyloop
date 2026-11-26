@@ -3,6 +3,12 @@
 package com.swent.polyloop.utils
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swent.polyloop.utils.FirebaseEmulator.AUTH_PORT
+import com.swent.polyloop.utils.FirebaseEmulator.FIRESTORE_PORT
+import com.swent.polyloop.utils.FirebaseEmulator.NOT_RUNNING
+import com.swent.polyloop.utils.FirebaseEmulator.PAUSE_MS
+import com.swent.polyloop.utils.FirebaseEmulator.STORAGE_PORT
+import com.swent.polyloop.utils.FirebaseEmulator.TRIES
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -15,37 +21,43 @@ class FirebaseEmulatorTest {
   private val tries = mutableListOf<Int>()
   private val pauses = mutableListOf<Long>()
 
-  @Test
-  fun anEmulatorThatAnswersOnTheThirdTryCountsAsRunning() {
-    // Auth (9099) is asked first; the other ports answer at once.
-    FirebaseEmulator.requireRunning(
-        isUp = { port ->
-          tries += port
-          port != 9099 || tries.size == 3
-        },
-        pause = { pauses += it },
-    )
-    assertEquals(listOf(9099, 9099, 9099, 8080, 9199), tries)
-    assertEquals(listOf(1000L, 1000L), pauses)
+  /** A probe where every emulator is down. */
+  private val down: (Int) -> Boolean = { port ->
+    tries += port
+    false
   }
 
   @Test
-  fun anEmulatorThatNeverAnswersFailsAfterFiveTriesWithTheSameMessage() {
+  fun anEmulatorThatAnswersOnTheThirdTryCountsAsRunning() {
+    // Auth is asked first; the other ports answer at once.
+    FirebaseEmulator.requireRunning(
+        isUp = { port ->
+          tries += port
+          port != AUTH_PORT || tries.size == 3
+        },
+        pause = { pauses += it },
+    )
+    assertEquals(listOf(AUTH_PORT, AUTH_PORT, AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT), tries)
+    assertEquals(List(2) { PAUSE_MS }, pauses)
+  }
+
+  @Test
+  fun anEmulatorThatNeverAnswersFailsAfterEveryTryWithTheSameMessage() {
     val error =
         assertThrows(AssertionError::class.java) {
-          FirebaseEmulator.requireRunning(
-              isUp = {
-                tries += it
-                false
-              },
-              pause = { pauses += it },
-          )
+          FirebaseEmulator.requireRunning(isUp = down, pause = { pauses += it })
         }
-    assertEquals(
-        "The Firebase emulators are not running. Start them with: firebase emulators:start",
-        error.message,
-    )
-    assertEquals(List(5) { 9099 }, tries)
-    assertEquals(List(4) { 1000L }, pauses)
+    assertEquals(NOT_RUNNING, error.message)
+    assertEquals(List(TRIES) { AUTH_PORT }, tries)
+    assertEquals(List(TRIES - 1) { PAUSE_MS }, pauses)
+  }
+
+  @Test
+  fun aSingleTryAsksOnceWithoutPausing() {
+    assertThrows(AssertionError::class.java) {
+      FirebaseEmulator.requireRunning(isUp = down, pause = { pauses += it }, tries = 1)
+    }
+    assertEquals(listOf(AUTH_PORT), tries)
+    assertEquals(emptyList<Long>(), pauses)
   }
 }
