@@ -332,25 +332,11 @@ private fun PolyLoopScaffold(
             viewModel = rentalDetailViewModel,
             onChatClick = { navController.navigateOrGoBack(Screen.Chat.createRoute(rentalId)) },
             onPersonClick = { uid -> navController.navigate(Screen.UserProfile.createRoute(uid)) },
-            // Single top: a fast double tap opens Handover once, not twice.
-            onStartPickupClick = {
-              navController.navigate(Screen.Handover.createRoute(rentalId)) {
-                launchSingleTop = true
-              }
-            },
-            onStartReturnClick = {
-              navController.navigate(Screen.Handover.createRoute(rentalId)) {
-                launchSingleTop = true
-              }
-            },
+            onStartPickupClick = { navController.openHandover(rentalId) },
+            onStartReturnClick = { navController.openHandover(rentalId) },
             onViewDisputeClick = { navController.navigate(Screen.Dispute.createRoute(rentalId)) },
-            // The lender's return check lives on Handover. Single top: a fast double tap opens it
-            // once.
-            onCheckItemClick = {
-              navController.navigate(Screen.Handover.createRoute(rentalId)) {
-                launchSingleTop = true
-              }
-            },
+            // The lender's return check lives on Handover.
+            onCheckItemClick = { navController.openHandover(rentalId) },
             onReviewRequestClick = {
               navController.navigate(Screen.ReviewRequest.createRoute(rentalId)) {
                 launchSingleTop = true
@@ -410,12 +396,7 @@ private fun PolyLoopScaffold(
             onRentalDetailsClick = {
               navController.navigateOrGoBack(Screen.RentalDetail.createRoute(rentalId))
             },
-            // Single top: a fast double tap opens Handover once, not twice.
-            onStartPickupClick = {
-              navController.navigate(Screen.Handover.createRoute(rentalId)) {
-                launchSingleTop = true
-              }
-            },
+            onStartPickupClick = { navController.openHandover(rentalId) },
             // Back to the form when the chat was opened from it, so no stale form stays behind.
             // Single top otherwise: a fast double tap opens the form once, not twice.
             onReviewRequestClick = {
@@ -509,6 +490,11 @@ private fun NavHostController.navigateOrGoBack(route: String) {
   // Going back and forth between Chat and Rental detail would otherwise stack a new copy of each
   // screen on every hop, and Back would replay them all.
   if (previousRoute() == route) popBackStack() else navigate(route)
+}
+
+/** Opens Handover for [rentalId]. Single top: a fast double tap opens it once, not twice. */
+private fun NavHostController.openHandover(rentalId: String) {
+  navigate(Screen.Handover.createRoute(rentalId)) { launchSingleTop = true }
 }
 
 /** The route of the screen right behind, with its rental id, or null if it has none. */

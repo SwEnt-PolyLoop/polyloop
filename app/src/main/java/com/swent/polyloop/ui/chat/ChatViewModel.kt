@@ -309,7 +309,7 @@ class ChatViewModel(
       return
     }
     observing = viewModelScope.launch {
-      launch { observeOffer(uid) }
+      launch { observeRental(uid) }
       val conversation =
           chatRepository.getConversation(rentalId).getOrElse {
             showError(it.message ?: "")
@@ -367,13 +367,13 @@ class ChatViewModel(
   }
 
   /**
-   * Follows the offer, the pickup date and whether the user can review the request. Without them
-   * the conversation still works, so a read error only hides the card, the pickup and the review
-   * request bar. The form closes if the offer it answers is gone or expires. Once the rental is
-   * accepted, today is read from the server for Start pickup, once, so an unknown day is not asked
-   * again at every change of the rental.
+   * Follows the rental: its offer, its pickup date and whether the user can review the request.
+   * Without them the conversation still works, so a read error only hides the card, the pickup and
+   * the review request bar. The form closes if the offer it answers is gone or expires. Once the
+   * rental is accepted, today is read from the server for Start pickup, once, so an unknown day is
+   * not asked again at every change of the rental.
    */
-  private suspend fun observeOffer(uid: String) {
+  private suspend fun observeRental(uid: String) {
     var serverTodayAsked = false
     combine(
             rentalRepository.observeRental(rentalId).catch { emit(null) },
