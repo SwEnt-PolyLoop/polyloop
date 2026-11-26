@@ -3,7 +3,7 @@
 import { Firestore, getFirestore } from "firebase-admin/firestore";
 import { confirmHandover } from "./index";
 import { zurichDay } from "./serverToday";
-import { asUser, fund, people, rental, wallet } from "./testing/walletFixtures";
+import { asUser, fund, heldRental, people, rental, wallet } from "./testing/walletFixtures";
 
 // Firebase loads this ES module to verify tokens, which Jest cannot load; `run` skips that step.
 jest.mock("jose", () => ({}));
@@ -28,7 +28,7 @@ const CODE = "Zk3_q-9AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
 /** An ACCEPTED rental whose pickup is today (the callable uses the real clock), ready to scan. */
 async function readyToScan() {
   const who = people();
-  const id = await rental(who, "ACCEPTED", { startDate: zurichDay(new Date()) });
+  const id = await heldRental(who, "ACCEPTED", { startDate: zurichDay(new Date()) });
   await db.doc(`rentals/${id}/handoverCodes/PICKUP`).set({ code: CODE });
   await fund(who.borrower, { available: 100, heldForRentals: 15 });
   return { who, id };
