@@ -15,9 +15,11 @@ import { hasSeenLastMessage } from "./testing/readTimes";
 import {
   People,
   fund,
+  heldRental,
   people,
   rental as newRental,
   rows,
+  rowsBesidesHeld,
   wallet,
 } from "./testing/walletFixtures";
 
@@ -45,11 +47,12 @@ const CODE = "Zk3_q-9AbCdEfGhIjKlMnOpQrStUvWxYz0123456789";
 
 /**
  * An ACCEPTED rental starting today, overridden by [fields], with its pickup code, whose 15 PP
- * price the borrower's wallet holds since the request.
+ * price the borrower's wallet holds since the request; with [held] false, a rental sent before the
+ * price was held at request.
  */
-async function accepted(who: People, fields: object = {}): Promise<string> {
+async function accepted(who: People, fields: object = {}, held = true): Promise<string> {
   await fund(who.borrower, { available: 100, heldForRentals: 15 });
-  const id = await newRental(who, "ACCEPTED", {
+  const id = await (held ? heldRental : newRental)(who, "ACCEPTED", {
     startDate: PICKUP_DAY,
     endDate: "2026-12-03",
     pickupCodeHash: "fingerprint",
@@ -154,9 +157,9 @@ describe("confirming the pickup", () => {
 });
 
 describe("paying the lender at pickup", () => {
-  it("takes a price that is not held from available until it is held at request", async () => {
+  it("takes the price of a rental sent before it was held from available", async () => {
     const who = people();
-    const id = await accepted(who);
+    const id = await accepted(who, {}, false);
     await fund(who.borrower, { available: 100, heldForRentals: 0 });
 
     await confirmPickup(db, who.borrower, scan(id), NOW);
@@ -177,7 +180,7 @@ describe("paying the lender at pickup", () => {
 
     expect(await wallet(who.borrower)).toMatchObject({ available: 100, heldForRentals: 0 });
     expect(await wallet(who.lender)).toMatchObject({ available: 15 });
-    expect(await rows(who.borrower)).toEqual([]);
+    expect(await rowsBesidesHeld(who.borrower)).toEqual([]);
     expect(await rows(who.lender)).toEqual([
       expect.objectContaining({ id: `rental_payment_${id}`, type: "RENTAL_PAYMENT", amount: 15 }),
     ]);
@@ -231,7 +234,7 @@ describe("paying the lender at pickup", () => {
 describe("refusing a pickup", () => {
   it("refuses a pickup whose price neither the held price nor available covers", async () => {
     const who = people();
-    const id = await accepted(who);
+    const id = await accepted(who, {}, false);
     await fund(who.borrower, { available: 14, heldForRentals: 0 });
 
     const error = await confirmPickup(db, who.borrower, scan(id), NOW).catch((e) => e);
