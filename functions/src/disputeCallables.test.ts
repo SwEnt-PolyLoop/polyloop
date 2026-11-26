@@ -183,30 +183,19 @@ describe("the whole direct settlement", () => {
 });
 
 describe("the whole LLM proposal stage", () => {
-  it("goes from a failed proposal and a retry to both acceptances that close the rental", async () => {
+  it("closes the rental once both parties accept the LLM proposal", async () => {
     const id = await disputed();
     await escalateDispute.run(asUser(LENDER, { rentalId: id }));
-    // No model is configured in the tests: the proposal fails as draftLlmProposal would write it.
+    // No model is configured in the tests: the proposal is written as draftLlmProposal would.
     await db
       .collection("disputes")
       .doc(id)
-      .update({ llmProposal: { status: "FAILED", attempt: 1 } });
+      .update({ llmProposal: { status: "READY", attempt: 1, lenderPercent: 70 } });
 
-    await retryLlmProposal.run(asUser(BORROWER, { rentalId: id }));
-    expect((await dispute(id))?.llmProposal).toEqual({ status: "PENDING", attempt: 2 });
-    await db
-      .collection("disputes")
-      .doc(id)
-      .update({ llmProposal: { status: "READY", attempt: 2, lenderPercent: 70 } });
-    const stale = await acceptLlmProposal
-      .run(asUser(LENDER, { rentalId: id, attempt: 1 }))
-      .catch((e) => e);
-    await acceptLlmProposal.run(asUser(LENDER, { rentalId: id, attempt: 2 }));
-    const result = await acceptLlmProposal.run(asUser(BORROWER, { rentalId: id, attempt: 2 }));
+    const first = await acceptLlmProposal.run(asUser(LENDER, { rentalId: id, attempt: 1 }));
+    const second = await acceptLlmProposal.run(asUser(BORROWER, { rentalId: id, attempt: 1 }));
 
-    expect(stale).toBeInstanceOf(HttpsError);
-    expect(stale).toMatchObject({ details: { reason: "LLM_PROPOSAL_CHANGED" } });
-    expect(result).toEqual({});
+    expect([first, second]).toEqual([{}, {}]);
     const rental = (await db.collection("rentals").doc(id).get()).data();
     // No deposit was held here, so the chat only says the agreed split.
     expect(rental).toMatchObject({

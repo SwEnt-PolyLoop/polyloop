@@ -55,6 +55,14 @@ export interface DepositSplit {
 }
 
 /**
+ * Whether [value] is a valid split: the lender's share as a whole percentage from 0 to 100. The
+ * one definition for the parties' proposals, the LLM's answer and the stored LLM proposal.
+ */
+export function isWholePercent(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 100;
+}
+
+/**
  * The input of `proposeSplit` and `acceptSplit`: a rental id and a whole percentage from 0 to 100.
  * Throws an `invalid-argument` error if one is wrong.
  */
@@ -62,12 +70,7 @@ export function parseSplitInput(data: unknown): SplitInput {
   const fields = asFields(data);
   const rentalId = parseText(fields.rentalId, "rentalId");
   const lenderPercent = fields.lenderPercent;
-  if (
-    typeof lenderPercent !== "number" ||
-    !Number.isInteger(lenderPercent) ||
-    lenderPercent < 0 ||
-    lenderPercent > 100
-  ) {
+  if (!isWholePercent(lenderPercent)) {
     throw new RequestError(
       "invalid-argument",
       "lenderPercent must be a whole number from 0 to 100.",

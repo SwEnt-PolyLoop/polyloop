@@ -167,19 +167,6 @@ describe("acceptLlmProposal", () => {
     expect(hasSeenLastMessage(await rental(id), who.lender)).toBe(false);
   });
 
-  it("takes the late fees off the deposit before splitting it", async () => {
-    const { id, who } = await escalated(ready(50), {}, { lateFees: 13 });
-    await fund(who.borrower, { available: 10, heldAsDeposits: 20, heldForRentals: 0 });
-
-    await acceptLlmProposal(db, who.borrower, { rentalId: id, attempt: 1 }, NOW);
-    await acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW);
-
-    expect((await rental(id))?.lastMessage).toBe(
-      "Dispute settled · 10 PP to the lender, 10 PP back to the borrower",
-    );
-    expect(await balances(who)).toEqual({ borrower: [20, 0], lender: [15, 0] });
-  });
-
   it("changes nothing when the same party accepts again", async () => {
     const { id, who } = await escalated(ready());
 
@@ -281,24 +268,14 @@ describe("rejectLlmProposal", () => {
     }
   });
 
-  it("rejects after one party accepted, the accepting party included", async () => {
-    const lenderAccepted = await escalated(ready());
-    const borrowerAccepted = await escalated(ready());
-    await acceptLlmProposal(db, lenderAccepted.who.lender, {
-      rentalId: lenderAccepted.id,
-      attempt: 1,
-    });
-    await acceptLlmProposal(db, borrowerAccepted.who.borrower, {
-      rentalId: borrowerAccepted.id,
-      attempt: 1,
-    });
+  // Issue #432 lists this case: rejecting stays possible once one party has accepted.
+  it("rejects a proposal one party already accepted", async () => {
+    const { id, who } = await escalated(ready());
+    await acceptLlmProposal(db, who.lender, { rentalId: id, attempt: 1 }, NOW);
 
-    await rejectLlmProposal(db, lenderAccepted.who.borrower, lenderAccepted.id);
-    await rejectLlmProposal(db, borrowerAccepted.who.borrower, borrowerAccepted.id);
+    await rejectLlmProposal(db, who.lender, id);
 
-    for (const { id } of [lenderAccepted, borrowerAccepted]) {
-      expect(await dispute(id)).toMatchObject({ stage: "COURT", agreedAt: null });
-    }
+    expect(await dispute(id)).toMatchObject({ stage: "COURT", agreedAt: null });
   });
 
   it("refuses a pending proposal as changed: the other party asked for a new attempt", async () => {

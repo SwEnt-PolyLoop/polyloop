@@ -11,6 +11,7 @@ import {
   MAX_LLM_ATTEMPTS,
   PENDING,
   READY,
+  isWholePercent,
 } from "./disputeRules";
 import { writeWithSystemMessage } from "./negotiation";
 import { RequestError } from "./rentalRules";
@@ -31,8 +32,9 @@ interface StoredLlmProposal {
  * The caller is added to `llmProposal.acceptedBy`, with no chat message. Once both participants
  * are in it, the dispute is settled on the proposal's split as `acceptSplit` settles it:
  * `agreedAt`, the rental CLOSED, the shares in the chat and the held deposit split between the two
- * wallets (see `settle` in dispute.ts). Accepting again changes nothing and succeeds, so a
- * repeated call is harmless.
+ * wallets (see `settle` in dispute.ts). Accepting again before the dispute is settled changes
+ * nothing and succeeds; once it is settled, it is refused with `STAGE_CHANGED`, as `acceptSplit`
+ * is.
  *
  * @param db the Firestore database.
  * @param callerId the participant accepting.
@@ -59,7 +61,7 @@ export async function acceptLlmProposal(
     const proposal = open.llmProposal as StoredLlmProposal;
     if (proposal.attempt !== input.attempt) throw llmProposalChanged();
     const lenderPercent = proposal.lenderPercent;
-    if (proposal.status !== READY || !isPercent(lenderPercent)) {
+    if (proposal.status !== READY || !isWholePercent(lenderPercent)) {
       throw new RequestError("failed-precondition", "The LLM proposal is not ready.");
     }
     const acceptedBy = acceptedByOf(proposal);
@@ -157,11 +159,6 @@ function acceptedByOf(proposal: StoredLlmProposal): string[] {
   return Array.isArray(acceptedBy)
     ? acceptedBy.filter((uid): uid is string => typeof uid === "string")
     : [];
-}
-
-/** Whether [value] is a whole percentage from 0 to 100, as a `READY` proposal stores it. */
-function isPercent(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 100;
 }
 
 /** The refusal sent when the LLM proposal changed since the caller saw it. */
