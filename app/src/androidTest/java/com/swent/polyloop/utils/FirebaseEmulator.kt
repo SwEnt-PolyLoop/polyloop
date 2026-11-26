@@ -29,12 +29,22 @@ import org.junit.Assert.fail
 object FirebaseEmulator {
   // From inside the Android emulator, 10.0.2.2 is the computer running it.
   private const val HOST = "10.0.2.2"
-  private const val AUTH_PORT = 9099
-  private const val FIRESTORE_PORT = 8080
-  private const val STORAGE_PORT = 9199
+  internal const val AUTH_PORT = 9099
+  internal const val FIRESTORE_PORT = 8080
+  internal const val STORAGE_PORT = 9199
   private const val FUNCTIONS_PORT = 5001
   private const val TIMEOUT_MS = 2000
   private const val REQUEST_TIMEOUT_MS = 10_000
+  internal const val TRIES = 5
+  internal const val PAUSE_MS = 1000L
+  internal const val NOT_RUNNING =
+      "The Firebase emulators are not running. Start them with: firebase emulators:start"
+
+  /**
+   * True once a check found the emulators down, until one finds them up again: later checks try
+   * only once, so a run without the emulators fails each test at once instead of after [TRIES].
+   */
+  private var foundDown = false
 
   /** True once Firebase points at the emulators, for the rest of the app process. */
   var connected = false
@@ -42,10 +52,12 @@ object FirebaseEmulator {
 
   /** Fails the test with a clear message if the emulators are not running. */
   fun connect() {
-    // Functions is not checked: CI starts only Auth, Firestore and Storage, and no test calls a
-    // Function yet. Pointing it at the emulator still keeps a call away from the real project.
-    if (!listOf(AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT).all { isRunning(it) }) {
-      fail("The Firebase emulators are not running. Start them with: firebase emulators:start")
+    try {
+      requireRunning(tries = if (foundDown) 1 else TRIES)
+      foundDown = false
+    } catch (e: AssertionError) {
+      foundDown = true
+      throw e
     }
     // useEmulator may only be called once per app process, before Firebase is used.
     if (connected) return
@@ -224,6 +236,34 @@ object FirebaseEmulator {
                 )
         else -> throw IllegalArgumentException("Unsupported field value: $value")
       }
+
+  /**
+   * Fails the test unless each emulator answers [isUp] within [tries] tries, [pause]d [PAUSE_MS]
+   * apart: on a busy CI runner, a running emulator can be too slow to answer once.
+   */
+  internal fun requireRunning(
+      isUp: (Int) -> Boolean = ::isRunning,
+      pause: (Long) -> Unit = Thread::sleep,
+      tries: Int = TRIES,
+  ) {
+    // Functions is not checked: CI starts only Auth, Firestore and Storage, and no test calls a
+    // Function yet. Pointing it at the emulator still keeps a call away from the real project.
+    val ports = listOf(AUTH_PORT, FIRESTORE_PORT, STORAGE_PORT)
+    if (!ports.all { port -> answers(port, isUp, pause, tries) }) fail(NOT_RUNNING)
+  }
+
+  private fun answers(
+      port: Int,
+      isUp: (Int) -> Boolean,
+      pause: (Long) -> Unit,
+      tries: Int,
+  ): Boolean {
+    repeat(tries - 1) {
+      if (isUp(port)) return true
+      pause(PAUSE_MS)
+    }
+    return isUp(port)
+  }
 
   /** True if an emulator answers on [port]. Any status code counts: only the answer matters. */
   private fun isRunning(port: Int): Boolean {
