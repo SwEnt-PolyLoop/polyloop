@@ -243,11 +243,11 @@ class HandoverRepositoryFirestore(
     const val CONFIRM_HANDOVER = "confirmHandover"
     const val CONFIRM_RETURN_OK = "confirmReturnOk"
 
-    /** The messages of the failures returned before anything is sent. */
+    // The messages of the failures returned before anything is sent.
     const val INVALID_RENTAL_ID = "Invalid rental id"
     const val SIGNED_OUT = "Signed out"
 
-    /** The reasons of a refusal by `confirmHandover` (see [refusalReason]). */
+    // The reasons of a refusal by `confirmHandover` (see `refusalReason`).
     const val WRONG_CODE = "WRONG_CODE"
     const val RENTAL_CHANGED = "RENTAL_CHANGED"
 
