@@ -194,9 +194,9 @@ class RentalRepositoryFirestore(
     private const val SERVER_TODAY = "serverToday"
     private const val REQUEST_RENTAL = "requestRental"
 
-    /** The values of a refusal's `details.reason` (see `rentalRequest.ts` in functions/src). */
+    /** A refusal's `details.reason` for days that cannot be requested (`rentalRequest.ts`). */
     private const val DATES_UNAVAILABLE = "DATES_UNAVAILABLE"
-    /** See `wallet.ts` in functions/src. */
+    /** A refusal's `details.reason` for a balance below the price (`wallet.ts`). */
     private const val INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
   }
 }
