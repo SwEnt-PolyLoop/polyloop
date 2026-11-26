@@ -37,9 +37,10 @@ import com.swent.polyloop.ui.theme.PositiveGreen
 private val QR_SIZE = 160.dp
 
 /**
- * The card of the person giving the item (Figma 14, 14.10 to 14.13): the QR code once they have 3
- * photos and the code, with a note while offline; otherwise what is missing. Once the other person
- * has scanned it, only "Picked up". [onRetry] reads the code again after it failed.
+ * The card of the person giving the item, the lender at pickup (Figma 14, 14.10 to 14.13) and the
+ * borrower at return (Figma 16): the QR code once they have 3 photos and the code, with a note
+ * while offline; otherwise what is missing. Once the other person has scanned it at pickup, only
+ * "Picked up". [onRetry] reads the code again after it failed.
  */
 @Composable
 internal fun ShowCodeCard(uiState: HandoverUiState, onRetry: () -> Unit) {
@@ -98,7 +99,11 @@ internal fun ShowCodeCard(uiState: HandoverUiState, onRetry: () -> Unit) {
         uiState.codeFailed && uiState.isOffline -> {
           Hint()
           Message(
-              stringResource(R.string.handover_code_no_copy),
+              phaseString(
+                  uiState.phase,
+                  R.string.handover_code_no_copy,
+                  R.string.handover_code_no_copy_return,
+              ),
               MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }

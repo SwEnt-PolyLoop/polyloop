@@ -25,7 +25,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The card where the borrower scans the lender's QR code at pickup (Figma 15, 15.10 to 15.15). */
+/**
+ * The card where the person receiving the item scans the other's QR code: the borrower at pickup
+ * (Figma 15, 15.10 to 15.15), the lender at return (Figma 17).
+ */
 @RunWith(AndroidJUnit4::class)
 class ScanCodeCardTest {
 
@@ -109,11 +112,33 @@ class ScanCodeCardTest {
   }
 
   @Test
-  fun atReturnThereIsNoScanCardYet() {
-    // The server makes no return code yet, so the lender has nothing to scan.
-    setContent(ready.copy(isLender = true, phase = HandoverPhase.RETURN))
-    node(C.Tag.handover_scan_card).assertDoesNotExist()
-    node(C.Tag.handover_code_card).assertDoesNotExist()
+  fun atReturnTheLenderScansWithTheReturnTexts() {
+    val returnDay = LocalDate.of(2026, 10, 8)
+    val atReturn =
+        ready.copy(
+            isLender = true,
+            phase = HandoverPhase.RETURN,
+            returnDate = returnDay,
+            serverToday = returnDay,
+        )
+    setContent(atReturn)
+    composeTestRule
+        .onNodeWithText("Scanning confirms the item is back.", useUnmergedTree = true)
+        .assertExists()
+
+    uiState = atReturn.copy(scanError = ScanError.REFUSED)
+    assertMessage("The return couldn't be confirmed. Check that today is the return day or later.")
+    uiState = atReturn.copy(scanError = ScanError.RENTAL_CHANGED)
+    assertMessage(
+        "This rental changed and can't be returned any more. Open the rental to see where it stands."
+    )
+    uiState = atReturn.copy(isOffline = true, codeFingerprint = null, codeFailed = true)
+    assertMessage("Connect to the internet once to prepare the return.")
+    // A confirmed return is never "Picked up": it shows "Sending…" until the rental leaves the
+    // return, right after it.
+    uiState = atReturn.copy(scanConfirmed = true)
+    composeTestRule.onNodeWithText("Sending…", useUnmergedTree = true).assertIsDisplayed()
+    node(C.Tag.handover_scan_confirmed).assertDoesNotExist()
   }
 
   @Test

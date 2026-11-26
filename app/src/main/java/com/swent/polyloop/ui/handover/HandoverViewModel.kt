@@ -41,8 +41,9 @@ enum class ScanError {
   /** The scan could not be sent (e.g. the connection dropped); scanning again sends it again. */
   NOT_SENT,
   /**
-   * The server refused the scan for a reason it does not name (e.g. not the pickup day by its
-   * clock, or the price cannot be paid); scanning again only helps once that is fixed.
+   * The server refused the scan for a reason it does not name (e.g. not the pickup day, or before
+   * the return day, by its clock, or the price cannot be paid at pickup); scanning again only helps
+   * once that is fixed.
    */
   REFUSED,
   /** The rental can no longer take the scan, e.g. it was cancelled meanwhile. */
@@ -598,8 +599,7 @@ class HandoverViewModel(
       // A code still being read for the phase shown before must not land in this one; loadCode
       // cancels it too, so this matters when no phase is shown any more.
       codeJob?.cancel()
-      // The server makes no return code yet, so only the pickup's is read.
-      if (phase == HandoverPhase.PICKUP) loadCode(phase, _uiState.value.showsCode)
+      phase?.let { loadCode(it, _uiState.value.showsCode) }
       // Read after the rental is shown, not awaited with it: the Function can take seconds on a
       // cold start. Only a rental that takes photos needs the day, read when its phase is first
       // shown and kept on later changes; an unknown day is read again by retryServerToday, not on
@@ -691,8 +691,8 @@ class HandoverViewModel(
           if (shows) handoverRepository.getCodeToShow(rentalId, phase)
           else handoverRepository.getCodeFingerprint(rentalId, phase)
       // A code not made yet cannot be used either, so it is reported the same way, with Retry.
-      // Since #435 the server makes the code when the offer is accepted, so only a rental accepted
-      // before that has none.
+      // The server makes the code when the offer is accepted, so only a pickup rental accepted
+      // before #435, or a rental already active before #489, has none.
       val value = result.getOrNull()
       _uiState.update {
         when {

@@ -20,7 +20,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The card where the lender shows the QR code at pickup (Figma 14, 14.10 to 14.13). */
+/**
+ * The card where the person giving the item shows the QR code: the lender at pickup (Figma 14,
+ * 14.10 to 14.13), the borrower at return (Figma 16).
+ */
 @RunWith(AndroidJUnit4::class)
 class ShowCodeCardTest {
 
@@ -41,6 +44,15 @@ class ShowCodeCardTest {
           serverToday = LocalDate.of(2026, 10, 6),
           photos = photos(3),
           code = "secret-code",
+      )
+
+  /** The borrower on the return day, with 3 photos and the code. */
+  private val atReturn =
+      ready.copy(
+          isLender = false,
+          phase = HandoverPhase.RETURN,
+          returnDate = LocalDate.of(2026, 10, 8),
+          serverToday = LocalDate.of(2026, 10, 8),
       )
 
   private var retries = 0
@@ -77,10 +89,16 @@ class ShowCodeCardTest {
   }
 
   @Test
-  fun atReturnNoCodeCardIsShownUntilTheServerMakesAReturnCode() {
-    // Even on the pickup day (a one-day rental), the borrower has no return code to show yet.
-    setContent(ready.copy(isLender = false, phase = HandoverPhase.RETURN))
-    node(C.Tag.handover_code_card).assertDoesNotExist()
+  fun atReturnTheBorrowerShowsTheQrToTheLender() {
+    setContent(atReturn)
+    node(C.Tag.handover_code_title).assertTextEquals("Show this code to Mara")
+    node(C.Tag.handover_qr_code).performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
+  fun atReturnOfflineWithoutACopyAsksToConnectOnceForTheReturn() {
+    setContent(atReturn.copy(isOffline = true, code = null, codeFailed = true))
+    assertMessage("Connect to the internet once to prepare the return.")
   }
 
   @Test

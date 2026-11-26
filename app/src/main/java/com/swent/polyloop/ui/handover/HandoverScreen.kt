@@ -227,17 +227,16 @@ fun HandoverContent(
                     onPhotoClick = { enlargedId = it },
                     onRetryPhotos = onRetry,
                 )
-                // Only the pickup has a code for now: the server makes no return code yet. The
-                // person giving the item shows the code; the one receiving it scans. Once the
-                // pickup day is over, neither card is shown, even while the new day is read, except
-                // for a scan sent before midnight, which keeps its card for its answer (the
-                // ViewModel clears older messages at midnight).
+                // Both phases have a code: the person giving the item shows it, the one receiving
+                // it scans. Off the handover day, and at midnight while the new day is read (the
+                // return days have no end, so the cards come back once it is), neither card is
+                // shown, except for a scan sent before midnight, which keeps its card for its
+                // answer (the ViewModel clears older messages at midnight).
                 if (
-                    uiState.phase == HandoverPhase.PICKUP &&
-                        ((uiState.isPickupDay && !uiState.isDayOver) ||
-                            uiState.isSendingScan ||
-                            uiState.scanConfirmed ||
-                            uiState.scanError != null)
+                    (uiState.isHandoverDay && !uiState.isDayOver) ||
+                        uiState.isSendingScan ||
+                        uiState.scanConfirmed ||
+                        uiState.scanError != null
                 ) {
                   if (uiState.showsCode) ShowCodeCard(uiState, onRetry)
                   else ScanCodeCard(uiState, onScan, onRetry)
@@ -465,6 +464,14 @@ internal fun HandoverCard(
     }
   }
 }
+
+/** The text [forReturn] at return, otherwise [pickup]. */
+@Composable
+internal fun phaseString(
+    phase: HandoverPhase?,
+    @StringRes pickup: Int,
+    @StringRes forReturn: Int,
+): String = stringResource(if (phase == HandoverPhase.RETURN) forReturn else pickup)
 
 /** "The photos could not be loaded." in red, then a Retry button calling [onRetry]. */
 @Composable

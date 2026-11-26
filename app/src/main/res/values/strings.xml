@@ -611,6 +611,7 @@
     </plurals>
     <string name="handover_code_description">Your handover QR code</string>
     <string name="handover_code_no_copy">Connect to the internet once to prepare the pickup.</string>
+    <string name="handover_code_no_copy_return">Connect to the internet once to prepare the return.</string>
     <string name="handover_code_error">Couldn\'t load your code.</string>
     <!-- Under the QR code while offline, e.g. "Once Mara has scanned, you're done. …" -->
     <string name="handover_code_offline_note">Once %1$s has scanned, you\'re done. This updates when you\'re back online.</string>
@@ -620,6 +621,7 @@
     <string name="handover_scan_title_lender">Scan the lender\'s code</string>
     <string name="handover_scan_title_borrower">Scan the borrower\'s code</string>
     <string name="handover_scan_hint">Scanning confirms you received the item and starts the rental.</string>
+    <string name="handover_scan_hint_return">Scanning confirms the item is back.</string>
     <string name="handover_scan_button">Scan QR code</string>
     <string name="handover_scan_sending">Sending…</string>
     <plurals name="handover_scan_photos_missing">
@@ -633,8 +635,10 @@
     <string name="handover_scan_wrong_code_no_name">This isn\'t the right code. Scan the code on their Handover screen.</string>
     <string name="handover_scan_not_sent">The scan couldn\'t be sent. Try again in a moment.</string>
     <string name="handover_scan_refused">The pickup couldn\'t be confirmed. Check that you have enough PolyPoints for this rental and that today is the pickup day.</string>
+    <string name="handover_scan_refused_return">The return couldn\'t be confirmed. Check that today is the return day or later.</string>
     <string name="handover_scan_unavailable">The scanner couldn\'t open. Try again in a moment.</string>
     <string name="handover_scan_rental_changed">This rental changed and can\'t be picked up any more. Open the rental to see where it stands.</string>
+    <string name="handover_scan_rental_changed_return">This rental changed and can\'t be returned any more. Open the rental to see where it stands.</string>
     <!-- Once the borrower has scanned, e.g. "Picked up by Mara · the rental has started" -->
     <string name="handover_code_picked_up">Picked up by %1$s · the rental has started</string>
     <string name="handover_code_picked_up_no_name">Picked up · the rental has started</string>

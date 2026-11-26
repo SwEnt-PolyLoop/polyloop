@@ -482,6 +482,16 @@ class HandoverScreenTest {
   }
 
   @Test
+  fun beforeTheReturnDayNeitherQrCardShows() {
+    val dayBefore = returning.copy(serverToday = returnDay.minusDays(1), photos = returnPhotos(3))
+    setContent(dayBefore.copy(code = "secret-code"))
+    assertAbsent(C.Tag.handover_code_card)
+
+    uiState = dayBefore.copy(isLender = true, codeFingerprint = "fingerprint")
+    assertAbsent(C.Tag.handover_scan_card)
+  }
+
+  @Test
   fun aReturnPhotoShownFullScreenSaysReturn() {
     setContent(returning.copy(photos = returnPhotos(1)))
 
