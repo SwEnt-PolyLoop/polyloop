@@ -97,6 +97,28 @@ class AuthRepositoryFirebaseEmulatorTest {
     }
   }
 
+  @Test
+  fun sendPasswordResetEmailForAnAccountSucceeds() {
+    runBlocking {
+      val email = uniqueEmail()
+      repository.signUp("Test User", email, PASSWORD)
+
+      val result = repository.sendPasswordResetEmail(email)
+
+      assertEquals(AuthResult.Success(Unit), result)
+    }
+  }
+
+  @Test
+  fun sendPasswordResetEmailForAnAddressWithoutAccountAlsoSucceeds() {
+    runBlocking {
+      // Whatever the emulator says about a missing account, the app answers the same way.
+      val result = repository.sendPasswordResetEmail(uniqueEmail())
+
+      assertEquals(AuthResult.Success(Unit), result)
+    }
+  }
+
   private companion object {
     const val PASSWORD = "password123"
   }

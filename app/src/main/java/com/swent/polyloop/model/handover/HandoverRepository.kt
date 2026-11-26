@@ -2,25 +2,34 @@
 
 package com.swent.polyloop.model.handover
 
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 
 /** The condition photos of rentals, taken with the in-app camera. */
 interface HandoverRepository {
 
   /**
-   * The photos the signed-in user took of the rental [rentalId] in [phase], oldest first. Emits
-   * again when one is added. The flow fails with an [IllegalStateException] if nobody is signed in,
-   * or with the cause if they cannot be loaded.
+   * The photos the signed-in user took of the rental [rentalId] in [phase], oldest first, including
+   * those still waiting in the upload queue (their url is then the phone's file). Emits again when
+   * one is added. The flow fails with an [IllegalStateException] if nobody is signed in, or with
+   * the cause if they cannot be loaded.
    */
   fun observeMyPhotos(rentalId: String, phase: HandoverPhase): Flow<List<HandoverPhoto>>
 
   /**
-   * Uploads the photo file at [photoUri] as the signed-in user's photo of [rentalId] in [phase].
-   * Fails with an [IllegalArgumentException] if [rentalId] is invalid, an [IllegalStateException]
-   * if nobody is signed in, or the cause if it cannot be saved (e.g. offline, or the rental is not
-   * in [phase]'s status: Accepted at pickup, Active or Overdue at return).
+   * Adds the photo file at [photoUri], taken at [takenAt] by the server's clock, as the signed-in
+   * user's photo of [rentalId] in [phase]. It goes into the local upload queue, which sends it once
+   * the phone is online, and shows in [observeMyPhotos] from then on; the caller may delete the
+   * file. Fails with an [IllegalArgumentException] if [rentalId] is invalid, an
+   * [IllegalStateException] if nobody is signed in or all the user's photos of [phase] are taken,
+   * or the cause if it cannot be queued. The server may still refuse it when it is sent.
    */
-  suspend fun addPhoto(rentalId: String, phase: HandoverPhase, photoUri: String): Result<Unit>
+  suspend fun addPhoto(
+      rentalId: String,
+      phase: HandoverPhase,
+      photoUri: String,
+      takenAt: Instant,
+  ): Result<Unit>
 
   /**
    * The secret code the signed-in user shows as a QR code in [phase] of [rentalId]: the lender at

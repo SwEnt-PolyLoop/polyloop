@@ -238,8 +238,9 @@ private fun PhotoSection(
 
 /**
  * "Is the item in the same condition?", then "Item is fine" and "Flag damage", each with what it
- * does and "Not available yet" under it, as both fail until their Cloud Functions exist; the one
- * being sent shows a spinner, then a line under them says whether it was sent or failed.
+ * does; "Item is fine" has "Not available yet" under it, as it fails until its Cloud Function
+ * exists. The one being sent shows a spinner, then a line under them says whether it was sent or
+ * failed.
  */
 @Composable
 private fun CheckButtons(
@@ -294,10 +295,6 @@ private fun CheckButtons(
           isSending = uiState.sendingCheck == ReturnCheck.DAMAGE_FLAGGED,
       )
     }
-    NotAvailableYet(
-        C.Tag.handover_flag_damage_not_available,
-        Modifier.align(Alignment.CenterHorizontally),
-    )
     if (uiState.checkFailed) {
       Text(
           text = stringResource(R.string.handover_check_failed),

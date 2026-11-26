@@ -17,6 +17,15 @@ interface AuthRepository {
   /** Sends the verification email again. The user stays signed out. */
   suspend fun resendVerificationEmail(email: String, password: String): AuthResult<Unit>
 
+  /**
+   * Sends a password reset email to [email]. Also succeeds when the address has no account, as
+   * Firebase sends nothing then and, with email enumeration protection on, does not say so: the
+   * screen must never tell who has an account. Fails by default, for the test repositories that
+   * never send one.
+   */
+  suspend fun sendPasswordResetEmail(email: String): AuthResult<Unit> =
+      AuthResult.Failure(AuthError.UNKNOWN)
+
   /** The signed-in user, or null. */
   fun getCurrentUser(): AuthUser?
 

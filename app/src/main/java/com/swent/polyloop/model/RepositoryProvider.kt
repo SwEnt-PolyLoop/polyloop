@@ -17,6 +17,7 @@ import com.swent.polyloop.model.dispute.DisputeRepository
 import com.swent.polyloop.model.dispute.DisputeRepositoryFirestore
 import com.swent.polyloop.model.handover.HandoverRepository
 import com.swent.polyloop.model.handover.HandoverRepositoryFirestore
+import com.swent.polyloop.model.handover.HandoverUploadQueue
 import com.swent.polyloop.model.listing.ListingRepository
 import com.swent.polyloop.model.listing.ListingRepositoryFirestore
 import com.swent.polyloop.model.location.LocationRepository
@@ -154,6 +155,9 @@ object RepositoryProvider {
     set(value) {
       dispute = value
     }
+
+  /** The local upload queue for condition photos (WorkManager), built on first use. */
+  val handoverUploadQueue: HandoverUploadQueue by lazy { HandoverUploadQueue(requireContext()) }
 
   /**
    * The Cloud Storage instance that repositories upload photos and PDFs to. Read on each access, so

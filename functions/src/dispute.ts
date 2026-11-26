@@ -12,11 +12,12 @@ import {
   PENDING,
   PROPOSAL_CHANGED,
   SETTLE,
+  SETTLE_DAYS,
   STAGE_CHANGED,
   SplitInput,
 } from "./disputeRules";
 import { writeWithSystemMessage } from "./negotiation";
-import { RequestError, requireParties } from "./rentalRules";
+import { RENTAL_CHANGED, RequestError, requireParties } from "./rentalRules";
 import { SweepCounts, runSweep } from "./sweep";
 import { depositToSettle, readDepositSettlement, writeDepositSettlement } from "./wallet";
 
@@ -25,6 +26,10 @@ const DISPUTES = "disputes";
 const RENTALS = "rentals";
 const CLOSED = "CLOSED";
 const DISPUTED = "DISPUTED";
+const RETURNED = "RETURNED";
+
+/** One day, in milliseconds. */
+const DAY_MILLIS = 24 * 60 * 60 * 1000;
 
 /**
  * The most proposals a dispute holds. A real negotiation stays far below it; it only stops a
@@ -44,13 +49,15 @@ interface StoredProposal {
 }
 
 /** A dispute and its rental, read in a transaction. */
-interface OpenDispute {
+export interface OpenDispute {
   disputeRef: DocumentReference;
   rentalRef: DocumentReference;
   rental: DocumentData;
   proposals: StoredProposal[];
   /** As read: a Timestamp, or missing or null on a dispute that never escalates by itself. */
   escalatesAt: unknown;
+  /** As read: the LLM proposal's fields, or missing in direct settlement. */
+  llmProposal: unknown;
 }
 
 /**
@@ -164,6 +171,63 @@ export async function escalateDispute(
 }
 
 /**
+ * Opens the dispute of [rentalId] when its lender flags damage after the return, in one
+ * transaction: `disputes/{rentalId}` is created in direct settlement, with no proposal and
+ * `escalatesAt` [SETTLE_DAYS] days after [now], and the rental becomes DISPUTED with a SYSTEM
+ * message. The deposit stays held: no wallet is written. The checks run in this order: the rental
+ * exists, the caller is its lender, then, if the dispute already exists, the call succeeds and
+ * changes nothing (whatever the rental's status by now, so an answer lost on the way is harmless);
+ * otherwise the rental must be RETURNED.
+ *
+ * @param db the Firestore database.
+ * @param callerId the participant flagging damage, who must be the rental's lender.
+ * @param rentalId the rental whose item came back damaged.
+ * @param now the current time, from which `escalatesAt` is counted; passed so tests can set it.
+ * @throws RequestError `not-found`; `permission-denied` (not the lender); `failed-precondition`
+ *   with the reason `RENTAL_CHANGED` (no longer RETURNED, e.g. the lender's "Item is fine" won, once #491 exists).
+ *   Nothing is written then.
+ */
+export async function openDispute(
+  db: Firestore,
+  callerId: string,
+  rentalId: string,
+  now: Date = new Date(),
+): Promise<void> {
+  const disputeRef = db.collection(DISPUTES).doc(rentalId);
+  const rentalRef = db.collection(RENTALS).doc(rentalId);
+  await db.runTransaction(async (tx) => {
+    const [disputeSnap, rentalSnap] = await Promise.all([tx.get(disputeRef), tx.get(rentalRef)]);
+    const rental = rentalSnap.data();
+    if (!rental) {
+      throw new RequestError("not-found", "This rental does not exist.");
+    }
+    if (callerId !== rental.ownerId) {
+      throw new RequestError("permission-denied", "Only the lender flags damage.");
+    }
+    if (disputeSnap.exists) return;
+    if (rental.status !== RETURNED) {
+      throw new RequestError("failed-precondition", "This rental is no longer returned.", {
+        reason: RENTAL_CHANGED,
+      });
+    }
+    tx.create(disputeRef, {
+      stage: SETTLE,
+      proposals: [],
+      escalatesAt: Timestamp.fromMillis(now.getTime() + SETTLE_DAYS * DAY_MILLIS),
+      escalatedBy: null,
+      agreedAt: null,
+    });
+    writeWithSystemMessage(
+      tx,
+      rentalRef,
+      "Damage flagged · dispute opened",
+      { status: DISPUTED },
+      callerId,
+    );
+  });
+}
+
+/**
  * Runs [act] on the dispute of [rentalId] in one transaction, if it is still in direct
  * settlement. If its `escalatesAt` has passed at [now] but the hourly sweep has not run yet, the
  * dispute escalates as the sweep would, [act] is not run, and the caller gets `STAGE_CHANGED` once
@@ -175,7 +239,7 @@ export async function escalateDispute(
  * @param now the current time, compared with `escalatesAt`.
  * @param act the change to make while the dispute is in direct settlement; it may throw a refusal
  *   before writing anything.
- * @throws RequestError the refusals of [requireSettlingDispute] and of [act], or `STAGE_CHANGED`
+ * @throws RequestError the refusals of [requireOpenDispute] and of [act], or `STAGE_CHANGED`
  *   after the escalation.
  */
 async function inDirectSettlement(
@@ -186,7 +250,7 @@ async function inDirectSettlement(
   act: (tx: Transaction, open: OpenDispute) => void | Promise<void>,
 ): Promise<void> {
   const escalated = await db.runTransaction(async (tx) => {
-    const open = await requireSettlingDispute(tx, db, rentalId, callerId);
+    const open = await requireOpenDispute(tx, db, rentalId, callerId, SETTLE);
     if (isDue(open.escalatesAt, now)) {
       moveToLlmProposal(tx, open.disputeRef, open.rentalRef, null);
       return true;
@@ -283,7 +347,7 @@ function moveToLlmProposal(
   });
   const text =
     escalatedBy === null
-      ? "No agreement after 30 days · waiting for the LLM proposal"
+      ? `No agreement after ${SETTLE_DAYS} days · waiting for the LLM proposal`
       : "Dispute escalated · waiting for the LLM proposal";
   writeWithSystemMessage(tx, rentalRef, text, {}, escalatedBy);
 }
@@ -333,18 +397,19 @@ async function settle(
 
 /**
  * The dispute of [rentalId] and its rental, or a refusal: the dispute or the rental is missing, the
- * caller takes no part in the rental, the dispute is settled, it left direct settlement, or the
- * rental is not DISPUTED. The settled and left cases carry `STAGE_CHANGED`: a request that lost
+ * caller takes no part in the rental, the dispute is settled, it is not at [stage], or the rental
+ * is not DISPUTED. The settled and other-stage cases carry `STAGE_CHANGED`: a request that lost
  * the race to an agreement or an escalation tells the app the dispute moved on, so it follows the
  * dispute instead of showing an error. They are checked before the status, because an agreement
  * also closes the rental. Only a Function opens a dispute, setting its rental to DISPUTED, so any
  * other status means corrupt data: it gets a plain refusal, and an agreement never overwrites it.
  */
-async function requireSettlingDispute(
+export async function requireOpenDispute(
   tx: Transaction,
   db: Firestore,
   rentalId: string,
   callerId: string,
+  stage: string,
 ): Promise<OpenDispute> {
   const disputeRef = db.collection(DISPUTES).doc(rentalId);
   const rentalRef = db.collection(RENTALS).doc(rentalId);
@@ -360,17 +425,28 @@ async function requireSettlingDispute(
   if (dispute.agreedAt) {
     throw stageChanged("This dispute is already settled.");
   }
-  if (dispute.stage !== SETTLE) {
-    throw stageChanged();
+  if (dispute.stage !== stage) {
+    throw stageChanged(
+      stage === SETTLE
+        ? undefined
+        : "This dispute is no longer waiting for an answer to the LLM proposal.",
+    );
   }
   if (rental.status !== DISPUTED) {
     throw new RequestError("failed-precondition", "This rental is not in dispute.");
   }
   const proposals = Array.isArray(dispute.proposals) ? (dispute.proposals as StoredProposal[]) : [];
-  return { disputeRef, rentalRef, rental, proposals, escalatesAt: dispute.escalatesAt };
+  return {
+    disputeRef,
+    rentalRef,
+    rental,
+    proposals,
+    escalatesAt: dispute.escalatesAt,
+    llmProposal: dispute.llmProposal,
+  };
 }
 
-/** The refusal sent when the dispute was settled or left direct settlement, with [message]. */
+/** The refusal sent when the dispute was settled or left its stage, with [message]. */
 function stageChanged(
   message = "This dispute is no longer in direct settlement.",
 ): RequestError {

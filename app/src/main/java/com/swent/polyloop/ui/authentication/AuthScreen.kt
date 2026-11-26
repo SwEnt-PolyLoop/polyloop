@@ -28,6 +28,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -66,7 +67,8 @@ private val ScreenTopPadding = 59.dp
  *
  * The host navigates once the ViewModel reports a verified signed-in user. When the account needs
  * email verification, the host shows the "Check your inbox" step instead, sharing this ViewModel
- * instance to retain the credentials needed for verification.
+ * instance to retain the credentials needed for verification. "Forgot password?" makes the host
+ * show the [ForgotPasswordScreen] step the same way.
  *
  * @param viewModel screen state holder. By default, it is obtained from the current
  *   [androidx.lifecycle.ViewModelStoreOwner].
@@ -97,14 +99,7 @@ fun AuthScreen(
    * When signing up, the broken password rules are listed as bullets under a header as soon as a
    * password is typed.
    */
-  val showEmailError = (state.email.isNotEmpty() || state.hasAttemptedSubmit) && !state.isEmailValid
-
-  val emailError =
-      when {
-        !showEmailError -> null
-        state.email.isBlank() -> R.string.auth_email_required
-        else -> R.string.auth_email_invalid_domain
-      }
+  val emailError = state.emailErrorRes()
 
   val nameError =
       if (isSignUp && state.hasAttemptedSubmit && state.isNameBlank) {
@@ -184,6 +179,16 @@ fun AuthScreen(
               null
             },
     )
+
+    if (!isSignUp) {
+      TextButton(
+          onClick = viewModel::openPasswordReset,
+          enabled = !state.isLoading,
+          modifier = Modifier.align(Alignment.End).testTag(C.Tag.auth_forgot_password_link),
+      ) {
+        Text(text = stringResource(R.string.auth_forgot_password), fontSize = 15.sp)
+      }
+    }
 
     Spacer(Modifier.height(20.dp))
 
@@ -397,7 +402,7 @@ private fun RowScope.Tab(
  *   there is none.
  */
 @Composable
-private fun AuthTextField(
+internal fun AuthTextField(
     label: String,
     value: String,
     placeholder: String,
@@ -618,6 +623,18 @@ internal fun AuthMessage(
     }
   }
 }
+
+/**
+ * The error under the email field, or null: shown as soon as the typed address does not match, or
+ * once the user pressed the main button with no address.
+ */
+@StringRes
+internal fun AuthUiState.emailErrorRes(): Int? =
+    when {
+      isEmailValid || (email.isEmpty() && !hasAttemptedSubmit) -> null
+      email.isBlank() -> R.string.auth_email_required
+      else -> R.string.auth_email_invalid_domain
+    }
 
 /** Converts an authentication failure into the string resource of the message shown to the user. */
 @StringRes

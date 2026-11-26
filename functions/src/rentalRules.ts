@@ -18,6 +18,12 @@ export type RequestErrorCode =
   | "internal";
 
 /**
+ * The reason (`details.reason`) of a refusal because the rental's status changed meanwhile, e.g. it
+ * was cancelled, or "Item is fine" was sent first (once #491 exists). The app reads it, never the message.
+ */
+export const RENTAL_CHANGED = "RENTAL_CHANGED";
+
+/**
  * A refused request: a code, a message for the user, and, when the request lost a race, the reason
  * the app reads in `details` (e.g. `{reason: "STAGE_CHANGED"}`, see disputeRules.ts).
  */

@@ -139,6 +139,8 @@
     <string name="wallet_amount_unknown_description">Unknown</string>
     <string name="wallet_unavailable_offline">Your balance is unavailable until your phone is back online.</string>
     <string name="wallet_history_unavailable_offline">Your history is unavailable until your phone is back online.</string>
+    <string name="wallet_unavailable_unreachable">Your balance is unavailable. The server can\'t be reached right now.</string>
+    <string name="wallet_history_unavailable_unreachable">Your history is unavailable. The server can\'t be reached right now.</string>
     <string name="wallet_footer">1 CHF = 1 PolyPoint. PolyPoints can\'t be withdrawn.</string>
     <string name="wallet_error_fallback">Could not load your wallet</string>
     <string name="wallet_retry">Retry</string>
@@ -298,6 +300,12 @@
     <string name="auth_resend_email_countdown">Resend email (%1$d s)</string>
     <string name="auth_email_resent">We sent the email again.</string>
     <string name="auth_back_to_form">Back to the form</string>
+    <string name="auth_forgot_password">Forgot password?</string>
+    <string name="auth_reset_title">Reset your password</string>
+    <string name="auth_reset_body">Enter your EPFL email. We\'ll send you a link to set a new password.</string>
+    <string name="auth_reset_send">Send reset email</string>
+    <string name="auth_reset_send_countdown">Send reset email (%1$d s)</string>
+    <string name="auth_reset_sent">If an account exists for this address, we sent a reset link to it. Set a new password from the link, then log in.</string>
 
     <!-- Chat list -->
     <string name="chat_list_title">Chats</string>
