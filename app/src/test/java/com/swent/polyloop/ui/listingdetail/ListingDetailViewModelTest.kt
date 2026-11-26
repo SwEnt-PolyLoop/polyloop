@@ -563,14 +563,19 @@ class ListingDetailViewModelTest {
   }
 
   @Test
-  fun aNewDayPickedAfterABalanceRefusalClearsItsMessage() {
+  fun balanceRefusedThenNewDaysPickedSendsTheRequest() {
     rentalRepository.failure = InsufficientFundsException()
     val vm = openPickerOn()
     vm.sendRequest(oct6, oct8)
 
-    vm.clearSendError()
+    // Recharged meanwhile, or picked fewer days.
+    rentalRepository.failure = null
+    vm.sendRequest(oct10, oct11)
 
-    assertNull(vm.uiState.value.refusal)
+    val state = vm.uiState.value
+    assertEquals(1, rentalRepository.rentals.size)
+    assertEquals(rentalRepository.rentals.single().id, state.sentRentalId)
+    assertNull(state.refusal)
   }
 
   @Test
