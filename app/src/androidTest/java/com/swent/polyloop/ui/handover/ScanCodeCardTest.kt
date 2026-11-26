@@ -15,8 +15,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
@@ -123,27 +121,23 @@ class ScanCodeCardTest {
             returnDate = returnDay,
             serverToday = returnDay,
         )
-    val context = InstrumentationRegistry.getInstrumentation().targetContext
     setContent(atReturn)
     composeTestRule
-        .onNodeWithText(
-            context.getString(R.string.handover_scan_hint_return),
-            useUnmergedTree = true,
-        )
+        .onNodeWithText("Scanning confirms the item is back.", useUnmergedTree = true)
         .assertExists()
 
     uiState = atReturn.copy(scanError = ScanError.REFUSED)
-    assertMessage(context.getString(R.string.handover_scan_refused_return))
+    assertMessage("The return couldn't be confirmed. Check that today is the return day or later.")
     uiState = atReturn.copy(scanError = ScanError.RENTAL_CHANGED)
-    assertMessage(context.getString(R.string.handover_scan_rental_changed_return))
+    assertMessage(
+        "This rental changed and can't be returned any more. Open the rental to see where it stands."
+    )
     uiState = atReturn.copy(isOffline = true, codeFingerprint = null, codeFailed = true)
-    assertMessage(context.getString(R.string.handover_code_no_copy_return))
+    assertMessage("Connect to the internet once to prepare the return.")
     // A confirmed return is never "Picked up": it shows "Sending…" until the rental leaves the
     // return, right after it.
     uiState = atReturn.copy(scanConfirmed = true)
-    composeTestRule
-        .onNodeWithText(context.getString(R.string.handover_scan_sending), useUnmergedTree = true)
-        .assertIsDisplayed()
+    composeTestRule.onNodeWithText("Sending…", useUnmergedTree = true).assertIsDisplayed()
     node(C.Tag.handover_scan_confirmed).assertDoesNotExist()
   }
 

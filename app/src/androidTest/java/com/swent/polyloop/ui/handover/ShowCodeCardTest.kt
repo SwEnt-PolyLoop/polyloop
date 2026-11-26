@@ -10,8 +10,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import com.swent.polyloop.R
 import com.swent.polyloop.model.handover.HandoverPhase
 import com.swent.polyloop.model.handover.HandoverPhoto
 import com.swent.polyloop.resources.C
@@ -48,6 +46,15 @@ class ShowCodeCardTest {
           code = "secret-code",
       )
 
+  /** The borrower on the return day, with 3 photos and the code. */
+  private val atReturn =
+      ready.copy(
+          isLender = false,
+          phase = HandoverPhase.RETURN,
+          returnDate = LocalDate.of(2026, 10, 8),
+          serverToday = LocalDate.of(2026, 10, 8),
+      )
+
   private var retries = 0
 
   private fun setContent(uiState: HandoverUiState) {
@@ -81,29 +88,17 @@ class ShowCodeCardTest {
     node(C.Tag.handover_code_title).assertTextEquals("Show this code to the borrower")
   }
 
-  private val context = InstrumentationRegistry.getInstrumentation().targetContext
-
-  /** The borrower on the return day, with 3 photos and the code. */
-  private val atReturn =
-      ready.copy(
-          isLender = false,
-          phase = HandoverPhase.RETURN,
-          returnDate = LocalDate.of(2026, 10, 8),
-          serverToday = LocalDate.of(2026, 10, 8),
-      )
-
   @Test
   fun atReturnTheBorrowerShowsTheQrToTheLender() {
     setContent(atReturn)
-    node(C.Tag.handover_code_title)
-        .assertTextEquals(context.getString(R.string.handover_show_code_title, "Mara"))
+    node(C.Tag.handover_code_title).assertTextEquals("Show this code to Mara")
     node(C.Tag.handover_qr_code).performScrollTo().assertIsDisplayed()
   }
 
   @Test
   fun atReturnOfflineWithoutACopyAsksToConnectOnceForTheReturn() {
     setContent(atReturn.copy(isOffline = true, code = null, codeFailed = true))
-    assertMessage(context.getString(R.string.handover_code_no_copy_return))
+    assertMessage("Connect to the internet once to prepare the return.")
   }
 
   @Test
