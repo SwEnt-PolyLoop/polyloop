@@ -213,6 +213,13 @@ class RentalRepositoryFirestoreTest {
   }
 
   @Test
+  fun requestRentalReportsABalanceTooLowAsInsufficientFunds() = runTest {
+    requestRentalRefuses(FirebaseFunctionsException.Code.FAILED_PRECONDITION, "INSUFFICIENT_FUNDS")
+
+    assertTrue(request().exceptionOrNull() is InsufficientFundsException)
+  }
+
+  @Test
   fun requestRentalReportsAnOverlappingPendingRequestAsUnavailableDates() = runTest {
     requestRentalRefuses(FirebaseFunctionsException.Code.ALREADY_EXISTS)
 

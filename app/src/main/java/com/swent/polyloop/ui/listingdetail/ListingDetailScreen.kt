@@ -166,14 +166,20 @@ fun ListingDetailContent(
                   DateRangePickerMode.Request(
                       pricePerDay = listing.pricePerDay,
                       balance = balance,
+                      balanceRefused = uiState.refusal == RequestRefusal.NOT_ENOUGH_BALANCE,
                   ),
               onConfirm = onConfirmDates,
               onDismiss = onDismissDatePicker,
               today = today,
               isSending = uiState.isSending,
               errorMsg =
-                  if (uiState.datesTaken) stringResource(R.string.listing_detail_dates_taken)
-                  else uiState.sendError,
+                  when (uiState.refusal) {
+                    RequestRefusal.DATES_TAKEN ->
+                        stringResource(R.string.listing_detail_dates_taken)
+                    // Shown by the picker's own balance line, so it never shows twice.
+                    RequestRefusal.NOT_ENOUGH_BALANCE -> null
+                    null -> uiState.sendError
+                  },
               onDayPicked = onDayPicked,
           )
         }

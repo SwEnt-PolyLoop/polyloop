@@ -19,11 +19,13 @@ interface RentalRepository {
    * the listing's id and the days to the `requestRental` Cloud Function, which copies the rest from
    * the listing and the profiles; [ownerName] and the borrower's name are used by fakes.
    *
-   * No money is reserved yet. The caller checks the dates first (inside the availability window,
-   * not on booked days). Fails with an [IllegalArgumentException] if [endDate] is before
-   * [startDate], a [RentalDatesUnavailableException] if the days were booked meanwhile, a
-   * [ListingUnavailableException] if the listing was deleted or unpublished meanwhile, or with the
-   * cause if the request cannot be sent.
+   * The server holds the rental price in the borrower's wallet when it creates the request. The
+   * caller checks the dates first (inside the availability window, not on booked days). Fails with
+   * an [IllegalArgumentException] if [endDate] is before [startDate], a
+   * [RentalDatesUnavailableException] if the days were booked meanwhile, a
+   * [ListingUnavailableException] if the listing was deleted or unpublished meanwhile, an
+   * [InsufficientFundsException] if the borrower's available balance cannot cover the price, or
+   * with the cause if the request cannot be sent.
    */
   suspend fun requestRental(
       listing: Listing,
@@ -135,3 +137,6 @@ class RentalDatesUnavailableException : IllegalStateException("These dates are n
 
 /** Thrown when a request is sent for a listing that was deleted or unpublished meanwhile. */
 class ListingUnavailableException : IllegalStateException("This listing is no longer available")
+
+/** Thrown when the borrower's available balance cannot cover the price of the request. */
+class InsufficientFundsException : IllegalStateException("Not enough PolyPoints for this request")

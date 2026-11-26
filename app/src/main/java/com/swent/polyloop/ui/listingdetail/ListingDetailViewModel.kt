@@ -13,6 +13,7 @@ import com.swent.polyloop.model.listing.ListingStatus
 import com.swent.polyloop.model.listing.bookedDays
 import com.swent.polyloop.model.profile.ProfileRepository
 import com.swent.polyloop.model.profile.UserProfile
+import com.swent.polyloop.model.rental.InsufficientFundsException
 import com.swent.polyloop.model.rental.ListingUnavailableException
 import com.swent.polyloop.model.rental.RentalDatesUnavailableException
 import com.swent.polyloop.model.rental.RentalRepository
@@ -33,15 +34,15 @@ import kotlinx.coroutines.launch
  * the screen then shows a generic text. [isOwnListing] is true when the signed-in user owns the
  * listing. [sendError] is non-null when sending the request failed, blank in the same way, and
  * [sentRentalId] holds the new rental's id until the screen has opened its chat. [disabledDates]
- * are the days booked by accepted rentals, and [datesTaken] is true when the picked dates are no
- * longer available (booked by someone else, or their start day passed) when the request is sent.
- * [isOffline] is true while the phone has no connection; the screen then shows the pickup area as
- * text, since the map tiles need a connection. [owner] is the lender's profile, or null when it is
- * missing or could not be read (the listing still shows, without the lender's details).
- * [availableBalance] is the signed-in user's spendable balance in whole PP (`Wallet.available`,
- * held amounts excluded), or null until the wallet has been read, or when it cannot be read or
- * nobody is signed in; the screen then disables "Request" instead of guessing. A missing wallet is
- * a real balance of 0.
+ * are the days booked by accepted rentals, and [refusal] says why the request was refused, when it
+ * was: the picked dates are no longer available (booked by someone else, or their start day
+ * passed), or the available balance cannot cover the price. [isOffline] is true while the phone has
+ * no connection; the screen then shows the pickup area as text, since the map tiles need a
+ * connection. [owner] is the lender's profile, or null when it is missing or could not be read (the
+ * listing still shows, without the lender's details). [availableBalance] is the signed-in user's
+ * spendable balance in whole PP (`Wallet.available`, held amounts excluded), or null until the
+ * wallet has been read, or when it cannot be read or nobody is signed in; the screen then disables
+ * "Request" instead of guessing. A missing wallet is a real balance of 0.
  */
 data class ListingDetailUiState(
     val listing: Listing? = null,
@@ -57,10 +58,18 @@ data class ListingDetailUiState(
     val sendError: String? = null,
     val sentRentalId: String? = null,
     val disabledDates: Set<LocalDate> = emptySet(),
-    val datesTaken: Boolean = false,
+    val refusal: RequestRefusal? = null,
     val isOffline: Boolean = false,
     val availableBalance: Int? = null,
 )
+
+/** Why a request was refused, each shown with its own message in the date picker. */
+enum class RequestRefusal {
+  /** The picked days were booked meanwhile, or their start day passed. */
+  DATES_TAKEN,
+  /** The borrower's available balance cannot cover the price (checked by the server). */
+  NOT_ENOUGH_BALANCE,
+}
 
 /**
  * Shows one published listing, holds the dates the borrower picks and sends the request. It follows
@@ -145,7 +154,7 @@ class ListingDetailViewModel(
    */
   fun openDatePicker() {
     if (_uiState.value.listing == null) return
-    _uiState.update { it.copy(isDatePickerOpen = true, sendError = null, datesTaken = false) }
+    _uiState.update { it.copy(isDatePickerOpen = true, sendError = null, refusal = null) }
   }
 
   /** Closes the date picker and keeps any previous selection. */
@@ -166,30 +175,31 @@ class ListingDetailViewModel(
   /**
    * Sends a request to rent the listing from [start] to [end] (both days included). It first reads
    * the listing's booked ranges from the server: if the range is no longer free, nothing is sent,
-   * [ListingDetailUiState.datesTaken] is set and the newly booked days are disabled; if the listing
-   * was deleted or is no longer published, the picker closes and the listing shows as not found; if
-   * they cannot be read, the picker stays open with a blank error (the generic text). On success it
-   * closes the date picker and sets the new rental's id; on failure the picker stays open with the
-   * error. A range that can no longer be picked (see [selectDates]), e.g. because its start day has
-   * passed, also sets [ListingDetailUiState.datesTaken] without reading anything. Ignored until the
-   * listing is loaded, on the user's own listing, or while a request is already being sent. The
-   * owner's name is the one read with the listing, blank if their profile was missing or could not
-   * be read.
+   * [ListingDetailUiState.refusal] is [RequestRefusal.DATES_TAKEN] and the newly booked days are
+   * disabled; if the listing was deleted or is no longer published, the picker closes and the
+   * listing shows as not found; if they cannot be read, the picker stays open with a blank error
+   * (the generic text). On success it closes the date picker and sets the new rental's id; on
+   * failure the picker stays open with the error, or with [RequestRefusal.NOT_ENOUGH_BALANCE] when
+   * the server finds the balance too low. A range that can no longer be picked (see [selectDates]),
+   * e.g. because its start day has passed, also sets [RequestRefusal.DATES_TAKEN] without reading
+   * anything. Ignored until the listing is loaded, on the user's own listing, or while a request is
+   * already being sent. The owner's name is the one read with the listing, blank if their profile
+   * was missing or could not be read.
    */
   fun sendRequest(start: LocalDate, end: LocalDate) {
     val state = _uiState.value
     if (state.isSending || state.listing == null || state.isOwnListing) return
     val listing = validListing(start, end)
     if (listing == null) {
-      _uiState.update { it.copy(datesTaken = true) }
+      _uiState.update { it.copy(refusal = RequestRefusal.DATES_TAKEN) }
       return
     }
     val borrower = authRepository.getCurrentUser()
     if (borrower == null) {
-      _uiState.update { it.copy(sendError = "", datesTaken = false) }
+      _uiState.update { it.copy(sendError = "", refusal = null) }
       return
     }
-    _uiState.update { it.copy(isSending = true, sendError = null, datesTaken = false) }
+    _uiState.update { it.copy(isSending = true, sendError = null, refusal = null) }
     viewModelScope.launch {
       val ranges =
           listingRepository.getBookedRanges(listingId).getOrElse {
@@ -204,7 +214,11 @@ class ListingDetailViewModel(
       val disabledDates = bookedDays(ranges)
       if (!isRequestable(start, end, listing.window, disabledDates, today())) {
         _uiState.update {
-          it.copy(isSending = false, datesTaken = true, disabledDates = disabledDates)
+          it.copy(
+              isSending = false,
+              refusal = RequestRefusal.DATES_TAKEN,
+              disabledDates = disabledDates,
+          )
         }
         return@launch
       }
@@ -221,6 +235,10 @@ class ListingDetailViewModel(
               // Booked or unpublished between the check above and the server's: same as above.
               is RentalDatesUnavailableException -> showDatesTaken()
               is ListingUnavailableException -> showListingNotFound()
+              is InsufficientFundsException ->
+                  _uiState.update {
+                    it.copy(isSending = false, refusal = RequestRefusal.NOT_ENOUGH_BALANCE)
+                  }
               else -> _uiState.update { it.copy(isSending = false, sendError = e.message ?: "") }
             }
           }
@@ -242,12 +260,18 @@ class ListingDetailViewModel(
     val disabledDates =
         listingRepository.getBookedRanges(listingId).getOrNull()?.let { bookedDays(it) }
             ?: _uiState.value.disabledDates
-    _uiState.update { it.copy(isSending = false, datesTaken = true, disabledDates = disabledDates) }
+    _uiState.update {
+      it.copy(
+          isSending = false,
+          refusal = RequestRefusal.DATES_TAKEN,
+          disabledDates = disabledDates,
+      )
+    }
   }
 
-  /** Clears the send error and the dates-taken message, e.g. once the user taps a new day. */
+  /** Clears the send error and the refusal's message, e.g. once the user taps a new day. */
   fun clearSendError() {
-    _uiState.update { it.copy(sendError = null, datesTaken = false) }
+    _uiState.update { it.copy(sendError = null, refusal = null) }
   }
 
   /** Clears the sent rental's id once the screen has opened its chat. */

@@ -82,8 +82,9 @@ class RentalRepositoryFirestore(
    * The exception the app expects when [error] is `requestRental`'s refusal of the days or of the
    * listing, or null. Read from the code and `details.reason`, never from the message. A pending
    * request of the same borrower for other days in common (`already-exists`) also makes these days
-   * unavailable to them, so it reads as [RentalDatesUnavailableException] too. The same request
-   * sent again is not refused: the Function returns the first rental.
+   * unavailable to them, so it reads as [RentalDatesUnavailableException] too. A balance that
+   * cannot cover the price reads as [InsufficientFundsException]. The same request sent again is
+   * not refused: the Function returns the first rental.
    */
   private fun requestRefusal(error: Throwable): Exception? {
     val refusal = error as? FirebaseFunctionsException ?: return null
@@ -91,11 +92,11 @@ class RentalRepositoryFirestore(
       FirebaseFunctionsException.Code.NOT_FOUND -> ListingUnavailableException()
       FirebaseFunctionsException.Code.ALREADY_EXISTS -> RentalDatesUnavailableException()
       FirebaseFunctionsException.Code.FAILED_PRECONDITION ->
-          if (refusalReason(error) == DATES_UNAVAILABLE) {
-            RentalDatesUnavailableException()
-          } else {
+          when (refusalReason(error)) {
+            DATES_UNAVAILABLE -> RentalDatesUnavailableException()
+            INSUFFICIENT_FUNDS -> InsufficientFundsException()
             // The only other refusal of this code: the listing is no longer published.
-            ListingUnavailableException()
+            else -> ListingUnavailableException()
           }
       else -> null
     }
@@ -193,7 +194,9 @@ class RentalRepositoryFirestore(
     private const val SERVER_TODAY = "serverToday"
     private const val REQUEST_RENTAL = "requestRental"
 
-    /** The key and value of a refusal's `details` (see `rentalRequest.ts` in functions/src). */
+    /** A refusal's `details.reason` for days that cannot be requested (`rentalRequest.ts`). */
     private const val DATES_UNAVAILABLE = "DATES_UNAVAILABLE"
+    /** A refusal's `details.reason` for a balance below the price (`wallet.ts`). */
+    private const val INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
   }
 }

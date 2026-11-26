@@ -194,6 +194,16 @@ class PolyLoopDateRangePickerTest {
   }
 
   @Test
+  fun aBalanceTheServerRefusedShowsTheBalanceMessageEvenWhenTheBalanceCoversIt() {
+    setBody(
+        mode = DateRangePickerMode.Request(pricePerDay = 15, balance = 45, balanceRefused = true)
+    )
+    tap(oct(15), oct(17))
+
+    node(C.Tag.date_picker_balance_error).assertIsDisplayed()
+  }
+
+  @Test
   fun monthNavigationMovesBetweenMonthsAndStopsAtWindowEnds() {
     val today = LocalDate.of(2026, 10, 13)
     setBody(
