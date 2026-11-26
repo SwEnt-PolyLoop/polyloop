@@ -1,6 +1,6 @@
 // Made with Claude.
 
-import { parseSplitInput, splitDeposit } from "./disputeRules";
+import { parseLlmAcceptInput, parseSplitInput, splitDeposit } from "./disputeRules";
 import { RequestError } from "./rentalRules";
 
 describe("splitDeposit", () => {
@@ -39,5 +39,25 @@ describe("parseSplitInput", () => {
   it("refuses a missing rental id", () => {
     expect(() => parseSplitInput({ lenderPercent: 50 })).toThrow("rentalId is required.");
     expect(() => parseSplitInput(null)).toThrow(RequestError);
+  });
+});
+
+describe("parseLlmAcceptInput", () => {
+  it("accepts a rental id and a whole attempt number from 1", () => {
+    expect(parseLlmAcceptInput({ rentalId: " r1 ", attempt: 1 })).toEqual({
+      rentalId: "r1",
+      attempt: 1,
+    });
+    expect(parseLlmAcceptInput({ rentalId: "r1", attempt: 3 }).attempt).toBe(3);
+  });
+
+  it("refuses an attempt that is not a whole number from 1", () => {
+    for (const attempt of [0, -1, 1.5, "1", null, undefined]) {
+      expect(() => parseLlmAcceptInput({ rentalId: "r1", attempt })).toThrow(RequestError);
+    }
+  });
+
+  it("refuses a missing rental id", () => {
+    expect(() => parseLlmAcceptInput({ attempt: 1 })).toThrow("rentalId is required.");
   });
 });

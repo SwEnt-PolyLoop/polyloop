@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Firestore, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import {
+  acceptLlmProposal,
   acceptSplit,
   escalateDispute,
   openDispute,
@@ -71,6 +72,7 @@ describe("deployment", () => {
       proposeSplit,
       acceptSplit,
       escalateDispute,
+      acceptLlmProposal,
       openDispute,
       rejectLlmProposal,
       retryLlmProposal,
@@ -113,6 +115,9 @@ describe("what can be sent", () => {
     await expect(escalateDispute.run(asUser(LENDER, {}))).rejects.toMatchObject({
       code: "invalid-argument",
     });
+    await expect(
+      acceptLlmProposal.run(asUser(LENDER, { rentalId: id, attempt: 0 })),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
     for (const fn of [openDispute, rejectLlmProposal, retryLlmProposal]) {
       await expect(fn.run(asUser(LENDER, {}))).rejects.toMatchObject({
         code: "invalid-argument",
@@ -178,6 +183,27 @@ describe("the whole direct settlement", () => {
 });
 
 describe("the whole LLM proposal stage", () => {
+  it("closes the rental once both parties accept the LLM proposal", async () => {
+    const id = await disputed();
+    await escalateDispute.run(asUser(LENDER, { rentalId: id }));
+    // No model is configured in the tests: the proposal is written as draftLlmProposal would.
+    await db
+      .collection("disputes")
+      .doc(id)
+      .update({ llmProposal: { status: "READY", attempt: 1, lenderPercent: 70 } });
+
+    const first = await acceptLlmProposal.run(asUser(LENDER, { rentalId: id, attempt: 1 }));
+    const second = await acceptLlmProposal.run(asUser(BORROWER, { rentalId: id, attempt: 1 }));
+
+    expect([first, second]).toEqual([{}, {}]);
+    const rental = (await db.collection("rentals").doc(id).get()).data();
+    // No deposit was held here, so the chat only says the agreed split.
+    expect(rental).toMatchObject({
+      status: "CLOSED",
+      lastMessage: "Dispute settled · 70% to the lender",
+    });
+  });
+
   it("retries a failed proposal, then sends the dispute to court when a party rejects", async () => {
     const id = await disputed();
     await escalateDispute.run(asUser(LENDER, { rentalId: id }));
