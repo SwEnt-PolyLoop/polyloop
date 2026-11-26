@@ -173,6 +173,9 @@ dependencies {
   implementation(libs.code.scanner)
   // Google Maps SDK for Android, through its Compose wrapper (pickup area on Listing detail)
   implementation(libs.maps.compose)
+  // Local upload queue: sends handover photos taken offline once the phone is online, even after
+  // the app was closed or the phone restarted
+  implementation(libs.work.runtime)
   // Android Studio Preview support
   implementation(libs.compose.preview)
   // Firebase
@@ -203,6 +206,8 @@ dependencies {
   // Kaspresso test framework
   globalTestImplementation(libs.kaspresso)
   globalTestImplementation(libs.kaspresso.compose)
+  // Runs the upload queue's jobs at once in tests, without waiting for a network
+  globalTestImplementation(libs.work.testing)
 }
 
 tasks.withType<Test> {
