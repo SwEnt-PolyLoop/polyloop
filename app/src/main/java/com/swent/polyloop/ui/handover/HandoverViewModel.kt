@@ -219,14 +219,15 @@ data class HandoverUiState(
         showsCode && isHandoverDay && !isDayOver && !isPickedUp && photosNeeded == 0 && code != null
 
   /**
-   * True when "Scan QR code" can be pressed, online or offline: on the handover day and not past
-   * its end, once the user has 3 photos and the fingerprint, and not while a scan is being sent,
-   * once one is confirmed, queued or the rental is picked up, or once the server said the rental
-   * changed.
+   * True when "Scan QR code" can be pressed: on the handover day and not past its end, once the
+   * user has 3 photos and the fingerprint, and not while a scan is being sent, once one is
+   * confirmed, queued or the rental is picked up, or once the server said the rental changed.
+   * Offline, only the pickup can be scanned (into the upload queue); the return needs a connection.
    */
   val canScan: Boolean
     get() =
         phase != null &&
+            (phase == HandoverPhase.PICKUP || !isOffline) &&
             !showsCode &&
             isHandoverDay &&
             !isDayOver &&

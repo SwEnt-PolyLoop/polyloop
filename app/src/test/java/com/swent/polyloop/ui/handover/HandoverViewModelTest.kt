@@ -1713,6 +1713,18 @@ class HandoverViewModelTest {
   }
 
   @Test
+  fun offlineOnlyThePickupCanBeScanned() {
+    val pickup = readyToScan().uiState.value.copy(isOffline = true)
+    assertTrue(pickup.canScan)
+
+    // At return the lender scans, from the return day on; offline the scan is not queued.
+    val atReturn =
+        pickup.copy(phase = HandoverPhase.RETURN, isLender = true, returnDate = pickup.serverToday)
+    assertFalse(atReturn.canScan)
+    assertTrue(atReturn.copy(isOffline = false).canScan)
+  }
+
+  @Test
   fun theRightCodeIsSentAndConfirmed() {
     val vm = readyToScan()
     vm.onCodeScanned("secret-code")
