@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.firebase.Firebase
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.storage.StorageException
 import com.google.firebase.storage.StorageReference
@@ -320,14 +321,19 @@ class StorageRulesTest {
   private fun pickupPhoto(rentalId: String, name: String = slotName(ownerUid, 0)) =
       Firebase.storage.reference.child("rentals/$rentalId/photos/$name")
 
-  /** A rental between the owner and [borrowerUid], written as an admin. Returns its id. */
-  private fun seedRental(borrowerUid: String, status: String = "ACCEPTED") =
+  /**
+   * A rental between the owner and [borrowerUid], written as an admin, with the times of its scans
+   * in [scans] (e.g. "pickedUpAt"). Returns its id.
+   */
+  private fun seedRental(
+      borrowerUid: String,
+      status: String = "ACCEPTED",
+      scans: Map<String, Timestamp> = emptyMap(),
+  ) =
       "rental-${UUID.randomUUID()}"
           .also {
-            FirebaseEmulator.createDocumentAsAdmin(
-                "rentals/$it",
-                mapOf("participants" to listOf(ownerUid, borrowerUid), "status" to status),
-            )
+            val rental = mapOf("participants" to listOf(ownerUid, borrowerUid), "status" to status)
+            FirebaseEmulator.createDocumentAsAdmin("rentals/$it", rental + scans)
           }
 
   @Test
@@ -410,6 +416,23 @@ class StorageRulesTest {
         assertDenied { pickupPhoto(returned, returnSlot).putBytes(bytes, jpeg).await() }
         // A pickup slot is not taken once the item is out.
         assertDenied { pickupPhoto(active).putBytes(bytes, jpeg).await() }
+      }
+
+  @Test
+  fun aPhotoTakenOfflineIsStillUploadedUpToADayAfterItsScan() =
+      runBlocking<Unit> {
+        fun hoursAgo(hours: Long) = Timestamp(Timestamp.now().seconds - hours * 3600, 0)
+        fun scanned(field: String, hours: Long) = mapOf(field to hoursAgo(hours))
+        val justPickedUp = seedRental(OTHER_UID, "ACTIVE", scanned("pickedUpAt", 1))
+        pickupPhoto(justPickedUp).putBytes(bytes, jpeg).await()
+        val pickedUpLongAgo = seedRental(OTHER_UID, "ACTIVE", scanned("pickedUpAt", 25))
+        assertDenied { pickupPhoto(pickedUpLongAgo).putBytes(bytes, jpeg).await() }
+
+        val returnPhoto = slotName(ownerUid, 0, phase = "RETURN")
+        val justReturned = seedRental(OTHER_UID, "RETURNED", scanned("returnedAt", 1))
+        pickupPhoto(justReturned, returnPhoto).putBytes(bytes, jpeg).await()
+        val returnedLongAgo = seedRental(OTHER_UID, "RETURNED", scanned("returnedAt", 25))
+        assertDenied { pickupPhoto(returnedLongAgo, returnPhoto).putBytes(bytes, jpeg).await() }
       }
 
   @Test

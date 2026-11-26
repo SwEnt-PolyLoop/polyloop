@@ -1,0 +1,172 @@
+// Made with Claude.
+
+package com.swent.polyloop.model.handover
+
+import android.content.Context
+import android.net.Uri
+import androidx.work.CoroutineWorker
+import androidx.work.WorkerParameters
+import androidx.work.workDataOf
+import com.google.firebase.Firebase
+import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.auth
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Source
+import com.google.firebase.firestore.firestore
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageException
+import com.google.firebase.storage.StorageReference
+import com.google.firebase.storage.storageMetadata
+import com.swent.polyloop.model.RepositoryProvider
+import com.swent.polyloop.model.firestore.enumOrNull
+import java.io.File
+import java.nio.file.Files
+import java.util.Date
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.tasks.await
+
+/**
+ * Sends one condition photo saved by the upload queue, once the phone is online, even after the app
+ * was closed: its file to Cloud Storage, then its document to Firestore, at the slot and with the
+ * time chosen when it was taken. Sending it again is safe: a photo whose document exists is done,
+ * and a file it already uploaded (tagged with [TAKEN_AT]) is not uploaded twice.
+ *
+ * It succeeds once the document is written, asks to be retried when the connection failed or its
+ * user is signed out, and fails with [REFUSED] in its output when the server refused the photo
+ * (e.g. it arrived more than a day after it was taken), as sending it again would be refused too.
+ * The phone's copy of the file is deleted unless it is retried.
+ *
+ * WorkManager builds it with the context and params only, so [auth], [db] and [storage] take the
+ * app's instances; tests pass others through a WorkerFactory.
+ */
+class HandoverPhotoWorker
+@JvmOverloads
+constructor(
+    context: Context,
+    params: WorkerParameters,
+    private val auth: FirebaseAuth = Firebase.auth,
+    private val db: FirebaseFirestore = Firebase.firestore,
+    // Read when the photo is sent, as the app's Storage is built on first use.
+    private val storage: () -> FirebaseStorage = { RepositoryProvider.storage },
+) : CoroutineWorker(context, params) {
+
+  override suspend fun doWork(): Result {
+    val uid = inputData.getString(UID)
+    val rentalId = inputData.getString(RENTAL_ID)
+    val slotId = inputData.getString(SLOT_ID)
+    val phase = enumOrNull<HandoverPhase>(inputData.getString(PHASE))
+    val takenAt = inputData.getLong(TAKEN_AT, -1)
+    val file = inputData.getString(FILE)?.let(::File)
+    // Signed out: kept, and sent once its user signs in again.
+    val signedIn = auth.currentUser?.uid ?: return Result.retry()
+    // Nothing to send, or another user signed in, whom the rules would refuse it from.
+    if (uid != signedIn || rentalId == null || slotId == null || phase == null || takenAt < 0) {
+      return refused(file)
+    }
+    if (file == null || !file.exists()) return refused(file)
+    val document =
+        db.collection(HandoverFields.RENTALS)
+            .document(rentalId)
+            .collection(HandoverFields.PHOTOS)
+            .document(slotId)
+    return try {
+      if (!document.existsOnServer()) {
+        val ref = storage().reference.child("${document.path}.jpg")
+        // A file already there is reused only if an earlier run of this job uploaded it. Another
+        // one (e.g. a refused photo's) is not this photo: the rules refuse to replace it, so the
+        // photo ends refused instead of being saved with the wrong image.
+        if (ref.takenAtTag() != takenAt.toString()) {
+          val tagged = storageMetadata {
+            contentType = "image/jpeg"
+            setCustomMetadata(TAKEN_AT, takenAt.toString())
+          }
+          ref.putFile(Uri.fromFile(file), tagged).await()
+        }
+        val photo =
+            mapOf(
+                HandoverFields.TAKEN_BY to uid,
+                HandoverFields.PHASE to phase.name,
+                HandoverFields.TAKEN_AT to Timestamp(Date(takenAt)),
+                HandoverFields.URL to ref.downloadUrl.await().toString(),
+            )
+        document.set(photo).await()
+      }
+      deleteCopy(file)
+      Result.success()
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      when {
+        // Also a refusal because the user signed out meanwhile: kept for when they are back.
+        !isRefusal(e) || auth.currentUser == null -> Result.retry()
+        // A write left queued by an earlier run that was stopped may have created it meanwhile.
+        document.existsOnServer() -> Result.success().also { deleteCopy(file) }
+        else -> refused(file)
+      }
+    }
+  }
+
+  private fun refused(file: File?): Result {
+    deleteCopy(file)
+    return Result.failure(workDataOf(REFUSED to true))
+  }
+
+  /**
+   * Deletes the phone's copy of the photo, once it is sent or refused. A copy that cannot be
+   * deleted only takes space, so the job still ends as it would have.
+   */
+  private fun deleteCopy(file: File?) {
+    if (file != null) runCatching { Files.deleteIfExists(file.toPath()) }
+  }
+
+  private suspend fun DocumentReference.existsOnServer() = get(Source.SERVER).await().exists()
+
+  /** The time the file was tagged with when it was uploaded, or null with no file or no tag. */
+  private suspend fun StorageReference.takenAtTag(): String? =
+      try {
+        metadata.await().getCustomMetadata(TAKEN_AT)
+      } catch (e: StorageException) {
+        if (e.errorCode != StorageException.ERROR_OBJECT_NOT_FOUND) throw e
+        null
+      }
+
+  companion object {
+    private val FIRESTORE_REFUSALS =
+        setOf(
+            FirebaseFirestoreException.Code.PERMISSION_DENIED,
+            FirebaseFirestoreException.Code.INVALID_ARGUMENT,
+            FirebaseFirestoreException.Code.UNAUTHENTICATED,
+        )
+    private val STORAGE_REFUSALS =
+        setOf(StorageException.ERROR_NOT_AUTHORIZED, StorageException.ERROR_NOT_AUTHENTICATED)
+
+    /**
+     * Whether [e] means the server will never take the photo: refused by the rules, an invalid
+     * request, or a user it does not accept (e.g. a deleted account; a signed-out user is retried
+     * before this). Any other error, such as a lost connection, is retried: a copy kept too long
+     * only takes space, but a photo deleted by mistake is lost.
+     */
+    private fun isRefusal(e: Exception): Boolean =
+        when (e) {
+          is FirebaseFirestoreException -> e.code in FIRESTORE_REFUSALS
+          is StorageException -> e.errorCode in STORAGE_REFUSALS
+          else -> false
+        }
+
+    /**
+     * The input: who took which photo of which rental, when it was taken (epoch ms), and its file.
+     */
+    const val UID = "uid"
+    const val RENTAL_ID = "rentalId"
+    const val PHASE = "phase"
+    const val SLOT_ID = "slotId"
+    const val TAKEN_AT = "takenAt"
+    const val FILE = "file"
+
+    /** In the output of a failure: the server refused the photo. */
+    const val REFUSED = "refused"
+  }
+}
