@@ -1011,8 +1011,8 @@ class PolyLoopAppTest {
   }
 
   /**
-   * Uses [rental] starting on 1 Oct 2026, with the server's clock at noon in Zurich that day: the
-   * chat's Start pickup shows from the server's day, not the phone's.
+   * Uses [rental] starting on 1 Oct 2026, with the server's clock at noon in Zurich that day: Start
+   * pickup (in the chat and on Rental detail) opens from the server's day, not the phone's.
    */
   private fun useRentalOnItsPickupDay() {
     val pickupDay = LocalDate.of(2026, 10, 1)
@@ -1055,11 +1055,7 @@ class PolyLoopAppTest {
 
   @Test
   fun aDoubleTapOnStartPickupOnRentalDetailOpensOneHandover() {
-    val today = LocalDate.now()
-    RepositoryProvider.rentalRepository =
-        FakeRentalRepository(
-            rentals = listOf(rental.copy(startDate = today, endDate = today.plusDays(2)))
-        )
+    useRentalOnItsPickupDay()
     currentUser = AuthUser("uid", "john@epfl.ch", "John Doe")
     setApp()
     composeTestRule.runOnUiThread {
