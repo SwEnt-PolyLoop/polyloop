@@ -34,12 +34,16 @@ const ASKED_REASONING_LENGTH = 1200;
 /** The highest share of the deposit, in percent. */
 const MAX_PERCENT = 100;
 
-/** The shape of the model's answer, enforced by the provider's structured output. */
+/**
+ * The shape of the model's answer, enforced by the provider's structured output. The reasoning's
+ * cap is in the schema too, so the model knows it: at temperature 0, a longer answer would be
+ * refused the same way on every try.
+ */
 export const ANSWER_SCHEMA: JsonSchema = {
   type: "object",
   properties: {
     lenderPercent: { type: "integer", minimum: 0, maximum: MAX_PERCENT },
-    reasoning: { type: "string" },
+    reasoning: { type: "string", maxLength: MAX_REASONING_LENGTH },
   },
   required: ["lenderPercent", "reasoning"],
 };
